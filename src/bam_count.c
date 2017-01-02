@@ -18,14 +18,14 @@ static int usage()
     fprintf(stderr, "    -tag        [CB]    Specify cell barcode tag.\n");
     fprintf(stderr, "    -anno-tag   [GN]    Annotation attribute.\n");
     fprintf(stderr, "    -list       [FILE]  Barcode list, white list, used as column names at matrix. If not set all barcodes will be count.\n");
+    fprintf(stderr, "    -tab                Output in three column format. Name\\tCB\\tCount\n");
     fprintf(stderr, "    -o          [FILE]  Output matrix.\n");
     fprintf(stderr, "    -umi        [UY]    UMI tag. Count once if more than one record has same UMI which overlapped with a region.\n");
-    fprintf(stderr, "    -dis_corr           Disable correct UMI. Default all UMIs with 1 mismatch distance to each other are collapsed\n");
+    fprintf(stderr, "    -dis-corr           Disable correct UMI. Default all UMIs with 1 mismatch distance to each other are collapsed\n");
     fprintf(stderr, "    -q          [INT]   Minimal map quality to filter. [20]\n");
     fprintf(stderr, "    -count      [FILE]  UMI,Gene,Saturation per cell barcode.\n");
     fprintf(stderr, "    -@          [5]     Threads to read bam file.\n");
     fprintf(stderr,"\n");
-
     return 1;
 }
 struct cell_barcode_counts {
@@ -44,6 +44,7 @@ static struct args {
     const char *output_fname;
     const char *umi_tag;
     const char *count_fname; // umi per cell barcode
+    int mtx_fmt;
     int mapq_thres;
     int dis_corr_umi;
     int file_thread;
@@ -61,6 +62,7 @@ static struct args {
     .file_thread = 5,
     .count_fname = NULL,
     .CBC = NULL,
+    .mtx_fmt=1,
 };
 // if not set white list, dynamic allocate barcodes list
 static int no_white_list = 0;
@@ -78,10 +80,11 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-anno-tag") == 0 || strcmp(a, "-anno_tag") == 0) var = &args.anno_tag;
         else if (strcmp(a, "-list") == 0) var = &args.whitelist_fname;
         else if (strcmp(a, "-umi") == 0) var = &args.umi_tag;
+        else if (strcmp(a, "-tab") == 0) args.mtx_fmt = 0;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-q") == 0) var = &mapq;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
-        else if (strcmp(a, "-dis_corr") == 0) {
+        else if (strcmp(a, "-dis-corr") == 0||strcmp(a, "-dis_corr")==0) {
             args.dis_corr_umi = 1;
             continue;
         }
@@ -443,21 +446,32 @@ int count_matrix(int argc, char **argv)
     if (ret != -1) warnings("Truncated file?");   
 
     // header
-    int i, j;
     if (out) {
-        fputs("ID", out);
-        for (j = 0; j < lb->n; ++j) 
-            fprintf(out, "\t%s",lb->b[j].s);
-        fputc('\n', out);
-        for (i = 0; i < n; ++i) {
-            fprintf(out, "%s", reg[i]);
-            for (j = 0; j < lb->n; ++j)   fprintf(out, "\t%d", v[i].n <= j || v[i].v[j] == NULL ? 0 : v[i].v[j]->c);
+        if (args.mtx_fmt == 1) {
+            int i, j;
+            fputs("ID", out);
+            for (j = 0; j < lb->n; ++j) 
+                fprintf(out, "\t%s",lb->b[j].s);
             fputc('\n', out);
+            for (i = 0; i < n; ++i) {
+                fprintf(out, "%s", reg[i]);
+                for (j = 0; j < lb->n; ++j)   fprintf(out, "\t%d", v[i].n <= j || v[i].v[j] == NULL ? 0 : v[i].v[j]->c);
+                fputc('\n', out);
+            }
+        }
+        else {
+            int i, j;
+            for (i = 0; i < n; ++i) {
+                for (j = 0; j < lb->n; ++j) {
+                    if (v[i].v[j] != NULL && v[i].v[j]->c > 0)
+                        fprintf(out, "%s\t%s\t%d\n",reg[i],lb->b[j].s, v[i].v[j]);
+                }
+            }
         }
         fclose(out);
     }
-
     kh_destroy(name,hash);
+    int i;
     for (i = 0; i < n; ++i) {
         free(reg[i]);
         mtx_counts_v_clean(&v[i]);

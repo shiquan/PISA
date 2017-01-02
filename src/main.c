@@ -5,7 +5,7 @@
 
 int usage()
 {
-    fprintf(stderr, "\nLISA - Collection of tools to process single cell omics data.\n");
+    fprintf(stderr, "\nPISA - a Preprocessing and In silico dissecting toolkit for Single-cell data Analysis.\n");
     fprintf(stderr, "Version : %s + htslib : %s\n", SINGLECELL_VERSION, HTS_VERSION);
     fprintf(stderr, "\nCommands :\n");
     fprintf(stderr, "\n--- Processing FASTQ\n");
@@ -14,7 +14,6 @@ int usage()
     fprintf(stderr, "    fsort      Sort fastq records by tags.\n");
     fprintf(stderr, "    unitig     Construct unitigs by tags.\n");
     fprintf(stderr, "    segment    Trim predefined segments from untigs.\n");
-
     
     fprintf(stderr, "\n--- Processing BAM\n");
     fprintf(stderr, "    sam2bam    Convert SAM to BAM, and transform tags from read name to standard SAM tags.\n");
@@ -29,7 +28,6 @@ int usage()
     fprintf(stderr, "    genecov    Calculate reads coverage over gene body.\n");
     fprintf(stderr, "    bam2frag   Convert bam to bgzipped fragment file.\n");
     fprintf(stderr, "    impute     Impute tags in BAM.\n");
-
     
     // fprintf(stderr, "\n--- Processing scLFR reads. *experimental*\n");
     // fprintf(stderr, "    assem      Assem reads per fastq block (specified with -tag, fastq need be sorted)\n");

@@ -689,7 +689,31 @@ static struct fastq_dedup_pool *dedup_it(struct fastq_dedup_pool *p)
         for (k = r->offset; p->buf[k] != '\n'; ++k) kputc(p->buf[k], &str);
         kstring_t temp = {0,0,0};
         ksprintf(&temp,"|||%s:i:%d",args.dup_tag, r->dup);
-        kputs(temp.s, &str);
+        kputs(temp.s, &str);        
+        kputc(p->buf[k++], &str); // push \n to buf
+        for ( ; p->buf[k] != '\n' && p->buf[k] != '\0'; ++k) kputc(p->buf[k], &str); // str
+        if (p->buf[k] == '\0') {
+            kputc('\n', &str);
+            free(temp.s);
+            continue; // fasta format
+        }
+        
+        kputc(p->buf[k++], &str); // push \n to buf
+        // + line
+        for ( ; p->buf[k] != '\n' && p->buf[k] != '\0'; ++k) kputc(p->buf[k], &str); // str
+        kputc(p->buf[k++], &str); // push \n to buf
+        // qual line
+        for ( ; p->buf[k] != '\n' && p->buf[k] != '\0'; ++k) kputc(p->buf[k], &str); // str
+        if (p->buf[k] == '\0') {
+            kputc('\n', &str);
+            free(temp.s);
+            continue; // single-end fastq format
+        }
+        kputc(p->buf[k++], &str); // push \n to buf
+
+        // paired end fastq
+        for (k = r->offset; p->buf[k] != '\n'; ++k) kputc(p->buf[k], &str);
+        kputs(temp.s, &str); // push dup tag to read name        
         kputs(p->buf+k, &str);
         kputc('\n', &str);
         free(temp.s);

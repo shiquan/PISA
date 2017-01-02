@@ -210,6 +210,11 @@ static char *generate_names(char **names)
         if (names[i] == NULL) continue;
         kputs(names[i],&str);
     }
+    for (i = 0; i < dict_size(args.tag_dict); ++i) {
+        if (names[i] == NULL) continue;
+        ksprintf(&str,"|||%s:Z:%s",dict_name(args.tag_dict,i),names[i]);
+    }
+    
     return str.s;
 }
 static struct read_block *read_block()
@@ -286,9 +291,6 @@ void push_str_base(struct base_v *v, char *s)
     v->l += l+1;
     free(e);
 }
-
-extern int merge_paired(const int l_seq1, const int l_seq2, char const *s1, char const *s2, char const *q1, char const *q2, char **_seq, char **_qual);
-
 
 static struct base_v *rend_bseq(struct read_block *b)
 {
@@ -393,6 +395,7 @@ static uint64_t bwt_backward_search(const rld_t *e, int len, const uint8_t *str,
 	*sa_beg = k; *sa_end = l;
 	return l - k;
 }
+/*
 static int bwt_ext(const rld_t *e, uint64_t st, uint64_t ed, uint64_t *k0)
 {
     uint64_t i;
@@ -411,6 +414,7 @@ static int bwt_ext(const rld_t *e, uint64_t st, uint64_t ed, uint64_t *k0)
     }
     return j;
 }
+*/
 static rld_t *bwt_build_core(rld_t *e0, int asize, int sbits, int64_t l, uint8_t *s)
 {
 	rld_t *e;
@@ -493,8 +497,8 @@ static void *run_it(void *_d)
     //debug_print("%s", b->name);
     // Step 3: adaptors and polyTs, if no just skip this block
 
-    int has_seed = 0;
-    int has_poly = 0;
+    //int has_seed = 0;
+    //int has_poly = 0;
     if (args.l_seed) {        
         uint64_t n;
         uint64_t st = 0, ed = 0;
@@ -505,18 +509,22 @@ static void *run_it(void *_d)
     }
 
     struct ret_block *r = ret_block_build();
-    if (has_seed && has_poly) r->full=1;
-    else if (has_seed || has_poly) r->part = 1;
+    // if (has_seed && has_poly) r->full=1;
+    // else if (has_seed || has_poly) r->part = 1;
     
     // Step 4: construct unitigs
     mag_t *g = fml_fmi2mag(args.assem_opt, e);
+    // mag_g_print(g);
     kstring_t s = {0,0,0};        
     int i;
     for (i = 0; i < g->v.n; ++i) {
         magv_t *v = &g->v.a[i];
-        ksprintf(&s, ">%d_%d%s\n", i, v->nsr, b->name);
+        if (v->len < 0) continue;
+        ksprintf(&s, "@%d_%s|||SR:i:%d\n",i, b->name,v->nsr);
         int j;
         for (j = 0; j < v->len; ++j) kputc("$ACGTN"[(int)v->seq[j]], &s);
+        kputs("\n+\n", &s);
+        kputsn(v->cov, v->len, &s);
         kputc('\n', &s);            
     }
     if (s.l == 0) {
@@ -592,10 +600,10 @@ int LFR_unitig(int argc, char **argv)
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
 
-    fprintf(stderr, "Filter block: %"PRIu64"\n", args.filter_block);
-    fprintf(stderr, "Assembled block: %"PRIu64"\n", args.assem_block);
-    fprintf(stderr, "Block with full pattern: %"PRIu64"\n", args.full_covered);
-    fprintf(stderr, "Block with partly pattern: %"PRIu64"\n", args.part_covered);
+    fprintf(stderr, "Filter block,%"PRIu64"\n", args.filter_block);
+    fprintf(stderr, "Assembled block,%"PRIu64"\n", args.assem_block);
+    fprintf(stderr, "Block with full pattern, %"PRIu64"\n", args.full_covered);
+    fprintf(stderr, "Block with partly pattern,%"PRIu64"\n", args.part_covered);
     memory_release();
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;
