@@ -90,14 +90,14 @@ int bam_anno_attr(int argc, char *argv[])
             int id = bed_select_chrom(bed, name);
             if (id == -1) {
                 last = NULL;
-                if (sam_write1(out, hdr, b)) error("Failed to write SAM.");
+                if (sam_write1(out, hdr, b) == -1) error("Failed to write SAM.");
                 continue;
             }
             last = &bed->c[id];
             i_bed = 0;
         }
         if (i_bed == -2) { // out range of bed
-            if (sam_write1(out, hdr, b)) error("Failed to write SAM.");
+            if (sam_write1(out, hdr, b) == -1) error("Failed to write SAM.");
             continue;
         }
         for (;;) {
@@ -108,12 +108,12 @@ int bam_anno_attr(int argc, char *argv[])
 
         if (i_bed == last->n) {
             i_bed = -2;
-            if (sam_write1(out, hdr, b)) error("Failed to write SAM.");
+            if (sam_write1(out, hdr, b)== -1) error("Failed to write SAM.");
             continue;
         }
         int end = c->pos + c->l_qseq;
         if (end < last->b[i_bed].start) { // read align before region
-            if (sam_write1(out, hdr, b)) error("Failed to write SAM.");
+            if (sam_write1(out, hdr, b) == -1) error("Failed to write SAM.");
             continue;       
         }
         
@@ -128,7 +128,7 @@ int bam_anno_attr(int argc, char *argv[])
         }
         else kputs(last->b[i_bed].name, &str);
         bam_aux_append(b, args.tag, 'Z', str.l+1, (uint8_t*)str.s);
-        if (sam_write1(out, hdr, b)) error("Failed to write SAM.");
+        if (sam_write1(out, hdr, b) == -1) error("Failed to write SAM.");
     }
 
     bam_destroy1(b);
