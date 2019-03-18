@@ -43,7 +43,7 @@ liba.a: $(LIB_OBJ)
 test: $(HTSLIB) version.h
 
 SingleCellTools: $(HTSLIB)
-	$(CC) $(CFLAGS) $(INCLUDES) src/main.c src/bam_anno.c src/bam_count.c src/barcode_list.c src/bed_lite.c src/number.c $(HTSLIB) $(LIBS) -o $@
+	$(CC) $(CFLAGS) $(INCLUDES) src/main.c src/bam_anno.c src/bam_count.c src/bam_pick.c src/barcode_list.c src/bed_lite.c src/number.c $(HTSLIB) $(LIBS) -o $@
 
 clean: testclean
 	-rm -f gmon.out *.o *~ $(PROG) version.h 

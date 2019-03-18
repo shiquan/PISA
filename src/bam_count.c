@@ -157,8 +157,9 @@ int bam_count_attr(int argc, char *argv[])
             fprintf(out, "\t%u", data->c[j]);
         fputc('\n', out);
         if (data->c) free(data->c);
-        free(data);
+        free(data);        
     }
+    barcode_destory(barcode);
     fclose(out);
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;    

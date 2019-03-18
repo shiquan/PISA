@@ -54,9 +54,19 @@ struct lbarcode *barcode_init()
     lb->hash = (void*)h;
     return lb;
 }
+void barcode_destory(struct lbarcode *b)
+{
+    int i;
+    for (i = 0; i < b->n; ++i) 
+        free(b->b[i].s);
+    free(b->b);
+    kh_destroy(tag, (taghash_t*)b->hash);
+    free(b);
+}
 int barcode_read(struct lbarcode *lb, const char *fname)
 {
     lb->b = init_barcode_list(fname, &lb->n, &lb->m);
+    if (lb->n == 0) return 1;
     khint_t k;
     int i;
     int ret;
