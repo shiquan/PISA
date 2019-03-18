@@ -77,8 +77,9 @@ struct count {
 static struct count *count_init(int n)
 {
     struct count *c = malloc(sizeof(*c));
-    memset(c, 0, sizeof(*c));
+    //memset(c, 0, sizeof(*c));
     c->c = calloc(n, sizeof(uint32_t));
+    c->raw = 0;
     return c;
 }
 int bam_count_attr(int argc, char *argv[])

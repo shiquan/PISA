@@ -84,7 +84,7 @@ int barcode_push(struct lbarcode *lb, char *s)
     if (ret != -1) return ret;
     if (lb->n == lb->m) {
         lb->m = lb->m == 0 ? 100 : lb->m<<1;
-        lb->b = realloc(lb->b, sizeof(char*)*lb->m);
+        lb->b = realloc(lb->b, sizeof(struct barcode)*lb->m);
     }
     struct barcode *b = &lb->b[lb->n];
     b->s =strdup(s);
