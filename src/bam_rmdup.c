@@ -154,7 +154,10 @@ static struct sam_pool *sam_pool_read(htsFile *fp, int bufsize)
         bam1_t *b = bam_init1();
         bam1_core_t *c = &b->core;
         ret = sam_read1(fp, args.hdr, b);
-        if (ret < 0) break;
+        if (ret < 0) {
+            bam_destroy1(b);
+            break;
+        }
         if (last_tid == -1) last_tid = c->tid;
         if (last_tid != c->tid) { // for different chrom, donot put into one pool
             last_end = -1;
@@ -314,9 +317,7 @@ static void push_stack(struct sam_stack_buf *buf, bam1_t *b)
     }
     buf->p[buf->n++] = b;
 }
-static void *run_it_SE(void *_p, int idx)
-{
-}
+
 static void *run_it(void *_p, int idx)
 {
     struct sam_pool *p = (struct sam_pool*)_p;
@@ -381,7 +382,9 @@ int bam_rmdup(int argc, char **argv)
                 if ((r = thread_pool_next_result(q))) {
                     struct sam_pool *d = (struct sam_pool*)r->data;
                     write_out(d);
+                    thread_pool_delete_result(r, 0);
                 }
+
             }
             while (block == -1);
         }
@@ -390,8 +393,8 @@ int bam_rmdup(int argc, char **argv)
         while ((r = thread_pool_next_result(q))) {
             struct sam_pool *d = (struct sam_pool*)r->data;
             write_out(d);
+            thread_pool_delete_result(r, 0);
         }
-
         thread_pool_process_destroy(q);
         thread_pool_destroy(p);
     }
