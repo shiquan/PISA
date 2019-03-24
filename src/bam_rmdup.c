@@ -168,7 +168,7 @@ static struct sam_pool *sam_pool_read(htsFile *fp, int bufsize)
         //debug_print("%s\t%d\t%d\t%d", args.hdr->target_name[c->tid],c->pos+1, c->isize, last_end);
         
         if (i >= bufsize) { // start check ends
-            if (c->isize >= 0 && c->tid == last_tid && c->pos > last_end) {
+            if (c->tid == last_tid && c->pos > last_end && c->mpos > c->pos) {
                 args.last_bam = b;
                 break;
             }
@@ -177,7 +177,7 @@ static struct sam_pool *sam_pool_read(htsFile *fp, int bufsize)
         push_sam_pool(b, p);
         i++;        
     }
-    debug_print("last_end: %d, p->n:%d", last_end, p->n);
+    debug_print("last_end: %d, p->n:%d, bufsize: %d", last_end, p->n, bufsize);
     if (p->n == 0) {
         free(p);
         return NULL;
@@ -235,7 +235,7 @@ static void dump_best(struct sam_stack_buf *buf, khash_t(name) *best_first, stru
     bam1_t *pp = NULL; // point to best
     int ret;
     khint_t k;
-    debug_print("stack->n %d, %d", buf->n, buf->p[0]->core.pos +1);
+    //  debug_print("stack->n %d, %d", buf->n, buf->p[0]->core.pos +1);
     if (buf->n == 0) error("Empty stack.");
     int i, j = 0;
     int isize = -1;
