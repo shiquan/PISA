@@ -214,6 +214,7 @@ static void write_out(struct sam_pool *p)
     }
     free(p->bam);
     free(p);
+    debug_print("Out.");
 }
 struct sam_stack_buf {
     int n, m;
