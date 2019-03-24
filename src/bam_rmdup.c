@@ -121,6 +121,8 @@ static void memory_release()
     hts_close(args.fp);
     bgzf_close(args.out);
     bam_hdr_destroy(args.hdr);
+    for (i = 0; i < args.n_tag; ++i) free(args.tags[i]);
+    free(args.tags);
 }
 // todo: improve allocated and free SAM pool
 struct sam_pool {
