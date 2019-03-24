@@ -380,6 +380,7 @@ int bam_rmdup(int argc, char **argv)
         for (;;) {
             struct sam_pool *b = sam_pool_read(args.fp, args.bufsize);
             if (b == NULL) break;
+            
             int block;
             do {
                 block = thread_pool_dispatch2(p, q, run_it, b, 0);
@@ -395,6 +396,7 @@ int bam_rmdup(int argc, char **argv)
         thread_pool_process_flush(q);
 
         while ((r = thread_pool_next_result(q))) {
+            debug_print("TEST");
             struct sam_pool *d = (struct sam_pool*)r->data;
             write_out(d);
             thread_pool_delete_result(r, 0);
