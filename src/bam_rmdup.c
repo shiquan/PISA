@@ -188,7 +188,7 @@ static struct sam_pool *sam_pool_read(htsFile *fp, int bufsize)
         push_sam_pool(b, p);
         i++;
     }
-    debug_print("last_end: %d, p->n:%d, bufsize: %d", last_end, p->n, bufsize);
+    // debug_print("last_end: %d, p->n:%d, bufsize: %d", last_end, p->n, bufsize);
     if (p->n == 0) {
         free(p);
         return NULL;
@@ -214,7 +214,7 @@ static void write_out(struct sam_pool *p)
     }
     free(p->bam);
     free(p);
-    debug_print("Out.");
+    // debug_print("Out.");
 }
 struct sam_stack_buf {
     int n, m;
@@ -394,13 +394,6 @@ int bam_rmdup(int argc, char **argv)
             while (block == -1);
         }
         thread_pool_process_flush(q);
-
-        while ((r = thread_pool_next_result(q))) {
-            debug_print("TEST");
-            struct sam_pool *d = (struct sam_pool*)r->data;
-            write_out(d);
-            thread_pool_delete_result(r, 0);
-        }
         thread_pool_process_destroy(q);
         thread_pool_destroy(p);
     }
