@@ -57,6 +57,8 @@ static int parse_args(int argc, char **argv)
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
+        if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
+        
         if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-tag") == 0) var = &args.tag_string;
         else if (strcmp(a, "-t") == 0) var = &thread;
