@@ -168,7 +168,7 @@ static struct sam_pool *sam_pool_read(htsFile *fp, int bufsize)
         //debug_print("%s\t%d\t%d\t%d", args.hdr->target_name[c->tid],c->pos+1, c->isize, last_end);
         
         if (i >= bufsize) { // start check ends
-            if (c->tid == last_tid && c->pos > last_end && c->mpos > c->pos) {
+            if (last_end > 0 && c->tid == last_tid && c->pos > last_end && c->mpos > c->pos) {
                 args.last_bam = b;
                 break;
             }
