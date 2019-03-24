@@ -3,6 +3,7 @@
 #include "htslib/sam.h"
 #include "htslib/khash.h"
 #include "htslib/bgzf.h"
+#include "htslib/kstring.h"
 #include "number.h"
 
 KHASH_SET_INIT_STR(name)
@@ -20,10 +21,12 @@ static int usage()
 static struct args {
     const char *input_fname;
     const char *output_fname;
-    const char *tag;
+    const char *tag_string;
     int n_thread;
     int keep_dup;
     int bufsize;
+    int n_tag;
+    char **tags;
     
     bam1_t *last_bam;
 
@@ -34,12 +37,14 @@ static struct args {
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
-    .tag = NULL,
+    .tag_string = NULL,
     .n_thread = 5,
     .keep_dup = 0,
     .bufsize = 1000000, // 10M
     .last_bam = NULL,
-
+    .n_tag = 0,
+    .tags = NULL,
+    
     .fp = NULL,
     .out = NULL,
     .hdr = NULL,
@@ -53,7 +58,7 @@ static int parse_args(int argc, char **argv)
         const char *a = argv[i++];
         const char **var = 0;
         if (strcmp(a, "-o") == 0) var = &args.output_fname;
-        else if (strcmp(a, "-tag") == 0) var = &args.tag;
+        else if (strcmp(a, "-tag") == 0) var = &args.tag_string;
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-r") == 0) var = &chunk_size;
         else if (strcmp(a, "-kd") == 0) {
@@ -78,8 +83,21 @@ static int parse_args(int argc, char **argv)
 
     if (args.input_fname == NULL) error("No input BAM.");
     if (args.output_fname == NULL) error("No output BAM specified.");
+    if (args.tag_string == NULL) error("No tag specified.");
+    
     if (thread) args.n_thread = str2int((char*)thread);
     if (chunk_size) args.bufsize = str2int((char*)chunk_size);
+
+    kstring_t str = {0,0,0};
+    kputs(args.tag_string, &str);
+    int *s = ksplit(&str, ',', &args.n_tag);
+    if (args.n_tag == 0) error("No tags.");
+    int j;
+    args.tags = malloc(args.n_tag*sizeof(char*));
+    for (j = 0; j < args.n_tag; ++j)
+        args.tags[j] = strdup(str.s+s[j]);
+    free(s);
+    free(str.s);
     
     args.fp = hts_open(args.input_fname, "r");
     CHECK_EMPTY(args.fp, "%s : %s.", args.input_fname, strerror(errno));
@@ -93,6 +111,7 @@ static int parse_args(int argc, char **argv)
     args.out = bgzf_open(args.output_fname, "w");
     CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
     if (bam_hdr_write(args.out, args.hdr) == -1) error("Failed to write SAM header.");
+    
     return 0;
 }
 static void memory_release()
@@ -196,8 +215,19 @@ static inline int sum_qual(const bam1_t *b)
     for (i = q = 0; i < b->core.l_qseq; ++i) q += qual[i];
     return q;
 }
-
-static void dump_best(struct sam_stack_buf *buf, khash_t(name) *best_first)
+static inline char *pick_tag_name(const bam1_t *b, int n_tag, char **tags)
+{
+    kstring_t str = {0,0,0};
+    const bam1_core_t *c = &b->core;
+    int i;
+    for (i = 0; i < args.n_tag; ++i) {
+        uint8_t *tag = bam_aux_get(b, args.tags[i]);
+        if (!tag) error("No %s tag at alignment. %d:%d", args.tags[i], c->tid, c->pos+1);
+        kputs((char*)tag, &str);
+    }
+    return str.s;
+}
+static void dump_best(struct sam_stack_buf *buf, khash_t(name) *best_first, struct args *opts)
 {
     // pick read id to  best_first
     bam1_t *pp = NULL; // point to best
@@ -206,11 +236,11 @@ static void dump_best(struct sam_stack_buf *buf, khash_t(name) *best_first)
     debug_print("stack->n %d, %d", buf->n, buf->p[0]->core.pos +1);
     if (buf->n == 0) error("Empty stack.");
     int i, j = 0;
-    int isize;
-    
+    int isize = -1;
+    char *last_tag = NULL;
     for (;;) {
         // for reads start from same location, but has different isize or barcodes, we divide reads has same isize and barcodes into one group
-        isize = buf->p[j]->core.isize;
+        // isize = buf->p[j]->core.isize;
         for (i = j; i < buf->n; ++i) {
 
             if (i==j) j = -1; // reset j in this cycle and set to iter at end of this cycle of next group
@@ -229,11 +259,16 @@ static void dump_best(struct sam_stack_buf *buf, khash_t(name) *best_first)
                 buf->p[i] = NULL;
             }
             else {
-                if (c->isize == isize) {
-                    if (pp == NULL) {
-                        pp = b;
-                        continue;
-                    }
+                char *tag_string = pick_tag_name(b, opts->n_tag, opts->tags);
+                if (pp == NULL) {
+                    isize = c->isize;
+                    pp = b;
+                    if (last_tag) free(last_tag);
+                    last_tag = tag_string;
+                    continue;
+                }
+                if (c->isize == isize && strcmp(last_tag, tag_string) == 0) {
+                    
                     if (sum_qual(pp) > sum_qual(b)) {
                         c->flag |= BAM_FDUP;
                     }
@@ -247,6 +282,7 @@ static void dump_best(struct sam_stack_buf *buf, khash_t(name) *best_first)
                 else {
                     if (j == -1) j = i;
                 }
+                free(tag_string);
             }
         }
         // debug_print("j: %d, isize: %d",j, isize);
@@ -254,6 +290,8 @@ static void dump_best(struct sam_stack_buf *buf, khash_t(name) *best_first)
             k = kh_put(name, best_first, bam_get_qname(pp), &ret);
             // debug_print("%s", bam_get_qname(pp));
             pp = NULL;
+            free(last_tag);
+            last_tag = NULL;
         }
 
         if (j == -1) break; // no more groups
@@ -274,7 +312,7 @@ static void *run_it(void *_p, int idx)
     struct sam_pool *p = (struct sam_pool*)_p;
     struct sam_stack_buf buf;
     memset(&buf, 0, sizeof(struct sam_stack_buf));
-
+    struct args *opts = p->opts;
     // debug_print("p->n: %d", p->n);
     khash_t(name) *best_first = kh_init(name);
     
@@ -289,7 +327,7 @@ static void *run_it(void *_p, int idx)
         if (last_pos == -1) last_pos = c->pos;
         if (last_tid == -1) last_tid = c->tid;
         if (c->tid != last_tid || last_pos != c->pos) {
-            if (buf.n > 0) dump_best(&buf, best_first);
+            if (buf.n > 0) dump_best(&buf, best_first, opts);
             last_tid = c->tid;
             last_pos = c->pos;
         }
@@ -299,7 +337,7 @@ static void *run_it(void *_p, int idx)
         if ( !(c->flag&BAM_FPAIRED) || (c->flag&(BAM_FUNMAP|BAM_FMUNMAP)) || (c->mtid >= 0 && c->tid != c->mtid)) continue;
         push_stack(&buf, b);
     }
-    if (buf.n > 0) dump_best(&buf, best_first);
+    if (buf.n > 0) dump_best(&buf, best_first, opts);
     kh_destroy(name, best_first);
     return p;
 }
