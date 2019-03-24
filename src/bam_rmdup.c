@@ -163,19 +163,24 @@ static struct sam_pool *sam_pool_read(htsFile *fp, int bufsize)
             break;
         }
         
-        if (c->mpos > c->pos && last_end < c->mpos) last_end = c->mpos;        
+        if (c->mtid >= 0 && c->mpos > c->pos && last_end < c->mpos) last_end = c->mpos;        
 
         //debug_print("%s\t%d\t%d\t%d", args.hdr->target_name[c->tid],c->pos+1, c->isize, last_end);
         
         if (i >= bufsize) { // start check ends
-            if (last_end > 0 && c->tid == last_tid && c->pos > last_end && c->mpos > c->pos) {
+            if (last_end == -1) { //SE
+                args.last_bam = b;
+                break;
+            }
+            
+            if (c->pos > last_end && c->mpos > c->pos) {
                 args.last_bam = b;
                 break;
             }
         }
         
         push_sam_pool(b, p);
-        i++;        
+        i++;
     }
     debug_print("last_end: %d, p->n:%d, bufsize: %d", last_end, p->n, bufsize);
     if (p->n == 0) {
@@ -308,6 +313,9 @@ static void push_stack(struct sam_stack_buf *buf, bam1_t *b)
         buf->p = realloc(buf->p, buf->m*sizeof(void*));
     }
     buf->p[buf->n++] = b;
+}
+static void *run_it_SE(void *_p, int idx)
+{
 }
 static void *run_it(void *_p, int idx)
 {
