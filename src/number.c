@@ -269,6 +269,25 @@ int check_num_likely_l(const char *str, int l)
     }
     return 1;
 }
+int check_char_num(const char x)
+{
+    switch(x) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            return 1;
+        default:
+            return 0;
+    }    
+    return 0;
+}
 
 double force2num(char *str)
 {
