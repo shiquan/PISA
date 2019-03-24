@@ -1,5 +1,5 @@
 #include "utils.h"
-#include "thread_pool.h"
+#include "htslib/thread_pool.h"
 #include "htslib/sam.h"
 #include "htslib/khash.h"
 #include "htslib/bgzf.h"
@@ -188,7 +188,7 @@ static struct sam_pool *sam_pool_read(htsFile *fp, int bufsize)
         push_sam_pool(b, p);
         i++;
     }
-    // debug_print("last_end: %d, p->n:%d, bufsize: %d", last_end, p->n, bufsize);
+    //debug_print("last_end: %d, p->n:%d, bufsize: %d", last_end, p->n, bufsize);
     if (p->n == 0) {
         free(p);
         return NULL;
@@ -322,13 +322,13 @@ static void push_stack(struct sam_stack_buf *buf, bam1_t *b)
     buf->p[buf->n++] = b;
 }
 
-static void *run_it(void *_p, int idx)
+static void *run_it(void *_p)
 {
     struct sam_pool *p = (struct sam_pool*)_p;
     struct sam_stack_buf buf;
     memset(&buf, 0, sizeof(struct sam_stack_buf));
     struct args *opts = p->opts;
-    debug_print("p->n: %d", p->n);
+    // debug_print("p->n: %d", p->n);
     khash_t(name) *best_first = kh_init(name);
     
     int i;
@@ -354,6 +354,7 @@ static void *run_it(void *_p, int idx)
     }
     if (buf.n > 0) dump_best(&buf, best_first, opts);
     kh_destroy(name, best_first);
+    // debug_print("finished. p->n: %d", p->n);
     return p;
 }
 
@@ -368,14 +369,17 @@ int bam_rmdup(int argc, char **argv)
         for (;;) {
             struct sam_pool *b = sam_pool_read(args.fp, args.bufsize);
             if (b == NULL) break;
-            b = run_it(b, 0);
+            b = run_it(b);
             write_out(b);
         }
     }
     else {
-        struct thread_pool *p = thread_pool_init(args.n_thread);
-        struct thread_pool_process *q = thread_pool_process_init(p, args.n_thread*2, 0);
-        struct thread_pool_result *r;
+        hts_tpool *p = hts_tpool_init(args.n_thread);
+        hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+        hts_tpool_result *r;
+        //struct thread_pool *p = thread_pool_init(args.n_thread);
+        //struct thread_pool_process *q = thread_pool_process_init(p, args.n_thread*2, 0);
+        //struct thread_pool_result *r;
 
         for (;;) {
             struct sam_pool *b = sam_pool_read(args.fp, args.bufsize);
@@ -383,19 +387,32 @@ int bam_rmdup(int argc, char **argv)
             
             int block;
             do {
-                block = thread_pool_dispatch2(p, q, run_it, b, 0);
-                if ((r = thread_pool_next_result(q))) {
-                    struct sam_pool *d = (struct sam_pool*)r->data;
+                // block = thread_pool_dispatch2(p, q, run_it, b, 1);
+                block = hts_tpool_dispatch2(p, q, run_it, b, 1);
+                if ((r = hts_tpool_next_result(q))) {
+                //if ((r = thread_pool_next_result(q))) {
+                    struct sam_pool *d = (struct sam_pool*)hts_tpool_result_data(r);
                     write_out(d);
-                    thread_pool_delete_result(r, 0);
+                    // thread_pool_delete_result(r, 0);
+                    hts_tpool_delete_result(r, 0);
                 }
-
             }
             while (block == -1);
         }
-        thread_pool_process_flush(q);
-        thread_pool_process_destroy(q);
-        thread_pool_destroy(p);
+        //thread_pool_process_flush(q);
+        hts_tpool_process_flush(q);
+
+        //while ((r = thread_pool_next_result(q))) {
+        while ((r = hts_tpool_next_result(q))) {
+            struct sam_pool *d = (struct sam_pool*)hts_tpool_result_data(r);
+            write_out(d);
+            //thread_pool_delete_result(r, 0);
+            hts_tpool_delete_result(r, 0);
+        }
+        //thread_pool_process_destroy(q);
+        //thread_pool_destroy(p);
+        hts_tpool_process_destroy(q);
+        hts_tpool_destroy(p);
     }
     memory_release();
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
