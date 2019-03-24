@@ -328,7 +328,7 @@ static void *run_it(void *_p, int idx)
     struct sam_stack_buf buf;
     memset(&buf, 0, sizeof(struct sam_stack_buf));
     struct args *opts = p->opts;
-    // debug_print("p->n: %d", p->n);
+    debug_print("p->n: %d", p->n);
     khash_t(name) *best_first = kh_init(name);
     
     int i;
