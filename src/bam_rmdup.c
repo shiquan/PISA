@@ -247,7 +247,7 @@ static void dump_best(struct sam_stack_buf *buf, khash_t(name) *best_first, stru
     bam1_t *pp = NULL; // point to best
     int ret;
     khint_t k;
-    debug_print("stack->n %d, %d", buf->n, buf->p[0]->core.pos +1);
+    // debug_print("stack->n %d, %d", buf->n, buf->p[0]->core.pos +1);
     if (buf->n == 0) error("Empty stack.");
     int i, j = 0;
     int isize = -1;
