@@ -33,7 +33,7 @@ force:
 
 LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o
 
-AOBJ = src/bam_anno.o src/bam_count.o src/bam_pick.o src/fastq_parse_barcode.o src/dyncut.o src/sam2bam.o src/bam_rmdup.o
+AOBJ = src/bam_anno.o src/bam_count.o src/bam_pick.o src/fastq_parse_barcode.o src/dyncut.o src/sam2bam.o src/bam_rmdup.o src/count_matrix.o
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@
@@ -58,6 +58,7 @@ src/thread_pool.o: src/thread_pool.c
 src/json_config.o: src/json_config.c
 src/kson.o: src/kson.c
 src/bam_rmdup.o: src/bam_rmdup.c
+src/count_matrix.o: src/count_matrix.c
 
 clean: testclean
 	-rm -f gmon.out *.o *~ $(PROG) version.h 
