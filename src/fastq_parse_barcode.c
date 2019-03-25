@@ -858,10 +858,10 @@ void report_write()
     fprintf(args.report_fp, "\t{\"name\":\"Number of Fragments\", \"value\":\"%"PRIu64"\"},\n", args.raw_reads);
     fprintf(args.report_fp, "\t{\"name\":\"Fragments with Exactly Matched Barcodes\", \"value\":\"%"PRIu64"\"},\n", args.barcode_exactly_matched);
     fprintf(args.report_fp, "\t{\"name\":\"Fragments with Failed Barcodes\", \"value\":\"%"PRIu64"\"},\n", args.filtered_by_barcode);
-    fprintf(args.report_fp, "\t{\"name\":\"Fragments Filtered on Low Qulity\":\"%"PRIu64"\"},\n", args.filtered_by_lowqual);
-    fprintf(args.report_fp, "\t{\"name\":\"Fragments Filtered on Unknown Sample Barcodes\":\"%"PRIu64"\"},\n", args.filtered_by_sample);
+    fprintf(args.report_fp, "\t{\"name\":\"Fragments Filtered on Low Qulity\", \"value\"\"%"PRIu64"\"},\n", args.filtered_by_lowqual);
+    fprintf(args.report_fp, "\t{\"name\":\"Fragments Filtered on Unknown Sample Barcodes\", \"value\":\"%"PRIu64"\"},\n", args.filtered_by_sample);
     fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in Cell Barcode\", \"value\":\"%.1f%%\"},\n",args.bases_cell_barcode == 0 ? 0 : (float)args.q30_bases_cell_barcode/(args.bases_cell_barcode+1)*100);
-    fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in Sample Barcode\", \"valie\":\"%.1f%%\"},\n", args.bases_sample_barcode == 0 ? 0 : (float)args.q30_bases_sample_barcode/(args.bases_sample_barcode+1)*100);
+    fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in Sample Barcode\", \"value\":\"%.1f%%\"},\n", args.bases_sample_barcode == 0 ? 0 : (float)args.q30_bases_sample_barcode/(args.bases_sample_barcode+1)*100);
     fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in UMI\", \"value\":\"%.1f%%\"},\n", args.bases_umi == 0 ? 0 : (float)args.q30_bases_umi/(args.bases_umi+1)*100);
     fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in Reads\", \"value\":\"%.1f%%\"}\n", (float)args.q30_bases_reads/(args.bases_reads+1)*100);
     fprintf(args.report_fp, "]\n");
