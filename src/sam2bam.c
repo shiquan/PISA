@@ -238,20 +238,21 @@ static void summary_report(struct args *opts)
 {
     struct reads_summary *summary = merge_reads_summary(opts->thread_data, opts->n_thread);
     if (opts->fp_report) {
-        fprintf(opts->fp_report,"{\n\t\"Raw reads\": \"%"PRIu64"\",\n", summary->n_reads);
-        fprintf(opts->fp_report,"\t\"Mapped reads\": \"%"PRIu64" (%.2f%%)\",\n", summary->n_mapped, (float)summary->n_mapped/summary->n_reads*100);
-        fprintf(opts->fp_report,"\t\"Mapped reads (paired)\":\"%"PRIu64"\",\n", summary->n_pair_map);
-        fprintf(opts->fp_report,"\t\"Properly paired reads\":\"%"PRIu64"\",\n", summary->n_pair_good);
-        fprintf(opts->fp_report,"\t\"Singleton reads\":\"%"PRIu64"\",\n", summary->n_sgltn);
-        fprintf(opts->fp_report,"\t\"Read 1\":\"%"PRIu64"\",\n", summary->n_read1);
-        fprintf(opts->fp_report,"\t\"Read 2\":\"%"PRIu64"\",\n", summary->n_read2);
-        fprintf(opts->fp_report,"\t\"Paired reads map on diff chr\":\"%"PRIu64"\",\n", summary->n_diffchr);
-        fprintf(opts->fp_report,"\t\"Plus strand\":\"%"PRIu64"\",\n", summary->n_pstrand);
-        fprintf(opts->fp_report,"\t\"Minus strand\":\"%"PRIu64"\",\n", summary->n_mstrand);
-        fprintf(opts->fp_report,"\t\"Mapping quals above %d\":\"%"PRIu64"\",\n", opts->qual_thres, summary->n_qual);
-        fprintf(opts->fp_report,"\t\"Mitochondria ratio\":\"%.2f%%\",\n", (float)summary->n_mito/summary->n_mapped*100);
-        fprintf(opts->fp_report,"\t\"Usable reads (ratio)\":\"%"PRIu64" (%.2f%%)\"\n", summary->n_usable, (float)summary->n_usable/summary->n_reads*100);
-        fprintf(opts->fp_report,"}\n");
+        fprintf(opts->fp_report,"[\n");
+        fprintf(opts->fp_report,"\t{\"name\":\"Raw reads\",\"value\":\"%"PRIu64"\"},\n", summary->n_reads);
+        fprintf(opts->fp_report,"\t{\"name\":\"Mapped reads\",\"value\":\"%"PRIu64" (%.2f%%)\"},\n", summary->n_mapped, (float)summary->n_mapped/summary->n_reads*100);
+        fprintf(opts->fp_report,"\t{\"name\":\"Mapped reads (paired)\", \"value\":\"%"PRIu64"\"},\n", summary->n_pair_map);
+        fprintf(opts->fp_report,"\t{\"name\":\"Properly paired reads\", \"value\":\"%"PRIu64"\"},\n", summary->n_pair_good);
+        fprintf(opts->fp_report,"\t{\"name\":\"Singleton reads\", \"value\":\"%"PRIu64"\"},\n", summary->n_sgltn);
+        fprintf(opts->fp_report,"\t{\"name\":\"Read 1\", \"value\":\"%"PRIu64"\"},\n", summary->n_read1);
+        fprintf(opts->fp_report,"\t{\"name\":\"Read 2\", \"value\":\"%"PRIu64"\"},\n", summary->n_read2);
+        fprintf(opts->fp_report,"\t{\"name\":\"Paired reads map on diff chr\", \"value\":\"%"PRIu64"\"},\n", summary->n_diffchr);
+        fprintf(opts->fp_report,"\t{\"name\":\"Plus strand\", \"value\":\"%"PRIu64"\"},\n", summary->n_pstrand);
+        fprintf(opts->fp_report,"\t{\"name\":\"Minus strand\", \"value\":\"%"PRIu64"\"},\n", summary->n_mstrand);
+        fprintf(opts->fp_report,"\t{\"name\":\"Mapping quals above %d\", \"value\":\"%"PRIu64"\"},\n", opts->qual_thres, summary->n_qual);
+        fprintf(opts->fp_report,"\t{\"name\":\"Mitochondria ratio\", \"value\":\"%.2f%%\"},\n", (float)summary->n_mito/summary->n_mapped*100);
+        fprintf(opts->fp_report,"\t{\"name\":\"Usable reads (ratio)\", \"value\":\"%"PRIu64" (%.2f%%)\"}\n", summary->n_usable, (float)summary->n_usable/summary->n_reads*100);
+        fprintf(opts->fp_report,"]\n");
     }
 
     free(summary);
@@ -373,7 +374,7 @@ static int usage()
     fprintf(stderr, " -t [5]                   Threads.\n");
     fprintf(stderr, " -filter filter.bam       Filter reads, include unmapped, secondary alignment, mitochondra etc.\n");
     fprintf(stderr, " -q [10]                  Map quality theshold, mapped reads with smaller mapQ will be filter.\n");
-    fprintf(stderr, " -report report.md        Summary report in Markdown format. Alignment stats, chromosome ratio.\n");
+    fprintf(stderr, " -report report.md        Alignment report in Json format.\n");
     fprintf(stderr, " -mito chrM               Mitochondria name.\n");
     fprintf(stderr, " -maln chrM.bam           Export mitochondria reads into this file.\n");
     fprintf(stderr, " -r [1000000]             Records per chunk.\n");
@@ -569,7 +570,7 @@ int sam2bam(int argc, char **argv)
 
         while ((r = thread_pool_next_result(q))) {
             struct sam_pool *d = (struct sam_pool *)r->data;
-            write_out(d);                
+            write_out(d);
         }
 
         thread_pool_process_destroy(q);

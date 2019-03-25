@@ -247,7 +247,7 @@ static void dump_best(struct sam_stack_buf *buf, khash_t(name) *best_first, stru
     bam1_t *pp = NULL; // point to best
     int ret;
     khint_t k;
-    //  debug_print("stack->n %d, %d", buf->n, buf->p[0]->core.pos +1);
+    debug_print("stack->n %d, %d", buf->n, buf->p[0]->core.pos +1);
     if (buf->n == 0) error("Empty stack.");
     int i, j = 0;
     int isize = -1;
@@ -264,8 +264,7 @@ static void dump_best(struct sam_stack_buf *buf, khash_t(name) *best_first, stru
 
             bam1_t *b = buf->p[i];
             bam1_core_t *c = &b->core;
-            
-            if (c->mpos < c->pos) { // mated reads check already, check best read hash
+            if (c->mpos > 0 && c->mpos < c->pos) { // mated reads check already, check best read hash
                 k = kh_get(name, best_first, bam_get_qname(b));
                 if (k == kh_end(best_first)) {
                     c->flag |= BAM_FDUP;
@@ -275,7 +274,7 @@ static void dump_best(struct sam_stack_buf *buf, khash_t(name) *best_first, stru
             else {
                 char *tag_string = pick_tag_name(b, opts->n_tag, opts->tags);
                 if (pp == NULL) {
-                    isize = c->isize;
+                    isize = c->isize; // for SE, isize will always be 0
                     pp = b;
                     if (last_tag) free(last_tag);
                     last_tag = tag_string;
@@ -349,7 +348,8 @@ static void *run_it(void *_p)
 
         // for unmapped reads, different chromosomes, singletons, append to output
         if (c->tid == -1) break; // append to output, for sorted BAM unmapped reads only happened at end of file
-        if ( !(c->flag&BAM_FPAIRED) || (c->flag&(BAM_FUNMAP|BAM_FMUNMAP)) || (c->mtid >= 0 && c->tid != c->mtid)) continue;
+        //  if ( !(c->flag&BAM_FPAIRED) || (c->flag&(BAM_FUNMAP|BAM_FMUNMAP)) || (c->mtid >= 0 && c->tid != c->mtid)) continue;
+        if (c->mtid >= 0 && c->tid != c->mtid) continue;
         push_stack(&buf, b);
     }
     if (buf.n > 0) dump_best(&buf, best_first, opts);
