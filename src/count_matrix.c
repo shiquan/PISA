@@ -133,7 +133,7 @@ int count_matrix(int argc, char **argv)
                 v = realloc(v, m*sizeof(int*));
             }
             reg[n] = strdup(val);
-            k = kh_put(name, hash, val, &r);
+            k = kh_put(name, hash, reg[n], &r);
             kh_val(hash, k) = n;
             v[n] = calloc(lb->n, sizeof(int));
             memset(v[n], 0, lb->n*sizeof(int));
