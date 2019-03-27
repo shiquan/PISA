@@ -532,7 +532,7 @@ int sam2bam(int argc, char **argv)
     double t_real;
     t_real = realtime();
     
-    if (parse_args(argc, argv)) return usage();
+    if (parse_args(argc, argv)) return 1;
 
     if (args.n_thread == 1)
         sam_name_parse_light();
