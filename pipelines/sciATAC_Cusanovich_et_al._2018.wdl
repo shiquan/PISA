@@ -18,7 +18,7 @@ workflow main {
     config=config,
     fastq1=fastq1,
     fastq2=fastq2,
-    outdir=outdir,
+    outdir=makedir.Outdir,
     runID=runID,
     root=root
   }
