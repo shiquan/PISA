@@ -29,7 +29,7 @@ int parse_args(int argc, char **argv)
 {
     if (argc == 1 ) return usage();
     int i;
-    const char **a = NULL;
+
     const char *thread = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
