@@ -82,10 +82,10 @@ task fastq2bam {
 }
 task sortBam {
   String bam
-  String sambambaPath
+  String sambambapath
   String root
   command {
-    ${sambambaPath} sort -t 20 -o ${outdir}/temp/aln.bam -o ${outdir}/temp/sorted.bam
+    ${sambambapath} sort -t 20 -o ${outdir}/temp/aln.bam -o ${outdir}/temp/sorted.bam
     ${root}/SingleCellTools rmdup -tag CB -t 20 -o ${outdir}/temp/rmdup.bam
   }
 }
