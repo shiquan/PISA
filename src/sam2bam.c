@@ -364,7 +364,7 @@ static void *sam_name_parse(void *_p, int idx)
             if (b1 == NULL) {
                 b1 = p->bam[i];
                 if (sam_parse1(p->str[i], h, b1)) error("Failed to parse SAM.");
-                if (b1->core.flag&BAM_FSECONDARY || b1->core.flag&BAM_FSUPPLEMENTARY) {
+                if (b1->core.flag&BAM_FSUPPLEMENTARY) {
                     p->flag[i] = FLG_FLT;
                     b1 = NULL;
                     continue;
@@ -375,7 +375,7 @@ static void *sam_name_parse(void *_p, int idx)
             else {
                 b2 = p->bam[i];
                 if (sam_parse1(p->str[i], h, b2)) error("Failed to parse SAM.");
-                if (b2->core.flag&BAM_FSECONDARY || b2->core.flag&BAM_FSUPPLEMENTARY) {
+                if (b2->core.flag&BAM_FSUPPLEMENTARY) {
                     p->flag[i] = FLG_FLT;
                     b2 = NULL;
                     continue;
