@@ -387,7 +387,9 @@ static void *sam_name_parse(void *_p, int idx)
                     *f1 = FLG_FLT;
                     *f2 = FLG_FLT;
                 }
-            }                
+                b1 = NULL;
+                b2 = NULL;
+            }            
         }
     }
     
