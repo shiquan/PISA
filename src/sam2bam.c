@@ -82,6 +82,8 @@ static struct args {
     
     bam_hdr_t *hdr;   // bam header structure of input
 
+    char *preload_record;
+
     struct reads_summary **thread_data; // summary data for each thread
 
     int fixmate_flag; // if set, fix the mate relationship of paired reads first
@@ -110,7 +112,8 @@ static struct args {
     .fp_report = NULL,
     
     .hdr = NULL,
-
+    .preload_record = NULL,
+    
     .thread_data = NULL,
 
     .fixmate_flag = 0,
@@ -164,7 +167,16 @@ static struct sam_pool* sam_pool_read(kstream_t *s, int buffer_size)
     
     kstring_t str = {0,0,0};
     int ret;
-    
+    if (args.preload_record) {
+        kstring_t *t = malloc(sizeof(*t));
+        memset(t, 0, sizeof(kstring_t));
+        kputs(args.preload_record, t);
+        p->str[0] = t;
+        p->bam[0] = bam_init1();
+        p->n++;
+        free(args.preload_record);
+        args.preload_record= NULL;
+    }
     for (;;) {
         
         if (ks_getuntil(s, 2, &str, &ret) < 0) break;
@@ -389,7 +401,7 @@ static void *sam_name_parse(void *_p, int idx)
                 }
                 b1 = NULL;
                 b2 = NULL;
-            }            
+            }     
         }
     }
     
@@ -526,8 +538,10 @@ static int parse_args(int argc, char **argv)
     }
 
     // check if there is a BAM record
-    if (str.s[0] != '@') {
-        parse_name_str(&str);
+    if (str.s[0] != '@') {        
+        args.preload_record = strndup(str.s, str.l);
+        /*
+          parse_name_str(&str);        
         bam1_t *b = bam_init1();
         if (sam_parse1(&str, args.hdr, b)) error("Failed to parse SAM.");
 
@@ -547,6 +561,7 @@ static int parse_args(int argc, char **argv)
 
         }
         bam_destroy1(b);
+        */
     }
     free(str.s);
     return 0;
