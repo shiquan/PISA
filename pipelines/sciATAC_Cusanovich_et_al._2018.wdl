@@ -88,6 +88,6 @@ task sortBam {
   String outdir
   command {
     ${sambambapath} sort -t 20 -o ${outdir}/temp/aln.bam -o ${outdir}/temp/sorted.bam
-    ${root}/SingleCellTools rmdup -tag CB -t 20 -o ${outdir}/temp/rmdup.bam
+    ${root}/SingleCellTools rmdup -tag CB -t 20 -o ${outdir}/temp/rmdup.bam ${outdir}/temp/sorted.bam
   }
 }
