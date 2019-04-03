@@ -177,10 +177,22 @@ static struct sam_pool* sam_pool_read(kstream_t *s, int buffer_size)
         free(args.preload_record);
         args.preload_record= NULL;
     }
+
     for (;;) {
-        
         if (ks_getuntil(s, 2, &str, &ret) < 0) break;
+        if (p->n >= buffer_size) { // in case check paired reads name
+            // check the read name
+            kstring_t *s = p->str[p->n-1];
+            int _i;
+            for (_i = 0; _i < str.l; ++_i)
+                if (str.s[_i] == '|' || isspace(str.s[_i])) break;
+            if (strncmp(str.s, s->s, _i) != 0) {
+                args.preload_record = strndup(str.s, str.l);
+                break;
+            }
+        }
         
+
         // skip header
         if (str.s[0] == '@') continue;
 
@@ -191,9 +203,8 @@ static struct sam_pool* sam_pool_read(kstream_t *s, int buffer_size)
         p->str[p->n] = t;
         // init for output
         p->bam[p->n] = bam_init1();
-        
+
         p->n++;
-        if (p->n >= buffer_size) break;
     }
 
     free(str.s);
@@ -357,7 +368,7 @@ static void sam_stat_reads(bam1_t *b, struct reads_summary *s, int *flag, struct
                 s->n_pair_map++;
                 if (c->mtid != c->tid) {
                     s->n_diffchr++;
-                    *flag = FLG_FLT;
+                    *flag = FLG_FLT; // no matter -p set or not, skip reads mapped to diff chroms
                 }
             }
         }
@@ -387,7 +398,7 @@ static void *sam_name_parse(void *_p, int idx)
             parse_name_str(p->str[i]);
             if (b1 == NULL) {
                 b1 = p->bam[i];
-                if (sam_parse1(p->str[i], h, b1)) error("Failed to parse SAM.");
+                if (sam_parse1(p->str[i], h, b1)) error("Failed to parse SAM.");                
                 if (b1->core.flag&BAM_FSECONDARY || b1->core.flag&BAM_FSUPPLEMENTARY) {
                     p->flag[i] = FLG_FLT;
                     b1 = NULL;
