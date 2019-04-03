@@ -340,13 +340,25 @@ static void sam_stat_reads(bam1_t *b, struct reads_summary *s, int *flag, struct
         
         if (c->flag & BAM_FPAIRED) {
             s->n_pair_all ++;
+
             if ((c->flag & BAM_FPROPER_PAIR) && !(c->flag & BAM_FUNMAP)) s->n_pair_good++;
+            else *flag = FLG_FLT;
+            
             if (c->flag & BAM_FREAD1) s->n_read1++;
             else if (c->flag & BAM_FREAD2) s->n_read2++;
-            if ((c->flag & BAM_FMUNMAP) && !(c->flag & BAM_FUNMAP)) s->n_sgltn++;
+
+            if ((c->flag & BAM_FMUNMAP) && !(c->flag & BAM_FUNMAP)) {
+                s->n_sgltn++;
+                // if -p set, singleton will be filtered, else will kept
+                //  *flag = FLG_FLT; 
+            }
+            
             if (!(c->flag & BAM_FUNMAP) && !(c->flag & BAM_FMUNMAP)) {
                 s->n_pair_map++;
-                if (c->mtid != c->tid) s->n_diffchr++;
+                if (c->mtid != c->tid) {
+                    s->n_diffchr++;
+                    *flag = FLG_FLT;
+                }
             }
         }
     }
@@ -376,7 +388,7 @@ static void *sam_name_parse(void *_p, int idx)
             if (b1 == NULL) {
                 b1 = p->bam[i];
                 if (sam_parse1(p->str[i], h, b1)) error("Failed to parse SAM.");
-                if (b1->core.flag&BAM_FSUPPLEMENTARY) {
+                if (b1->core.flag&BAM_FSECONDARY || b1->core.flag&BAM_FSUPPLEMENTARY) {
                     p->flag[i] = FLG_FLT;
                     b1 = NULL;
                     continue;
@@ -387,7 +399,7 @@ static void *sam_name_parse(void *_p, int idx)
             else {
                 b2 = p->bam[i];
                 if (sam_parse1(p->str[i], h, b2)) error("Failed to parse SAM.");
-                if (b2->core.flag&BAM_FSUPPLEMENTARY) {
+                if (b2->core.flag&BAM_FSECONDARY || b2->core.flag&BAM_FSUPPLEMENTARY) {
                     p->flag[i] = FLG_FLT;
                     b2 = NULL;
                     continue;
