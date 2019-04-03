@@ -89,7 +89,7 @@ static struct args {
     int qual_thres; // mapping quality threshold to filter
 
     int mito_id;
-    int SE_flag;
+    int PE_flag;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
@@ -116,7 +116,7 @@ static struct args {
     .fixmate_flag = 0,
     .qual_thres = 10,
     .mito_id = -2,
-    .SE_flag = 0,
+    .PE_flag = 0,
 };
 
 // Buffer input and output records in a memory pool per thread
@@ -346,12 +346,49 @@ static void *sam_name_parse(void *_p, int idx)
     struct args *opts = p->opts;
     struct reads_summary *summary = opts->thread_data[idx];    
     bam_hdr_t *h = opts->hdr;
-    
-    int i;
-    for (i = 0; i < p->n; ++i) {
-        parse_name_str(p->str[i]);
-        if (sam_parse1(p->str[i], h, p->bam[i])) error("Failed to parse SAM.");
-        sam_stat_reads(p->bam[i], summary, &p->flag[i], opts);
+    if (opts->PE_flag == 0) {
+        int i;
+        for (i = 0; i < p->n; ++i) {
+            parse_name_str(p->str[i]);
+            if (sam_parse1(p->str[i], h, p->bam[i])) error("Failed to parse SAM.");
+            sam_stat_reads(p->bam[i], summary, &p->flag[i], opts);
+        }
+    }
+    else { // PE
+        
+        bam1_t *b1 = NULL, *b2 = NULL;
+        int *f1 = NULL, *f2 = NULL;
+        int i;
+        for (i = 0; i < p->n; ++i) {
+            parse_name_str(p->str[i]);
+            if (b1 == NULL) {
+                b1 = p->bam[i];
+                if (sam_parse1(p->str[i], h, b1)) error("Failed to parse SAM.");
+                if (b1->core.flag&BAM_FSECONDARY || b1->core.flag&BAM_FSUPPLEMENTARY) {
+                    p->flag[i] = FLG_FLT;
+                    b1 = NULL;
+                    continue;
+                }
+                sam_stat_reads(b1, summary, &p->flag[i], opts);
+                f1 = &p->flag[i];
+            }
+            else {
+                b2 = p->bam[i];
+                if (sam_parse1(p->str[i], h, b2)) error("Failed to parse SAM.");
+                if (b2->core.flag&BAM_FSECONDARY || b2->core.flag&BAM_FSUPPLEMENTARY) {
+                    p->flag[i] = FLG_FLT;
+                    b2 = NULL;
+                    continue;
+                }
+                if (strcmp(bam_get_qname(b1), bam_get_qname(b2)) != 0) error("Inconsist paried read name. %s vs %s", bam_get_qname(b1), bam_get_qname(b2));
+                sam_stat_reads(b2, summary, &p->flag[i], opts);
+                f2 = &p->flag[i];
+                if (*f1 == FLG_FLT || *f2 == FLG_FLT || b1->core.tid != b2->core.tid) {
+                    *f1 = FLG_FLT;
+                    *f2 = FLG_FLT;
+                }
+            }                
+        }
     }
     
     return p;
@@ -378,7 +415,7 @@ static int usage()
     fprintf(stderr, " -mito chrM               Mitochondria name.\n");
     fprintf(stderr, " -maln chrM.bam           Export mitochondria reads into this file.\n");
     fprintf(stderr, " -r [1000000]             Records per chunk.\n");
-    fprintf(stderr, " -S                       Treat PE reads as SE.\n");
+    fprintf(stderr, " -p                       Input reads are paired.\n");
     return 1;
 }
 
@@ -389,8 +426,6 @@ int bam_fixmate()
 
 static int parse_args(int argc, char **argv)
 {
-    if (argc == 1) return 1;
-    
     int i;
     const char *buffer_size = NULL;
     const char *thread = NULL;
@@ -412,7 +447,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-maln") == 0) var = &args.mito_fname;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
         else if (strcmp(a, "-filter") == 0) var = &args.filter_fname;
-
+        else if (strcmp(a, "-p") == 0) {
+            args.PE_flag = 1;
+            continue;
+        }
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
