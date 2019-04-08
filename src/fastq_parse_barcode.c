@@ -29,8 +29,9 @@ static int usage()
     fprintf(stderr, "  -run       Run code, used for different library.\n");
     fprintf(stderr, "  -cbdis     Cell barcode sequence and count pairs.\n");
     fprintf(stderr, "  -t         Thread.\n");
-    fprintf(stderr, "  -r         10000\n");
+    fprintf(stderr, "  -r         Records per chunk. [10000]\n");
     fprintf(stderr, "  -report    Summary report.\n");
+    fprintf(stderr, "  -f         Filter reads based on BGISEQ standard. Two bases quality < q10 at first 15.\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -87,6 +88,7 @@ static struct args {
     int chunk_size;
     int cell_number;
 
+    int bgiseq_filter;
     int smart_pair;
     
     // pthread_mutex_t mutex;
@@ -130,7 +132,7 @@ static struct args {
     .chunk_size = 10000,
     .cell_number = 10000,
     .smart_pair = 0,
-    
+    .bgiseq_filter = 0,
     // .mutex = PTHREAD_MUTEX_INITIALIZER,
 
     .names = NULL,
@@ -752,6 +754,26 @@ static void *run_it(void *_p, int idx)
             data->q30_bases_reads += config.read_2->q30_bases;
             data->bases_reads += config.read_2->bases;
         }
+        if (opts->bgiseq_filter) {
+            if (b->q0) {
+                int k;
+                int bad_bases = 0;
+                for (k = 0; k < 15 && k <b->l1; ++k) {
+                    if (b->q0[i]-33<10) bad_bases++;
+                    if (bad_bases > 0) break;
+                }
+                if (bad_bases >2) b->flag = FQ_FLAG_READ_QUAL;
+                else {
+                    if (b->q1) {
+                        for (k = 0; k < 15 && k <b->l1; ++k) {
+                            if (b->q1[i]-33<10) bad_bases++;
+                            if (bad_bases > 0) break;
+                        }
+                        if (bad_bases >2) b->flag = FQ_FLAG_READ_QUAL;
+                    }
+                }                
+            }
+        }
 
     }
     return p;
@@ -896,7 +918,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-r") == 0) var = &chunk_size;
         else if (strcmp(a, "-run") == 0) var = &args.run_code;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
-
+        else if (strcmp(a, "-f") == 0) {
+            args.bgiseq_filter = 1;
+            continue;
+        }
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
