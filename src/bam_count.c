@@ -97,7 +97,7 @@ int bam_count_attr(int argc, char *argv[])
     CHECK_EMPTY(hdr, "Failed to open header.");
     FILE *out = fopen(args.output_fname, "w");
     CHECK_EMPTY(out, "%s : %s.", args.output_fname, strerror(errno));
-    fprintf(out, "#CELL_BARCODE\tCOUNTS");
+    fprintf(out, "CELL_BARCODE\tReadCounts");
     int i;
     for (i = 0; i < args.n_tag; ++i) fprintf(out, "\t%s", args.tags[i]);
     fputc('\n', out);
