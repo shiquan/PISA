@@ -39,8 +39,8 @@ AOBJ = src/bam_anno.o \
 	src/dyncut.o \
 	src/sam2bam.o \
 	src/bam_rmdup.o \
-	src/count_matrix.o
-	#src/fastq_parse_barcode.o
+	src/count_matrix.o \
+	src/fastq_parse_barcode.o
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@

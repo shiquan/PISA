@@ -188,7 +188,7 @@ static struct sam_pool *sam_pool_read(htsFile *fp, int bufsize)
         push_sam_pool(b, p);
         i++;
     }
-    //debug_print("last_end: %d, p->n:%d, bufsize: %d", last_end, p->n, bufsize);
+    debug_print("last_end: %d, p->n:%d, bufsize: %d", last_end, p->n, bufsize);
     if (p->n == 0) {
         free(p);
         return NULL;
