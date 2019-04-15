@@ -36,6 +36,21 @@ static int usage()
     return 1;
 }
 
+struct bcount {
+    uint64_t matched;
+    uint64_t corrected;
+};
+
+struct segment {
+    int n; // white list barcodes per segment
+    struct bcount *counts;
+};
+
+struct thread_hold {
+    int n; // segments
+    struct segment *seg;
+};
+
 struct BarcodeRegion {
     int rd; // read 1 or 2
     int start;
@@ -45,11 +60,19 @@ struct BarcodeRegion {
     int len;
     int n_wl;
     strhash_t *wlhash;
-    // reset to 0 before counting
+    // It is NOT Thread safe. delete it at 11 April 2019
+    // reset to 0 before counting. 
+    // int q30_bases;
+    // int bases;
+    // int exact_match;
+};
+
+struct BRstat {
     int q30_bases;
     int bases;
     int exact_match;
 };
+
 struct NameCountPair {
     char *name;
     uint32_t count;
@@ -90,22 +113,36 @@ static struct args {
 
     int bgiseq_filter;
     int smart_pair;
-    
-    // pthread_mutex_t mutex;
 
+    // Cell barcodes found in white list, if no white list all barcodes treat as background
     struct NameCountPair *names;
     int n_name;
-    int m_name;
+    int m_name;    
     strhash_t *cbhash;
 
+    // Background
+    struct NameCountPair *bgnames;
+    int n_bg, m_bg;
+    strhash_t *bghash;
+
+    // file handler
+    // inputs could be gzipped fastq or unzipped
     gzFile r1_fp;
     gzFile r2_fp;
+    // All outputs will be unzipped for performance
     FILE *out1_fp;
     FILE *out2_fp;
     FILE *cbdis_fp;
-    FILE *report_fp;
+    FILE *report_fp; // old report handler
+    FILE *html_report_fp;
     
-    struct fastq_handler *fastq;   
+    // hold thread safe data
+    struct thread_hold *hold;
+
+    // input file streaming
+    struct fastq_handler *fastq;
+
+    // stats of reads
     uint64_t raw_reads;
     uint64_t barcode_exactly_matched;
     uint64_t filtered_by_barcode;
@@ -133,7 +170,6 @@ static struct args {
     .cell_number = 10000,
     .smart_pair = 0,
     .bgiseq_filter = 0,
-    // .mutex = PTHREAD_MUTEX_INITIALIZER,
 
     .names = NULL,
     .n_name = 0,
@@ -146,7 +182,9 @@ static struct args {
     .out2_fp = NULL,
     .cbdis_fp = NULL,
     .report_fp = NULL,
+    .html_report_fp = NULL,
     
+    .thread_hold = NULL,
     .fastq = NULL,
 
     .raw_reads = 0,
@@ -290,9 +328,12 @@ static void config_init(const char *fn)
                         br->n_wl = n2->n;
                         br->white_list = malloc(n2->n*sizeof(char*));
                         int l;
+                        // br->counts = malloc(n2->n*sizeof(struct bcount));
                         for (l = 0; l < n2->n; ++l) {
                             const kson_node_t *n3 = kson_by_index(n2, l);
-                            br->white_list[l] = strdup(n3->v.str);
+                            br->white_list[l] = strdup(n3->v.str);                            
+                            // br->counts[l].matched = 0;
+                            // br->counts[l].corrected = 0;
                         }                                        
                     }
                     else error("Unknown key : \"%s\"", n2->key);
@@ -433,19 +474,24 @@ static void config_init(const char *fn)
 struct seqlite {
     char *seq;
     char *qual;
+    // struct BRstat stat;
 };
+
 void seqlite_destory(struct seqlite *s)
 {
     free(s->seq);
-    if (s->qual) free(s->qual);
+    if (s->qual) free(s->qual);    
     free(s);
 }
 
-struct seqlite *extract_tag(struct bseq *b, struct BarcodeRegion *r)
+struct seqlite *extract_tag(struct bseq *b, const struct BarcodeRegion *r, struct BRstat *stat)
 {
     if (b == NULL || r == NULL) return NULL;
     
-    struct seqlite *p = malloc(sizeof(*p));    
+    struct seqlite *p = malloc(sizeof(*p));
+
+    memset(stat, 0, sizeof(struct BRstat));
+    
     char *s = NULL;
     char *q = NULL;
     if (r->rd == 1) {
@@ -463,12 +509,9 @@ struct seqlite *extract_tag(struct bseq *b, struct BarcodeRegion *r)
     if (q) kputsn(q, l, &qual);
     p->seq = seq.s;
     p->qual = qual.s;
-
-    r->q30_bases = 0;
-    r->bases = l;
-    int i;    
+    
     for (i = 0; i < l; ++i) 
-        if (p->qual[i] - 33 >= 30) r->q30_bases++;
+        if (p->qual[i]-33 >= 30) stat->q30_bases++;
     
     return p;
 }
@@ -513,7 +556,7 @@ int levenshtein(char *a, char *b, int l) {
 }
 
 // -1 on failure, 0 on No white list, >0 for iterater of white lists
-int check_whitelist(char *s, struct BarcodeRegion *r)
+int check_whitelist(char *s, const struct BarcodeRegion *r, int *exact_match)
 {
     if (r->n_wl == 0) return 0;
     int len = strlen(s);
@@ -522,15 +565,20 @@ int check_whitelist(char *s, struct BarcodeRegion *r)
     khint_t k;
     k = kh_get(str, r->wlhash, s);
     if (k != kh_end(r->wlhash)) {
-        r->exact_match = 1;
-        return kh_val(r->wlhash, k);
+        *exact_match = 1;
+        int id = kh_val(r->wlhash, k);
+        if (seg) seg->counts[id-1].matched++;
+        return id;
     }
     if (r->dist > 0) {
         int i;
         for (i = 0; i < r->n_wl; ++i) {
             char *f = r->white_list[i];
             int dist = levenshtein(f, s, len);
-            if (dist <= r->dist) return i+1;
+            if (dist <= r->dist) {
+                if (seg) seg->counts[i].corrected++;
+                return i+1;
+            }
         }
     }
     return -1;
@@ -546,13 +594,16 @@ static void update_rname(struct bseq *b, const char *tag, char *s)
     free(b->n0);
     b->n0 = str.s;    
 }
-int extract_barcodes(struct bseq *b,
-                     int n,
-                     struct BarcodeRegion *r,
-                     const char *tag,
-                     const char *raw_tag,
-                     const char *raw_qual_tag,
-                     const char *run_code)
+
+struct BRstat *extract_barcodes(struct bseq *b,
+                                int n,
+                                const struct BarcodeRegion *r,
+                                const char *tag,
+                                const char *raw_tag,
+                                const char *raw_qual_tag,                                
+                                const char *run_code,
+                                struct thread_hold *hold
+    )
 {
     if (tag == NULL && raw_tag == NULL) return 1;
     
@@ -560,12 +611,18 @@ int extract_barcodes(struct bseq *b,
     kstring_t str = {0,0,0};
     kstring_t qual = {0,0,0};
     kstring_t tag_str = {0,0,0};
+    struct BRstat *stat = malloc(sizeof(struct BRstat));
+    memset(stat, 0, sizeof(struct BRstat));
+    
     for (i = 0; i < n; ++i) {
-        struct BarcodeRegion *br = &r[i];
-        struct seqlite *s = extract_tag(b, br);
+
+        const struct BarcodeRegion *br = &r[i];
+        struct segment *seg = hold == NULL ? NULL &hold->seg[i];
+        struct seqlite *s = extract_tag(b, br, stat);
         if (s == NULL) goto failed_check_barcode;
-        br->exact_match = 0;
-        int ret = check_whitelist(s->seq, br);        
+
+        int ret = check_whitelist(s->seq, br, &s->stat.exact_match, seg);
+        
         if (ret == -1) {
             seqlite_destory(s);
             goto failed_check_barcode;
@@ -597,18 +654,19 @@ int extract_barcodes(struct bseq *b,
     if (str.m) free(str.s);
     if (qual.m) free(qual.s);
     if (tag_str.m) free(tag_str.s);
-    return 0;
+    return stat;
     
   failed_check_barcode:
     if (str.m) free(str.s);
     if (qual.m) free(qual.s);
     if (tag_str.m) free(tag_str.s);
-    return -1;
+    free(stat);
+    return NULL;
 }
 
 int extract_sample_barcode_reads(struct bseq *b,
                                  int n,
-                                 struct BarcodeRegion *r,
+                                 const struct BarcodeRegion *r,
                                  const char *tag,
                                  const char *raw_tag,
                                  const char *raw_qual_tag)
@@ -617,7 +675,7 @@ int extract_sample_barcode_reads(struct bseq *b,
 }
 int extract_cell_barcode_reads(struct bseq *b,
                                int n,
-                               struct BarcodeRegion *r,
+                               const struct BarcodeRegion *r,
                                const char *tag,
                                const char *raw_tag,
                                const char *raw_qual_tag,
@@ -626,7 +684,7 @@ int extract_cell_barcode_reads(struct bseq *b,
     return extract_barcodes(b, n, r, tag, raw_tag, raw_qual_tag, run_code);
 }
 
-int extract_umi(struct bseq *b, struct BarcodeRegion *r, const char *tag, const char *qual_tag)
+int extract_umi(struct bseq *b, const struct BarcodeRegion *r, const char *tag, const char *qual_tag)
 {
     if (tag == NULL) return -1;
     
@@ -649,7 +707,7 @@ int extract_umi(struct bseq *b, struct BarcodeRegion *r, const char *tag, const 
     return 0;
 }
                 
-struct bseq *extract_reads(struct bseq *b, struct BarcodeRegion *r1, struct BarcodeRegion *r2)
+struct bseq *extract_reads(struct bseq *b, const struct BarcodeRegion *r1, const struct BarcodeRegion *r2)
 {
     assert(r1);
     struct seqlite *s1 = extract_tag(b, r1);
@@ -685,6 +743,8 @@ static void *run_it(void *_p, int idx)
 {
     struct bseq_pool *p = (struct bseq_pool*)_p;
     struct args *opts = p->opts;
+    struct thread_hold *hold = &opts->hold[idx];
+
     int i, j;
     int ret;
     for (i = 0; i < p->n; ++i) {
@@ -702,15 +762,17 @@ static void *run_it(void *_p, int idx)
             config.sample_barcode_tag,
             config.raw_sample_barcode_tag,
             config.raw_sample_barcode_qual_tag);
+        
         if (ret == -1) {
             b->flag = FQ_FLAG_SAMPLE_FAIL;
             continue;
         }
+        
         // count q30 bases
         for (j = 0; j < config.n_sample_barcode; ++j) {
             struct BarcodeRegion *br = &config.sample_barcodes[j];        
-            data->q30_bases_sample_barcode += br->q30_bases;
-            data->bases_sample_barcode += br->bases;
+            // data->q30_bases_sample_barcode += br->q30_bases;
+            // data->bases_sample_barcode += br->bases;
         }
         
         // cell barcode
@@ -727,12 +789,13 @@ static void *run_it(void *_p, int idx)
             b->flag = FQ_FLAG_BC_FAILURE;
             continue;
         }
+
         data->cr_exact_match = config.n_cell_barcode > 0 ? 1 : 0;
         for (j = 0; j < config.n_cell_barcode; ++j) {
             struct BarcodeRegion *br = &config.cell_barcodes[j];        
-            data->q30_bases_cell_barcode += br->q30_bases;
-            data->bases_cell_barcode += br->bases;
-            if (br->exact_match == 0) data->cr_exact_match = 0;
+            //data->q30_bases_cell_barcode += br->q30_bases;
+            //data->bases_cell_barcode += br->bases;
+            //if (br->exact_match == 0) data->cr_exact_match = 0;
         }
 
         // UMI
@@ -880,7 +943,7 @@ void report_write()
     fprintf(args.report_fp, "\t{\"name\":\"Number of Fragments\", \"value\":\"%"PRIu64"\"},\n", args.raw_reads);
     fprintf(args.report_fp, "\t{\"name\":\"Fragments with Exactly Matched Barcodes\", \"value\":\"%"PRIu64"\"},\n", args.barcode_exactly_matched);
     fprintf(args.report_fp, "\t{\"name\":\"Fragments with Failed Barcodes\", \"value\":\"%"PRIu64"\"},\n", args.filtered_by_barcode);
-    fprintf(args.report_fp, "\t{\"name\":\"Fragments Filtered on Low Qulity\", \"value\"\"%"PRIu64"\"},\n", args.filtered_by_lowqual);
+    fprintf(args.report_fp, "\t{\"name\":\"Fragments Filtered on Low Qulity\", \"value\":\"%"PRIu64"\"},\n", args.filtered_by_lowqual);
     fprintf(args.report_fp, "\t{\"name\":\"Fragments Filtered on Unknown Sample Barcodes\", \"value\":\"%"PRIu64"\"},\n", args.filtered_by_sample);
     fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in Cell Barcode\", \"value\":\"%.1f%%\"},\n",args.bases_cell_barcode == 0 ? 0 : (float)args.q30_bases_cell_barcode/(args.bases_cell_barcode+1)*100);
     fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in Sample Barcode\", \"value\":\"%.1f%%\"},\n", args.bases_sample_barcode == 0 ? 0 : (float)args.q30_bases_sample_barcode/(args.bases_sample_barcode+1)*100);
@@ -888,6 +951,9 @@ void report_write()
     fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in Reads\", \"value\":\"%.1f%%\"}\n", (float)args.q30_bases_reads/(args.bases_reads+1)*100);
     fprintf(args.report_fp, "]\n");
     if (args.report_fname) fclose(args.report_fp);
+}
+void full_details()
+{
 }
 static void memory_release()
 {

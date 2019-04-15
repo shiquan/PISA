@@ -22,7 +22,7 @@ int usage()
 }
 int main(int argc, char *argv[])
 {
-    extern int fastq_prase_barcodes(int argc, char *argv[]);
+//    extern int fastq_prase_barcodes(int argc, char *argv[]);
     extern int fastq_trim_adaptors(int argc, char *argv[]);
 
     extern int sam2bam(int argc, char *argv[]);
@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
     extern int count_matrix(int argc, char *argv[]);
     
     if (argc == 1) return usage();
-    else if (strcmp(argv[1], "parse") == 0) return fastq_prase_barcodes(argc-1, argv+1);
+    //  else if (strcmp(argv[1], "parse") == 0) return fastq_prase_barcodes(argc-1, argv+1);
     else if (strcmp(argv[1], "trim") == 0) return fastq_trim_adaptors(argc-1, argv+1);
     else if (strcmp(argv[1], "sam2bam") == 0) return sam2bam(argc-1, argv+1);
     else if (strcmp(argv[1], "rmdup") == 0) return bam_rmdup(argc-1, argv+1);

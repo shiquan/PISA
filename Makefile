@@ -33,7 +33,14 @@ force:
 
 LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o
 
-AOBJ = src/bam_anno.o src/bam_count.o src/bam_pick.o src/fastq_parse_barcode.o src/dyncut.o src/sam2bam.o src/bam_rmdup.o src/count_matrix.o
+AOBJ = src/bam_anno.o \
+	src/bam_count.o \
+	src/bam_pick.o \
+	src/dyncut.o \
+	src/sam2bam.o \
+	src/bam_rmdup.o \
+	src/count_matrix.o
+	#src/fastq_parse_barcode.o
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@

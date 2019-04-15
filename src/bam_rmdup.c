@@ -349,12 +349,13 @@ static void *run_it(void *_p)
         // for unmapped reads, different chromosomes, singletons, append to output
         if (c->tid == -1) break; // append to output, for sorted BAM unmapped reads only happened at end of file
         //  if ( !(c->flag&BAM_FPAIRED) || (c->flag&(BAM_FUNMAP|BAM_FMUNMAP)) || (c->mtid >= 0 && c->tid != c->mtid)) continue;
-        if (c->mtid >= 0 && c->tid != c->mtid) continue;
+        if (c->mtid >= 0 && c->tid != c->mtid) continue;        
         push_stack(&buf, b);
     }
     if (buf.n > 0) dump_best(&buf, best_first, opts);
     kh_destroy(name, best_first);
     // debug_print("finished. p->n: %d", p->n);
+    free(buf.p);
     return p;
 }
 
