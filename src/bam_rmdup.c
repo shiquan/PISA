@@ -171,7 +171,7 @@ static struct sam_pool *sam_pool_read(htsFile *fp, int bufsize)
         
         if (c->mtid >= 0 && c->mpos > c->pos && last_end < c->mpos) last_end = c->mpos;        
 
-        //debug_print("%s\t%d\t%d\t%d", args.hdr->target_name[c->tid],c->pos+1, c->isize, last_end);
+        // debug_print("%s\t%d\t%d\t%d", args.hdr->target_name[c->tid],c->pos+1, c->isize, last_end);
         
         if (i >= bufsize) { // start check ends
             if (last_end == -1) { //SE
@@ -188,7 +188,7 @@ static struct sam_pool *sam_pool_read(htsFile *fp, int bufsize)
         push_sam_pool(b, p);
         i++;
     }
-    debug_print("last_end: %d, p->n:%d, bufsize: %d", last_end, p->n, bufsize);
+    // debug_print("last_end: %d, p->n:%d, bufsize: %d", last_end, p->n, bufsize);
     if (p->n == 0) {
         free(p);
         return NULL;

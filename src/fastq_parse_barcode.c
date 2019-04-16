@@ -45,17 +45,37 @@ struct segment {
     int n; // white list barcodes per segment
     struct bcount *counts;
 };
-
+struct segment *segment_alloc(int n)
+{
+    struct segment *s = malloc(sizeof(*s));
+    s->n = n;
+    s->counts = malloc(sizeof(struct bcount)*n);
+    memset(s->counts, 0, sizeof(struct bcount)*n);
+    return s;
+}
 struct thread_hold {
     int n; // segments
-    struct segment *seg;
+    struct segment **seg;
 };
-struct thread_hold *thread_hold_alloc(int n)
+struct thread_hold *thread_hold_fork(struct thread_hold *h)
 {
-    struct thread_hold *h = malloc(sizeof(struct thread_hold));
-    h->n = n;
-    h->seg = malloc(sizeof(struct segment)*n);
-    return h;
+    struct thread_hold *f = malloc(sizeof(*f));
+    f->n = h->n;
+    f->seg = malloc(sizeof(void*)*f->n);
+    int i;
+    for (i = 0; i < f->n; ++i) f->seg[i] = segment_alloc(h->seg[i]->n);
+    return f;
+}
+void thread_hold_destroy(struct thread_hold *h)
+{
+    int i;
+    for (i = 0; i < h->n; ++i) {
+        struct segment *s = h->seg[i];
+        free(s->counts);
+        free(s);
+    }
+    free(h->seg);
+    free(h);
 }
 struct BarcodeRegion {
     int rd; // read 1 or 2
@@ -77,8 +97,14 @@ struct BRstat {
     int q30_bases;
     int bases;
     int exact_match;
+    int filter;
 };
-
+struct BRstat *BRstat_alloc()
+{
+    struct BRstat *b = malloc(sizeof(*b));
+    memset(b, 0, sizeof(*b));
+    return b;
+}
 struct NameCountPair {
     char *name;
     uint32_t count;
@@ -620,7 +646,7 @@ struct BRstat *extract_barcodes(struct bseq *b,
     for (i = 0; i < n; ++i) {
 
         const struct BarcodeRegion *br = &r[i];
-        // struct segment *seg = hold == NULL ? NULL : &hold->seg[i];
+        struct segment *seg = hold == NULL ? NULL : hold->seg[i];
         struct seqlite *s = extract_tag(b, br, stat);
         if (s == NULL) goto failed_check_barcode;
 
@@ -637,7 +663,19 @@ struct BRstat *extract_barcodes(struct bseq *b,
                 kputs(s->seq, &tag_str);
         }
         seqlite_destory(s);
-        if (ret == 0 || exact_match == 0) stat->exact_match = 0;
+        if (ret == -1) {
+            stat->filter = 1;
+            continue;
+        }
+        if (ret > 0) {
+            if (exact_match == 1) seg->counts[ret-1].matched++;
+            else seg->counts[ret-1].corrected++;
+        }
+                
+        if (ret == 0 || exact_match == 0) {
+            stat->exact_match = 0;
+            continue;
+        }        
     }
     
     if (run_code) {
@@ -803,7 +841,7 @@ static void *run_it(void *_p, int idx)
                 hold
                 );
             
-            if (cell_stat == NULL) {
+            if (cell_stat == NULL || cell_stat->filter == 1) {
                 b->flag = FQ_FLAG_BC_FAILURE;
                 continue;
             }
@@ -960,6 +998,25 @@ void report_write()
 }
 void full_details()
 {
+    LOG_print("Cell barcodes summary.");
+    int i, j, k;
+    for (i = 1; i < args.n_thread; ++i) {
+        for (j = 0; j < args.hold[i]->n; ++j) {
+            struct segment *s0 = args.hold[0]->seg[j];
+            struct segment *s1 = args.hold[i]->seg[j];
+            for (k = 0; k < s1->n; ++k) {
+                s0->counts[k].matched += s1->counts[k].matched;
+                s0->counts[k].corrected += s1->counts[k].corrected;
+            }
+        }
+    }
+    for (i = 0; i < config.n_cell_barcode; ++i) {
+        fprintf(stderr, "Segment %d\n", i+1);
+        struct BarcodeRegion *br = &config.cell_barcodes[i];
+        struct segment *s0 = args.hold[0]->seg[i];
+        for (j = 0; j < br->n_wl; ++j)
+            fprintf(stderr, "%s\t%llu\t%llu\n", br->white_list[j], s0->counts[j].matched, s0->counts[j].corrected);
+    }    
 }
 static void memory_release()
 {
@@ -968,6 +1025,9 @@ static void memory_release()
     if (args.out1_fp) fclose(args.out1_fp);
     if (args.out2_fp) fclose(args.out2_fp);
     fastq_handler_destory(args.fastq);
+    int i;
+    for (i = 0; i < args.n_thread; ++i) thread_hold_destroy(args.hold[i]);
+    free(args.hold);
 }
 static int parse_args(int argc, char **argv)
 {
@@ -1021,8 +1081,21 @@ static int parse_args(int argc, char **argv)
     args.hold = malloc(sizeof(void*)*args.n_thread);
     memset(args.hold, 0, sizeof(void*)*args.n_thread);
     
-    if (config.n_cell_barcode > 0) {
-        for (i = 0; i < args.n_thread; ++i) args.hold[i] = thread_hold_alloc(config.n_cell_barcode);
+    if (config.n_cell_barcode > 0) { // segments        
+        struct thread_hold *h1 = malloc(sizeof(struct thread_hold));
+        h1->n = config.n_cell_barcode;
+        h1->seg = malloc(sizeof(void*)*h1->n);
+        
+        for (i = 0; i < config.n_cell_barcode; ++i) { // barcodes per segment
+            int wl = config.cell_barcodes[i].n_wl;
+            h1->seg[i] = malloc(sizeof(struct segment));
+            h1->seg[i]->n = wl;
+            h1->seg[i]->counts = malloc(wl*sizeof(struct bcount));
+            memset(h1->seg[i]->counts, 0, sizeof(struct bcount)*wl);
+        }
+
+        args.hold[0] = h1;
+        for (i = 1; i < args.n_thread; ++i) args.hold[i] = thread_hold_fork(h1);
     }
 
     if (args.r1_fname == NULL && (!isatty(fileno(stdin)))) args.r1_fname = "-";
@@ -1096,6 +1169,7 @@ int fastq_prase_barcodes(int argc, char **argv)
 
     cell_barcode_count_pair_write();
     report_write();
+    full_details();
     memory_release();
 
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
