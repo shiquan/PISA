@@ -14,7 +14,6 @@
 KHASH_MAP_INIT_STR(str, int)
 typedef kh_str_t strhash_t;
 
-
 const char *program_name = "CellBarcodeParser";
 
 static int usage()
@@ -360,12 +359,9 @@ static void config_init(const char *fn)
                         br->n_wl = n2->n;
                         br->white_list = malloc(n2->n*sizeof(char*));
                         int l;
-                        // br->counts = malloc(n2->n*sizeof(struct bcount));
                         for (l = 0; l < n2->n; ++l) {
                             const kson_node_t *n3 = kson_by_index(n2, l);
                             br->white_list[l] = strdup(n3->v.str);                            
-                            // br->counts[l].matched = 0;
-                            // br->counts[l].corrected = 0;
                         }                                        
                     }
                     else error("Unknown key : \"%s\"", n2->key);
@@ -897,57 +893,87 @@ static void write_out(void *_data)
     // because the output queue is order, we do not consider the thread-safe of summary report
     for (i = 0; i < p->n; ++i) {
         struct bseq *b = &p->s[i];
+        struct fq_data *data = (struct fq_data*)b->data;
+        
         opts->raw_reads++;
         if (b->flag == FQ_FLAG_SAMPLE_FAIL) {
             opts->filtered_by_sample++;
-            continue;
+            goto background_reads;
         }
-        else if (b->flag == FQ_FLAG_BC_FAILURE) {
+
+        if (b->flag == FQ_FLAG_BC_FAILURE) {
             opts->filtered_by_barcode++;
-            continue;
+            goto background_reads;
         }
-        else if (b->flag == FQ_FLAG_READ_QUAL) {
+
+        if (b->flag == FQ_FLAG_READ_QUAL) {
             opts->filtered_by_lowqual++;
-            continue;
+            continue; // just skip ALL low quality reads
         }
-        else if (b->flag == FQ_FLAG_BC_EXACTMATCH) {
+
+        if (b->flag == FQ_FLAG_BC_EXACTMATCH) {
             opts->barcode_exactly_matched++;
+            goto flag_pass;
+        }
+
+        if (b->flag == FQ_FLAG_PASS) goto flag_pass;
+        
+        if (0) {
+          flag_pass:
             fprintf(fp1, "%c%s\n%s\n", b->q0 ? '@' : '>', b->n0, b->s0);
             if (b->q0) fprintf(fp1, "+\n%s\n", b->q0);
             if (b->l1 > 0) {
                 fprintf(fp2, "%c%s\n%s\n", b->q1 ? '@' : '>', b->n0, b->s1);
                 if (b->q1) fprintf(fp2, "+\n%s\n", b->q1);
             }
-        }
-        else if (b->flag == FQ_FLAG_PASS) { 
-            fprintf(fp1, "%c%s\n%s\n", b->q0 ? '@' : '>', b->n0, b->s0);
-            if (b->q0) fprintf(fp1, "+\n%s\n", b->q0);
-            if (b->l1 > 0) {
-                fprintf(fp2, "%c%s\n%s\n", b->q1 ? '@' : '>', b->n0, b->s1);
-                if (b->q1) fprintf(fp2, "+\n%s\n", b->q1);
-            }
-        }
-        struct fq_data *data = (struct fq_data*)b->data;
-        if (data->bc_str && opts->cbhash) {
-            khint_t k;
-            k = kh_get(str, opts->cbhash, (char*)data->bc_str);
-            if (k == kh_end(opts->cbhash)) {
-                if (opts->n_name == opts->m_name) {
-                    opts->m_name += 10000;
-                    opts->names = realloc(opts->names,opts->m_name *sizeof(struct NameCountPair));                        
+
+            if (data->bc_str && opts->cbhash) {
+                khint_t k;
+                k = kh_get(str, opts->cbhash, (char*)data->bc_str);
+                if (k == kh_end(opts->cbhash)) {
+                    if (opts->n_name == opts->m_name) {
+                        opts->m_name += 10000;
+                        opts->names = realloc(opts->names,opts->m_name *sizeof(struct NameCountPair));                        
+                    }
+                    struct NameCountPair *pair = &opts->names[opts->n_name];
+                    pair->name = strdup(data->bc_str);
+                    pair->count = 1;
+                    k = kh_put(str,opts->cbhash, pair->name, &ret);
+                    kh_val(opts->cbhash, k) = opts->n_name;
+                    opts->n_name++;
                 }
-                struct NameCountPair *pair = &opts->names[opts->n_name];
-                pair->name = strdup(data->bc_str);
-                pair->count = 1;
-                k = kh_put(str,opts->cbhash, pair->name, &ret);
-                kh_val(opts->cbhash, k) = opts->n_name;
-                opts->n_name++;
+                else {
+                    int id = kh_val(opts->cbhash, k);
+                    struct NameCountPair *pair = &opts->names[id];
+                    pair->count++;
+                }
             }
-            else {
-                int id = kh_val(opts->cbhash, k);
-                struct NameCountPair *pair = &opts->names[id];
-                pair->count++;
+        }
+
+        if (0) {
+          background_reads:                        
+            if (data->bc_str && opts->bghash) {
+                khint_t k;
+                k = kh_get(str, opts->bghash, (char*)data->bc_str);
+                if (k == kh_end(opts->bghash)) {
+                    if (opts->n_bg == opts->m_bg) {
+                        opts->m_bg += 10000;
+                        opts->bgnames = realloc(opts->bgnames,opts->m_bg *sizeof(struct NameCountPair));                        
+                    }
+                    struct NameCountPair *pair = &opts->bgnames[opts->n_bg];
+                    pair->name = strdup(data->bc_str);
+                    pair->count = 1;
+                    k = kh_put(str,opts->bghash, pair->name, &ret);
+                    kh_val(opts->bghash, k) = opts->n_bg;
+                    opts->n_bg++;
+                }
+                else {
+                    int id = kh_val(opts->bghash, k);
+                    struct NameCountPair *pair = &opts->bgnames[id];
+                    pair->count++;
+                }
             }
+            
         }
         opts->q30_bases_cell_barcode += (uint64_t)data->q30_bases_cell_barcode;
         opts->q30_bases_sample_barcode += (uint64_t)data->q30_bases_sample_barcode;
@@ -965,7 +991,7 @@ static void write_out(void *_data)
 }
 int cmpfunc (const void *a, const void *b)
 {    
-    return ( ((struct NameCountPair*)a)->count - ((struct NameCountPair*)b)->count );
+    return ( ((struct NameCountPair*)b)->count - ((struct NameCountPair*)a)->count );
 }
 void cell_barcode_count_pair_write()
 {
@@ -977,9 +1003,9 @@ void cell_barcode_count_pair_write()
             free(args.names[i].name);
         }
         free(args.names);
-        kh_destroy(str,args.cbhash);
         fclose(args.cbdis_fp);
     }
+    kh_destroy(str,args.cbhash);
 }
 void report_write()
 {
@@ -1015,7 +1041,7 @@ void full_details()
         struct BarcodeRegion *br = &config.cell_barcodes[i];
         struct segment *s0 = args.hold[0]->seg[i];
         for (j = 0; j < br->n_wl; ++j)
-            fprintf(stderr, "%s\t%llu\t%llu\n", br->white_list[j], s0->counts[j].matched, s0->counts[j].corrected);
+            fprintf(stderr, "%s\t%"PRIu64"\t%"PRIu64"\n", br->white_list[j], s0->counts[j].matched, s0->counts[j].corrected);
     }    
 }
 static void memory_release()
@@ -1041,7 +1067,7 @@ static int parse_args(int argc, char **argv)
         const char *a = argv[i++];
         const char **var = 0;
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return usage();
-        //if (strcmp(a, "-v") == 0 || strcmp(a, "--version") == 0) return get_version();
+
         if (strcmp(a, "-1") == 0) var = &args.out1_fname;
         else if (strcmp(a, "-2") == 0) var = &args.out2_fname;
         else if (strcmp(a, "-config") == 0) var = &args.config_fname;
@@ -1122,10 +1148,13 @@ static int parse_args(int argc, char **argv)
     if (args.cbdis_fname) {
         args.cbdis_fp = fopen(args.cbdis_fname, "w");
         if (args.cbdis_fp == NULL) error("%s : %s.", args.cbdis_fname, strerror(errno));
-        args.cbhash = kh_init(str);
+        
     }
-
     if (args.run_code == NULL) args.run_code = strdup("1");
+
+    args.cbhash = kh_init(str);
+    args.bghash = kh_init(str);
+    
     return 0;
 }
 
@@ -1168,8 +1197,11 @@ int fastq_prase_barcodes(int argc, char **argv)
     thread_pool_destroy(p);
 
     cell_barcode_count_pair_write();
+
     report_write();
+    // todo: html report
     full_details();
+    
     memory_release();
 
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
