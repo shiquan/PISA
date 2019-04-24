@@ -92,6 +92,7 @@ static struct args {
 
     int mito_id;
     int PE_flag;
+    int keep_all;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
@@ -120,6 +121,7 @@ static struct args {
     .qual_thres = 10,
     .mito_id = -2,
     .PE_flag = 0,
+    .keep_all = 0,
 };
 
 // Buffer input and output records in a memory pool per thread
@@ -248,7 +250,7 @@ static void write_out(struct sam_pool *p)
     int i;
     struct args *opts = p->opts;    
     for (i = 0; i < p->n; ++i) {
-        if (p->flag[i] == FLG_USABLE ) {
+        if (opts->keep_all == 1 || p->flag[i] == FLG_USABLE ) {
             if (bam_write1(opts->fp_out, p->bam[i]) == -1) error("Failed to write.");            
         }
         else if (p->flag[i] == FLG_MITO && opts->fp_mito != NULL) {
@@ -449,6 +451,7 @@ static int usage()
     fprintf(stderr, "name_parser in.sam\n");
     fprintf(stderr, " -o out.bam               Output file [stdout].\n");
     fprintf(stderr, " -t [5]                   Threads.\n");
+    fprintf(stderr, " -k                       Keep all records in out.bam, include unmapped reads etc.\n");
     fprintf(stderr, " -filter filter.bam       Filter reads, include unmapped, secondary alignment, mitochondra etc.\n");
     fprintf(stderr, " -q [10]                  Map quality theshold, mapped reads with smaller mapQ will be filter.\n");
     fprintf(stderr, " -report report.md        Alignment report in Json format.\n");
@@ -487,6 +490,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-maln") == 0) var = &args.mito_fname;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
         else if (strcmp(a, "-filter") == 0) var = &args.filter_fname;
+        else if (strcmp(a, "-k") == 0) {
+            args.keep_all = 1;
+            continue;
+        }
         else if (strcmp(a, "-p") == 0) {
             args.PE_flag = 1;
             continue;
@@ -522,10 +529,12 @@ static int parse_args(int argc, char **argv)
         if (args.fp_report == NULL) error("%s : %s.", args.report_fname, strerror(errno));
     }
     if (args.filter_fname) {
+        if (args.keep_all == 1) error("-k is conflict with -filter");
         args.fp_filter = bgzf_open(args.filter_fname, "w");
         if (args.fp_filter == NULL) error("%s : %s.", args.filter_fname, strerror(errno));
     }
     if (args.mito_fname) {
+        if (args.keep_all == 1) error("-k is conflict with -maln");
         args.fp_mito = bgzf_open(args.mito_fname, "w");
         if (args.fp_mito == NULL) error("%s : %s.", args.mito_fname, strerror(errno));
     }
