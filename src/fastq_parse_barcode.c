@@ -597,12 +597,17 @@ int check_whitelist(char *s, const struct BarcodeRegion *r, int *exact_match)
         return id;
     }
     if (r->dist > 0) {
+        int ret = -1;
         int i;
         for (i = 0; i < r->n_wl; ++i) {
             char *f = r->white_list[i];
             int dist = levenshtein(f, s, len);
-            if (dist <= r->dist) return i+1;
+            if (dist <= r->dist) {
+                if (ret == -1) ret = i+1;
+                else return -1; // more than one barcode statisfied, skip it
+            }
         }
+        return ret;
     }
     return -1;
 }

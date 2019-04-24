@@ -190,6 +190,9 @@ static struct sam_pool* sam_pool_read(kstream_t *s, int buffer_size)
                 args.preload_record = strndup(str.s, str.l);
                 break;
             }
+            p->str = realloc(p->str, sizeof(void*)*(p->n+1));
+            p->bam = realloc(p->bam, sizeof(void*)*(p->n+1));
+            p->flag = realloc(p->flag, sizeof(int)*(p->n+1));
         }
         
 
