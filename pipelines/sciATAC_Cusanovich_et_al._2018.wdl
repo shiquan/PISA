@@ -9,6 +9,7 @@ workflow main {
   String ID
   String ?runID
   String config
+  String macspath
   call makedir {
     input:
     Dir=outdir
@@ -37,6 +38,15 @@ workflow main {
     root=root,
     outdir=outdir
   }
+  call callPeak {
+    input:
+    macspath=macspath
+    bam=sortBam.bam,
+    outdir=outdir,
+    root=root,
+    ID=ID
+  }
+
 }
 
 task makedir {
@@ -90,4 +100,19 @@ task sortBam {
     ${sambambapath} sort -t 20 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam 
     ${root}/SingleCellTools rmdup -tag CB -t 20 -o ${outdir}/temp/rmdup.bam ${outdir}/temp/sorted.bam
   }
+}
+task callPeak {
+  String bam
+  String root
+  String outdir
+  String macspath
+  String ID
+  command <<<
+    ${macspath} callpeak -t ${bam} -f BAM --keep-dup all --nomodel --shift -100 --extsize 200 -g mm -n ${ID} --outdir ${outdir}/outs
+    cut -f1,2,3 ${outdir}/outs/${ID}_peaks.narrowPeak > ${outdir}/temp/peak.bed
+    ${root}/SingleCellTools anno -bed ${outdir}/temp/peak.bed -tag PK -o ${outdir}/outs/processed.bam ${bam}
+    ${root}/SingleCellTools attrcnt -cb CR -tag PK -o ${outdir}/temp/readcount.report.txt ${outdir}/outs/processed.bam
+    awk '{if($2>1000 && $3/$2>0.1){print $1;}}' ${outdir}/temp/readcount.report.txt > ${outdir}/temp/barcodes_called.txt
+    ${root}/SingleCellTools count -tag CR -anno_tag PK -list ${outdir}/temp/barcodes_called.txt -o ${outdir}/outs/count_matrix.txt
+  >>>
 }
