@@ -40,7 +40,7 @@ workflow main {
   }
   call callPeak {
     input:
-    macspath=macspath
+    macspath=macspath,
     bam=sortBam.bam,
     outdir=outdir,
     root=root,
