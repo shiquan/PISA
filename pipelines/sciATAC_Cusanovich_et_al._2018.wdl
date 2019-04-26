@@ -41,7 +41,7 @@ workflow main {
   call callPeak {
     input:
     macspath=macspath,
-    bam=sortBam.bam,
+    bam=sortBam.sorted,
     outdir=outdir,
     root=root,
     ID=ID
@@ -101,7 +101,7 @@ task sortBam {
     ${root}/SingleCellTools rmdup -tag CB -t 20 -o ${outdir}/temp/rmdup.bam ${outdir}/temp/sorted.bam
   }
   output {
-    String bam="${outdir}/temp/sorted.bam"
+    String sorted="${outdir}/temp/sorted.bam"
   }
 }
 task callPeak {
