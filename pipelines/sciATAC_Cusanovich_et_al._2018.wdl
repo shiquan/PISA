@@ -114,8 +114,8 @@ task callPeak {
     ${macspath} callpeak -t ${bam} -f BAM --keep-dup all --nomodel --shift -100 --extsize 200 -g mm -n ${ID} --outdir ${outdir}/outs
     cut -f1,2,3 ${outdir}/outs/${ID}_peaks.narrowPeak > ${outdir}/temp/peak.bed
     ${root}/SingleCellTools anno -bed ${outdir}/temp/peak.bed -tag PK -o ${outdir}/outs/processed.bam ${bam}
-    ${root}/SingleCellTools attrcnt -cb CR -tag PK -o ${outdir}/temp/readcount.report.txt ${outdir}/outs/processed.bam
-    awk '{if($2>1000 && $3/$2>0.1){print $1;}}' ${outdir}/temp/readcount.report.txt > ${outdir}/temp/barcodes_called.txt
-    ${root}/SingleCellTools count -tag CR -anno_tag PK -list ${outdir}/temp/barcodes_called.txt -o ${outdir}/outs/count_matrix.txt
+    ${root}/SingleCellTools attrcnt -cb CB -tag PK -o ${outdir}/temp/readcount.report.txt ${outdir}/outs/processed.bam
+    awk '{if($1 !~ /CELL_BARCODE/ && $2>1000 && $3/$2>0.1){print $1;}}' ${outdir}/temp/readcount.report.txt > ${outdir}/temp/barcodes_called.txt
+    ${root}/SingleCellTools count -tag CB -anno_tag PK -list ${outdir}/temp/barcodes_called.txt -o ${outdir}/outs/count_matrix.txt
   >>>
 }
