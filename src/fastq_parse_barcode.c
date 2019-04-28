@@ -22,15 +22,16 @@ static int usage()
     fprintf(stderr, " %s [options] read_1.fq.gz read_2.fq.gz\n", program_name);
     fprintf(stderr, "\n");
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -1         Read 1 output.\n");
-    fprintf(stderr, "  -2         Read 2 output.\n");
-    fprintf(stderr, "  -config    Configure file in JSON format. Required.\n");
-    fprintf(stderr, "  -run       Run code, used for different library.\n");
-    fprintf(stderr, "  -cbdis     Cell barcode sequence and count pairs.\n");
-    fprintf(stderr, "  -t         Thread.\n");
-    fprintf(stderr, "  -r         Records per chunk. [10000]\n");
-    fprintf(stderr, "  -report    Summary report.\n");
-    fprintf(stderr, "  -f         Filter reads based on BGISEQ standard. Two bases quality < q10 at first 15.\n");
+    fprintf(stderr, "  -1      [fastq]    Read 1 output.\n");
+    fprintf(stderr, "  -2      [fastq]    Read 2 output.\n");
+    fprintf(stderr, "  -config [txt]      Configure file in JSON format. Required.\n");
+    fprintf(stderr, "  -run    [string]   Run code, used for different library.\n");
+    fprintf(stderr, "  -cbdis  [txt]      Cell barcode sequence and count pairs.\n");
+    fprintf(stderr, "  -t      [INT]      Thread.\n");
+    fprintf(stderr, "  -r      [INT]      Records per chunk. [10000]\n");
+    fprintf(stderr, "  -report [txt]      Summary report.\n");
+    fprintf(stderr, "  -dis    [txt]      Barcode distribution count.\n");
+    fprintf(stderr, "  -f      [INT]      Filter reads based on BGISEQ standard. Two bases quality < q10 at first 15.\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -137,6 +138,7 @@ static struct args {
     const char *run_code;
     const char *cbdis_fname;
     const char *report_fname;
+    const char *dis_fname;
     
     int n_thread;
     int chunk_size;
@@ -166,6 +168,7 @@ static struct args {
     FILE *cbdis_fp;
     FILE *report_fp; // old report handler
     FILE *html_report_fp;
+    FILE *barcode_dis_fp;
     
     // hold thread safe data
     struct thread_hold **hold;
@@ -196,6 +199,7 @@ static struct args {
     .run_code = NULL,
     .cbdis_fname = NULL,
     .report_fname = NULL,
+    .dis_fname = NULL,
     .n_thread = 4,
     .chunk_size = 10000,
     .cell_number = 10000,
@@ -214,7 +218,7 @@ static struct args {
     .cbdis_fp = NULL,
     .report_fp = NULL,
     .html_report_fp = NULL,
-    
+    .barcode_dis_fp = NULL,
     .hold = NULL,
     .fastq = NULL,
 
@@ -1042,11 +1046,11 @@ void full_details()
         }
     }
     for (i = 0; i < config.n_cell_barcode; ++i) {
-        fprintf(stderr, "Segment %d\n", i+1);
         struct BarcodeRegion *br = &config.cell_barcodes[i];
         struct segment *s0 = args.hold[0]->seg[i];
+        fprintf(args.barcode_dis_fp, "# Read %d, %d-%d\n", br->rd, br->start, br->end);
         for (j = 0; j < br->n_wl; ++j)
-            fprintf(stderr, "%s\t%"PRIu64"\t%"PRIu64"\n", br->white_list[j], s0->counts[j].matched, s0->counts[j].corrected);
+            fprintf(args.barcode_dis_fp, "%s\t%"PRIu64"\t%"PRIu64"\n", br->white_list[j], s0->counts[j].matched, s0->counts[j].corrected);
     }    
 }
 static void memory_release()
@@ -1055,10 +1059,11 @@ static void memory_release()
     if (args.r2_fp) gzclose(args.r2_fp);
     if (args.out1_fp) fclose(args.out1_fp);
     if (args.out2_fp) fclose(args.out2_fp);
+    fclose(args.barcode_dis_fp);
     fastq_handler_destory(args.fastq);
     int i;
     for (i = 0; i < args.n_thread; ++i) thread_hold_destroy(args.hold[i]);
-    free(args.hold);
+    free(args.hold);    
 }
 static int parse_args(int argc, char **argv)
 {
@@ -1081,6 +1086,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-r") == 0) var = &chunk_size;
         else if (strcmp(a, "-run") == 0) var = &args.run_code;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
+        else if (strcmp(a, "-dis") == 0) var = &args.dis_fname;
         else if (strcmp(a, "-f") == 0) {
             args.bgiseq_filter = 1;
             continue;
@@ -1152,11 +1158,19 @@ static int parse_args(int argc, char **argv)
 
     if (args.cbdis_fname) {
         args.cbdis_fp = fopen(args.cbdis_fname, "w");
-        if (args.cbdis_fp == NULL) error("%s : %s.", args.cbdis_fname, strerror(errno));
+        if (args.cbdis_fp == NULL) error("%s : %s.", args.cbdis_fname, strerror(errno));        
+    }   
         
-    }
     if (args.run_code == NULL) args.run_code = strdup("1");
 
+    if (args.dis_fname != NULL) {
+        args.barcode_dis_fp = fopen(args.dis_fname, "w");
+        CHECK_EMPTY(args.barcode_dis_fp, "%s : %s.", args.dis_fname, strerror(errno));
+    }
+    else {
+        args.barcode_dis_fp = stderr;
+    }
+    
     args.cbhash = kh_init(str);
     args.bghash = kh_init(str);
     
