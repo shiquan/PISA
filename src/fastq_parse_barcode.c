@@ -138,7 +138,7 @@ static struct args {
     const char *run_code;
     const char *cbdis_fname;
     const char *report_fname;
-    const char *dis_fname;
+    const char *dis_fname; // barcode segment distribution
     
     int n_thread;
     int chunk_size;
@@ -521,7 +521,7 @@ struct seqlite *extract_tag(struct bseq *b, const struct BarcodeRegion *r, struc
     
     struct seqlite *p = malloc(sizeof(*p));
 
-    memset(stat, 0, sizeof(struct BRstat));
+    // memset(stat, 0, sizeof(struct BRstat));
     
     char *s = NULL;
     char *q = NULL;
@@ -543,7 +543,7 @@ struct seqlite *extract_tag(struct bseq *b, const struct BarcodeRegion *r, struc
     int i;
     for (i = 0; i < l; ++i) 
         if (p->qual[i]-33 >= 30) stat->q30_bases++;
-    stat->bases = l;
+    stat->bases = +l;
     return p;
 }
 // credit to https://github.com/wooorm/levenshtein.c
@@ -586,7 +586,7 @@ int levenshtein(char *a, char *b, int l) {
     return result;
 }
 
-// -1 on unfound, 0 on No white list, >0 for iterater of white lists
+// -1 on unfound, 0 on No found on white list, >0 for iterater of white lists
 int check_whitelist(char *s, const struct BarcodeRegion *r, int *exact_match)
 {
     if (r->n_wl == 0) return 0;
@@ -624,7 +624,7 @@ static void update_rname(struct bseq *b, const char *tag, char *s)
     kputs("|||", &str);
     kputs(s, &str);
     free(b->n0);
-    b->n0 = str.s;    
+    b->n0 = str.s;
 }
 
 struct BRstat *extract_barcodes(struct bseq *b,
@@ -668,7 +668,7 @@ struct BRstat *extract_barcodes(struct bseq *b,
                 kputs(s->seq, &tag_str);
         }
         seqlite_destory(s);
-        if (ret == -1) {
+        if (ret <= 0) {
             stat->filter = 1;
             continue;
         }
