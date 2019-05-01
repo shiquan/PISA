@@ -668,21 +668,23 @@ struct BRstat *extract_barcodes(struct bseq *b,
                 kputs(s->seq, &tag_str);
         }
         seqlite_destory(s);
-        if (br->n_wl > 0) {
-            if (ret <= 0) {
-                stat->filter = 1;
-                continue;
-            }
-            if (ret > 0) {
-                if (exact_match == 1) seg->counts[ret-1].matched++;
-                else seg->counts[ret-1].corrected++;
-            }
-            
-            if (ret == 0 || exact_match == 0) {
-                stat->exact_match = 0;
-                continue;
-            }
+
+        if (br->n_wl == 0)             
+            continue;
+        
+        if (ret <= 0) {
+            stat->filter = 1;
+            continue;
         }
+        if (ret > 0) {
+            if (exact_match == 1) seg->counts[ret-1].matched++;
+            else seg->counts[ret-1].corrected++;
+        }
+        
+        if (ret == 0 || exact_match == 0) {
+            stat->exact_match = 0;
+            continue;
+        }        
     }
     
     if (run_code) {
@@ -911,7 +913,7 @@ static void write_out(void *_data)
             opts->filtered_by_sample++;
             goto background_reads;
         }
-
+        
         if (b->flag == FQ_FLAG_BC_FAILURE) {
             opts->filtered_by_barcode++;
             goto background_reads;
@@ -1111,6 +1113,7 @@ static int parse_args(int argc, char **argv)
     }
 
     if (args.config_fname == NULL) error("Option -config is required.");
+    if (args.cbdis_fname == NULL) error("-cbdis is required.");
     config_init(args.config_fname);
         
     if (thread) args.n_thread = str2int((char*)thread);
