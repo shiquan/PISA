@@ -668,19 +668,21 @@ struct BRstat *extract_barcodes(struct bseq *b,
                 kputs(s->seq, &tag_str);
         }
         seqlite_destory(s);
-        if (ret <= 0) {
-            stat->filter = 1;
-            continue;
+        if (br->n_wl > 0) {
+            if (ret <= 0) {
+                stat->filter = 1;
+                continue;
+            }
+            if (ret > 0) {
+                if (exact_match == 1) seg->counts[ret-1].matched++;
+                else seg->counts[ret-1].corrected++;
+            }
+            
+            if (ret == 0 || exact_match == 0) {
+                stat->exact_match = 0;
+                continue;
+            }
         }
-        if (ret > 0) {
-            if (exact_match == 1) seg->counts[ret-1].matched++;
-            else seg->counts[ret-1].corrected++;
-        }
-                
-        if (ret == 0 || exact_match == 0) {
-            stat->exact_match = 0;
-            continue;
-        }        
     }
     
     if (run_code) {
