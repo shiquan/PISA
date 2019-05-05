@@ -11,7 +11,7 @@
 #define MAX_PATTERN_LENGTH 100
 #define MIN_SEED_LENGTH    6
 #define MAX_SEED_LENGTH    20
-#define MAX_MISMATCH       2
+#define MAX_MISMATCH       0
 
 struct hit {
     int loc;
