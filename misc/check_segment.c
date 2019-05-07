@@ -557,6 +557,7 @@ static struct pos_p *check_pattern_forward(char *s, const int start, const struc
     
     *n = 0;
     for (; i < r->l_seq && loc < len;) {
+        assert(i<MAX_PATTERN_LENGTH);
         if (r->seq[i] == 'N') {
             p[c].loc = loc;
             p[c].id = r->idx[i];
@@ -592,6 +593,7 @@ static struct pos_p *check_pattern_backward(char *s, const int start, const stru
     
     *n = 0;
     for (; i >= 0 && loc >= 0;) {
+        assert(i<MAX_PATTERN_LENGTH);
         if (r->seq[i] == 'N') {
             for(; i>=0 && r->seq[i]=='N'; --i, --loc);
             if (loc >= 0) {
@@ -651,7 +653,6 @@ static char **check_pattern(char *s, int start, struct ref_pat *r, struct hit *h
         struct pos_p *p = NULL;
         if (i >= l1) p = &p2[i-l1];
         else p = &p1[i];
-        debug_print("p->id %d", p->id);
         assert(p->id < r->n && p->id >= 0);
         struct segment *seg = &r->segs[p->id];
         if (p->loc + seg->l > len) { //partly found
@@ -732,7 +733,7 @@ static char **find_segment_core(struct ref *r, char *s, int l, int *partly_found
 static void find_segment(struct ref *ref, struct bseq *seq)
 {
     int partly_found = 0;
-    
+    debug_print("%s", seq->n0);
     char **fetch =  NULL;
     fetch = find_segment_core(ref, seq->s0, seq->l0, &partly_found);
     if (fetch == NULL)
