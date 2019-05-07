@@ -678,8 +678,9 @@ static char **check_pattern(char *s, int start, struct ref_pat *r, struct hit *h
 
         if (h->strand == 1) { // reverse sequence for minus strand
             char *r = rev_seq(str.s, str.l);
-            free(str.s);
-            str.s = r;
+            str.l = 0;
+            kputs(r, &str);
+            free(r);
         }
         
         // Concat segment with same tag name into one
