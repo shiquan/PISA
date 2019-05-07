@@ -684,12 +684,12 @@ static char **check_pattern(char *s, int start, struct ref_pat *r, struct hit *h
         }
         
         // Concat segment with same tag name into one
-        if (fetch[i] != NULL) {
-            kputs(fetch[i], &str);
-            free(fetch[i]);
+        if (fetch[p->id] != NULL) {
+            kputs(fetch[p->id], &str);
+            free(fetch[p->id]);
         }
         
-        fetch[i] = str.s;        
+        fetch[p->id] = str.s;        
     }
     
     return fetch;
