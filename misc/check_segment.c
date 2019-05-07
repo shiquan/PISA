@@ -651,6 +651,7 @@ static char **check_pattern(char *s, int start, struct ref_pat *r, struct hit *h
         struct pos_p *p = NULL;
         if (i >= l1) p = &p2[i-l1];
         else p = &p1[i];
+        debug_print("p->id %d", p->id);
         assert(p->id < r->n && p->id >= 0);
         struct segment *seg = &r->segs[p->id];
         if (p->loc + seg->l > len) { //partly found
