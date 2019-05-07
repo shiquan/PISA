@@ -138,7 +138,7 @@ static struct ref_pat *build_rev_pat(struct ref_pat *r)
                 break;
         }
 
-        v->idx[i] = r->seq[v->l_seq-i-1];
+        v->idx[i] = r->idx[v->l_seq-i-1];
 
         if (v->idx[i] == 0) p = 0;
         else v->pos[i] = p++;
@@ -733,7 +733,7 @@ static char **find_segment_core(struct ref *r, char *s, int l, int *partly_found
 static void find_segment(struct ref *ref, struct bseq *seq)
 {
     int partly_found = 0;
-    debug_print("%s", seq->n0);
+
     char **fetch =  NULL;
     fetch = find_segment_core(ref, seq->s0, seq->l0, &partly_found);
     if (fetch == NULL)
