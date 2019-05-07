@@ -84,7 +84,7 @@ static void ref_destroy(struct ref *r)
 }
 static char *rev_seq(char *s, int l)
 {
-    char *r = malloc(l*sizeof(char));
+    char *r = malloc((l+1)*sizeof(char));
     int i;
     for (i = 0; i < l; ++i) {
         switch(s[i]) {
@@ -107,6 +107,7 @@ static char *rev_seq(char *s, int l)
                 error("Try to reverse a non DNA sequence? \"%s\"", s);
         }
     }
+    r[l] = '\0';
     return r;
 }
 static struct ref_pat *build_rev_pat(struct ref_pat *r)
@@ -682,8 +683,7 @@ static char **check_pattern(char *s, int start, struct ref_pat *r, struct hit *h
         if (h->strand == 1) { // reverse sequence for minus strand
             char *r = rev_seq(str.s, str.l);
             str.l = 0;
-            kputsn(r, str.l, &str);
-            kputs("", &str);
+            kputs(r, &str);
             free(r);
         }
         
