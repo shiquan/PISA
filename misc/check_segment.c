@@ -71,6 +71,7 @@ static void ref_pat_destroy(struct ref_pat *r)
     free(r->seq);
     free(r);
 }
+
 static void ref_destroy(struct ref *r)
 {
     ref_pat_destroy(r->ref);
@@ -81,6 +82,33 @@ static void ref_destroy(struct ref *r)
     kh_destroy(hit, r->map);
     free(r);
 }
+static char *rev_seq(char *s, int l)
+{
+    char *r = malloc(l*sizeof(char));
+    int i;
+    for (i = 0; i < l; ++i) {
+        switch(s[i]) {
+            case 'A':
+                r[l-i-1] = 'T';
+                break;
+            case 'C':
+                r[l-i-1] = 'G';
+                break;
+            case 'G':
+                r[l-i-1] = 'C';
+                break;
+            case 'T':
+                r[l-i-1] = 'A';
+                break;
+            case 'N':
+                r[l-i-1] = 'N';
+                break;
+            default:
+                error("Try to reverse a non DNA sequence? \"%s\"", s);
+        }
+    }
+    return r;
+}
 static struct ref_pat *build_rev_pat(struct ref_pat *r)
 {
     struct ref_pat *v = ref_pat_alloc();
@@ -90,6 +118,7 @@ static struct ref_pat *build_rev_pat(struct ref_pat *r)
     v->seq = malloc(v->l_seq*sizeof(char));
     
     int p = 0;
+    
     for (i = 0; i < v->l_seq; ++i) {
         switch(r->seq[v->l_seq-i-1]) {
             case 'A':
@@ -646,11 +675,19 @@ static char **check_pattern(char *s, int start, struct ref_pat *r, struct hit *h
             str.l = 0;
             kputs(seg->wl[e], &str);
         }
+
+        if (h->strand == 1) { // reverse sequence for minus strand
+            char *r = rev_seq(str.s, str.l);
+            free(str.s);
+            str.s = r;
+        }
+        
         // Concat segment with same tag name into one
         if (fetch[i] != NULL) {
             kputs(fetch[i], &str);
             free(fetch[i]);
         }
+        
         fetch[i] = str.s;        
     }
     
