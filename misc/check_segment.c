@@ -116,7 +116,7 @@ static struct ref_pat *build_rev_pat(struct ref_pat *r)
     int i;
     v->n = r->n;
     v->l_seq = r->l_seq;
-    r->seq = rev_seq(v->seq, v->l_seq);
+    v->seq = rev_seq(r->seq, v->l_seq);
     
     for (i = 0; i < v->l_seq; ++i) v->idx[i] = r->idx[v->l_seq-i-1];
 
@@ -134,7 +134,7 @@ static struct ref_pat *build_rev_pat(struct ref_pat *r)
             khint_t ik;
             int ret;
             for (j = 0; j < copy->n; ++j) {
-                copy->wl[j] = rev_seq(copy->wl[j], copy->l);
+                copy->wl[j] = rev_seq(ori->wl[j], copy->l);
                 ik = kh_put(str, copy->hash, copy->wl[j], &ret);
                 kh_val(copy->hash, ik) = j;
             }
@@ -627,7 +627,7 @@ static char **check_pattern(char *s, int start, struct ref_pat *r, struct hit *h
             if (e < 0) { // unmatched
                 int j;
                 for (j = 0; j < r->n; ++j)
-                    if (fetch[j]) free(fetch);
+                    if (fetch[j]) free(fetch[j]);
                 free(fetch);
                 free(str.s);
                 return NULL;
