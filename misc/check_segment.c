@@ -615,7 +615,7 @@ static char **check_pattern(char *s, int start, struct ref_pat *r, struct hit *h
         if (p->loc + seg->l > len) { //partly found
             int j;
             for (j = 0; j < r->n; ++j)
-                if (fetch[j]) free(fetch);
+                if (fetch[j]) free(fetch[j]);
             free(fetch);
             return NULL;
         }
