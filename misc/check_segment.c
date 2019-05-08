@@ -295,7 +295,7 @@ static struct ref_pat *config_init(const char *fn)
                             int m;
                             for (m = 0; m <n1->n; ++m) {
                                 const kson_node_t *n2 = kson_by_index(n1,m);
-                                if (n2->v.str) error ("Empty record at white list.");
+                                if (n2->v.str == NULL) error ("Empty record at white list.");
                                 seg->wl[m] = strdup(n2->v.str);
                                 khint_t k;
                                 int ret;
