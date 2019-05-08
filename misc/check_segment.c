@@ -116,34 +116,9 @@ static struct ref_pat *build_rev_pat(struct ref_pat *r)
     int i;
     v->n = r->n;
     v->l_seq = r->l_seq;
-    v->seq = malloc(v->l_seq*sizeof(char));
+    r->seq = rev_seq(v->seq, v->l_seq);
     
-    int p = 0;
-    
-    for (i = 0; i < v->l_seq; ++i) {
-        switch(r->seq[v->l_seq-i-1]) {
-            case 'A':
-                v->seq[i] = 'T';
-                break;
-            case 'C':
-                v->seq[i] = 'G';
-                break;
-            case 'G':
-                v->seq[i] = 'C';
-                break;
-            case 'T':
-                v->seq[i] = 'A';
-                break;
-            default:
-                v->seq[i] = 'N';
-                break;
-        }
-
-        v->idx[i] = r->idx[v->l_seq-i-1];
-
-        if (v->idx[i] == 0) p = 0;
-        else v->pos[i] = p++;
-    }
+    for (i = 0; i < v->l_seq; ++i) v->idx[i] = r->idx[v->l_seq-i-1];
 
     v->segs = malloc(v->n*sizeof(struct segment));
     for (i = 0; i < v->n; ++i) {
@@ -155,30 +130,11 @@ static struct ref_pat *build_rev_pat(struct ref_pat *r)
         if (copy->n) {
             copy->hash = kh_init(str);
             copy->wl = malloc(sizeof(char*)*copy->n);
-            int j, k;
+            int j;
             khint_t ik;
             int ret;
             for (j = 0; j < copy->n; ++j) {
-                copy->wl[j] = malloc(sizeof(char)*copy->l);
-                char *c = ori->wl[j];
-                for (k = 0; k < copy->l; ++k) {
-                    switch(c[copy->l -k -1]) {
-                        case 'A':
-                            copy->wl[j][k] = 'T';
-                            break;
-                        case 'C':
-                            copy->wl[j][k] = 'G';
-                            break;
-                        case 'G':
-                            copy->wl[j][k] = 'C';
-                            break;
-                        case 'T':
-                            copy->wl[j][k] = 'A';
-                            break;
-                        default:
-                            error("Unknown character at white list, %c", c[copy->l-k-1]);
-                    }
-                }
+                copy->wl[j] = rev_seq(copy->wl[j], copy->l);
                 ik = kh_put(str, copy->hash, copy->wl[j], &ret);
                 kh_val(copy->hash, ik) = j;
             }
