@@ -153,6 +153,8 @@ static struct args {
     int seed_length;
 
     int smart_pairing;
+    int force_match;
+    
     struct ref *r;
 
     struct fastq_handler *fastq;
@@ -174,6 +176,7 @@ static struct args {
     .seed_length = 6,
 
     .smart_pairing = 0,
+    .force_match = 0,
     .r = NULL,
 
     .fastq = NULL,
@@ -485,6 +488,7 @@ static int usage()
     fprintf(stderr, "-config [json]    Configure file.\n");    
     fprintf(stderr, "-o      [tsv]     Output table.\n");
     fprintf(stderr, "-sl     [INT]     Seed length for mapping consensus sequence.\n");
+    fprintf(stderr, "-t      [INT]     Threads.\n");
     return 1;
 }
 
@@ -764,6 +768,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-config") == 0) var = &args.config_fname;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-t") == 0) var = &thread;
+        else if (strcmp(a, "-f") == 0) {
+            args.force_match = 1;
+            continue;
+        }
         else if (strcmp(a, "-p") == 0) {
             args.smart_pairing = 1;
             continue;
@@ -814,15 +822,46 @@ int main(int argc, char **argv)
     
     if (parse_args(argc, argv) == 1) return usage();
     LOG_print("Build reference finished.");
-    
-    for (;;) {
-        struct bseq_pool *p = bseq_read(args.fastq, &args);
-        if (p == NULL) break;
-        run_it(p);
-        write_out(p);
+
+    if (args.n_thread == 1) {
+        for (;;) {
+            struct bseq_pool *p = bseq_read(args.fastq, &args);
+            if (p == NULL) break;
+            run_it(p);
+            write_out(p);
+        }
+    }
+    else {
+        hts_tpool *p = hts_tpool_init(args.n_thread);
+        hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+        hts_tpool_result *r;
+        
+        for (;;) {
+            struct bseq_pool *b = bseq_read(args.fastq, &args);
+            if (b == NULL) break;
+            
+            int block;
+            do {
+                block = hts_tpool_dispatch2(p, q, run_it, b, 1);
+                if ((r = hts_tpool_next_result(q))) {
+                    struct bseq_pool *d = (struct bseq_pool*) hts_tpool_result_data(r);
+                    write_out(d);
+                    hts_tpool_delete_result(r, 0);
+                }
+            } while(block == -1);
+        }
+        hts_tpool_process_flush(q);
+
+        while ((r = hts_tpool_next_result(q))) {
+            struct bseq_pool *d = (struct bseq_pool*) hts_tpool_result_data(r);
+            write_out(d);
+            hts_tpool_delete_result(r, 0);                
+        }
+        hts_tpool_process_destroy(q);
+        hts_tpool_destroy(p);
     }
 
     memory_release();
-    
+    LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;
 }
