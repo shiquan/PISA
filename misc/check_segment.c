@@ -666,7 +666,7 @@ static struct hits *check_kmers(struct ref *r, char *s)
     return kh_val(r->map, k);
 }
 // @l      Length of string
-static char **find_segment_core(struct ref *r, char *s, int l, int *partly_found)
+static char **find_segment_core(struct ref *r, char *s, int l, int *partly_found, int *strand)
 {
     int i;
     kstring_t str ={0,0,0};
@@ -680,6 +680,7 @@ static char **find_segment_core(struct ref *r, char *s, int l, int *partly_found
             for (j = 0; j < hh->n; ++j) {
                 struct hit *h = &hh->hit[j];
                 char **fetch = check_pattern(s, i, h->strand == 0 ? r->ref : r->rev, h, partly_found);
+                *strand = h->strand;
                 if (fetch) {
                     free(str.s);
                     return fetch;
@@ -688,7 +689,7 @@ static char **find_segment_core(struct ref *r, char *s, int l, int *partly_found
         }
         str.l = 0;
     }
-    free(str.s);
+    free(str.s);    
     return NULL;
 }
 static void find_segment(struct ref *ref, struct bseq *seq)
@@ -696,9 +697,13 @@ static void find_segment(struct ref *ref, struct bseq *seq)
     int partly_found = 0;
 
     char **fetch =  NULL;
-    fetch = find_segment_core(ref, seq->s0, seq->l0, &partly_found);
-    if (fetch == NULL)
-        fetch = find_segment_core(ref, seq->s1, seq->l1, &partly_found);
+    int read = 1;
+    int strand;
+    fetch = find_segment_core(ref, seq->s0, seq->l0, &partly_found, &strand);
+    if (fetch == NULL) {
+        fetch = find_segment_core(ref, seq->s1, seq->l1, &partly_found, &strand);
+        read = 2;
+    }
     if (fetch) {
         kstring_t str = {0,0,0};
         int i;
@@ -713,6 +718,7 @@ static void find_segment(struct ref *ref, struct bseq *seq)
             }
         }
         free(fetch);
+        ksprintf(&str, "\t%c\t%d", strand == 0 ? '+' : '-', read);
         seq->data = (void *)str.s;
         seq->flag = FQ_FLG_FUD;
     }
