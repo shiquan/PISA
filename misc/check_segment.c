@@ -33,6 +33,22 @@ struct segment {
     kh_str_t *hash; // white list hash;    
 };
 
+static int n_tag = 0;
+static char **tags = NULL;
+
+struct fetch_data {
+    char **fetch;
+    int strand;
+    int read;
+};
+
+void fetch_data_destory(struct fetch_data *d)
+{
+    int i;
+    for (i = 0; i < n_tag; ++i) free(d->fetch[i]);
+    free(d->fetch);
+    free(d);
+}
 struct ref_pat {
     int idx[MAX_PATTERN_LENGTH]; // fast access the index of segment
     int pos[MAX_PATTERN_LENGTH]; // the position of each segment, start from 0
@@ -149,7 +165,8 @@ static struct args {
     const char *barcode_tag;
     const char *config_fname;
     const char *output_fname;
-
+    const char *pair_fname;
+    
     int seed_length;
 
     int smart_pairing;
@@ -161,6 +178,9 @@ static struct args {
     
     FILE *report_fp;
 
+    // if found segments pattern at one read, export paired read to this file
+    FILE *pair_fp;
+    
     uint64_t found;
     uint64_t partly_found;
     
@@ -172,7 +192,8 @@ static struct args {
     .barcode_tag = NULL,
     .config_fname = NULL,
     .output_fname = NULL,
-
+    .pair_fname = NULL,
+    
     .seed_length = 6,
 
     .smart_pairing = 0,
@@ -182,13 +203,13 @@ static struct args {
     .fastq = NULL,
     
     .report_fp = NULL,
-
+    .pair_fp = NULL,
+    
     .found = 0,
     .partly_found = 0,
 
     .n_thread = 1,
 };
-
 
 static struct ref_pat *config_init(const char *fn)
 {
@@ -202,7 +223,6 @@ static struct ref_pat *config_init(const char *fn)
     struct ref_pat *ref = ref_pat_alloc();
 
     kh_str_t *hash = kh_init(str);
-    char **tags = NULL;
     
     do {
         const kson_node_t *root = json->root;
@@ -222,7 +242,9 @@ static struct ref_pat *config_init(const char *fn)
                 ref->n = node->n;
                 if (ref->n == 0) error("No segment records in the config file.");
                 ref->segs = malloc(ref->n*sizeof(struct segment));
+
                 tags = malloc(ref->n*sizeof(char*));
+                n_tag = ref->n;
                 
                 int j;
                 for (j =0; j <node->n; ++j) {
@@ -415,10 +437,9 @@ static struct ref_pat *config_init(const char *fn)
     fputs("#RNAME",args.report_fp);
     for (i = 0; i < ref->n; ++i) {
         fprintf(args.report_fp, "\t%s", tags[i]);
-        free(tags[i]);
+        // free(tags[i]);
     }
     fputc('\n', args.report_fp);
-    free(tags);
     kh_destroy(str, hash);
         
     free(pat);
@@ -489,6 +510,7 @@ static int usage()
     fprintf(stderr, "-o      [tsv]     Output table.\n");
     fprintf(stderr, "-sl     [INT]     Seed length for mapping consensus sequence.\n");
     fprintf(stderr, "-t      [INT]     Threads.\n");
+    fprintf(stderr, "-paired [fastq]   If pattern found at one read, export paired reads to this file. Must set with pair reads mode.\n");
     return 1;
 }
 
@@ -705,21 +727,11 @@ static void find_segment(struct ref *ref, struct bseq *seq)
         read = 2;
     }
     if (fetch) {
-        kstring_t str = {0,0,0};
-        int i;
-        for (i = 0; i < ref->ref->n; ++i) {
-            if (i) kputc('\t', &str);
-            if (fetch[i]) {
-                kputs(fetch[i], &str);
-                free(fetch[i]);
-            }
-            else {
-                kputc('.', &str);
-            }
-        }
-        free(fetch);
-        ksprintf(&str, "\t%c\t%d", strand == 0 ? '+' : '-', read);
-        seq->data = (void *)str.s;
+        struct fetch_data *f = malloc(sizeof(*f));
+        f->fetch = fetch;
+        f->strand = strand;
+        f->read = read;
+        seq->data = (void*)f;
         seq->flag = FQ_FLG_FUD;
     }
     else if (partly_found) seq->flag = FQ_FLG_PAR;
@@ -729,9 +741,10 @@ static void *run_it(void *_p)
 {
     struct bseq_pool *p = (struct bseq_pool*)_p;
     int i;
-    for (i = 0; i < p->n; ++i) 
-        find_segment(args.r, &p->s[i]);
-    
+    for (i = 0; i < p->n; ++i) {
+        struct bseq *b = &p->s[i];
+        find_segment(args.r, b);        
+    }
     return p;
 }
 static void write_out(void *_d)
@@ -742,8 +755,37 @@ static void write_out(void *_d)
     for (i = 0; i < p->n; ++i) {
         struct bseq *b = &p->s[i];
         if (b->flag == FQ_FLG_FUD) {
-            fprintf(opts->report_fp, "%s\t%s\n", b->n0, (char*)b->data);
-            free(b->data);
+            kstring_t str = {0,0,0};
+            struct fetch_data *dat = (struct fetch_data*)b->data;
+            int j;
+            for (j = 0; j < n_tag; ++j) {
+                if (j) kputc('\t', &str);
+                if (dat->fetch[j]) {
+                    kputs(dat->fetch[j], &str);
+                    // free(dat->fetch[j]);
+                }
+                else {
+                    kputc('.', &str);
+                }
+            }
+            // free(dat->fetch);
+            ksprintf(&str, "\t%c\t%d", dat->strand == 0 ? '+' : '-', dat->read);
+            fprintf(opts->report_fp, "%s\t%s\n", b->n0, str.s);
+
+            if (opts->pair_fp) { // if found, rename read names
+                struct fetch_data *dat = (struct fetch_data*)b->data;            
+                kstring_t str = {0,0,0};
+                kputs(b->n0, &str);
+                int j;
+                for (j = 0; j < n_tag; ++j) {
+                    kputs("|||", &str); kputs(tags[j], &str); kputs("|||", &str); kputs(dat->fetch[j], &str);
+                }
+                fprintf(opts->pair_fp, "%c%s\n%s\n", b->q0 ?'@' :'>', str.s,dat->read == 2? b->s0 : b->s1);
+                if (b->q0) fprintf(opts->pair_fp, "+\n%s\n", dat->read == 2 ? b->q0 : b->q1);
+            }
+                        
+            fetch_data_destory(dat);
+            free(str.s);
             opts->found++;
         }
         else if (b->flag == FQ_FLG_PAR) {
@@ -774,6 +816,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-config") == 0) var = &args.config_fname;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-t") == 0) var = &thread;
+        else if (strcmp(a, "-pair") == 0) var = &args.pair_fname;
         else if (strcmp(a, "-f") == 0) {
             args.force_match = 1;
             continue;
@@ -792,6 +835,13 @@ static int parse_args(int argc, char **argv)
     if (args.config_fname == NULL) error ("Configure file must be set.");
     if (args.output_fname == NULL) error ("Output file must be set.");
     if (args.r1_fname == NULL) error ("Input fastq must be specified with -1.");
+
+    if (args.pair_fname) {
+        if (args.r2_fname == NULL && args.smart_pairing == 0) error("-pair set only with -2 or -p.");
+        args.pair_fp = fopen(args.pair_fname, "w");
+        CHECK_EMPTY (args.pair_fp, "Failed to open %s : %s", args.pair_fname, strerror(errno));
+    }
+    
     args.fastq = fastq_handler_init(args.r1_fname, args.r2_fname, args.smart_pairing, 100000);
     CHECK_EMPTY (args.fastq, "Failed to init fastq file.");
 
@@ -817,6 +867,10 @@ static int parse_args(int argc, char **argv)
 }
 static void memory_release()
 {
+    int i;
+    for (i = 0; i < n_tag; ++i) free(tags[i]);
+    free(tags);
+    if (args.pair_fp) fclose(args.pair_fp);
     fastq_handler_destory(args.fastq);
     ref_destroy(args.r);    
     fclose(args.report_fp);    
