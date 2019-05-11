@@ -8,6 +8,7 @@ workflow main {
   String sambambapath
   String ID
   String ?runID
+  String ?gsize
   String config
   String macspath
   call makedir {
@@ -40,14 +41,26 @@ workflow main {
   }
   call callPeak {
     input:
-    macspath=macspath
-  }
-  call annoBam {
-    input:
-    bam=sortBam.bam,
-    peak=callPeak.peak
+    macspath=macspath,
+    bam=sortBam.sorted,
     outdir=outdir,
-    root=root
+    root=root,
+    ID=ID,
+    gsize=gsize
+  }
+
+}
+
+task makedir {
+  String Dir
+  command {
+    echo "[`date +%F` `date +%T`] workflow start" > ${Dir}/workflowtime.log
+    mkdir -p ${Dir}
+    mkdir -p ${Dir}/outs
+    mkdir -p ${Dir}/temp
+  }
+  output {
+    String Outdir="${Dir}"
   }
 }
 task parseFastq {
@@ -89,20 +102,23 @@ task sortBam {
     ${sambambapath} sort -t 20 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam 
     ${root}/SingleCellTools rmdup -tag CB -t 20 -o ${outdir}/temp/rmdup.bam ${outdir}/temp/sorted.bam
   }
+  output {
+    String sorted="${outdir}/temp/sorted.bam"
+  }
 }
 task callPeak {
   String bam
-  String peak
   String root
   String outdir
   String macspath
   String ID
-  command {
-    ${macspath} callpeak -t ${bam} -f BAM --keep-dup all --nomodel --shift -100 --extsize 200 -g mm -n ${ID} --outdir ${outdir}/outs
+  String ?gsize
+  command <<<
+    ${macspath} callpeak -t ${bam} -f BAM --keep-dup all --nomodel --shift -100 --extsize 200 -g {default="mm" gsize} -n ${ID} --outdir ${outdir}/outs
     cut -f1,2,3 ${outdir}/outs/${ID}_peaks.narrowPeak > ${outdir}/temp/peak.bed
     ${root}/SingleCellTools anno -bed ${outdir}/temp/peak.bed -tag PK -o ${outdir}/outs/processed.bam ${bam}
-    ${root}/SingleCellTools attrcnt -cb CR -tag PK -o ${outdir}/temp/readcount.report.txt ${outdir}/outs/processed.bam
-    awk '{if($2>1000 && $3/$2>0.1){print $1}}' > ${outdir}/temp/barcodes_called.txt
-    ${root}/SingleCellTools count -tag CR -anno_tag PK -list ${outdir}/temp/barcodes_called.txt -o ${outdir}/outs/count_matrix.txt
-  }
+    ${root}/SingleCellTools attrcnt -cb CB -tag PK -o ${outdir}/temp/readcount.report.txt ${outdir}/outs/processed.bam
+    awk '{if($1 !~ /CELL_BARCODE/ && $2>1000 && $3/$2>0.1){print $1;}}' ${outdir}/temp/readcount.report.txt > ${outdir}/temp/barcodes_called.txt
+    ${root}/SingleCellTools count -tag CB -anno_tag PK -list ${outdir}/temp/barcodes_called.txt -o ${outdir}/outs/count_matrix.txt ${outdir}/outs/processed.bam
+  >>>
 }
