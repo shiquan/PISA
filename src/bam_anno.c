@@ -18,12 +18,14 @@ static int usage()
     fprintf(stderr, "For peaks:\n");
     fprintf(stderr, "  -bed         Peak region or functional region in BED format.\n");
     fprintf(stderr, "  -tag         Tag name.\n");
+    /*
     fprintf(stderr, "For genes:\n");
     fprintf(stderr, "  -gff         Genome annotation database in GFF format.\n");
     fprintf(stderr, "  -gtf         Genome annotation database in GTF format.\n");
     fprintf(stderr, "Notices:\n");
     fprintf(stderr, "* Default tags for genes: FC for functional region, GE for gene name.\n");
     fprintf(stderr, "* -bed, -gff, -gtf are conflict with each other.\n");
+    */
     return 1;
 }
 static struct args {
@@ -34,7 +36,7 @@ static struct args {
     const char *gff_fname;
     const char *gtf_fname;
     struct bedaux *bed;
-    struct ganno *ganno;
+    // struct ganno *ganno;
     htsFile *fp;
     htsFile *out;
     bam_hdr_t *hdr;
@@ -47,7 +49,7 @@ static struct args {
     .gtf_fname = NULL,
 
     .bed = NULL,
-    .ganno = NULL,
+    // .ganno = NULL,
     .hdr = NULL,
 };
 static int parse_args(int argc, char **argv)
@@ -87,15 +89,16 @@ static int parse_args(int argc, char **argv)
         CHECK_EMPTY(args.bed, "Bed is empty.");
     }
 
+    /*
     if (args.gtf_fname) {
         if (args.gff_fname) error("-gff is conflict with -gtf.");
-        args.ganno = ganno_open_gtf(args.gtf_fname);
+         args.ganno = ganno_open_gtf(args.gtf_fname);
     }
     else
         args.ganno = ganno_open_gff(args.gff_fname);
 
     CHECK_EMPTY(args.ganno, "Failed to load annotation file.");
-
+    */
     args.fp  = hts_open(args.input_fname, "r");
     CHECK_EMPTY(args.fp, "%s : %s.", args.input_fname, strerror(errno));
     htsFormat type = *hts_get_format(args.fp);
@@ -173,6 +176,7 @@ void bam_anno_attr_bed()
     bam_destroy1(b);
     if (ret != -1) warnings("Truncated file?");
 }
+/*
 void bam_anno_attr_ganno_core(struct ganno *g, bam_hdr_t *h, bam1_t *b)
 {
     bam1_core_t *c = &b->core;
@@ -193,6 +197,7 @@ void bam_anno_attr_ganno()
     bam_destroy1(b);
     if (ret != -1) warnings("Truncated file?");
 }
+*/
 void memory_release()
 {
     bam_hdr_destroy(args.hdr);
@@ -205,9 +210,10 @@ int bam_anno_attr(int argc, char *argv[])
     t_real = realtime();
 
     if (parse_args(argc, argv)) return usage();
-    
-    if (args.bed) bam_anno_attr_bed();
-    else bam_anno_attr_ganno();
+
+    bam_anno_attr_bed();
+    //if (args.bed) bam_anno_attr_bed();
+    //else bam_anno_attr_ganno();
 
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;    
