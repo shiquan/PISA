@@ -102,9 +102,11 @@ static int parse_args(int argc, char **argv)
     args.fp  = hts_open(args.input_fname, "r");
     CHECK_EMPTY(args.fp, "%s : %s.", args.input_fname, strerror(errno));
     htsFormat type = *hts_get_format(args.fp);
+
     if (type.format != bam && type.format != sam)
         error("Unsupported input format, only support BAM/SAM/CRAM format.");
-    bam_hdr_t *args.hdr = sam_hdr_read(args.fp);
+
+    args.hdr = sam_hdr_read(args.fp);
     CHECK_EMPTY(args.hdr, "Failed to open header.");
     
     args.out = hts_open(args.output_fname, "bw");
