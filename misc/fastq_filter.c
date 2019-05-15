@@ -180,7 +180,7 @@ int main(int argc, char **argv)
                 struct bseq_pool *d = (struct bseq_pool*)hts_tpool_result_data(r);
                 write_out(d);
             }
-            hts_tpool_delete_result(r, 1);            
+            hts_tpool_delete_result(r, 0);            
         }
         while (block == -1);
     }
@@ -189,7 +189,7 @@ int main(int argc, char **argv)
     while ((r = hts_tpool_next_result(q))) {
         struct bseq_pool *d = (struct bseq_pool*)hts_tpool_result_data(r);
         write_out(d);
-        hts_tpool_delete_result(r, 1);
+        hts_tpool_delete_result(r, 0);
     }
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
