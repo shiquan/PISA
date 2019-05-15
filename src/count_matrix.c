@@ -147,6 +147,7 @@ int count_matrix(int argc, char **argv)
     sam_close(fp);
     if (ret != -1) warnings("Truncated file?");
     int i, j;
+    fputs("ID", out);
     for (j = 0; j < lb->n; ++j) 
         fprintf(out, "\t%s",lb->b[j].s);
     fputc('\n', out);
