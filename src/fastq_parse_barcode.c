@@ -874,16 +874,14 @@ static void *run_it(void *_p, int idx)
                 if (b->q0) {
                     int k;
                     int bad_bases = 0;
-                    for (k = 0; k < 15 && k <b->l1; ++k) {
+                    for (k = 0; k < 15 && k <b->l0; ++k) {
                         if (b->q0[k]-33<10) bad_bases++;
-                        if (bad_bases > 0) break;
                     }
                     if (bad_bases >2) b->flag = FQ_FLAG_READ_QUAL;
                     else {
                         if (b->q1) {
                             for (k = 0; k < 15 && k <b->l1; ++k) {
                                 if (b->q1[k]-33<10) bad_bases++;
-                                if (bad_bases > 0) break;
                             }
                             if (bad_bases >2) b->flag = FQ_FLAG_READ_QUAL;
                         }
