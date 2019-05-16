@@ -31,7 +31,8 @@ static int usage()
     fprintf(stderr, "  -r      [INT]      Records per chunk. [10000]\n");
     fprintf(stderr, "  -report [txt]      Summary report.\n");
     fprintf(stderr, "  -dis    [txt]      Barcode distribution count.\n");
-    fprintf(stderr, "  -f      [INT]      Filter reads based on BGISEQ standard. Two bases quality < q10 at first 15.\n");
+    fprintf(stderr, "  -f                 Filter reads based on BGISEQ standard. Two bases quality < q10 at first 15.\n");
+    fprintf(stderr, "  -q      [INT]      Drop this read if average sequencing quality below this value.\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -139,6 +140,8 @@ static struct args {
     const char *cbdis_fname;
     const char *report_fname;
     const char *dis_fname; // barcode segment distribution
+
+    int qual_thres;
     
     int n_thread;
     int chunk_size;
@@ -200,6 +203,7 @@ static struct args {
     .cbdis_fname = NULL,
     .report_fname = NULL,
     .dis_fname = NULL,
+    .qual_thres = 0,
     .n_thread = 4,
     .chunk_size = 10000,
     .cell_number = 10000,
@@ -888,6 +892,26 @@ static void *run_it(void *_p, int idx)
                     }                
                 }
             }
+
+            if (opts->qual_thres > 0 && b->q0) { 
+                int k;
+                int ave = 0;
+                
+                for (k = 0; k < b->l0; k++) ave+=b->q0[k]-33;
+                if (ave/k < opts->qual_thres) {
+                    b->flag = FQ_FLAG_READ_QUAL;
+                    continue;
+                }
+
+                if (b->l1 > 0 && b->q1) {
+                    ave = 0;
+                    for (k = 0; k < b->l1; k++) ave+=b->q1[k]-33;
+                    if (ave/k < opts->qual_thres) {
+                        b->flag = FQ_FLAG_READ_QUAL;
+                        continue;
+                    }
+                }
+            }
         }
     }
     return p;
@@ -1074,7 +1098,7 @@ static int parse_args(int argc, char **argv)
     int i;
     const char *thread = NULL;
     const char *chunk_size = NULL;    
-    
+    const char *qual_thres = NULL;
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -1089,6 +1113,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-run") == 0) var = &args.run_code;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
         else if (strcmp(a, "-dis") == 0) var = &args.dis_fname;
+        else if (strcmp(a, "-q") == 0) var = &qual_thres;
         else if (strcmp(a, "-f") == 0) {
             args.bgiseq_filter = 1;
             continue;
@@ -1117,6 +1142,11 @@ static int parse_args(int argc, char **argv)
     if (thread) args.n_thread = str2int((char*)thread);
     if (chunk_size) args.chunk_size = str2int((char*)chunk_size);
     assert(args.n_thread >= 1 && args.chunk_size >= 1);
+    if (qual_thres) {
+        args.qual_thres = str2int((char*)qual_thres);
+        LOG_print("Average quality below %d will be drop.", args.qual_thres);
+    }
+
 
     args.hold = malloc(sizeof(void*)*args.n_thread);
     memset(args.hold, 0, sizeof(void*)*args.n_thread);
