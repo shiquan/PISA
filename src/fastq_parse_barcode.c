@@ -784,10 +784,15 @@ struct BRstat *extract_reads(struct bseq *b, const struct BarcodeRegion *r1, con
     }
     if (s2 && s2->seq) {
         b->s1 = strdup(s2->seq);
-        b->l1 = strlen(s2->seq);
+        // b->l1 = strlen(s2->seq);
     }
-    
-    if (s2 && s2->qual) b->q1 = strdup(s2->qual);
+
+    b->l0 = r1->end - r1->start + 1;    
+
+    if (s2 && s2->qual) {
+        b->q1 = strdup(s2->qual);
+        b->l1 = r2->end-r2->start+1;
+    }
 
     seqlite_destory(s1);
     if (s2) seqlite_destory(s2);
@@ -881,13 +886,19 @@ static void *run_it(void *_p, int idx)
                     for (k = 0; k < 15 && k <b->l0; ++k) {
                         if (b->q0[k]-33<10) bad_bases++;
                     }
-                    if (bad_bases >2) b->flag = FQ_FLAG_READ_QUAL;
+                    if (bad_bases >2) {
+                        b->flag = FQ_FLAG_READ_QUAL;
+                        continue;
+                    }
                     else {
                         if (b->q1) {
                             for (k = 0; k < 15 && k <b->l1; ++k) {
                                 if (b->q1[k]-33<10) bad_bases++;
                             }
-                            if (bad_bases >2) b->flag = FQ_FLAG_READ_QUAL;
+                            if (bad_bases >2) {
+                                b->flag = FQ_FLAG_READ_QUAL;
+                                continue;
+                            }
                         }
                     }                
                 }
