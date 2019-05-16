@@ -201,7 +201,7 @@ static void write_matrix(float **V)
             if (i == j) V[i][j] = 0.5;
             if (i > j) V[i][j] = V[j][i];
             fputc('\t', fp_out);
-            fprintf(fp_out, "%.2f", V[i][j]);
+            fprintf(fp_out, "%.6f", V[i][j]);
         }
         fputc('\n', fp_out);
     }
