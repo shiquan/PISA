@@ -40,6 +40,7 @@ AOBJ = src/bam_anno.o \
 	src/sam2bam.o \
 	src/bam_rmdup.o \
 	src/count_matrix.o \
+	src/fastq_sort.o \
 	src/fastq_parse_barcode.o
 
 liba.a: $(LIB_OBJ)
@@ -55,6 +56,7 @@ src/bam_anno.o: src/bam_anno.c
 src/bam_count.o: src/bam_count.c
 src/bam_pick.o: src/bam_pick.c
 src/fastq_parse_barcode.o: src/fastq_parse_barcode.c
+src/fastq_sort.o: src/fastq_sort.c
 src/dyncut.o: src/dyncut.c
 src/sam2bam.o: src/sam2bam.c
 src/barcode_list.o: src/barcode_list.c

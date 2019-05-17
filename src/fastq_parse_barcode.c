@@ -1104,7 +1104,7 @@ static void memory_release()
 }
 static int parse_args(int argc, char **argv)
 {
-    if ( argc == 1 ) return usage();
+    if ( argc == 1 ) return 1;
 
     int i;
     const char *thread = NULL;
@@ -1113,7 +1113,7 @@ static int parse_args(int argc, char **argv)
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
         const char **var = 0;
-        if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return usage();
+        if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
 
         if (strcmp(a, "-1") == 0) var = &args.out1_fname;
         else if (strcmp(a, "-2") == 0) var = &args.out2_fname;
@@ -1226,7 +1226,7 @@ int fastq_prase_barcodes(int argc, char **argv)
     double t_real;
     t_real = realtime();
     
-    if (parse_args(argc, argv)) return 1;
+    if (parse_args(argc, argv)) return usage();
 
     int nt = args.n_thread;
     
@@ -1267,7 +1267,6 @@ int fastq_prase_barcodes(int argc, char **argv)
     
     memory_release();
 
-    LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     
     return 0;
 }

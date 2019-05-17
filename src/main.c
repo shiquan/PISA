@@ -9,6 +9,7 @@ int usage()
     fprintf(stderr, "\n--- Processing FASTQ\n");
     fprintf(stderr, "    parse      Parse cell barcode, sample barcode and UMI from fastq reads to read name.\n");
     fprintf(stderr, "    trim       Trim TN5 mosic ends or polyAs.\n");
+    fprintf(stderr, "    fsort      Sort fastq records by tags.\n");
     fprintf(stderr, "\n--- Processing BAM\n");
     fprintf(stderr, "    sam2bam    Convert SAM format to BAM, and parse cell barcodes at read name.\n");
     fprintf(stderr, "    rmdup      Remove PCR duplicates, consider cell barcodes and UMI tag.\n");
@@ -31,10 +32,12 @@ int main(int argc, char *argv[])
     extern int bam_count_attr(int argc, char *argv[]);
     extern int bam_pick(int argc, char *argv[]);
     extern int count_matrix(int argc, char *argv[]);
+    extern int fsort(int argc, char ** argv);
     
     if (argc == 1) return usage();
     else if (strcmp(argv[1], "parse") == 0) return fastq_prase_barcodes(argc-1, argv+1);
     else if (strcmp(argv[1], "trim") == 0) return fastq_trim_adaptors(argc-1, argv+1);
+    else if (strcmp(argv[1], "fsort") == 0) return fsort(argc-1, argv+1);
     else if (strcmp(argv[1], "sam2bam") == 0) return sam2bam(argc-1, argv+1);
     else if (strcmp(argv[1], "rmdup") == 0) return bam_rmdup(argc-1, argv+1);
     else if (strcmp(argv[1], "anno") == 0) return bam_anno_attr(argc-1, argv+1);

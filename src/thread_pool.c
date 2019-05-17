@@ -83,7 +83,11 @@ static int thread_pool_add_result(struct thread_pool_job *j, void *data) {
         q->output_head = q->output_tail = r;
     }
 
-    pthread_cond_broadcast(&q->output_avail_c);
+    assert(r->serial >= q->next_serial    // Or it will never be dequeued ...
+           || q->next_serial == INT_MAX); // ... unless flush in progress.
+    if (r->serial == q->next_serial) {
+        pthread_cond_broadcast(&q->output_avail_c);
+    }
 
     pthread_mutex_unlock(&q->p->pool_mutex);
 
@@ -416,7 +420,8 @@ static void *thread_pool_worker(void *arg) {
         if ( p->shutdown ) {
           shutdown:
             pthread_mutex_unlock(&p->pool_mutex);
-            pthread_exit(NULL);
+            return NULL;
+            // pthread_exit(NULL);
         }
 
         if ( !work_to_do ) {
@@ -492,7 +497,7 @@ static void *thread_pool_worker(void *arg) {
 
         pthread_mutex_unlock(&p->pool_mutex);
     }
-    return NULL;
+    // return NULL;
 }
 static void wake_next_worker(struct thread_pool_process *q, int locked) {
     struct thread_pool *p = q->p;
