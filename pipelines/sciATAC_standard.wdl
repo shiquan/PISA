@@ -71,7 +71,7 @@ task parseFastq {
   String ?runID
   String root
   command {
-    ${root}/SingleCellTools parse -t 15 -f -config ${config} -cbdis ${outdir}/temp/barcode_counts_raw.txt -run ${default="1" runID} -report ${outdir}/temp/sequencing_report.json ${fastq1} ${fastq2} | ${root}/SingleCellTools  trim -report ${outdir}/temp/trim_report.json -mode Tn5 -p -t 3 > ${outdir}/temp/reads.fq
+    ${root}/SingleCellTools parse -t 15 -f -q 20 -config ${config} -cbdis ${outdir}/temp/barcode_counts_raw.txt -run ${default="1" runID} -report ${outdir}/temp/sequencing_report.json ${fastq1} ${fastq2} | ${root}/SingleCellTools  trim -report ${outdir}/temp/trim_report.json -mode Tn5 -p -t 3 > ${outdir}/temp/reads.fq
   }
   output {
     String rawtable="${outdir}/temp/barcode_counts_raw.txt"
@@ -100,7 +100,7 @@ task sortBam {
   String outdir
   command {
     ${sambambapath} sort -t 20 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam 
-    ${root}/SingleCellTools rmdup -tag CB -t 20 -o ${outdir}/temp/rmdup.bam ${outdir}/temp/sorted.bam
+    ${root}/SingleCellTools rmdup -tag CB -t 5 -o ${outdir}/temp/rmdup.bam ${outdir}/temp/sorted.bam
   }
   output {
     String sorted="${outdir}/temp/sorted.bam"
@@ -119,6 +119,8 @@ task callPeak {
     ${root}/SingleCellTools anno -bed ${outdir}/temp/peak.bed -tag PK -o ${outdir}/outs/processed.bam ${bam}
     ${root}/SingleCellTools attrcnt -cb CB -tag PK -o ${outdir}/temp/readcount.report.txt ${outdir}/outs/processed.bam
     awk '{if($1 !~ /CELL_BARCODE/ && $2>1000 && $3/$2>0.1){print $1;}}' ${outdir}/temp/readcount.report.txt > ${outdir}/temp/barcodes_called.txt
+    awk '{if($1 !~ /CELL_BARCODE/ && $2>1000 && $3/$2>0.1){print $0;}}' ${outdir}/temp/readcount.report.txt |awk 'BEGIN{rw=0;tar=0;i=0}{rw+=$2; tar+=$3; i++} END{print rw/i,tar/i}' >> ${Dir}/workflowtime.log
     ${root}/SingleCellTools count -tag CB -anno_tag PK -list ${outdir}/temp/barcodes_called.txt -o ${outdir}/outs/count_matrix.txt ${outdir}/outs/processed.bam
+    echo "[`date +%F` `date +%T`] workflow end" >> ${Dir}/workflowtime.log
   >>>
 }
