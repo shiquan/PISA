@@ -167,49 +167,6 @@ void test_file_index(struct FILE_tag_index *idx, const char *fn)
 
     fclose(fp);
 }
-char **fastq_name_pick_tags(char *name, int n, const char **tags)
-{
-    int l;
-    l = strlen(name);
-    int i = 0, j = 0, k;
-    char key[2];
-    char **vals = malloc(n*sizeof(char*));
-    memset(vals, 0, n*sizeof(char*));
-    for (;;) {
-        while (i < l-3 && name[i++] != '|');
-        if (i >= l-3) break;
-        if (name[i] == '|' && name[i+1] == '|') {
-            i+= 2;
-            key[0] = name[i++];
-            key[1] = name[i++];
-            for (k = 0; k < n; ++k) {
-                if (key[0] == tags[k][0] && key[1] == tags[k][1]) break;
-            }
-            i+=3; // skip '|||'
-
-            // skip this key|||value tag
-            if (k == n) continue;
-            int m =0;
-            kstring_t str = {0,0,0};
-            char *p = name+i;
-            while (i < l && name[i++] != '|') m++;
-            kputsn(p, m, &str); kputs("", &str);
-            vals[k] = str.s;
-            j++;
-            i--; // 1 pos ahead
-        }
-        if (j == n) break;
-    }
-    if (j < n) { // not all tags found, return NULL
-        for (i = 0; i < n; ++i) {
-            if (vals[i]) free(vals[i]);
-        }
-        free(vals);
-        return NULL;
-    }
-    return vals;
-    
-}
 char *build_string_from_array(int n, char **v)
 {
     kstring_t str = {0,0,0};
@@ -269,7 +226,7 @@ static struct FILE_tag_index *build_file_index(const char *fname)
             // c = fgetc(fp); // emit '\n'
         }
 
-        char **names = fastq_name_pick_tags(str.s, args.n_tag, (const char**)args.tags);  
+        char **names = fastq_name_pick_tags(str.s, args.n_tag, args.tags);  
         int l = FILE_read_line_length(fp);
         fseek(fp, l+3, SEEK_CUR);
         begin_of_record = 1;
@@ -476,7 +433,7 @@ int fsort(int argc, char ** argv)
         int block;
 
         do {
-            block = thread_pool_dispatch2(p, q, run_it, di, -1);
+            block = thread_pool_dispatch2(p, q, run_it, di, 0);
             if ((r = thread_pool_next_result(q))) {
                 struct bseq_pool *d = (struct bseq_pool*)r->data;
                 write_out(d);

@@ -54,7 +54,7 @@ void trim_read_tail(char *s, int l)
     if ( l > 2 && s[l-2] == '/' ) s[l-2] = '\0';    
 }
 
-static struct bseq_pool *bseq_read_smart(kseq_t *ks, int chunk_size)
+static struct bseq_pool *fastq_read_smart(kseq_t *ks, int chunk_size)
 {
     struct bseq_pool *p = bseq_pool_init();
     int size = 0;
@@ -93,7 +93,7 @@ static struct bseq_pool *bseq_read_smart(kseq_t *ks, int chunk_size)
    }
     return p;
 }
-static struct bseq_pool *bseq_read_core(kseq_t *k1, kseq_t *k2, int chunk_size, int pe)
+static struct bseq_pool *fastq_read_core(kseq_t *k1, kseq_t *k2, int chunk_size, int pe)
 {
     struct bseq_pool *p = bseq_pool_init();
     if ( pe == 0 ) {
@@ -191,7 +191,7 @@ int fastq_handler_state(struct fastq_handler *h)
     return FH_PE;    
 }
 
-void *bseq_read(void *_h, void *opts)
+void *fastq_read(void *_h, void *opts)
 {
     struct fastq_handler *h = (struct fastq_handler*)_h;
 
@@ -201,15 +201,15 @@ void *bseq_read(void *_h, void *opts)
     switch (state) {
         
         case FH_SE:
-            b = bseq_read_core((kseq_t*)h->k1, NULL, h->chunk_size, 0);
+            b = fastq_read_core((kseq_t*)h->k1, NULL, h->chunk_size, 0);
             break;
             
         case FH_PE:
-            b = bseq_read_core((kseq_t*)h->k1, (kseq_t*)h->k2, h->chunk_size, 1);
+            b = fastq_read_core((kseq_t*)h->k1, (kseq_t*)h->k2, h->chunk_size, 1);
             break;
             
         case FH_SMART_PAIR:
-            b = bseq_read_smart((kseq_t*)h->k1, h->chunk_size);
+            b = fastq_read_smart((kseq_t*)h->k1, h->chunk_size);
             break;
             
         case FH_NOT_ALLOC:
@@ -300,6 +300,49 @@ int levenshtein(char *a, char *b, int l) {
     
     free(cache);    
     return result;
+}
+char **fastq_name_pick_tags(char *name, int n, char **tags)
+{
+    int l;
+    l = strlen(name);
+    int i = 0, j = 0, k;
+    char key[2];
+    char **vals = malloc(n*sizeof(char*));
+    memset(vals, 0, n*sizeof(char*));
+    for (;;) {
+        while (i < l-3 && name[i++] != '|');
+        if (i >= l-3) break;
+        if (name[i] == '|' && name[i+1] == '|') {
+            i+= 2;
+            key[0] = name[i++];
+            key[1] = name[i++];
+            for (k = 0; k < n; ++k) {
+                if (key[0] == tags[k][0] && key[1] == tags[k][1]) break;
+            }
+            i+=3; // skip '|||'
+
+            // skip this key|||value tag
+            if (k == n) continue;
+            int m =0;
+            kstring_t str = {0,0,0};
+            char *p = name+i;
+            while (i < l && name[i++] != '|') m++;
+            kputsn(p, m, &str); kputs("", &str);
+            vals[k] = str.s;
+            j++;
+            i--; // 1 pos ahead
+        }
+        if (j == n) break;
+    }
+    if (j < n) { // not all tags found, return NULL
+        for (i = 0; i < n; ++i) {
+            if (vals[i]) free(vals[i]);
+        }
+        free(vals);
+        return NULL;
+    }
+    return vals;
+    
 }
 
 static char *reverse_seq(char *s, int l)

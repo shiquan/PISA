@@ -83,7 +83,7 @@ int main(int argc, char **argv)
     // bgzf_mt(fp2, args.n_thread, 256);
     
     do {
-        struct bseq_pool *p = bseq_read(fastq, &args);
+        struct bseq_pool *p = fastq_read(fastq, &args);
         if ( p == NULL ) break;
         int i;
         kstring_t r1 = {0,0,0};

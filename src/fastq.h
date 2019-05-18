@@ -57,8 +57,8 @@ void bseq_pool_clean(struct bseq_pool *p);
 
 void bseq_pool_destroy(struct bseq_pool *p);
 
-// fastq handler must be inited before call bseq_read
-void *bseq_read(void *h, void *opts);
+// fastq handler must be inited before call fastq_read
+void *fastq_read(void *h, void *opts);
 
 extern struct fastq_handler *fastq_handler_init(const char *r1, const char *r2, int smart, int chunk_size);
 
@@ -68,5 +68,5 @@ extern void fastq_handler_destory(struct fastq_handler *h);
 extern void bseq_pool_push(struct bseq *b, struct bseq_pool *p);
 extern int levenshtein(char *a, char *b, int l);
 extern int bseq_pool_dedup(struct bseq_pool *p);
-
+extern char **fastq_name_pick_tags(char *name, int n, char **tags);
 #endif

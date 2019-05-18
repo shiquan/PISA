@@ -1213,7 +1213,7 @@ int fastq_prase_barcodes(int argc, char **argv)
     struct thread_pool_result *r;
 
     for (;;) {
-        struct bseq_pool *b = bseq_read(args.fastq, &args);
+        struct bseq_pool *b = fastq_read(args.fastq, &args);
         if (b == NULL) break;
         int block;
         do {
