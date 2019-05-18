@@ -266,7 +266,7 @@ int assem(int argc, char **argv)
     if (parse_args(argc, argv)) return usage();
 
     hts_tpool *p = hts_tpool_init(args.n_thread);
-    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 1);
     hts_tpool_result *r;
     
     for (;;) {

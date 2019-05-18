@@ -421,7 +421,7 @@ int fsort(int argc, char ** argv)
 
     int n = args.n_thread;
     struct thread_pool *p = thread_pool_init(n);
-    struct thread_pool_process *q = thread_pool_process_init(p, n*2, 0);
+    struct thread_pool_process *q = thread_pool_process_init(p, n*2, 1);
     struct thread_pool_result *r;
     
     for (i = 0; i < idx->n; ++i) {
