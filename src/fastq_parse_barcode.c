@@ -33,6 +33,7 @@ static int usage()
     fprintf(stderr, "  -dis    [txt]      Barcode distribution count.\n");
     fprintf(stderr, "  -f                 Filter reads based on BGISEQ standard. Two bases quality < q10 at first 15.\n");
     fprintf(stderr, "  -q      [INT]      Drop this read if average sequencing quality below this value.\n");
+    fprintf(stderr, "  -dropN             Drop the reads if N base in reads or UMI.\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -150,6 +151,8 @@ static struct args {
     int bgiseq_filter;
     int smart_pair;
 
+    int dropN;
+    
     // Cell barcodes found in white list, if no white list all barcodes treat as background
     struct NameCountPair *names;
     int n_name;
@@ -209,7 +212,7 @@ static struct args {
     .cell_number = 10000,
     .smart_pair = 0,
     .bgiseq_filter = 0,
-
+    .dropN = 0,
     .names = NULL,
     .n_name = 0,
     .m_name = 0,
@@ -519,14 +522,14 @@ void seqlite_destory(struct seqlite *s)
     free(s);
 }
 
-struct seqlite *extract_tag(struct bseq *b, const struct BarcodeRegion *r, struct BRstat *stat)
+struct seqlite *extract_tag(struct bseq *b, const struct BarcodeRegion *r, struct BRstat *stat, int *n)
 {
     if (b == NULL || r == NULL) return NULL;
     
     struct seqlite *p = malloc(sizeof(*p));
 
     // memset(stat, 0, sizeof(struct BRstat));
-    
+    *n = 0;
     char *s = NULL;
     char *q = NULL;
     if (r->rd == 1) {
@@ -545,8 +548,10 @@ struct seqlite *extract_tag(struct bseq *b, const struct BarcodeRegion *r, struc
     p->seq = seq.s;
     p->qual = qual.s;
     int i;
-    for (i = 0; i < l; ++i) 
+    for (i = 0; i < l; ++i) {
         if (p->qual[i]-33 >= 30) stat->q30_bases++;
+        if (p->seq[i] == 'N') *n = 1;
+    }
     stat->bases = +l;
     return p;
 }
@@ -610,13 +615,13 @@ struct BRstat *extract_barcodes(struct bseq *b,
     struct BRstat *stat = malloc(sizeof(struct BRstat));
     memset(stat, 0, sizeof(struct BRstat));
     stat->exact_match = 1;
-
+    int dropN;
     int i;
     for (i = 0; i < n; ++i) {
 
         const struct BarcodeRegion *br = &r[i];
         struct segment *seg = hold == NULL ? NULL : hold->seg[i];
-        struct seqlite *s = extract_tag(b, br, stat);
+        struct seqlite *s = extract_tag(b, br, stat, &dropN);
         if (s == NULL) goto failed_check_barcode;
 
         int exact_match = 0;
@@ -704,7 +709,11 @@ struct BRstat *extract_umi(struct bseq *b, const struct BarcodeRegion *r, const 
     //int i;
     kstring_t str = {0,0,0};
     kstring_t qual = {0,0,0};
-    struct seqlite *s = extract_tag(b, r, stat);
+    int dropN;
+    struct seqlite *s = extract_tag(b, r, stat, &dropN);
+
+    if (args.dropN && dropN== 1) b->flag= FQ_FLAG_READ_QUAL;
+    
     if (qual_tag && s->qual)
         kputs(s->qual, &qual);
     if (tag)
@@ -725,9 +734,13 @@ struct BRstat *extract_reads(struct bseq *b, const struct BarcodeRegion *r1, con
     assert(r1);
     struct BRstat *stat = malloc(sizeof(struct BRstat));
     memset(stat, 0, sizeof(struct BRstat));
-    struct seqlite *s1 = extract_tag(b, r1, stat);
-    struct seqlite *s2 = extract_tag(b, r2, stat);
+    int dropN;
+    struct seqlite *s1 = extract_tag(b, r1, stat, &dropN);
+    if (args.dropN && dropN== 1) b->flag= FQ_FLAG_READ_QUAL;
 
+    struct seqlite *s2 = extract_tag(b, r2, stat,);
+    if (args.dropN && dropN== 1) b->flag= FQ_FLAG_READ_QUAL;
+    
     free(b->s0);
     if (b->q0) free(b->q0);
     b->s0 = strdup(s1->seq);
@@ -838,7 +851,8 @@ static void *run_it(void *_p, int idx)
             struct BRstat *read_stat = extract_reads(b, config.read_1, config.read_2);
             data->q30_bases_reads = read_stat->q30_bases;
             data->bases_reads = read_stat->bases;
-
+            if (b->flag != FQ_FLAG_PASS) continue;
+            
             if (opts->bgiseq_filter) {
                 if (b->q0) {
                     int k;
@@ -1087,6 +1101,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-q") == 0) var = &qual_thres;
         else if (strcmp(a, "-f") == 0) {
             args.bgiseq_filter = 1;
+            continue;
+        }
+        else if (strcmp(a, "-dropN") == 0) {
+            args.dropN = 1;
             continue;
         }
         if (var != 0) {
