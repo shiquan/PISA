@@ -193,7 +193,7 @@ char **fastq_name_pick_tags(char *name, int n, const char **tags)
             int m =0;
             kstring_t str = {0,0,0};
             char *p = name+i;
-            while (i < l-3 && name[i++] != '|') m++;
+            while (i < l && name[i++] != '|') m++;
             kputsn(p, m, &str); kputs("", &str);
             vals[k] = str.s;
             j++;
@@ -260,11 +260,11 @@ static struct FILE_tag_index *build_file_index(const char *fname)
             assert (c == '@');
         }
         for (;c != '\n';) {
-            c = fgetc(fp);
             kputc(c, &str);
+            c = fgetc(fp); // emit '\n'
         }
 
-        char **names = fastq_name_pick_tags(str.s, args.n_tag, (const char**)args.tags);        
+        char **names = fastq_name_pick_tags(str.s, args.n_tag, (const char**)args.tags);  
         int l = FILE_read_line_length(fp);
         fseek(fp, l+3, SEEK_CUR);
         begin_of_record = 1;
@@ -289,6 +289,7 @@ static struct FILE_tag_index *build_file_index(const char *fname)
         int i;
         if (names == NULL) continue; // no tags in the read names
         if (args.check_list) {
+            //debug_print("%s", names[0]);
             int ret = barcode_select(args.lb, names[0]);
             if (ret == -1) {
                 for (i = 0; i < args.n_tag; ++i) free(names[i]);
@@ -329,7 +330,7 @@ static struct FILE_tag_index *build_file_index(const char *fname)
             di->idx[di->n].end = end;
             di->n++;
         }
-        //debug_print("%s\t%d\t%d", s, start, end);
+        debug_print("%s\t%d\t%d", s, start, end);
         free(s);
     }
     
