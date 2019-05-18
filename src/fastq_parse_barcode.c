@@ -738,7 +738,7 @@ struct BRstat *extract_reads(struct bseq *b, const struct BarcodeRegion *r1, con
     struct seqlite *s1 = extract_tag(b, r1, stat, &dropN);
     if (args.dropN && dropN== 1) b->flag= FQ_FLAG_READ_QUAL;
 
-    struct seqlite *s2 = extract_tag(b, r2, stat,);
+    struct seqlite *s2 = extract_tag(b, r2, stat, &dropN);
     if (args.dropN && dropN== 1) b->flag= FQ_FLAG_READ_QUAL;
     
     free(b->s0);
