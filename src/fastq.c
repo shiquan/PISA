@@ -316,6 +316,8 @@ static char *reverse_seq(char *s, int l)
                 r[l-i-1]='C'; break;
             case 'T':
                 r[l-i-1]='A'; break;
+            case 'N':
+                r[l-i-1]='N'; break;
             default:
                 error("Unknown bases, %s",s);
         }
@@ -419,6 +421,9 @@ int bseq_pool_dedup(struct bseq_pool *p)
                     break;
                 case 'T':
                     kputc('A', &rseed);
+                    break;
+                case 'N':
+                    kputc('N', &rseed);
                     break;
                 default:
                     error("Try to reverse unknown base, %s",rs);
