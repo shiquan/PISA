@@ -24,8 +24,8 @@ static int usage()
 }
 
 struct data_block {
-    int start;
-    int end;
+    uint64_t start;
+    uint64_t end;
 };
 
 struct data_index {
@@ -55,6 +55,7 @@ static struct args {
     // For each thread, keep file handler
     FILE **fp;
     struct lbarcode *lb;
+    uint64_t end;
 } args = {
     .input_fname = NULL,
     .list_fname = NULL,
@@ -68,8 +69,8 @@ static struct args {
     .out = NULL,
     .fp = NULL,
     .lb = NULL,
+    .end = 0,
 };
-
 
 static void FILE_tag_destroy(struct FILE_tag_index *idx)
 {
@@ -119,18 +120,22 @@ struct bseq *bend_to_bseq(char *s)
 static struct bseq *read_file_block(FILE *fp, struct data_block *block)
 {
     int l = block->end - block->start;    
-    fseek(fp, block->start,SEEK_SET);
+    if (fseek(fp, block->start,SEEK_SET)) error("failed to seek.");
     char *s = malloc(sizeof(char)*(block->end -block->start+1));
     if (s == NULL) error("Fail to allocate memory.");    
     fread(s, sizeof(char), block->end-block->start, fp);
     s[l] = '\0';
+    kstring_t str = {0,0,0};
+    kputsn(s, 100, &str);
+    // debug_print("%llu\t%s", block->start, str.s);
+    free(str.s);
     struct bseq *b = bend_to_bseq(s);
     free(s);
     return b;
 }
 static void test_read_file_block(FILE *fp, struct data_block *block)
 {
-    printf("%d\t%d\n", block->start, block->end);
+
     int l = block->end - block->start;
     
     fseek(fp, block->start,SEEK_SET);
@@ -232,20 +237,22 @@ static struct FILE_tag_index *build_file_index(const char *fname)
 {
     FILE *fp = fopen(fname, "r");
     CHECK_EMPTY(fp, "%s : %s.", fname, strerror(errno));
-
+    fseek(fp,0,SEEK_END);
+    args.end = ftell(fp);
+    // debug_print("%d", args.end);
+    fseek(fp,0, SEEK_SET);
     struct FILE_tag_index *idx = malloc(sizeof(*idx));
     memset(idx, 0, sizeof(*idx));
     idx->dict = kh_init(idx);
     kstring_t str = {0,0,0};
     kstring_t str2 = {0,0,0}; // for read 2, used in smart pairing mode
-    int start, end;
+    uint64_t start, end;
     int begin_of_record = 1;
 
     for (;;) {
         int c = fgetc(fp);
         if (c == EOF) break;
-        if (isspace(c)) continue;
-
+        
         str.l = 0; // clear buffer
         
         if (begin_of_record) {
@@ -253,9 +260,13 @@ static struct FILE_tag_index *build_file_index(const char *fname)
             begin_of_record = 0;
             assert (c == '@');
         }
-        for (;c != '\n';) {
+        for (; !isspace(c) && c != '\n';) {
             kputc(c, &str);
-            c = fgetc(fp); // emit '\n'
+            c = fgetc(fp);
+        }
+        if (isspace(c) && c!= '\n') {
+            for (;c!= '\n' && c!= EOF; c= fgetc(fp)); // emit tails
+            // c = fgetc(fp); // emit '\n'
         }
 
         char **names = fastq_name_pick_tags(str.s, args.n_tag, (const char**)args.tags);  
@@ -278,7 +289,8 @@ static struct FILE_tag_index *build_file_index(const char *fname)
         }
         
         end = ftell(fp);
-
+        
+        assert(end <= args.end);
         // block FILE:start-end store this read
         int i;
         if (names == NULL) continue; // no tags in the read names
@@ -313,6 +325,8 @@ static struct FILE_tag_index *build_file_index(const char *fname)
             kh_val((kh_idx_t*)idx->dict, k) = di;
             di->n++;
             idx->n++;
+            //debug_print("%s\t%d\t%d",s, di->idx[0].start, di->idx[0].end);
+            
         }
         else {
             struct data_index *di = kh_val((kh_idx_t*)idx->dict, k);
@@ -322,6 +336,7 @@ static struct FILE_tag_index *build_file_index(const char *fname)
             }
             di->idx[di->n].start = start-1;
             di->idx[di->n].end = end;
+            //debug_print("%s\t%d\t%d",s, di->idx[di->n].start, di->idx[di->n].end);
             di->n++;
         }
         //debug_print("%s\t%d\t%d", s, start, end);
@@ -356,8 +371,8 @@ static void write_out(struct bseq_pool *p)
     for (i = 0; i < p->n; ++i) {
         struct bseq *b = &p->s[i];
         if (b->flag == FQ_PASS) {            
-            fprintf(args.out, "@%s\n%s\n+\n%s\n", b->n0, b->s0, b->q0);
-            if (b->l1) fprintf(args.out, "@%s\n%s\n+\n%s\n", b->n0, b->s1, b->q1);
+            fprintf(args.out, "%s\n%s\n+\n%s\n", b->n0, b->s0, b->q0);
+            if (b->l1) fprintf(args.out, "%s\n%s\n+\n%s\n", b->n0, b->s1, b->q1);
         }
     }
     bseq_pool_destroy(p);
