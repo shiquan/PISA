@@ -119,8 +119,8 @@ task callPeak {
     ${root}/SingleCellTools anno -bed ${outdir}/temp/peak.bed -tag PK -o ${outdir}/outs/processed.bam ${bam}
     ${root}/SingleCellTools attrcnt -cb CB -tag PK -o ${outdir}/temp/readcount.report.txt ${outdir}/outs/processed.bam
     awk '{if($1 !~ /CELL_BARCODE/ && $2>1000 && $3/$2>0.1){print $1;}}' ${outdir}/temp/readcount.report.txt > ${outdir}/temp/barcodes_called.txt
-    awk '{if($1 !~ /CELL_BARCODE/ && $2>1000 && $3/$2>0.1){print $0;}}' ${outdir}/temp/readcount.report.txt |awk 'BEGIN{rw=0;tar=0;i=0}{rw+=$2; tar+=$3; i++} END{print rw/i,tar/i}' >> ${Dir}/workflowtime.log
+    awk '{if($1 !~ /CELL_BARCODE/ && $2>1000 && $3/$2>0.1){print $0;}}' ${outdir}/temp/readcount.report.txt |awk 'BEGIN{rw=0;tar=0;i=0}{rw+=$2; tar+=$3; i++} END{print rw/i,tar/i}' >> ${outdir}/workflowtime.log
     ${root}/SingleCellTools count -tag CB -anno_tag PK -list ${outdir}/temp/barcodes_called.txt -o ${outdir}/outs/count_matrix.txt ${outdir}/outs/processed.bam
-    echo "[`date +%F` `date +%T`] workflow end" >> ${Dir}/workflowtime.log
+    echo "[`date +%F` `date +%T`] workflow end" >> ${outdir}/workflowtime.log
   >>>
 }
