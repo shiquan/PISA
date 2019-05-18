@@ -433,7 +433,7 @@ int fsort(int argc, char ** argv)
         int block;
 
         do {
-            block = thread_pool_dispatch2(p, q, run_it, di, 0);
+            block = thread_pool_dispatch2(p, q, run_it, di, -1);
             if ((r = thread_pool_next_result(q))) {
                 struct bseq_pool *d = (struct bseq_pool*)r->data;
                 write_out(d);
