@@ -381,6 +381,8 @@ static int check_dup(struct bseq *r, struct bseq *q, int strand)
 // the function will destroy all the flags marked before
 int bseq_pool_dedup(struct bseq_pool *p)
 {
+    if (p->n == 1) return 0;
+    
     kh_key_t *hash = kh_init(key);
     int n =0, m = 0;
     char **key = NULL;
@@ -507,14 +509,16 @@ int bseq_pool_dedup(struct bseq_pool *p)
         }
     }
 
-
+    // debug_print("Start debug");
     for (i = 0; i < n; ++i) {
         k = kh_get(key, hash, key[i]);
         if (k == kh_end(hash)) error("Not in the key %s", key[i]);
         struct hvals *v = kh_val(hash, k);
+        // debug_print("%s", key[i]);
         free(v->v);
         free(v);
         free(key[i]);
+        kh_del(key,hash, k);
     }
     free(key);
     kh_destroy(key, hash);

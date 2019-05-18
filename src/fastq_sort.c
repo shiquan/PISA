@@ -359,9 +359,8 @@ static void *run_it(void *_d, int i)
         struct bseq *b = read_file_block(fp, &idx->idx[k]);
         bseq_pool_push(b, p);
     }
-    int dup = 0;
     if (args.dedup == 1)
-        dup = bseq_pool_dedup(p);
+        bseq_pool_dedup(p);
     return p;        
 }
 
