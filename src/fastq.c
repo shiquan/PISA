@@ -235,3 +235,283 @@ int fastq_process(struct bseq_pool *pool, void *(*func)(void *data))
     }
     return 0;
 }
+
+#include "htslib/khash.h"
+
+struct hval {
+    int idx;
+    int qual;
+};
+struct hvals {
+    int n, m;
+    struct hval *v;
+};
+KHASH_MAP_INIT_STR(key, struct hvals*)
+//
+// Process fastq block...
+// stash
+void bseq_pool_push(struct bseq *b, struct bseq_pool *p)
+{
+    assert(p);
+    if (p->n == p->m) {
+        p->m = p->m == 0 ? 10 : p->m<<1;
+        p->s = realloc(p->s, sizeof(struct bseq)*p->m);               
+    }
+    struct bseq *c = &p->s[p->n++];
+    memcpy(c, b, sizeof(struct bseq));
+    //debug_print("c %d, b %d", c->l0, b->l0);
+    free(b);
+}
+// credit to https://github.com/wooorm/levenshtein.c
+int levenshtein(char *a, char *b, int l) {
+    int *cache = calloc(l, sizeof(int));
+    int index = 0;
+    int bIndex = 0;
+    int distance;
+    int bDistance;
+    int result;
+    char code;
+
+    // initialize the vector.
+    while (index < l) {
+        cache[index] = index + 1;
+        index++;
+    }
+
+    // Loop.
+    while (bIndex < l) {
+        code = b[bIndex];
+        result = distance = bIndex++;
+        index = 0;
+
+        while (++index < l) {
+            bDistance = code == a[index] ? distance : distance + 1;
+            distance = cache[index];
+
+            cache[index] = result = distance > result
+                ? bDistance > result
+                ? result + 1
+                : bDistance
+                : bDistance > distance
+                ? distance + 1
+                : bDistance;
+        }
+    }
+    
+    free(cache);    
+    return result;
+}
+
+static char *reverse_seq(char *s, int l)
+{
+    char *r = malloc(sizeof(char)*l);
+    int i;
+    for (i = 0; i < l; ++i ) {
+        switch(s[i]) {
+            case 'A':
+                r[l-i-1]='T'; break;
+            case 'C':
+                r[l-i-1]='G'; break;
+            case 'G':
+                r[l-i-1]='C'; break;
+            case 'T':
+                r[l-i-1]='A'; break;
+            default:
+                error("Unknown bases, %s",s);
+        }
+    }
+    return r;
+}
+static int check_dup(struct bseq *r, struct bseq *q, int strand)
+{
+    if (strand == -1) error("Unknown strand.");
+
+    kstring_t str = {0,0,0};
+    kstring_t str1 = {0,0,0};
+    if (r->l1 > 0 && q->l1 > 0) {
+        if (strand == 1) {
+            int l = q->l1 > r->l0 ? r->l0 : q->l1;
+            kputsn(r->s0, l, &str);
+            char *rs = reverse_seq(q->s1, q->l1);
+            kputsn(rs, l, &str1);
+            free(rs);
+
+            // now to read 2
+
+            l = q->l0 > r->l1 ? r->l1 : q->l0;
+            kputsn(r->s1+r->l1-l, l, &str);
+            char *rs1 = reverse_seq(q->s0, q->l0);
+            kputsn(rs1+q->l1-1, l, &str1);
+            free(rs1);
+        }
+        else {
+            int l = q->l0 > r->l0 ? r->l0 : q->l0;
+            kputsn(q->s0, l, &str);
+            kputsn(q->s1, l, &str1);
+            l = q->l1 > r->l1 ? r->l1 : q->l1;
+            kputsn(r->s1+r->l1-l, l, &str);
+            kputsn(q->s1+q->l1-l, l, &str1);
+        }
+    }
+    else {
+        if (strand == 1 && q->l0 != r->l0) return 0;
+        int l = q->l0 < r->l0 ? q->l0 : r->l0;
+        kputsn(r->s0, l, &str);
+        kputsn(q->s0, l, &str1);
+    }
+
+    kputs("", &str);
+    kputs("", &str1);
+
+    assert(str.l == str1.l);
+    if (levenshtein(str.s, str1.s, str.l) > 2) {
+        free(str.s);
+        free(str1.s);
+        return 0;
+    }
+
+    free(str.s);
+    free(str1.s);
+    return 1; // on dup
+}
+#define DEDUP_SEED 16
+// require all sequence should greater than 16bp, and equal length
+// the function will destroy all the flags marked before
+int bseq_pool_dedup(struct bseq_pool *p)
+{
+    kh_key_t *hash = kh_init(key);
+    int n =0, m = 0;
+    char **key = NULL;
+
+    int i;
+    int j;
+    khint_t k;
+
+    kstring_t seed={0,0,0};
+    kstring_t rseed = {0,0,0};
+    
+    for (i = 0; i < p->n; ++i) {
+        struct bseq *b = &p->s[i];
+        if (b->l0 < DEDUP_SEED) error("Read length is too short. %d", b->l0);
+            
+        // todo:: convert mark to bits
+        b->flag = 0; // reset all the mark
+        int qual = 0;
+        
+        if (b->q0) 
+            for (j = 0; j < b->l0; ++j) qual += b->q0[j]-33;
+        int strand = -1;
+        seed.l = 0; rseed.l = 0; // reset seed string
+        kputsn(b->s0, DEDUP_SEED, &seed);
+        kputs("", &seed);
+        char *rs = b->l1 >0 ? b->s1 : b->s0;
+        int l_rs = b->l1 >0 ? b->l1 : b->l0;
+        for (j = 0; j < DEDUP_SEED; ++j) {
+            switch(rs[l_rs-1-j]) {
+                case 'A':
+                    kputc('T', &rseed);
+                    break;
+                case 'C':
+                    kputc('G', &rseed);
+                    break;
+                case 'G':
+                    kputc('C', &rseed);
+                    break;
+                case 'T':
+                    kputc('A', &rseed);
+                    break;
+                default:
+                    error("Try to reverse unknown base, %s",rs);
+            }
+            kputs("", &rseed);            
+        }
+        
+        k = kh_get(key, hash, seed.s);
+        if (k == kh_end(hash)) {
+            // check reverse then
+            k = kh_get(key, hash, rseed.s);
+            if (k == kh_end(hash)) goto push_to_index; // reverse do not also match
+            strand = 1;
+            goto check_dup_records;
+            
+        }
+        else {
+            strand = 0;
+            goto check_dup_records;
+        }
+        if (0) {
+          check_dup_records:
+            do {
+                struct hvals *v;
+                v = kh_val(hash, k);
+                for (j = 0; j < v->n; ++j) {
+                    struct hval *v1 = &v->v[j];
+                    struct bseq *r = &p->s[v1->idx];
+                    if (check_dup(r, b, strand)) {
+                        //debug_print("%s\t%s\t%d", r->s0, b->s0, v1->idx);
+                        if (qual > v1->qual) {
+                            // update
+                            v1->idx = i;
+                            v1->qual = qual;
+                            r->flag = FQ_DUP; // set last as dup
+                        }
+                        else {
+                            b->flag = FQ_DUP;
+                        }
+                        break;
+                    }            
+                }
+                // no found, push to index      
+                if (j == v->n) goto push_to_index;
+            } while(0);
+        }
+
+        if (0) {
+          push_to_index:
+            // only push forward string to index
+            k = kh_get(key, hash, seed.s);
+            if (k == kh_end(hash)) {
+                if (m == n) {
+                    m = m== 0? 10 : m*2;
+                    key = realloc(key, m*sizeof(char*));
+                }
+                key[n] = strdup(seed.s);
+                int ret;
+                k = kh_put(key, hash, key[n], &ret);
+                struct hvals *v = malloc(sizeof(*v));
+                memset(v, 0, sizeof(*v));
+                v->m = 2; 
+                v->v = malloc(sizeof(struct hval)*v->m);
+                struct hval *v1 = &v->v[v->n++];
+                v1->idx = i;
+                v1->qual = qual;
+                kh_val(hash, k) = v;                    
+                n++; // increase key index
+            }
+            else {
+                struct hvals *v;
+                v = kh_val(hash, k);
+                if (v->n == v->m) {
+                    v->m = v->m*2; // v->m never equal 0
+                    v->v = realloc(v->v, v->m*sizeof(struct hval));
+                }
+                struct hval *v1 = &v->v[v->n++];
+                v1->idx = i;
+                v1->qual = qual;
+            }
+        }
+    }
+
+
+    for (i = 0; i < n; ++i) {
+        k = kh_get(key, hash, key[i]);
+        if (k == kh_end(hash)) error("Not in the key %s", key[i]);
+        struct hvals *v = kh_val(hash, k);
+        free(v->v);
+        free(v);
+        free(key[i]);
+    }
+    free(key);
+    kh_destroy(key, hash);
+    return 0;   
+}

@@ -13,6 +13,7 @@ struct qc_report {
 #define FQ_PASS     0
 #define FQ_QC_FAIL  1
 #define FQ_BC_FAIL  2
+#define FQ_DUP      3
 
 struct bseq {
     int flag; // flag for skip reasons
@@ -64,6 +65,8 @@ extern struct fastq_handler *fastq_handler_init(const char *r1, const char *r2, 
 extern int fastq_handler_state(struct fastq_handler*);
 
 extern void fastq_handler_destory(struct fastq_handler *h);
-
+extern void bseq_pool_push(struct bseq *b, struct bseq_pool *p);
+extern int levenshtein(char *a, char *b, int l);
+extern int bseq_pool_dedup(struct bseq_pool *p);
 
 #endif

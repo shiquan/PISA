@@ -93,16 +93,26 @@ struct bseq *bend_to_bseq(char *s)
     kputs(s, &str);
     int n;
     int *p = ksplit(&str, '\n', &n);
-    assert(n == 4 || n== 8);
+    if (n != 4 && n!= 8) {
+        fprintf(stderr, "%d\n%s\n", n, s);
+        assert(1);
+    }
     struct bseq *b = malloc(sizeof(*b));
     memset(b, 0, sizeof(struct bseq));
     b->n0 = strdup(str.s+p[0]);
     b->s0 = strdup(str.s+p[1]);
     b->q0 = strdup(str.s+p[3]);
+    b->l0 = strlen(b->s0);
+    int l = strlen(b->q0);
+    if (l != b->l0) error("Unequal sequence and quality length. %s vs %s", b->s0, b->q0);
     if (args.smart_pairing) {
         b->s1 = strdup(str.s+p[5]);
         b->q1 = strdup(str.s+p[7]);
+        b->l1 = strlen(b->s1);
+        l = strlen(b->q1);
+        if (l != b->l1) error("Unequal sequence and quality length. %s vs %s", b->s1, b->q1);
     }
+    
     free(str.s);
     return b;
 }
@@ -151,22 +161,6 @@ void test_file_index(struct FILE_tag_index *idx, const char *fn)
     }
 
     fclose(fp);
-}
-void bseq_pool_push(struct bseq *b, struct bseq_pool *p)
-{
-    assert(p);
-    if (p->n == p->m) {
-        p->m = p->m == 0 ? 10 : p->m<<1;
-        p->s = realloc(p->s, sizeof(struct bseq)*p->m);               
-    }
-    struct bseq *c = &p->s[p->n++];
-    memcpy(c, b, sizeof(struct bseq));
-    free(b);
-}
-
-int bseq_pool_dedup(struct bseq_pool *pool)
-{
-    return 0;
 }
 char **fastq_name_pick_tags(char *name, int n, const char **tags)
 {

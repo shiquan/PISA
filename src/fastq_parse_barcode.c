@@ -550,46 +550,6 @@ struct seqlite *extract_tag(struct bseq *b, const struct BarcodeRegion *r, struc
     stat->bases = +l;
     return p;
 }
-// credit to https://github.com/wooorm/levenshtein.c
-int levenshtein(char *a, char *b, int l) {
-    int *cache = calloc(l, sizeof(int));
-    int index = 0;
-    int bIndex = 0;
-    int distance;
-    int bDistance;
-    int result;
-    char code;
-
-    // initialize the vector.
-    while (index < l) {
-        cache[index] = index + 1;
-        index++;
-    }
-
-    // Loop.
-    while (bIndex < l) {
-        code = b[bIndex];
-        result = distance = bIndex++;
-        index = 0;
-
-        while (++index < l) {
-            bDistance = code == a[index] ? distance : distance + 1;
-            distance = cache[index];
-
-            cache[index] = result = distance > result
-                ? bDistance > result
-                ? result + 1
-                : bDistance
-                : bDistance > distance
-                ? distance + 1
-                : bDistance;
-        }
-    }
-    
-    free(cache);    
-    return result;
-}
-
 // -1 on unfound, 0 on No found on white list, >0 for iterater of white lists
 int check_whitelist(char *s, const struct BarcodeRegion *r, int *exact_match)
 {
