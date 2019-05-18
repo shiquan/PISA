@@ -330,7 +330,7 @@ static struct FILE_tag_index *build_file_index(const char *fname)
             di->idx[di->n].end = end;
             di->n++;
         }
-        debug_print("%s\t%d\t%d", s, start, end);
+        //debug_print("%s\t%d\t%d", s, start, end);
         free(s);
     }
     
