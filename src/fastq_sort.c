@@ -325,6 +325,7 @@ static void memory_release()
     // fclose(args.out);
     int i;
     //for (i = 0; i < args.n_thread; ++i) fclose(args.fp[i]);
+    if (args.check_list) barcode_destory(args.lb);
     if (args.fp_in) fclose(args.fp_in);
     for (i = 0; i < args.n_tag; ++i) free(args.tags[i]);
     free(args.tags);
@@ -504,7 +505,7 @@ static struct data_index *build_file_index(const char *fname, int in_mem)
             free(names);
                     
             if (str.m) free(str.s);
-            if (str1.m) free(str1.s);
+            if (str2.m) free(str2.s);
             push_idx_idx(idx, args.n_tag, names, start, end);
         }
         fclose(fp);
