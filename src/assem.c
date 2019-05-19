@@ -247,10 +247,11 @@ static void *run_it(void *_d)
 {
     char *out = NULL;
     struct read_block *b = (struct read_block*)_d;
-    if (b->n == 1) {
-        out = rend_bseq(b);
-    }
-    else {
+    //if (b->n == 1) {
+    //out = rend_bseq(b);
+//}
+    //else {
+    if (b->n > 1) {
         int n_utg;
         fml_utg_t *utg = fml_assemble(args.assem_opt, b->n, b->b, &n_utg);
         out = rend_utg(b->name, utg, n_utg);
@@ -276,7 +277,7 @@ int assem(int argc, char **argv)
         //int nseq;
         struct read_block *b = read_block();
         if (b == NULL) break;
-            
+        if (b->n == 1) continue;
         int block;
         do {
             block = hts_tpool_dispatch2(p, q, run_it, b, 1);
