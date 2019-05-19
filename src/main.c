@@ -2,10 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "single_cell_version.h"
+
 int usage()
 {
     fprintf(stderr, "\nSingleCellTools - Collection of tools to process single cell omics data.\n");
-    fprintf(stderr, "Commands:\n");
+    fprintf(stderr, "Version : %s\n", SINGLECELL_VERSION);
+    fprintf(stderr, "Commands :\n");
     fprintf(stderr, "\n--- Processing FASTQ\n");
     fprintf(stderr, "    parse      Parse cell barcode, sample barcode and UMI from fastq reads to read name.\n");
     fprintf(stderr, "    trim       Trim TN5 mosic ends or polyAs.\n");

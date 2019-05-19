@@ -10,7 +10,7 @@ LIBA = src/liba.a
 CC       = gcc
 CFLAGS   = -Wall -O0 -g
 DFLAGS   =
-INCLUDES = -Isrc -I$(HTSDIR)/ 
+INCLUDES = -Isrc -I$(HTSDIR)/ -I.
 LIBS = -lz -lbz2 -llzma -pthread -lm
 
 all:$(PROG)
@@ -18,8 +18,8 @@ all:$(PROG)
 # See htslib/Makefile
 PACKAGE_VERSION := $(shell git describe --tags)
 
-version.h:
-	echo '#define BCFANNO_VERSION "$(PACKAGE_VERSION)"' > $@
+single_cell_version.h:
+	echo '#define SINGLECELL_VERSION "$(PACKAGE_VERSION)"' > $@
 
 
 .SUFFIXES:.c .o
@@ -49,7 +49,7 @@ liba.a: $(LIB_OBJ)
 
 test: $(HTSLIB) version.h
 
-SingleCellTools: $(HTSLIB) liba.a $(AOBJ)
+SingleCellTools: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) src/liba.a $(HTSLIB) $(LIBS)
 
 src/bam_anno.o: src/bam_anno.c
@@ -70,7 +70,7 @@ src/bam_rmdup.o: src/bam_rmdup.c
 src/count_matrix.o: src/count_matrix.c
 
 clean: testclean
-	-rm -f gmon.out *.o *~ $(PROG) version.h 
+	-rm -f gmon.out *.o *~ $(PROG) single_cell_version.h 
 	-rm -rf *.dSYM plugins/*.dSYM test/*.dSYM
 	-rm src/*.o src/liba.a
 
