@@ -9,7 +9,7 @@
 
 KSEQ_INIT(gzFile, gzread)
 
-int usage()
+static int usage()
 {
     fprintf(stderr, "assem  in.fq\n");
     fprintf(stderr, "  -t       Threads.\n");
@@ -45,7 +45,7 @@ struct args {
     .assem_opt = NULL,
     .n_thread = 1,
 };
-void memory_release()
+static void memory_release()
 {
     int i;
     for (i = 0; i < args.n_tag; ++i) free(args.tags[i]);
@@ -129,7 +129,7 @@ struct read_block {
     bseq1_t *b;
     int n, m;
 };
-void read_block_destory(struct read_block *r)
+static void read_block_destory(struct read_block *r)
 {
     free(r->name);
     int i;
@@ -153,7 +153,7 @@ static char *generate_names(char **names)
     }
     return str.s;
 }
-struct read_block *read_block()
+static struct read_block *read_block()
 {
     struct read_block *b =  malloc(sizeof(*b));
     memset(b, 0, sizeof(*b));
@@ -308,8 +308,9 @@ int assem(int argc, char **argv)
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;
 }
-
+/*
 int main(int argc, char **argv)
 {
     return assem(argc, argv);
 }
+*/
