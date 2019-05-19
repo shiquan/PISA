@@ -24,8 +24,8 @@ static int usage()
 }
 
 struct data_block {
-    uint64_t start;
-    uint64_t end;
+    long start;
+    long end;
 };
 
 struct data_index {
@@ -56,7 +56,7 @@ static struct args {
     //FILE **fp;
     FILE *fp_in;
     struct lbarcode *lb;
-    uint64_t end;
+    long end;
 } args = {
     .input_fname = NULL,
     .list_fname = NULL,
@@ -195,16 +195,17 @@ static struct FILE_tag_index *build_file_index(const char *fname)
 {
     FILE *fp = fopen(fname, "r");
     CHECK_EMPTY(fp, "%s : %s.", fname, strerror(errno));
-    fseek(fp,0,SEEK_END);
+    fseek(fp,0L,SEEK_END);
+    fflush(fp);
     args.end = ftell(fp);
     // debug_print("%d", args.end);
-    fseek(fp,0, SEEK_SET);
+    fseek(fp,0L, SEEK_SET);
     struct FILE_tag_index *idx = malloc(sizeof(*idx));
     memset(idx, 0, sizeof(*idx));
     idx->dict = kh_init(idx);
     kstring_t str = {0,0,0};
     kstring_t str2 = {0,0,0}; // for read 2, used in smart pairing mode
-    uint64_t start, end;
+    long start, end;
     int begin_of_record = 1;
 
     for (;;) {
@@ -214,6 +215,7 @@ static struct FILE_tag_index *build_file_index(const char *fname)
         str.l = 0; // clear buffer
         
         if (begin_of_record) {
+            fflush(fp);
             start = ftell(fp);
             begin_of_record = 0;
             assert (c == '@');
@@ -245,7 +247,7 @@ static struct FILE_tag_index *build_file_index(const char *fname)
             int l = FILE_read_line_length(fp);
             fseek(fp, l+3, SEEK_CUR);            
         }
-        
+        fflush(fp);
         end = ftell(fp);
         
         assert(end <= args.end);
@@ -310,7 +312,7 @@ static void *run_it(void *_d, int i)
     struct data_index *idx = (struct data_index*)_d;    
     struct bseq_pool *p = bseq_pool_init();
 
-    FILE *fp = args.fp[i];
+    // FILE *fp = args.fp[i];
     
     int k;   
     for (k = 0; k < idx->n; ++k) {
@@ -433,6 +435,7 @@ int fsort(int argc, char ** argv)
     khint_t k;
 
     args.fp_in = fopen(args.input_fname,"r");
+    
     if (args.dedup) {
         hts_tpool *pool = hts_tpool_init(args.n_thread);
         hts_tpool_process *q = hts_tpool_process_init(pool, args.n_thread*2, 0);
@@ -469,7 +472,7 @@ int fsort(int argc, char ** argv)
         hts_tpool_destroy(pool);
     }
     else {
-
+    
         for (i = 0; i < idx->n; ++i) {
             char *key = idx->key[i];        
             struct bseq_pool *p = bseq_pool_init();        

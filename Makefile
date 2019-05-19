@@ -8,7 +8,7 @@ HTSLIB = $(HTSDIR)/libhts.a
 LIBA = src/liba.a
 
 CC       = gcc
-CFLAGS   = -Wall -O0 -g
+CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64
 DFLAGS   =
 INCLUDES = -Isrc -I$(HTSDIR)/ -I.
 LIBS = -lz -lbz2 -llzma -pthread -lm
