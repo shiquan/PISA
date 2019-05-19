@@ -75,6 +75,7 @@ struct rld_t *fml_fmi_gen(int n, bseq1_t *seq, int is_mt)
 	for (k = 0; k < n; ++k)
 		if (seq[k].l_seq > 0)
 			break;
+
 	if (k == n) return 0;
 
 	mr = mr_init(ROPE_DEF_MAX_NODES, ROPE_DEF_BLOCK_LEN, MR_SO_RCLO);
@@ -100,6 +101,7 @@ struct rld_t *fml_fmi_gen(int n, bseq1_t *seq, int is_mt)
 		free(s->seq);
 	}
 	free(seq);
+
 	mr_insert_multi(mr, str.l, (uint8_t*)str.s, is_mt);
 	free(str.s);
 

@@ -168,6 +168,7 @@ struct read_block *read_block()
         bb->l_seq = args.ks->seq.l;
         b->n++;
         free(args.last_name);
+        args.last_name = NULL;
     }
 
     // read name:  TAG1TAGS|||TAG1|||VAL1|||TAG2|||VAL2
@@ -179,7 +180,9 @@ struct read_block *read_block()
 
         char **name = fastq_name_pick_tags(args.ks->name.s, args.n_tag, args.tags);
         char *n = generate_names(name);
-
+        int i;
+        for (i = 0; i <args.n_tag; ++i) free(name[i]);
+        free(name);
         if (b->name == NULL) b->name = strdup(n);
         // if (args.last_name == NULL) args.last_name = strdup(n); // first line
         if (strcmp(n, b->name) == 0) {
@@ -266,7 +269,7 @@ int assem(int argc, char **argv)
     if (parse_args(argc, argv)) return usage();
 
     hts_tpool *p = hts_tpool_init(args.n_thread);
-    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 1);
+    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
     hts_tpool_result *r;
     
     for (;;) {
