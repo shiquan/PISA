@@ -427,6 +427,7 @@ int fsort(int argc, char ** argv)
     */
 
     // test_file_index(idx, args.input_fname);
+
     int i, j;
     khint_t k;
 
