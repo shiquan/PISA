@@ -325,7 +325,8 @@ static void *run_it(void *_d, int i)
 static void *run_it1(void *_d)
 {
     struct bseq_pool *p = (struct bseq_pool*)_d;
-    bseq_pool_dedup(p);
+    if (p->n > 1) 
+        bseq_pool_dedup(p);
     return p;        
 }
 

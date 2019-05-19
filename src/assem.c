@@ -267,6 +267,9 @@ static void write_out(char *s)
 }
 int assem(int argc, char **argv)
 {
+    double t_real;
+    t_real = realtime();
+
     if (parse_args(argc, argv)) return usage();
 
     hts_tpool *p = hts_tpool_init(args.n_thread);
@@ -300,6 +303,8 @@ int assem(int argc, char **argv)
         
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
+
+    LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;
 }
 
