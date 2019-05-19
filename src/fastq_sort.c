@@ -501,12 +501,13 @@ static struct data_index *build_file_index(const char *fname, int in_mem)
                     continue;  
                 }
             }
-            for (i = 0; i < args.n_tag; ++i) free(names[i]);
-            free(names);
                     
             if (str.m) free(str.s);
             if (str2.m) free(str2.s);
             push_idx_idx(idx, args.n_tag, names, start, end);
+            for (i = 0; i < args.n_tag; ++i) free(names[i]);
+            free(names);
+            
         }
         fclose(fp);
         
