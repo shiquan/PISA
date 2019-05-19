@@ -13,6 +13,8 @@ static int usage()
     fprintf(stderr, "fastq-sort  in.fq\n");
     fprintf(stderr, " -tag       Tags, such as CB,UR. Order of these tags is sensitive.\n");
     fprintf(stderr, " -dedup     Remove dna copies with same tags. Keep reads with best quality.\n");
+    fprintf(stderr, " -split     Split records to files by first tag. -O must be set with this parameter.\n");
+    fprintf(stderr, " -O         Outdir of split fastq.\n");
     fprintf(stderr, " -list      White list for first tag.\n");
     fprintf(stderr, " -t         Threads to dedup.\n");
     fprintf(stderr, " -o         Output fastq.");
@@ -44,6 +46,8 @@ static struct args {
     const char *input_fname;
     const char *list_fname;
     const char *output_fname;
+    const char *outdir;
+    int split_file;
     int dropN;    
     int n_thread;
     int dedup;
@@ -61,6 +65,8 @@ static struct args {
     .input_fname = NULL,
     .list_fname = NULL,
     .output_fname = NULL,
+    .outdir = NULL,
+    .split_file = 0,
     .dropN = 0,
     .smart_pairing = 0,
     .check_list = 0,
