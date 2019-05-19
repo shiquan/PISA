@@ -93,10 +93,12 @@ static void data_index_clean(struct data_index *d)
     if (d->n > 0) {
         int i;
         for (i = 0; i < d->n; i++) {
-            struct data_index *i0 = data_idx_retrieve(d, d->keys[i]);
-            data_index_clean(i0);
-            free(d->keys[i]);
-            free(i0);
+            if (d->keys[i]) {
+                struct data_index *i0 = data_idx_retrieve(d, d->keys[i]);
+                data_index_clean(i0);
+                free(d->keys[i]);
+                free(i0);
+            }
         }
         free(d->keys);
         kh_destroy(idx, d->dict);
