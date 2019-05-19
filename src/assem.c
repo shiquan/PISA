@@ -58,6 +58,7 @@ static void assem_opt_init(fml_opt_t *opt)
 {
     fml_opt_init(opt);
     opt->min_asm_ovlp = 10;
+    opt->ec_k = -1;
     opt->mag_opt.flag = MAG_F_NO_SIMPL | MAG_F_AGGRESSIVE;
 };
 

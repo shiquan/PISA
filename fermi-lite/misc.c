@@ -278,7 +278,25 @@ void fml_utg_destroy(int n, fml_utg_t *utg)
 }
 
 #define MAG_MIN_NSR_COEF .1
+/*
+#include <sys/resource.h>
+#include <sys/time.h>
 
+static inline double cputime()
+{
+	struct rusage r;
+	getrusage(RUSAGE_SELF, &r);
+	return r.ru_utime.tv_sec + r.ru_stime.tv_sec + 1e-6 * (r.ru_utime.tv_usec + r.ru_stime.tv_usec);
+}
+
+static inline double realtime()
+{
+	struct timeval tp;
+	struct timezone tzp;
+	gettimeofday(&tp, &tzp);
+	return tp.tv_sec + tp.tv_usec * 1e-6;
+}
+*/
 fml_utg_t *fml_assemble(const fml_opt_t *opt0, int n_seqs, bseq1_t *seqs, int *n_utg)
 {
 	rld_t *e;
@@ -286,19 +304,28 @@ fml_utg_t *fml_assemble(const fml_opt_t *opt0, int n_seqs, bseq1_t *seqs, int *n
 	fml_utg_t *utg;
 	fml_opt_t opt = *opt0;
 	float kcov;
+        //double t_real;
+        //t_real = realtime();
 
 	*n_utg = 0;
 	fml_opt_adjust(&opt, n_seqs, seqs);
+        // fprintf(stderr,"Adjust time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
 	if (opt.ec_k >= 0) fml_correct(&opt, n_seqs, seqs);
+        // fprintf(stderr,"Correct time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
 	kcov = fml_fltuniq(&opt, n_seqs, seqs);
+        // fprintf(stderr,"Uniq time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
 	e = fml_seq2fmi(&opt, n_seqs, seqs);
+        // fprintf(stderr,"Convert time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
 	if (e == 0) return 0; // this may happen when all sequences are filtered out
+
 	g = fml_fmi2mag(&opt, e);
+        // fprintf(stderr,"MAG time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
 	opt.mag_opt.min_ensr = opt.mag_opt.min_ensr > kcov * MAG_MIN_NSR_COEF? opt.mag_opt.min_ensr : (int)(kcov * MAG_MIN_NSR_COEF + .499);
 	opt.mag_opt.min_ensr = opt.mag_opt.min_ensr < opt0->max_cnt? opt.mag_opt.min_ensr : opt0->max_cnt;
 	opt.mag_opt.min_ensr = opt.mag_opt.min_ensr > opt0->min_cnt? opt.mag_opt.min_ensr : opt0->min_cnt;
 	opt.mag_opt.min_insr = opt.mag_opt.min_ensr - 1;
 	fml_mag_clean(&opt, g);
 	utg = fml_mag2utg(g, n_utg);
+        // fprintf(stderr,"Assem time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
 	return utg;
 }
