@@ -4,7 +4,7 @@
 #include "fastq.h"
 #include "barcode_list.h"
 #include "number.h"
-#include "thread_pool.h"
+#include "htslib/thread_pool.h"
 #include <ctype.h>
 
 static int usage()
@@ -14,7 +14,7 @@ static int usage()
     fprintf(stderr, " -tag       Tags, such as CB,UR. Order of these tags is sensitive.\n");
     fprintf(stderr, " -dedup     Remove dna copies with same tags. Keep reads with best quality.\n");
     fprintf(stderr, " -list      White list for first tag.\n");
-    fprintf(stderr, " -t         Threads.\n");
+    fprintf(stderr, " -t         Threads to dedup.\n");
     fprintf(stderr, " -o         Output fastq.");
     fprintf(stderr, " -p         Input fastq is smart pairing.\n");
     fprintf(stderr, " -dropN     Drop if N in tags.\n");
@@ -53,7 +53,8 @@ static struct args {
     char **tags;
     FILE *out;
     // For each thread, keep file handler
-    FILE **fp;
+    //FILE **fp;
+    FILE *fp_in;
     struct lbarcode *lb;
     uint64_t end;
 } args = {
@@ -67,7 +68,7 @@ static struct args {
     .n_tag = 0,  
     .tags = NULL,
     .out = NULL,
-    .fp = NULL,
+    .fp_in = NULL,
     .lb = NULL,
     .end = 0,
 };
@@ -178,8 +179,8 @@ static void memory_release()
 {
     fclose(args.out);
     int i;
-    for (i = 0; i < args.n_thread; ++i) fclose(args.fp[i]);
-    free(args.fp);
+    //for (i = 0; i < args.n_thread; ++i) fclose(args.fp[i]);
+    fclose(args.fp_in);
     for (i = 0; i < args.n_tag; ++i) free(args.tags[i]);
     free(args.tags);
     if (args.check_list) barcode_destory(args.lb);
@@ -303,7 +304,7 @@ static struct FILE_tag_index *build_file_index(const char *fname)
     fclose(fp);
     return idx;
 }
-
+/*
 static void *run_it(void *_d, int i)
 {
     struct data_index *idx = (struct data_index*)_d;    
@@ -318,6 +319,13 @@ static void *run_it(void *_d, int i)
     }
     if (args.dedup == 1)
         bseq_pool_dedup(p);
+    return p;        
+}
+*/
+static void *run_it1(void *_d)
+{
+    struct bseq_pool *p = (struct bseq_pool*)_d;
+    bseq_pool_dedup(p);
     return p;        
 }
 
@@ -412,46 +420,67 @@ int fsort(int argc, char ** argv)
     LOG_print("Build index time: %.3f sec; CPU: %.3f sec", realtime()-t_real, cputime());
 
     // thread cache
+    /*
     args.fp = malloc(args.n_thread*sizeof(void*));
     int i;
     for (i = 0; i < args.n_thread; ++i) args.fp[i] = fopen(args.input_fname, "r");
-    
+    */
 
     // test_file_index(idx, args.input_fname);
+    int i, j;
+    khint_t k;
 
-    int n = args.n_thread;
-    struct thread_pool *p = thread_pool_init(n);
-    struct thread_pool_process *q = thread_pool_process_init(p, n*10, 0);
-    struct thread_pool_result *r;
-    
-    for (i = 0; i < idx->n; ++i) {
-        char *key = idx->key[i];
-        khint_t k;
-        k = kh_get(idx,(kh_idx_t*)idx->dict, key);
-        struct data_index *di = kh_val((kh_idx_t*)idx->dict, k);
-
-        int block;
-
-        do {
-            block = thread_pool_dispatch2(p, q, run_it, di, -1);
-            if ((r = thread_pool_next_result(q))) {
-                struct bseq_pool *d = (struct bseq_pool*)r->data;
-                write_out(d);
+    args.fp_in = fopen(args.input_fname,"r");
+    if (args.dedup) {
+        hts_tpool *pool = hts_tpool_init(args.n_thread);
+        hts_tpool_process *q = hts_tpool_process_init(pool, args.n_thread*2, 0);
+        hts_tpool_result *r;        
+        for (i = 0; i < idx->n; ++i) {
+            char *key = idx->key[i];        
+            struct bseq_pool *p = bseq_pool_init();        
+            
+            k = kh_get(idx,(kh_idx_t*)idx->dict, key);
+            struct data_index *di = kh_val((kh_idx_t*)idx->dict, k);
+            for (j = 0; j < di->n; ++j) {
+                struct bseq *b = read_file_block(args.fp_in, &di->idx[j]);
+                bseq_pool_push(b, p);
             }
-            thread_pool_delete_result(r, 0);
+            int block;
+            do {
+                block = hts_tpool_dispatch2(pool, q, run_it1, p, 1);
+                if ((r = hts_tpool_next_result(q))) {                
+                    struct bseq_pool *d = (struct bseq_pool*)hts_tpool_result_data(r);
+                    write_out(d);
+                    hts_tpool_delete_result(r, 0);
+                }
+            }
+            while (block == -1);
         }
-        while (block==-1);
+        hts_tpool_process_flush(q);
+        
+        while ((r = hts_tpool_next_result(q))) {
+            struct bseq_pool *d = (struct bseq_pool*)hts_tpool_result_data(r);
+            write_out(d);
+            hts_tpool_delete_result(r, 0);
+        }
+        hts_tpool_process_destroy(q);
+        hts_tpool_destroy(pool);
     }
-    thread_pool_process_flush(q);
+    else {
 
-    while ((r = thread_pool_next_result(q))) {
-        struct bseq_pool *d = (struct bseq_pool*)r->data;
-        write_out(d);
-        thread_pool_delete_result(r,0);
+        for (i = 0; i < idx->n; ++i) {
+            char *key = idx->key[i];        
+            struct bseq_pool *p = bseq_pool_init();        
+            
+            k = kh_get(idx,(kh_idx_t*)idx->dict, key);
+            struct data_index *di = kh_val((kh_idx_t*)idx->dict, k);
+            for (j = 0; j < di->n; ++j) {
+                struct bseq *b = read_file_block(args.fp_in, &di->idx[j]);
+                bseq_pool_push(b, p);
+            }
+            write_out(p);
+        }
     }
-
-    thread_pool_process_destroy(q);
-    thread_pool_destroy(p);
 
     FILE_tag_destroy(idx);
     memory_release();
