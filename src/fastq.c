@@ -260,7 +260,7 @@ void bseq_pool_push(struct bseq *b, struct bseq_pool *p)
     struct bseq *c = &p->s[p->n++];
     memcpy(c, b, sizeof(struct bseq));
     //debug_print("c %d, b %d", c->l0, b->l0);
-    free(b);
+    // free(b);
 }
 // credit to https://github.com/wooorm/levenshtein.c
 int levenshtein(char *a, char *b, int l) {
