@@ -563,6 +563,8 @@ int bseq_pool_dedup(struct bseq_pool *p)
         free(key[i]);
         kh_del(key,hash, k);
     }
+    free(seed.s);
+    free(rseed.s);
     free(key);
     kh_destroy(key, hash);
     return 0;   
