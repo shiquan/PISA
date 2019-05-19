@@ -322,11 +322,11 @@ char *build_string_from_array(int n, char **v)
 */
 static void memory_release()
 {
-    // fclose(args.out);
+    if(args.out) fclose(args.out);
     int i;
     //for (i = 0; i < args.n_thread; ++i) fclose(args.fp[i]);
-    if (args.check_list) barcode_destory(args.lb);
     if (args.fp_in) fclose(args.fp_in);
+
     for (i = 0; i < args.n_tag; ++i) free(args.tags[i]);
     free(args.tags);
     if (args.check_list) barcode_destory(args.lb);
