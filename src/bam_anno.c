@@ -12,7 +12,12 @@
 
 static int usage()
 {
-    fprintf(stderr, "AnnoBam -bed peak.bed -tag attr -o out.bam in.bam\n");
+    fprintf(stderr, "* Annotate bam records with overlapped function regions. Such as gene, trnascript etc.\n");
+    fprintf(stderr, "anno_bam  -bed peak.bed -tag PK -o anno.bam in.bam\n");
+    fprintf(stderr, "Options :\n");
+    fprintf(stderr, "  -bed           Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
+    fprintf(stderr, "  -tag           Annotated attribution tag name.\n");
+    fprintf(stderr, "  -o             Output bam file.\n");
     return 1;
 }
 static struct args {
