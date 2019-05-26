@@ -6,7 +6,6 @@ int usage()
     fprintf(stderr, "\nSingleCellTools - Collection of tools to process single cell omics data.\n");
     fprintf(stderr, "Version : %s\n", SINGLECELL_VERSION);
     fprintf(stderr, "Commands :\n");
-    fprintf(stderr, "Author: Shi Quan (shiquan#genomics.cn)\n");
     fprintf(stderr, "\n--- Processing FASTQ\n");
     fprintf(stderr, "    parse      Parse cell barcode, sample barcode and UMI from fastq reads to read name.\n");
     fprintf(stderr, "    trim       Trim TN5 mosic ends or polyAs.\n");
@@ -21,6 +20,8 @@ int usage()
     fprintf(stderr, "    count      Count matrix.\n");
     // fprintf(stderr, "    bam2bw     Convert BAM to BigWig file.\n");
     fprintf(stderr, "\n");
+    fprintf(stderr, "Author : Shi Quan (shiquan#genomics.cn)\n");
+    fprintf(stderr, "Homepage : \n");
     return 1;
 }
 int main(int argc, char *argv[])

@@ -310,12 +310,15 @@ void *fastq_read(void *_h, void *opts)
         case FH_SMART_PAIR:
             b = fastq_read_smart(h, h->chunk_size);
             break;
+
         case FH_NOT_ALLOC:
             error("The fastq handler is NOT allocated.");
             break;
+
         case FH_NOT_INIT:
             error("The fastq handler is NOT inited.");
             break;
+
         default:
             error("Unknown state");
     }
