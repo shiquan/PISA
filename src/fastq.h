@@ -35,6 +35,10 @@ struct bseq_pool {
 };
 
 struct fastq_handler {
+    int n_file;    
+    int curr; // curr file
+    char **read_1;
+    char **read_2;
     gzFile r1;
     gzFile r2;
     void *k1;

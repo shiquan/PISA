@@ -54,12 +54,28 @@ void trim_read_tail(char *s, int l)
     if ( l > 2 && s[l-2] == '/' ) s[l-2] = '\0';    
 }
 
-static struct bseq_pool *fastq_read_smart(kseq_t *ks, int chunk_size)
+static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_size)
 {
     struct bseq_pool *p = bseq_pool_init();
     int size = 0;
+    int ret1= -1;
     do {
-        if ( kseq_read(ks) < 0 ) break;
+        
+        ret1 = kseq_read(h->k1);
+    
+        if (ret1 < 0) { // come to the end of file
+            if (h->n_file > 1 && h->curr < h->n_file) {
+                gzclose(h->r1);
+                kseq_destroy(h->k1);
+                h->r1 = gzopen(h->read_1[h->curr], "r");
+                h->k1 = kseq_init(h->r1);
+                if (kseq_read(h->k1) < 0) error("Empty record ? %s", h->read_1[h->curr]);
+            }
+            h->curr++;
+        }
+        else break;  
+        kseq_t *ks = h->k1;
+        
         struct bseq *s;
         if (p->n >= p->m ) {
             p->m = p->m ? p->m*2 : 256;
@@ -83,27 +99,44 @@ static struct bseq_pool *fastq_read_smart(kseq_t *ks, int chunk_size)
         s->l1 = ks->seq.l;
         size += s->l1;
         p->n++;
-        
         if ( size >= chunk_size ) break;
-    }
-    while (1);
+    } while (1);
     if ( p->n == 0 ) {
         bseq_pool_destroy(p);
         return NULL;
    }
     return p;
 }
-static struct bseq_pool *fastq_read_core(kseq_t *k1, kseq_t *k2, int chunk_size, int pe)
+static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size, int pe)
 {
+
+    // k1 and k2 already load one record when come here
+
     struct bseq_pool *p = bseq_pool_init();
+    int ret1, ret2 = -1;
+    
     if ( pe == 0 ) {
         do {
-            if ( kseq_read(k1) < 0 ) break;
+            ret1 = kseq_read(h->k1);
+    
+            if (ret1 < 0) { // come to the end of file
+                if (h->n_file > 1 && h->curr < h->n_file) {
+                    gzclose(h->r1);
+                    kseq_destroy(h->k1);
+                    h->r1 = gzopen(h->read_1[h->curr], "r");
+                    h->k1 = kseq_init(h->r1);
+                    if (kseq_read(h->k1) < 0) error("Empty record ? %s", h->read_1[h->curr]);
+                }
+                h->curr++;
+            }
+            else break;
+
             if (p->n >= p->m) {
                 p->m = p->m ? p->m<<1 : 256;
                 p->s = realloc(p->s, p->m*sizeof(struct bseq));
             }
             struct bseq *s = &p->s[p->n];
+            kseq_t *k1 = h->k1;
             memset(s, 0, sizeof(*s));
             trim_read_tail(k1->name.s, k1->name.l);
             s->n0 = strdup(k1->name.s);
@@ -117,12 +150,33 @@ static struct bseq_pool *fastq_read_core(kseq_t *k1, kseq_t *k2, int chunk_size,
         while(1);
     }
     else {
-        do {
-            if ( kseq_read(k1) < 0 ) break;
-            if ( kseq_read(k2) < 0 ) break;
+        do {            
+            ret1 = kseq_read(h->k1);
+            ret2 = kseq_read(h->k2);
+            if (ret1 < 0) { // come to the end of file
+                if (ret2 >=0) error("Inconsistant input fastq records.");
+                if (h->n_file > 1 && h->curr < h->n_file) {
+                    gzclose(h->r1);
+                    kseq_destroy(h->k1);
+                    h->r1 = gzopen(h->read_1[h->curr], "r");
+                    h->k1 = kseq_init(h->r1);
+                    if (kseq_read(h->k1) < 0) error("Empty record ? %s", h->read_1[h->curr]);
+                    if (h->r2) {
+                        gzclose(h->r2);
+                        kseq_destroy(h->k2);
+                        h->r2 = gzopen(h->read_2[h->curr], "r");
+                        h->k2 = kseq_init(h->r2);
+                        if (kseq_read(h->k2) < 0) error("Empty record ? %s", h->read_2[h->curr]);
+                    }
+                    h->curr++;
+                }
+                else break;  
+            }
+            kseq_t *k1 = h->k1;
+            kseq_t *k2 = h->k2;
             trim_read_tail(k1->name.s, k1->name.l);
             trim_read_tail(k2->name.s, k2->name.l);
-            
+
             if ( check_name(k1->name.s, k2->name.s) ) error("Inconsistance paired read names. %s vs %s.", k1->name.s, k2->name.s);
             //if ( k1->seq.l != k2->seq.l ) error("Inconsistant PE read length, %s.", k1->name.s);
             
@@ -143,6 +197,7 @@ static struct bseq_pool *fastq_read_core(kseq_t *k1, kseq_t *k2, int chunk_size,
             s->l1 = k2->seq.l;
             
             p->n++;
+            
             if ( p->n >= chunk_size ) break;            
         }
         while(1);
@@ -151,25 +206,61 @@ static struct bseq_pool *fastq_read_core(kseq_t *k1, kseq_t *k2, int chunk_size,
         bseq_pool_destroy(p);
         return NULL;
     }
-return p;
+    return p;
+}
+static char **split_multi_files(const char *fname, int *n)
+{
+    kstring_t str = {0,0,0};
+    kputs(fname, &str);
+    int *s = ksplit(&str, ',', n);
+    if (*n == 1 || s == 0) {
+        free(str.s);
+        return NULL;
+    }
+    
+    char **paths = malloc(*n*sizeof(char*));
+    int i;
+    for (i = 0; i < *n; ++i) paths[i] = strdup(str.s+s[i]);
+    free(str.s);
+    free(s);
+    return paths;
 }
 
 struct fastq_handler *fastq_handler_init(const char *r1, const char *r2, int smart, int chunk_size)
 {
     struct fastq_handler *h = malloc(sizeof(*h));
     memset(h, 0, sizeof(*h));
-    h->r1 = strcmp(r1, "-") == 0 ? gzdopen(fileno(stdin), "r") : gzopen(r1, "r");
-    if (h->r1 == NULL) error("Failed to open %s : %s.", r1, strerror(errno));
-    h->k1 = kseq_init(h->r1);
-    if (h->k1 == NULL) error("Failed to init stream. %s", r1);
-    
-    if (r2) {
-        h->r2 = gzopen(r2, "r");    
-        if (h->r2 == NULL) error("Failed to open %s: %s.", r2, strerror(errno));
-        h->k2 = kseq_init(h->r2);
-    }
+    int n1, n2;
+    h->read_1 = split_multi_files(r1, &n1);
+    h->read_2 = split_multi_files(r2, &n2);
+    if (n1 != n2) error("Unpaired input fastqs.");
+    assert(n1 > 0);
+    h->n_file = n1;
+    h->curr = 1;
     h->smart_pair = smart;
     h->chunk_size = chunk_size;
+
+    if (n1 == 1) {
+        h->r1 = strcmp(r1, "-") == 0 ? gzdopen(fileno(stdin), "r") : gzopen(r1, "r");
+        if (h->r1 == NULL) error("Failed to open %s : %s.", r1, strerror(errno));
+        h->k1 = kseq_init(h->r1);
+        if (h->k1 == NULL) error("Failed to init stream. %s", r1);
+        
+        if (r2) {
+            h->r2 = gzopen(r2, "r");    
+            if (h->r2 == NULL) error("Failed to open %s: %s.", r2, strerror(errno));
+            h->k2 = kseq_init(h->r2);
+        }
+    }
+    else {
+        h->r1 = gzopen(h->read_1[0], "r");
+        h->k1 = kseq_init(h->r1);
+        if (r2) {
+            h->r2 = gzopen(h->read_2[0], "r");
+            h->k2 = kseq_init(h->r2);
+        }
+    }
+    
     return h;
 }
 void fastq_handler_destory(struct fastq_handler *h)
@@ -179,6 +270,15 @@ void fastq_handler_destory(struct fastq_handler *h)
     if ( h->k2 ) {
         kseq_destroy(h->k2);
         gzclose(h->r2);
+    }
+    if (h->n_file > 1) {
+        int i;
+        for (i = 0; i < h->n_file;++i) {
+            free(h->read_1[i]);
+            if (h->read_2) free(h->read_2[i]);
+        }
+        free(h->read_1);
+        if (h->read_2) free(h->read_2);
     }
     free(h);
 }
@@ -190,28 +290,26 @@ int fastq_handler_state(struct fastq_handler *h)
     if ( h->k2 == NULL ) return FH_SE;
     return FH_PE;    
 }
-
 void *fastq_read(void *_h, void *opts)
 {
     struct fastq_handler *h = (struct fastq_handler*)_h;
 
     int state = fastq_handler_state(h);
-    struct bseq_pool *b = NULL;
 
-    switch (state) {
-        
+    struct bseq_pool *b;
+    
+    switch(state) {
         case FH_SE:
-            b = fastq_read_core((kseq_t*)h->k1, NULL, h->chunk_size, 0);
+            b = fastq_read_core(h, h->chunk_size, 0);
             break;
             
         case FH_PE:
-            b = fastq_read_core((kseq_t*)h->k1, (kseq_t*)h->k2, h->chunk_size, 1);
+            b = fastq_read_core(h, h->chunk_size, 1);
             break;
             
         case FH_SMART_PAIR:
-            b = fastq_read_smart((kseq_t*)h->k1, h->chunk_size);
+            b = fastq_read_smart(h, h->chunk_size);
             break;
-            
         case FH_NOT_ALLOC:
             error("The fastq handler is NOT allocated.");
             break;
@@ -219,9 +317,9 @@ void *fastq_read(void *_h, void *opts)
             error("The fastq handler is NOT inited.");
             break;
         default:
-            error("Unknown state, %d.", state);
-            break;
+            error("Unknown state");
     }
+    
     if (b) b->opts = opts;
     return b;
 }

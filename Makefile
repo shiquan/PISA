@@ -6,11 +6,12 @@ HTSDIR = htslib-1.9
 include $(HTSDIR)/htslib.mk
 HTSLIB = $(HTSDIR)/libhts.a
 LIBA = src/liba.a
+LIBFML = fermi-lite/libfml.a
 
 CC       = gcc
 CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64
 DFLAGS   =
-INCLUDES = -Isrc -I$(HTSDIR)/ -I.
+INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I fermi-lite 
 LIBS = -lz -lbz2 -llzma -pthread -lm
 
 all:$(PROG)
@@ -41,7 +42,8 @@ AOBJ = src/bam_anno.o \
 	src/bam_rmdup.o \
 	src/count_matrix.o \
 	src/fastq_sort.o \
-	src/fastq_parse_barcode.o
+	src/fastq_parse_barcode.o \
+	src/assem.o
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@
@@ -50,7 +52,7 @@ liba.a: $(LIB_OBJ)
 test: $(HTSLIB) version.h
 
 SingleCellTools: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) src/liba.a $(HTSLIB) $(LIBS)
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) fermi-lite/libfml.a  src/liba.a $(HTSLIB) $(LIBS)
 
 src/bam_anno.o: src/bam_anno.c
 src/bam_count.o: src/bam_count.c
@@ -68,6 +70,7 @@ src/json_config.o: src/json_config.c
 src/kson.o: src/kson.c
 src/bam_rmdup.o: src/bam_rmdup.c
 src/count_matrix.o: src/count_matrix.c
+src/assem.o: src/assem.c
 
 clean: testclean
 	-rm -f gmon.out *.o *~ $(PROG) single_cell_version.h 

@@ -14,12 +14,12 @@
 KHASH_MAP_INIT_STR(str, int)
 typedef kh_str_t strhash_t;
 
-const char *program_name = "CellBarcodeParser";
+// const char *program_name = "CellBarcodeParser";
 
 static int usage()
 {
     fprintf(stderr, "* Parse cell barcode and UMI string from raw FASTQ.\n");
-    fprintf(stderr, " %s [options] read_1.fq.gz read_2.fq.gz\n", program_name);
+    fprintf(stderr, " parse_barcode [options] lane1_1.fq.gz,lane02_1.fq.gz  lane1_2.fq.gz,lane2_2.fq.gz\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -1      [fastq]    Read 1 output.\n");
@@ -47,6 +47,7 @@ struct segment {
     int n; // white list barcodes per segment
     struct bcount *counts;
 };
+
 struct segment *segment_alloc(int n)
 {
     struct segment *s = malloc(sizeof(*s));

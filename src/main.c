@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
     extern int bam_pick(int argc, char *argv[]);
     extern int count_matrix(int argc, char *argv[]);
     extern int fsort(int argc, char ** argv);
-    // extern int assem(int argc, char **argv);
+    extern int assem(int argc, char **argv);
     if (argc == 1) return usage();
     else if (strcmp(argv[1], "parse") == 0) return fastq_prase_barcodes(argc-1, argv+1);
     else if (strcmp(argv[1], "trim") == 0) return fastq_trim_adaptors(argc-1, argv+1);
@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "attrcnt") == 0) return bam_count_attr(argc-1, argv+1);
     else if (strcmp(argv[1], "pick") == 0) return bam_pick(argc-1, argv+1);
     else if (strcmp(argv[1], "count") == 0) return count_matrix(argc-1, argv+1);
-    else if (strcmp(argv[1], "assem") == 0) error("No publish yet.");
+    else if (strcmp(argv[1], "assem") == 0)  return assem(argc-1, argv+1);
     else return usage();
     return 0;
 }

@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 
 KSEQ_INIT(gzFile, gzread)
+
 static int usage()
 {
     fprintf(stderr, "* Sort fastq records by tags and deduplicate.\n");
@@ -174,7 +175,7 @@ static void write_out_bseq(struct bseq_pool *pool, FILE *fp)
     for (i = 0; i < pool->n; ++i) {
         struct bseq *b = &pool->s[i];
         if (b->flag == FQ_PASS) {            
-            fprintf(fp, "%s\n%s\n+\n%s\n", b->n0, b->s0, b->q0);
+            fprintf(fp, "@%s\n%s\n+\n%s\n", b->n0, b->s0, b->q0);
             if (b->l1) fprintf(fp, "%s\n%s\n+\n%s\n", b->n0, b->s1, b->q1);
         }
     }

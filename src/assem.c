@@ -18,7 +18,7 @@ static int usage()
     fprintf(stderr, "  -i       Index file of in.fq\n");
     return 1;
 }
-struct args {
+static struct args {
     const char *input_fname;
     const char *output_fname;
     int n_tag;
@@ -152,6 +152,10 @@ static char *generate_names(char **names)
         kputs(names[i], &str);
     }
     return str.s;
+}
+static int check_cicular(char *s, int n)
+{
+    return 0;
 }
 static struct read_block *read_block()
 {

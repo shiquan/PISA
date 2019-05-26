@@ -545,7 +545,7 @@ int fastq_trim_adaptors(int argc, char **argv)
         if (b == NULL) break;
         int block;
         do {
-            block = thread_pool_dispatch2(p, q, run_it, b, 0);
+            block = thread_pool_dispatch2(p, q, run_it, b, 1);
             if ((r = thread_pool_next_result(q))) {
                 struct bseq_pool *d = (struct bseq_pool *)r->data;
                 write_out(d);
