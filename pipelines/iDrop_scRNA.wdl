@@ -10,6 +10,7 @@ workflow main {
   String annoBed
   String ?runID
   String config
+  String list
   call makedir {
     input:
     Dir=outdir
@@ -37,6 +38,7 @@ workflow main {
     sambambapath=sambambapath,
     annoBed=annoBed,
     root=root,
+    list=list,
     outdir=outdir
   }
 }
@@ -89,10 +91,11 @@ task sortBam {
   String root
   String outdir
   String annoBed
+  String list
   command {
     ${sambambapath} sort -t 20 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam
     ${root}/SingleCellTools anno -tag GE -bed ${annoBed} -o ${outdir}/temp/anno.bam ${outdir}/temp/sorted.bam
-    ${root}/SingleCellTools count -tag CB -anno_tag GE -o ${outdir}/outs/count.mtx ${outdir}/temp/anno.bam
+    ${root}/SingleCellTools count -tag CB -anno_tag GE -o ${outdir}/outs/count.mtx -list ${list} ${outdir}/temp/anno.bam
     echo "[`date +%F` `date +%T`] workflow end" >> ${outdir}/workflowtime.log
   }
   output {
