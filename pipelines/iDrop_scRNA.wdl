@@ -63,7 +63,7 @@ task parseFastq {
   String ?runID
   String root
   command {
-    ${root}/SingleCellTools parse -t 15 -f -q 20 -dropN -config ${config} -cbdis ${outdir}/temp/barcode_counts_raw.txt -run ${default="1" runID} -report ${outdir}/temp/sequencing_report.json ${fastq1} ${fastq2} | ${root}/SingleCellTools  trim -report ${outdir}/temp/trim_report.json -mode polyA -p -t 3 > ${outdir}/temp/reads.fq
+    ${root}/SingleCellTools parse -t 15 -f -q 20 -dropN -config ${config} -cbdis ${outdir}/temp/barcode_counts_raw.txt -run ${default="1" runID} -report ${outdir}/temp/sequencing_report.json ${fastq1} ${fastq2} | ${root}/SingleCellTools  trim -report ${outdir}/temp/trim_report.json -mode polyA  -t 3 > ${outdir}/temp/reads.fq
   }
   output {
     String rawtable="${outdir}/temp/barcode_counts_raw.txt"
