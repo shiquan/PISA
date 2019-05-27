@@ -78,7 +78,7 @@ task fastq2bam {
   String refdir
   String root
   command {
-    ${STARpath} --outStd SAM --genomeDir ${refdir} --readFilesIn ${fastq} | ${root}/SingleCellTools sam2bam -p MT -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.json -maln ${outdir}/temp/mito.bam /dev/stdin
+    ${STARpath} --outStd SAM --genomeDir ${refdir} --readFilesIn ${fastq} | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.json -maln ${outdir}/temp/mito.bam /dev/stdin
   }
   output {
     String bam="${outdir}/temp/aln.bam"
