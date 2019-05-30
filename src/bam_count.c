@@ -19,6 +19,7 @@ static int usage()
     fprintf(stderr, "    -anno_tag   Annotation attribute.\n");
     fprintf(stderr, "    -list       Barcode list, white list, used as column names at matrix.\n");
     fprintf(stderr, "    -o          Output matrix.\n");
+    fprintf(stderr, "    -umi        UMI tag. Count once if more than one record has same UMI which overlapped with a region.\n");
     // fprintf(stderr, "    -t          Threads. [5]\n");
     fprintf(stderr, "    -q          Minimal map quality to filter. [60]\n");
     // fprintf(stderr, "    -i          Maximal insert size to filter, 0 for not set. [0]\n");
@@ -34,7 +35,7 @@ static struct args {
     const char *anno_tag;
     const char *whitelist_fname;
     const char *output_fname;
-    
+    const char *umi_tag;
     int mapq_thres;
     
 } args = {
@@ -44,6 +45,7 @@ static struct args {
     .anno_tag = NULL,
     .whitelist_fname = NULL,
     .output_fname = NULL,
+    .umi_tag = NULL,
     .mapq_thres = 60,
 };
 static int parse_args(int argc, char **argv)
@@ -57,6 +59,7 @@ static int parse_args(int argc, char **argv)
         if (strcmp(a, "-tag") == 0) var = &args.tag;
         else if (strcmp(a, "-anno_tag") == 0) var = &args.anno_tag;
         else if (strcmp(a, "-list") == 0) var = &args.whitelist_fname;
+        else if (strcmp(a, "-umi") == 0) var = &args.umi_tag;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-q") == 0) var = &mapq;
 
@@ -78,6 +81,29 @@ static int parse_args(int argc, char **argv)
     if (args.anno_tag == 0) error("No anno tag specified.");
     if (args.whitelist_fname == 0) error("No barcode list specified.");
     return 0;
+}
+struct mtx_counts {
+    int *v;
+    int n, m;
+    char **bcodes;
+    kh_name_t *uhash;
+};
+static struct mtx_counts *mtx_counts_init(int n)
+{
+    struct mtx_counts *m = malloc(sizeof(*m));
+    memset(m, 0, sizeof(*m));
+    m->v = calloc(n, sizeof(int));
+    m->uhash = kh_init(name);    
+    return m;
+}
+static void mtx_counts_destory(struct mtx_counts *m)
+{
+    int i;
+    for (i = 0; i < m->n; ++i) free(m->bcodes[i]);
+    if (m->bcodes) free(m->bcodes);
+    kh_destroy(name, m->uhash);
+    free(m->v);
+    free(m);    
 }
 int count_matrix(int argc, char **argv)
 {
@@ -103,7 +129,7 @@ int count_matrix(int argc, char **argv)
     kh_name_t *hash = kh_init(name); 
     int n=0, m=100;
     char **reg = malloc(m*sizeof(char*));
-    int **v = malloc(sizeof(int*)*m);
+    struct mtx_counts **v = malloc(sizeof(void*)*m);
     
     bam1_t *b;
     bam1_core_t *c;
@@ -135,12 +161,32 @@ int count_matrix(int argc, char **argv)
             reg[n] = strdup(val);
             k = kh_put(name, hash, reg[n], &r);
             kh_val(hash, k) = n;
-            v[n] = calloc(lb->n, sizeof(int));
-            memset(v[n], 0, lb->n*sizeof(int));
+            // v[n] = calloc(lb->n, sizeof(int));
+            // memset(v[n], 0, lb->n*sizeof(int));
+            v[n] = mtx_counts_init(lb->n);
+
             n++;
         }
         int row = kh_val(hash, k);
-        v[row][id]++;       
+        if (args.umi_tag) {
+            uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
+            if (!umi_tag) error("No UMI tag found at record. %s:%d", hdr->target_name[c->tid], c->pos+1);
+            char *val = (char*)(umi_tag+1);
+            struct mtx_counts *t = v[row];
+            k = kh_get(name, t->uhash, val);
+            if (k == kh_end(t->uhash)) {
+                if (t->n == t->m) {
+                    t->m = t->m + 10;
+                    t->bcodes = realloc(t->bcodes, t->m*sizeof(char*));
+                }
+                t->bcodes[t->n] = strdup(val);
+                k = kh_put(name, t->uhash, t->bcodes[t->n], &r);
+                t->n++;
+                t->v[id]++;
+            }
+        }
+        else 
+            v[row]->v[id]++;       
     }    
     bam_destroy1(b);
     bam_hdr_destroy(hdr);
@@ -153,7 +199,7 @@ int count_matrix(int argc, char **argv)
     fputc('\n', out);
     for (i = 0; i < n; ++i) {
         fprintf(out, "%s", reg[i]);
-        for (j = 0; j < lb->n; ++j)  fprintf(out, "\t%d", v[i][j]);
+        for (j = 0; j < lb->n; ++j)  fprintf(out, "\t%d", v[i]->v[j]);
         fputc('\n', out);
     }
     fclose(out);
@@ -161,7 +207,7 @@ int count_matrix(int argc, char **argv)
     kh_destroy(name,hash);
     for (i = 0; i < n; ++i) {
         free(reg[i]);
-        free(v[i]);
+        mtx_counts_destory(v[i]);
     }
     free(reg); free(v);
     barcode_destory(lb);
