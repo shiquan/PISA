@@ -40,7 +40,7 @@ AOBJ = src/bam_anno.o \
 	src/dyncut.o \
 	src/sam2bam.o \
 	src/bam_rmdup.o \
-	src/count_matrix.o \
+	src/bam_attr_count.o \
 	src/fastq_sort.o \
 	src/fastq_parse_barcode.o \
 	src/assem.o
@@ -69,7 +69,7 @@ src/thread_pool.o: src/thread_pool.c
 src/json_config.o: src/json_config.c
 src/kson.o: src/kson.c
 src/bam_rmdup.o: src/bam_rmdup.c
-src/count_matrix.o: src/count_matrix.c
+src/bam_attr_count.o: src/bam_attr_count.c
 src/assem.o: src/assem.c
 
 clean: testclean
