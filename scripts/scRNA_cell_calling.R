@@ -29,34 +29,37 @@ if (is.null(opt$expect) && is.null(opt$force)) {
 if(is.null(opt$output)) {
     opt$output<-getwd()
 }
-expect <- 0
-if (!is.null(opt$expect)) {
-    expect=as.numeric(opt$expect)
-}
-# force = expect
-if (!is.null(opt$force)) {
-    expect = as.numeric(opt$force)
-}
 
 bc <- fread(opt$input,header=FALSE)
 bc <- as.data.frame(bc)
 colnames(bc) <- c("bc","counts")
 len <- nrow(bc)
 a = log10(1:len)
-b =log10(as.numeric(bc$counts))
+b = log10(as.numeric(bc$counts))
+expect <- 0
+cutoff <- 0
+m <- 0
+if (!is.null(opt$expect)) {
+    expect=as.numeric(opt$expect)
+    lo <- loess(b~a,span = 0.004,degree = 2)
+    c = log10(expect*1.7)
+    if(10^c>len){c=log10(expect)}    
+    xl <- seq(2,c, (c - 2)/10)
+    out = predict(lo,xl)
+    infl <- c(FALSE,abs(diff(out)/((c - 2)/10) - -1) == min(abs(diff(out)/((c - 2)/10)- -1)))
+    m = 10 ^ out[infl] + 0.5
+    m = round(m , digits =0 )
+    cutoff<-length(which(bc$counts>=m))
+}
 
-lo <- loess(b~a,span = 0.004,degree = 2)
-#expect <- 1000
-c = log10(expect*1.7)
-if(10^c>len){c=log10(expect)}
-# print(c)
-xl <- seq(2,c, (c - 2)/10)
-out = predict(lo,xl)
-infl <- c(FALSE,abs(diff(out)/((c - 2)/10) - -1) == min(abs(diff(out)/((c - 2)/10)- -1)))
-m = 10 ^ out[infl] + 0.5
-m = round(m , digits =0 )
-
-cutoff<-length(which(bc$counts>=m))
+if (!is.null(opt$force)) {
+    force = as.numeric(opt$force)
+    if (force > 0) {
+        expect = force
+        cutoff = expect
+        m = bc$counts[cutoff]
+    }
+}
 
 tmp<-data.frame(x=1:len,y=bc$counts,g=c(rep("true",cutoff),rep("noise",len-cutoff)))
 cbs <- bc$bc[1:len]
