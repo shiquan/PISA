@@ -20,9 +20,7 @@ static int usage()
     fprintf(stderr, "    -list       Barcode list, white list, used as column names at matrix.\n");
     fprintf(stderr, "    -o          Output matrix.\n");
     fprintf(stderr, "    -umi        UMI tag. Count once if more than one record has same UMI which overlapped with a region.\n");
-    // fprintf(stderr, "    -t          Threads. [5]\n");
     fprintf(stderr, "    -q          Minimal map quality to filter. [60]\n");
-    // fprintf(stderr, "    -i          Maximal insert size to filter, 0 for not set. [0]\n");
     fprintf(stderr,"\n");
 
     return 1;
