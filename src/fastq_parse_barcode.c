@@ -1010,7 +1010,7 @@ static void write_out(void *_data)
     }
     bseq_pool_destroy(p);
 }
-int cmpfunc (const void *a, const void *b)
+static int cmpfunc (const void *a, const void *b)
 {    
     return ( ((struct NameCountPair*)b)->count - ((struct NameCountPair*)a)->count );
 }

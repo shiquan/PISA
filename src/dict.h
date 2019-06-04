@@ -1,4 +1,5 @@
 #ifndef DICT_H
+#define DICT_H
 
 struct dict {
     int n, m;

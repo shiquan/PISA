@@ -2,7 +2,7 @@
 #include "dict.h"
 #include "htslib/khash.h"
 
-KHASH_MAP_INIT_STR(dict, char*)
+KHASH_MAP_INIT_STR(dict, int)
 
 struct dict *dict_init()
 {
@@ -14,9 +14,9 @@ struct dict *dict_init()
 void dict_destory(struct dict *d)
 {
     int i;
-    for (i = 0; i < d->n; ++i) free(d->names[i]);
-    free(d->names);
-    kh_destroy((kh_dict_t*)d->dict);
+    for (i = 0; i < d->n; ++i) free(d->name[i]);
+    free(d->name);
+    kh_destroy(dict,(kh_dict_t*)d->dict);
     free(d);
 }
 
@@ -38,8 +38,9 @@ int dict_push(struct dict *d, char *name)
         k = kh_put(dict, (kh_dict_t*)d->dict, name, &ret);
         if (d->n == d->m) {
             d->m = d->m == 0 ? 32 : d->m<<1;
+            d->name = realloc(d->name, sizeof(char *)*d->m);
         }
-        d->names[d->n] = strdup(name);
+        d->name[d->n] = strdup(name);
         kh_val((kh_dict_t*)d->dict, k) = d->n;
         check = d->n;
         d->n++;

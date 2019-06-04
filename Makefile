@@ -32,7 +32,7 @@ force:
 .c.o:
 	$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@
 
-LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o
+LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/dict.o
 
 AOBJ = src/bam_anno.o \
 	src/bam_count.o \
@@ -64,6 +64,8 @@ src/sam2bam.o: src/sam2bam.c
 src/barcode_list.o: src/barcode_list.c
 src/bed_lite.o: src/bed_lite.c
 src/number.o: src/number.c
+src/gtf.o: src/gtf.c
+src/dict.o: src/dict.c
 src/fastq.o: src/fastq.c
 src/thread_pool.o: src/thread_pool.c
 src/json_config.o: src/json_config.c
