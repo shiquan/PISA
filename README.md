@@ -1,1 +1,2 @@
 # SingleCellTools
+This program is designed to process single cell omics data. It is in developing and will be updated frequently. Please do not use it in your project before I release the stable version.
