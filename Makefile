@@ -43,7 +43,8 @@ AOBJ = src/bam_anno.o \
 	src/bam_attr_count.o \
 	src/fastq_sort.o \
 	src/fastq_parse_barcode.o \
-	src/assem.o
+	src/assem.o \
+	src/check_segment.o
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@
@@ -71,6 +72,7 @@ src/kson.o: src/kson.c
 src/bam_rmdup.o: src/bam_rmdup.c
 src/bam_attr_count.o: src/bam_attr_count.c
 src/assem.o: src/assem.c
+src/check_segment.o: src/check_segment.c
 
 clean: testclean
 	-rm -f gmon.out *.o *~ $(PROG) single_cell_version.h 
