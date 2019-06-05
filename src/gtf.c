@@ -66,9 +66,8 @@ static void gtf_build_index(struct gtf_spec *G)
     G->ctg = malloc(G->name->n*sizeof(struct ctg_idx));
     memset(G->ctg, 0, sizeof(struct ctg_idx)*G->name->n);
     G->idx = malloc(G->n_gtf*sizeof(uint64_t));
-    int i, j;
-
-    for (i = 0, j = 0; i < G->n_gtf; ++i) {
+    int i;
+    for (i = 0; i < G->n_gtf; ++i) {
         struct gtf_lite *gl = &G->gtf[i];
         G->idx[i] = (uint64_t)gl->start<<32|gl->end;
         G->ctg[gl->seqname].offset++;        

@@ -1261,6 +1261,6 @@ int fastq_prase_barcodes(int argc, char **argv)
     
     memory_release();
 
-    
+    LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());    
     return 0;
 }
