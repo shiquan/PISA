@@ -232,8 +232,10 @@ struct fastq_handler *fastq_handler_init(const char *r1, const char *r2, int sma
     memset(h, 0, sizeof(*h));
     int n1, n2;
     h->read_1 = split_multi_files(r1, &n1);
-    h->read_2 = split_multi_files(r2, &n2);
-    if (n1 != n2) error("Unpaired input fastqs.");
+    if (smart == 0) {
+        h->read_2 = split_multi_files(r2, &n2);
+        if (n1 != n2) error("Unpaired input fastqs.");
+    }
     assert(n1 > 0);
     h->n_file = n1;
     h->curr = 1;
