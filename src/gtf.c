@@ -73,7 +73,7 @@ static void gtf_build_index(struct gtf_spec *G)
         G->ctg[gl->seqname].offset++;        
         if (G->ctg[gl->seqname].idx == 0) G->ctg[gl->seqname].idx = i+1;
     }
-    for (i = 0; i < G->n_gtf; ++i) G->ctg[i].idx -= 1; // convert to 0 based
+    for (i = 0; i < G->name->n; ++i) G->ctg[i].idx -= 1; // convert to 0 based
 }
 static void gtf_lite_clean(struct gtf_lite *g)
 {
