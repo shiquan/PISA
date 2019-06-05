@@ -329,7 +329,8 @@ struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int
         if (idx_end(G->idx[mid])<start) st = mid;
         else ed = mid;
     }
-    assert(st == ed);
+    if (st != ed) error("%d %d, %d, %d, start : %d, end : %d", st, ed, idx_start(G->idx[st]), idx_end(G->idx[st]), start, end);
+    // assert(st == ed);
 
   check_overlap:
     //struct gtf_lite *g0 = &G->gtf[st];
