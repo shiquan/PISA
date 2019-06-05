@@ -320,7 +320,8 @@ struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int
 
     if (cache == 1 && id == last_id) {
         st = last_idx;
-        if (idx_end(G->idx[st]) >= start) goto check_overlap;
+        assert(st < ed);
+        if (idx_end(G->idx[st]) > start) goto check_overlap;
     }
 
     // find the smallest i such that idx_end >= st
