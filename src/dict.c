@@ -35,12 +35,12 @@ int dict_push(struct dict *d, char *name)
     if (check == -1) {
         khint_t k;
         int ret;
-        k = kh_put(dict, (kh_dict_t*)d->dict, name, &ret);
         if (d->n == d->m) {
             d->m = d->m == 0 ? 32 : d->m<<1;
             d->name = realloc(d->name, sizeof(char *)*d->m);
         }
         d->name[d->n] = strdup(name);
+        k = kh_put(dict, (kh_dict_t*)d->dict, d->name[d->n], &ret);
         kh_val((kh_dict_t*)d->dict, k) = d->n;
         check = d->n;
         d->n++;

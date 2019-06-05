@@ -40,37 +40,54 @@ static struct args {
     const char *bed_fname;
     const char *tag; // attribute in BAM
     const char *gtf_fname;
-
+    const char *report_fname;
+    
     int ignore_strand;
-
+    
     htsFile *fp;
     htsFile *out;
     bam_hdr_t *hdr;
-
+    FILE *fp_report;
     struct gtf_spec *G;
 
+    uint64_t reads_input;
+    uint64_t reads_pass_qc;
+    uint64_t reads_in_peak;
+    // gtf
+    uint64_t reads_in_gene;
+    uint64_t reads_in_exon;
+    uint64_t reads_in_intron;
+    uint64_t reads_antisense;
+    
+    // todo: make bedaux more smart
     struct bedaux *B;
     struct bed_chr *last;
     int i_bed;
 } args = {
-    .input_fname = NULL,
-    .output_fname = NULL,
-    .bed_fname = NULL,
+    .input_fname     = NULL,
+    .output_fname    = NULL,
+    .bed_fname       = NULL,    
+    .tag             = NULL,    
+    .gtf_fname       = NULL,
+    .report_fname    = NULL,
+    .ignore_strand   = 0,
+    .fp              = NULL,
+    .out             = NULL,
+    .hdr             = NULL,
+    .fp_report       = NULL,
+    .G               = NULL,    
+    .B               = NULL,    
     
-    .tag = NULL,
-    
-    .gtf_fname = NULL,
+    .last            = NULL,
+    .i_bed           = -1,
 
-    .ignore_strand = 0,
-
-    .fp = NULL,
-    .out = NULL,
-    .hdr = NULL,
-
-    .G = NULL,
-    .B = NULL,
-    .last = NULL,
-    .i_bed = -1,
+    .reads_input     = 0,
+    .reads_pass_qc   = 0,
+    .reads_in_peak   = 0,
+    .reads_in_gene  = 0,
+    .reads_in_exon   = 0,
+    .reads_in_intron = 0,
+    .reads_antisense = 0,
 };
 
 static char TX_tag[2] = "TX";
@@ -88,6 +105,7 @@ static int parse_args(int argc, char **argv)
         const char **var = 0;
         if (strcmp(a, "-bed") == 0) var = &args.bed_fname;
         else if (strcmp(a, "-o") == 0 ) var = &args.output_fname;
+        else if (strcmp(a, "-report") == 0) var = &args.report_fname;
         else if (strcmp(a, "-tag") == 0) var = &args.tag;
         else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
@@ -139,8 +157,14 @@ static int parse_args(int argc, char **argv)
         args.B = bed_read(args.bed_fname);
         if (args.B == 0 || args.B->n == 0) error("Bed is empty.");
     }
-    else {        
+    else {
+        LOG_print("Loading GTF.");
+        double t_real;
+        t_real = realtime();
+
         args.G = gtf_read(args.gtf_fname);
+        LOG_print("Load time : %.3f sec", realtime() - t_real);
+        
         if (args.G == NULL) error("GTF is empty.");
     }
     
@@ -155,9 +179,15 @@ static int parse_args(int argc, char **argv)
     
     args.out = hts_open(args.output_fname, "bw");
     CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
+
+    if (args.report_fname) {
+        args.fp_report = fopen(args.report_fname, "w");
+        CHECK_EMPTY(args.fp_report, "%s : %s", args.report_fname, strerror(errno));
+    }
+    else args.fp_report =stderr;
     
     if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
-
+    
     return 0;
 }
 
@@ -207,6 +237,9 @@ int check_is_overlapped_bed(bam_hdr_t *hdr, bam1_t *b, struct bedaux *B)
     else kputs(args.last->b[args.i_bed].name, &str);
     bam_aux_append(b, args.tag, 'Z', str.l+1, (uint8_t*)str.s);
     free(str.s);
+
+    args.reads_in_peak++;
+    
     return 0;
 }
 
@@ -220,10 +253,12 @@ int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
     struct gtf_lite *g;
     int n = 0;
     // todo: improve the algorithm of overlap
-    g = gtf_overlap_gene(G, name, c->pos, endpos, &n);
+    g = gtf_overlap_gene(G, name, c->pos, endpos, &n, 1);
     if (n==0) return 1;
 
-    int i, j;
+    args.reads_in_gene++;
+
+    int i, j;    
     kstring_t trans = {0,0,0};
     
     if (args.ignore_strand == 0) {
@@ -239,14 +274,14 @@ int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
     for (i = 0; i < g->n_son; ++i) {
         struct gtf_lite *g1 = &g->son[i];
         if (g1->type != feature_transcript) continue;
-        if (c->pos > g1->start|| endpos > g1->end) continue; // not in this trans
+        if (c->pos > g1->end|| endpos < g1->start) continue; // not in this trans
         // check isoform
         int in_exon = 0;     
         for (j = 0; j < g1->n_son; ++j) {
             struct gtf_lite *g2 = &g1->son[j];
             if (g2->type != feature_exon) continue; // on check exon for converience
             if (c->pos > g1->end) continue;
-            if (endpos < g1->start) break;
+            if (endpos < g1->start) continue;
             in_exon = 1;
             break;
         }
@@ -257,11 +292,15 @@ int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
     }
     // TX,RE
     if (trans.l) {
-        bam_aux_append(b, TX_tag, 'Z', trans.l, (uint8_t*)trans.s);
+        bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
         bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
+
+        args.reads_in_exon++;
     }
     else { // not cover any transcript
         bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
+
+        args.reads_in_intron++;
     }
     
     // GN_tag
@@ -278,18 +317,20 @@ int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
     
 
   antisense:
+    args.reads_antisense++;
     // AN    
     for (i = 0; i < g->n_son; ++i) {
         struct gtf_lite *g1 = &g->son[i];
         if (g1->type != feature_transcript) continue;
-        if (c->pos > g1->start|| endpos > g1->end) continue; // not in this trans
+        if (c->pos > g1->end|| endpos < g1->start) continue; // not in this trans
+
         // check isoform
         int in_exon = 0;     
         for (j = 0; j < g1->n_son; ++j) {
             struct gtf_lite *g2 = &g1->son[j];
             if (g2->type != feature_exon) continue; // on check exon for converience
             if (c->pos > g1->end) continue;
-            if (endpos < g1->start) break;
+            if (endpos < g1->start) continue;
             in_exon = 1;
             break;
         }
@@ -300,7 +341,7 @@ int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
     }
 
     if (trans.l) {
-        bam_aux_append(b, AN_tag, 'Z', trans.l, (uint8_t*)trans.s);
+        bam_aux_append(b, AN_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
         bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
     }
     else { // not cover any transcript
@@ -310,11 +351,23 @@ int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
     
     return 0;
 }
+void write_report()
+{
+    if (args.B)
+        fprintf(args.fp_report, "Percent of reads in peak : %.2f%%\n", (float)args.reads_in_peak/args.reads_pass_qc*100);
+    else {
+        fprintf(args.fp_report, "Percent of reads in gene : %.2f%%\n", (float)args.reads_in_gene/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Percent of reads in exon : %.2f%%\n", (float)args.reads_in_exon/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Percent of reads in intron : %.2f%%\n", (float)args.reads_in_intron/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Percent of reads mapped to antisense transcript : %.2f%%\n", (float)args.reads_antisense/args.reads_pass_qc*100);
+    }
+}
 void memory_release()
 {
     bam_hdr_destroy(args.hdr);
     sam_close(args.fp);
     sam_close(args.out);
+    if (args.fp_report != stderr) fclose(args.fp_report);
 }
 int bam_anno_attr(int argc, char *argv[])
 {
@@ -328,7 +381,9 @@ int bam_anno_attr(int argc, char *argv[])
     b = bam_init1();
     
     while ((ret = sam_read1(args.fp, args.hdr, b)) >= 0) {
-
+        args.reads_input++;
+        // todo: QC?
+        args.reads_pass_qc++;
         if (args.B) 
             check_is_overlapped_bed(args.hdr, b, args.B); 
         else
@@ -342,8 +397,9 @@ int bam_anno_attr(int argc, char *argv[])
 
     if (ret != -1) warnings("Truncated file?");
 
-    memory_release();
-    
+    write_report();
+    memory_release();    
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
+    
     return 0;    
 }

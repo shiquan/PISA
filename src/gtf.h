@@ -72,7 +72,7 @@ struct gtf_spec {
 struct gtf_spec *gtf_spec_init();
 void gtf_destory(struct gtf_spec *G);
 struct gtf_spec *gtf_read(const char *fname);
-struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int end, int *n);
+struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int end, int *n, int cache);
 /*
 char *gtf_get_gene_name(struct gtf_spec *G, struct gtf_lite *gl);
 char *gtf_get_gene_id(struct gtf_spec *G, struct gtf_lite *gl);

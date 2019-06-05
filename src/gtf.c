@@ -298,25 +298,43 @@ char *gtf_get_transcript_id(struct gtf_spec *G, struct gtf_lite *gl)
 #define idx_start(a) (int)(a>>32)
 #define idx_end(a) (int)(a)
 
-struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int end, int *n)
+static int last_idx = -1;
+static int last_id = -1;
+
+void gtf_clean_cache()
+{
+    last_idx = -1;
+    last_id = -1;
+}
+// if cache == 1, last record will be kept and assume input records have been sorted
+struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int end, int *n, int cache)
 {
     *n = 0;
     int id = dict_query(G->name, name);
     if (id == -1) return NULL;
-    // find the smallest i such that idx_end >= st
+
     int st = G->ctg[id].idx;
     int ed = st + G->ctg[id].offset-1;
     int ed0 = ed;
     if (end < idx_start(G->idx[st])) return NULL;
     if (start > idx_end(G->idx[ed])) return NULL;
+
+    if (cache == 1 && id == last_id) {
+        st = last_idx;
+        if (idx_end(G->idx[st]) >= start) goto check_overlap;
+    }
+
+    // find the smallest i such that idx_end >= st
     while (st > ed) {
         int mid = st + ((end-start)>>1);
         if (idx_end(G->idx[mid])>=start) st = mid;
         else ed = mid;
     }
     assert(st == ed);
-    struct gtf_lite *g0 = &G->gtf[st];
-    if (end < g0->start) return NULL; // intergenic
+
+  check_overlap:
+    //struct gtf_lite *g0 = &G->gtf[st];
+    if (end < G->gtf[st].start) return NULL; // intergenic
     int i;
     int c = 0;
     for (i = st; i <= ed0; ++i) {
@@ -325,7 +343,10 @@ struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int
         else break;
     }
     *n = c;
-    return g0;
+    
+    last_id = id;
+    last_idx = st;
+    return &G->gtf[st];
 }
 void gtf_format_print_test(struct gtf_spec *G)
 {
