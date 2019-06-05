@@ -71,9 +71,10 @@ static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_siz
                 h->k1 = kseq_init(h->r1);
                 if (kseq_read(h->k1) < 0) error("Empty record ? %s", h->read_1[h->curr]);
             }
+            else break;  
             h->curr++;
         }
-        else break;  
+
         kseq_t *ks = h->k1;
         
         struct bseq *s;
@@ -127,9 +128,9 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
                     h->k1 = kseq_init(h->r1);
                     if (kseq_read(h->k1) < 0) error("Empty record ? %s", h->read_1[h->curr]);
                 }
+                else break;
                 h->curr++;
             }
-            else break;
 
             if (p->n >= p->m) {
                 p->m = p->m ? p->m<<1 : 256;
@@ -170,7 +171,7 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
                     }
                     h->curr++;
                 }
-                else break;  
+                else break;
             }
             kseq_t *k1 = h->k1;
             kseq_t *k2 = h->k2;
