@@ -76,7 +76,7 @@ task parseFastq {
   output {
     String rawtable="${outdir}/temp/barcode_counts_raw.txt"
     String fastq="${outdir}/temp/reads.fq"
-    String sequencingReport="${outdir}/temp/sequencing_report.json"
+    String sequencingReport="${outdir}/temp/sequencing_report.txt"
   }
 }
 task fastq2bam {
@@ -90,7 +90,7 @@ task fastq2bam {
   }
   output {
     String bam="${outdir}/temp/aln.bam"
-    String alnReport="{outdir}/temp/alignment_report.json"
+    String alnReport="{outdir}/temp/alignment_report.txt"
   }
 }
 task sortBam {
