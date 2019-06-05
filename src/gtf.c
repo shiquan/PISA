@@ -326,7 +326,7 @@ struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int
 
     // find the smallest i such that idx_end >= st
     while (st < ed) {
-        int mid = st + ((end-start)>>1);
+        int mid = st + ((ed-st)>>1);
         if (idx_end(G->idx[mid])<start) st = mid;
         else ed = mid;
     }
