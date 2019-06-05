@@ -774,11 +774,11 @@ static void write_out(void *_d)
 
             if (opts->pair_fp) { // if found, rename read names
                 struct fetch_data *dat = (struct fetch_data*)b->data;            
-                kstring_t str = {0,0,0};
+                str.l = 0;
                 kputs(b->n0, &str);
                 int j;
                 for (j = 0; j < n_tag; ++j) {
-                    kputs("|||", &str); kputs(tags[j], &str); kputs("|||", &str); kputs(dat->fetch[j], &str);
+                    kputs("|||", &str); kputs(tags[j], &str); kputs("|||", &str); kputs(dat->fetch[j]==NULL ? "." : dat->fetch[j], &str);
                 }
                 fprintf(opts->pair_fp, "%c%s\n%s\n", b->q0 ?'@' :'>', str.s,dat->read == 2? b->s0 : b->s1);
                 if (b->q0) fprintf(opts->pair_fp, "+\n%s\n", dat->read == 2 ? b->q0 : b->q1);
@@ -829,7 +829,9 @@ static int parse_args(int argc, char **argv)
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
             continue;
-        }                                           
+        }
+
+        error("Unknown parameter %s", a);
     }
 
     if (args.config_fname == NULL) error ("Configure file must be set.");

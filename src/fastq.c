@@ -71,7 +71,7 @@ static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_siz
                 h->k1 = kseq_init(h->r1);
                 if (kseq_read(h->k1) < 0) error("Empty record ? %s", h->read_1[h->curr]);
             }
-            else break;  
+            else break;
             h->curr++;
         }
 
