@@ -1,0 +1,78 @@
+{
+    "platform":"sci-atac", 
+    "version":"v1.0",
+    "cell barcode tag":"CR",
+    "cell barcode raw tag":"XR",
+    "cell barcode raw qual tag":"XQ",
+    "cell barcode":[
+        {
+            "location":"R1:1-10",
+            "distance":"3",
+            "white list":[ // 1-8
+                "ATTTATGACA",
+                "CCTTAATTAA",
+                "TCAGTGAGTC",
+                "ACTGCCTTAT",
+                "AATCTATCAA",
+                "ACCAGGAAGG",
+                "GAGAGATATT",
+                "GGGAAACATG"
+            ]
+        },
+        {
+            "location":"R1:32-41",
+            "distance":"3", 
+            "white list":[ // 21-28
+                "ACTATAAAGC",
+                "AGTAGATTTC",
+                "ATCATTTGGT",
+                "CAAAGCTGTA",
+                "CCCTGGGGCT",
+                "GTTTCAAGTG",
+                "TCTGGGTTGG",
+                "GGAGCTCTAA"
+            ]
+        },
+        {
+            "location":"R2:1-10",
+            "distance":"3",
+            "white list":[ // 9-20
+                "CTGTTTGGAC",
+                "AGTTGCCAAT",
+                "TTATCAGGTC",
+                "TAAGAGACCC",
+                "ACTCTCTACC",
+                "GGTCTAGTCA",
+                "TAGCTAAGTG",
+                "TACAAAAGGA",
+                "TAGTGGGGAT",
+                "TCATAGCCCT",
+                "AAAGGCAGAG"
+            ]
+        },
+        {
+            "location":"R2:38-47",
+            "distance":"3",
+            "white list":[ // 29-40
+                "TGTGATGAAA",
+                "TAGCCCCTAA",
+                "AATACAAATT",
+                "TAGTTAACAC",
+                "TCTTACCAGT",
+                "TCAGGAGCTT",
+                "ATAGCCCCAG",
+                "CCTGACTGGG",
+                "AACCAAATCC",
+                "GCCATTAGTA",
+                "AAAATGAAAA",
+                "CTGAGCTCCT"
+            ]
+        }        
+    ],
+    "read 1":{
+        "location":"R1:61-100"
+    },
+    "read 2":{
+	"location":"R2:68-100"
+    }
+}

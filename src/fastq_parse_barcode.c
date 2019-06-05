@@ -173,8 +173,8 @@ static struct args {
     FILE *out1_fp;
     FILE *out2_fp;
     FILE *cbdis_fp;
-    FILE *report_fp; // old report handler
-    FILE *html_report_fp;
+    FILE *report_fp; // report handler
+    // FILE *html_report_fp;
     FILE *barcode_dis_fp;
     
     // hold thread safe data
@@ -185,6 +185,7 @@ static struct args {
 
     // stats of reads
     uint64_t raw_reads;
+    uint64_t reads_pass_qc;
     uint64_t barcode_exactly_matched;
     uint64_t filtered_by_barcode;
     uint64_t filtered_by_lowqual;
@@ -225,12 +226,13 @@ static struct args {
     .out2_fp = NULL,
     .cbdis_fp = NULL,
     .report_fp = NULL,
-    .html_report_fp = NULL,
+    // .html_report_fp = NULL,
     .barcode_dis_fp = NULL,
     .hold = NULL,
     .fastq = NULL,
 
     .raw_reads = 0,
+    .reads_pass_qc = 0,
     .barcode_exactly_matched = 0,
     .filtered_by_barcode = 0,
     .filtered_by_lowqual = 0,
@@ -553,7 +555,7 @@ struct seqlite *extract_tag(struct bseq *b, const struct BarcodeRegion *r, struc
         if (p->qual[i]-33 >= 30) stat->q30_bases++;
         if (p->seq[i] == 'N') *n = 1;
     }
-    stat->bases = +l;
+    stat->bases += l;
     return p;
 }
 // -1 on unfound, 0 on No found on white list, >0 for iterater of white lists
@@ -941,6 +943,7 @@ static void write_out(void *_data)
         
         if (0) {
           flag_pass:
+            opts->reads_pass_qc++;
             fprintf(fp1, "%c%s\n%s\n", b->q0 ? '@' : '>', b->n0, b->s0);
             if (b->q0) fprintf(fp1, "+\n%s\n", b->q0);
             if (b->l1 > 0) {
@@ -1004,7 +1007,7 @@ static void write_out(void *_data)
         opts->bases_sample_barcode += (uint64_t)data->bases_sample_barcode;
         opts->bases_umi += (uint64_t)data->bases_umi;
         opts->bases_reads += (uint64_t)data->bases_reads;
-        opts->barcode_exactly_matched += data->cr_exact_match;
+        // opts->barcode_exactly_matched += data->cr_exact_match;
         if (data->bc_str) free(data->bc_str);
         free(data);
     }
@@ -1030,7 +1033,7 @@ void cell_barcode_count_pair_write()
 }
 void report_write()
 {
-    fprintf(args.report_fp, "[\n");
+    /* fprintf(args.report_fp, "[\n");
     fprintf(args.report_fp, "\t{\"name\":\"Number of Fragments\", \"value\":\"%"PRIu64"\"},\n", args.raw_reads);
     fprintf(args.report_fp, "\t{\"name\":\"Fragments with Exactly Matched Barcodes\", \"value\":\"%"PRIu64"\"},\n", args.barcode_exactly_matched);
     fprintf(args.report_fp, "\t{\"name\":\"Fragments with Failed Barcodes\", \"value\":\"%"PRIu64"\"},\n", args.filtered_by_barcode);
@@ -1041,6 +1044,18 @@ void report_write()
     fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in UMI\", \"value\":\"%.1f%%\"},\n", args.bases_umi == 0 ? 0 : (float)args.q30_bases_umi/(args.bases_umi+1)*100);
     fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in Reads\", \"value\":\"%.1f%%\"}\n", (float)args.q30_bases_reads/(args.bases_reads+1)*100);
     fprintf(args.report_fp, "]\n");
+    */
+    fprintf(args.report_fp, "Number of Fragments : %"PRIu64"\n", args.raw_reads);
+    fprintf(args.report_fp, "Fragments pass QC: %"PRIu64"\n", args.reads_pass_qc);
+    fprintf(args.report_fp, "Fragments with Exactly Matched Barcodes : %"PRIu64"\n", args.barcode_exactly_matched);
+    fprintf(args.report_fp, "Fragments with Failed Barcodes : %"PRIu64"\n", args.filtered_by_barcode);
+    fprintf(args.report_fp, "Fragments Filtered on Low Qulity : %"PRIu64"\n", args.filtered_by_lowqual);
+    fprintf(args.report_fp, "Fragments Filtered on Unknown Sample Barcodes : %"PRIu64"\n", args.filtered_by_sample);
+    fprintf(args.report_fp, "Q30 bases in Cell Barcode : %.1f%%\n",args.bases_cell_barcode == 0 ? 0 : (float)args.q30_bases_cell_barcode/(args.bases_cell_barcode+1)*100);
+    fprintf(args.report_fp, "Q30 bases in Sample Barcode : %.1f%%\n", args.bases_sample_barcode == 0 ? 0 : (float)args.q30_bases_sample_barcode/(args.bases_sample_barcode+1)*100);
+    fprintf(args.report_fp, "Q30 bases in UMI : %.1f%%\n", args.bases_umi == 0 ? 0 : (float)args.q30_bases_umi/(args.bases_umi+1)*100);
+    fprintf(args.report_fp, "Q30 bases in Reads : %.1f%%\n", (float)args.q30_bases_reads/(args.bases_reads+1)*100);
+
     if (args.report_fname) fclose(args.report_fp);
 }
 void full_details()
