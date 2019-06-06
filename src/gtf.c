@@ -320,14 +320,14 @@ struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int
 
     if (cache == 1 && id == last_id) {
         st = last_idx;
-        assert(st < ed);
         if (idx_end(G->idx[st]) > start) goto check_overlap;
+        if (st+1 < ed && idx_start(G->idx[st+1]) > end) return NULL; // intergenic, for fast access
     }
 
     // find the smallest i such that idx_end >= st
     while (st < ed) {
         int mid = st + ((ed-st)>>1);
-        if (idx_end(G->idx[mid])<start) st = mid;
+        if (idx_end(G->idx[mid])<start) st = mid+1;
         else ed = mid;
     }
     if (st != ed) error("%d %d, %d, %d, start : %d, end : %d", st, ed, idx_start(G->idx[st]), idx_end(G->idx[st]), start, end);
@@ -335,13 +335,18 @@ struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int
 
   check_overlap:
     //struct gtf_lite *g0 = &G->gtf[st];
-    if (end < G->gtf[st].start) return NULL; // intergenic
+    if (end < G->gtf[st].start) {
+        last_id = id;
+        last_idx = st;        
+        return NULL; // intergenic
+    }
     int i;
     int c = 0;
     for (i = st; i <= ed0; ++i) {
         struct gtf_lite *g1 = &G->gtf[i];
         if (g1->start <= end) c++;
         else break;
+        if (c > 4) break; // cover over 4 genes?? impossible
     }
     *n = c;
     

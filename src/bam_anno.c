@@ -18,6 +18,7 @@ static int usage()
     fprintf(stderr, "anno_bam -gtf genes.gtf -o anno.bam in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, "  -o               Output bam file.\n");
+    fprintf(stderr, "  -q               Mapping quality threshold. [255]\n");
     fprintf(stderr, "\nOptions for BED file :\n");
     fprintf(stderr, "  -bed             Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
     fprintf(stderr, "  -tag             Attribute tag name. Set with -bed\n");
@@ -58,7 +59,8 @@ static struct args {
     uint64_t reads_in_exon;
     uint64_t reads_in_intron;
     uint64_t reads_antisense;
-    
+
+    int qual_thres,
     // todo: make bedaux more smart
     struct bedaux *B;
     struct bed_chr *last;
@@ -84,10 +86,12 @@ static struct args {
     .reads_input     = 0,
     .reads_pass_qc   = 0,
     .reads_in_peak   = 0,
-    .reads_in_gene  = 0,
+    .reads_in_gene   = 0,
     .reads_in_exon   = 0,
     .reads_in_intron = 0,
     .reads_antisense = 0,
+
+    .qual_thres      = 255,
 };
 
 static char TX_tag[2] = "TX";
@@ -100,6 +104,7 @@ static int parse_args(int argc, char **argv)
 {
     int i;
     const char *tags = NULL;
+    const char *qual = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -110,6 +115,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
         else if (strcmp(a, "-tags") == 0) var = &tags;
+        else if (strcmp(a, "-q") == 0) var = &qual;
         else if (strcmp(a, "-ignore-strand") == 0) {
             args.ignore_strand = 1;
             continue;
@@ -137,6 +143,8 @@ static int parse_args(int argc, char **argv)
     CHECK_EMPTY(args.output_fname, "-o must be set.");
     CHECK_EMPTY(args.input_fname, "Input bam must be set.");
 
+    if (qual) args.qual_thres = str2int((char*)qual);
+    if (args.qual_thres < 0) args.qual_thres = 0; // no filter
     if (tags) {
         kstring_t str = {0,0,0};
         kputs(tags, &str);
@@ -354,12 +362,13 @@ int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
 void write_report()
 {
     if (args.B)
-        fprintf(args.fp_report, "Percent of reads in peak : %.2f%%\n", (float)args.reads_in_peak/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Reads Mapped Confidently to Peaks : %.1f%%\n", (float)args.reads_in_peak/args.reads_pass_qc*100);
     else {
-        fprintf(args.fp_report, "Percent of reads in gene : %.2f%%\n", (float)args.reads_in_gene/args.reads_pass_qc*100);
-        fprintf(args.fp_report, "Percent of reads in exon : %.2f%%\n", (float)args.reads_in_exon/args.reads_pass_qc*100);
-        fprintf(args.fp_report, "Percent of reads in intron : %.2f%%\n", (float)args.reads_in_intron/args.reads_pass_qc*100);
-        fprintf(args.fp_report, "Percent of reads mapped to antisense transcript : %.2f%%\n", (float)args.reads_antisense/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Reads Mapped Confidently to Genome : %.1f%%\n", (float)args.reads_pass_qc/args.reads_input*100);
+        fprintf(args.fp_report, "Reads Mapped Confidently to Gene : %.1f%%\n", (float)args.reads_in_gene/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Reads Mapped Confidently to Exonic Regions: %.1%%\n", (float)args.reads_in_exon/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Reads Mapped Confidently to Intronic Regions : %.1f%%\n", (float)args.reads_in_intron/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Reads Mapped Antisense to Gene : %.1f%%\n", (float)args.reads_antisense/args.reads_pass_qc*100);
     }
 }
 void memory_release()
@@ -383,6 +392,7 @@ int bam_anno_attr(int argc, char *argv[])
     while ((ret = sam_read1(args.fp, args.hdr, b)) >= 0) {
         args.reads_input++;
         // todo: QC?
+        if (b->core.qual < args.qual_thres) continue;
         args.reads_pass_qc++;
         if (args.B) 
             check_is_overlapped_bed(args.hdr, b, args.B); 
