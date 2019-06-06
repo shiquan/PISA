@@ -251,8 +251,6 @@ struct bseq *bend_to_bseq(char *s)
     b->q0 = strdup(str.s+p[3]);
     b->l0 = strlen(b->s0);
     int l;
-    l = strlen(b->n0);
-    if ( b->n0[l-2] == '/' ) b->s0[l-2] = '\0';   
     l = strlen(b->q0);
     if (l != b->l0) error("Unequal sequence and quality length. %s vs %s", b->s0, b->q0);
     if (args.smart_pairing) {
@@ -404,13 +402,23 @@ static struct data_index *build_file_index(const char *fname, int in_mem)
         struct bseq b = {0,0,0,0,0,0,0,0};
         while (kseq_read(ks)>=0) {
             memset(&b, 0, sizeof(b));
+            if ( ks->name.s[ks->name.l-2] == '/' ) { // trim tail
+                ks->name.s[ks->name.l-2] = '\0';
+                ks->name.l -= 2;
+            }
             b.n0 = strdup(ks->name.s);
             b.s0 = strdup(ks->seq.s);
             b.l0 = ks->seq.l;
             b.q0 = strdup(ks->qual.s);
 
+
+
             if (args.smart_pairing) {
                 if (kseq_read(ks) < 0) error("Failed to found read 2.");
+                if ( ks->name.s[ks->name.l-2] == '/' ) { // trim tail
+                    ks->name.s[ks->name.l-2] = '\0';
+                    ks->name.l -= 2;
+                }
                 if (strcmp(ks->name.s, b.n0) != 0) error("Inconsistant read name, %s vs %s", ks->name.s, b.n0);
                 b.s1 = strdup(ks->seq.s);
                 b.q1 = strdup(ks->qual.s);
