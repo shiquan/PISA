@@ -366,7 +366,7 @@ void write_report()
     else {
         fprintf(args.fp_report, "Reads Mapped Confidently to Genome : %.1f%%\n", (float)args.reads_pass_qc/args.reads_input*100);
         fprintf(args.fp_report, "Reads Mapped Confidently to Gene : %.1f%%\n", (float)args.reads_in_gene/args.reads_pass_qc*100);
-        fprintf(args.fp_report, "Reads Mapped Confidently to Exonic Regions: %.1%%\n", (float)args.reads_in_exon/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Reads Mapped Confidently to Exonic Regions: %.1f%%\n", (float)args.reads_in_exon/args.reads_pass_qc*100);
         fprintf(args.fp_report, "Reads Mapped Confidently to Intronic Regions : %.1f%%\n", (float)args.reads_in_intron/args.reads_pass_qc*100);
         fprintf(args.fp_report, "Reads Mapped Antisense to Gene : %.1f%%\n", (float)args.reads_antisense/args.reads_pass_qc*100);
     }
