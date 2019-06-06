@@ -17,7 +17,7 @@ static int name2id(kh_name_t *hash, const char *name)
     if (k == kh_end(hash)) return -1;
     return kh_val(hash, k);
 }
-void destory_bed(struct bedaux *bed)
+void bed_destroy(struct bedaux *bed)
 {
     if (bed == NULL) error("Try to destroy an empty bed.");
     int i;

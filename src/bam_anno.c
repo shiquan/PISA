@@ -377,7 +377,7 @@ void memory_release()
     bam_hdr_destroy(args.hdr);
     sam_close(args.fp);
     sam_close(args.out);
-    if (args.B) destory_bed(args.B);
+    if (args.B) bed_destroy(args.B);
     else gtf_destory(args.G);
     if (args.fp_report != stderr) fclose(args.fp_report);
 }
