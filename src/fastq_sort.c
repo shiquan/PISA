@@ -250,7 +250,10 @@ struct bseq *bend_to_bseq(char *s)
     b->s0 = strdup(str.s+p[1]);
     b->q0 = strdup(str.s+p[3]);
     b->l0 = strlen(b->s0);
-    int l = strlen(b->q0);
+    int l;
+    l = strlen(b->n0);
+    if ( b->n0[l-2] == '/' ) b->s0[l-2] = '\0';   
+    l = strlen(b->q0);
     if (l != b->l0) error("Unequal sequence and quality length. %s vs %s", b->s0, b->q0);
     if (args.smart_pairing) {
         b->s1 = strdup(str.s+p[5]);
