@@ -302,7 +302,7 @@ int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
     if (trans.l) {
         bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
         bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
-
+        free(trans.s);
         args.reads_in_exon++;
     }
     else { // not cover any transcript
@@ -351,6 +351,7 @@ int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
     if (trans.l) {
         bam_aux_append(b, AN_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
         bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
+        free(trans.s);
     }
     else { // not cover any transcript
         bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
@@ -376,6 +377,8 @@ void memory_release()
     bam_hdr_destroy(args.hdr);
     sam_close(args.fp);
     sam_close(args.out);
+    if (args.B) destroy_bed(args.B);
+    else gtf_destory(args.G);
     if (args.fp_report != stderr) fclose(args.fp_report);
 }
 int bam_anno_attr(int argc, char *argv[])

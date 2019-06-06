@@ -231,6 +231,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str)
         free(pp->key);
         if (pp->val) free(pp->val);
     }
+    free(s);
     free(pair);
     switch (qry) {
         case feature_gene:
@@ -242,7 +243,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str)
             gtf_push_to_last_gene(G, &gtf);
             break;
     }
-    free(s);
+
     return 0;
 }
 // key names: gene_id, gene_name, transcript_id,
