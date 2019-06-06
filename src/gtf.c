@@ -226,7 +226,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str)
             int ret;
             k = kh_put(attr, (kh_attr_t*)gtf.attr_dict, attr_id, &ret);
             if (!ret) error("Duplicate attribute ? %s", pp->key);
-            kh_val((kh_attr_t*)gtf.attr_dict, k) = pair->val == NULL ? NULL : strdup(pair->val);
+            kh_val((kh_attr_t*)gtf.attr_dict, k) = pp->val == NULL ? NULL : strdup(pp->val);
         }
         free(pp->key);
         if (pp->val) free(pp->val);
