@@ -60,7 +60,7 @@ static struct args {
     uint64_t reads_in_intron;
     uint64_t reads_antisense;
 
-    int qual_thres,
+    int qual_thres;
     // todo: make bedaux more smart
     struct bedaux *B;
     struct bed_chr *last;
