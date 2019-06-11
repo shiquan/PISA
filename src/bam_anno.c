@@ -18,7 +18,7 @@ static int usage()
     fprintf(stderr, "anno_bam -gtf genes.gtf -o anno.bam in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, "  -o               Output bam file.\n");
-    fprintf(stderr, "  -q               Mapping quality threshold. [255]\n");
+    fprintf(stderr, "  -q               Mapping quality threshold. [60]\n");
     fprintf(stderr, "\nOptions for BED file :\n");
     fprintf(stderr, "  -bed             Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
     fprintf(stderr, "  -tag             Attribute tag name. Set with -bed\n");
@@ -91,7 +91,7 @@ static struct args {
     .reads_in_intron = 0,
     .reads_antisense = 0,
 
-    .qual_thres      = 255,
+    .qual_thres      = 60,
 };
 
 static char TX_tag[2] = "TX";

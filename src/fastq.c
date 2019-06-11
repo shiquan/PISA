@@ -513,7 +513,8 @@ static int check_dup(struct bseq *r, struct bseq *q, int strand)
     kputs("", &str1);
 
     assert(str.l == str1.l);
-    if (levenshtein(str.s, str1.s, str.l) > 2) {
+    int score = levenshtein(str.s, str1.s, str.l);
+    if (score > 2) {
         free(str.s);
         free(str1.s);
         return 0;

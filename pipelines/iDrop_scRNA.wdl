@@ -1,4 +1,4 @@
-workflow main {
+orkflow main {
   String root
   String fastq1
   String fastq2
@@ -8,7 +8,7 @@ workflow main {
   String sambamba
   String Rscript
   String ID
-  String annoBed
+  String gtf
   String ?runID
   String config
   Int ?expectCell
@@ -41,7 +41,7 @@ workflow main {
     input:
     bam=fastq2bam.bam,
     sambamba=sambamba,
-    annoBed=annoBed,
+    gtf=gtf,
     root=root,
     list=parseFastq.list,
     outdir=outdir
@@ -106,8 +106,8 @@ task sortBam {
 
   command {
     ${sambamba} sort -t 20 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam
-    ${root}/SingleCellTools anno -tag GE -bed ${annoBed} -o ${outdir}/temp/anno.bam ${outdir}/temp/sorted.bam
-    ${root}/SingleCellTools count -tag CB -anno_tag GE -o ${outdir}/outs/count.mtx -list ${list} ${outdir}/temp/anno.bam
+    ${root}/SingleCellTools anno -gtf ${gtf} -o ${outdir}/temp/anno.bam ${outdir}/temp/sorted.bam
+    ${root}/SingleCellTools count -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count.mtx -list ${list} ${outdir}/temp/anno.bam
     echo "[`date +%F` `date +%T`] workflow end" >> ${outdir}/workflowtime.log
   }
   output {
