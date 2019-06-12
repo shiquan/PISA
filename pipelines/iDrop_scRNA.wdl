@@ -1,4 +1,4 @@
-orkflow main {
+workflow main {
   String root
   String fastq1
   String fastq2
@@ -27,7 +27,10 @@ orkflow main {
     root=root,
   }
   call cellCalling {
-    count = parseFastq.count,
+    input:
+    root=root,
+    count=parseFastq.count,
+    outdir=outdir,
     Rscript=Rscript,
     expectCell=expectCell,
     forceCell=forceCell,  
@@ -74,19 +77,21 @@ task parseFastq {
     ${root}/SingleCellTools parse -t 15 -f -q 20 -dropN -config ${config} -cbdis ${outdir}/temp/barcode_counts_raw.txt -run ${default="1" runID} -report ${outdir}/temp/sequencing_report.txt ${fastq1} ${fastq2}  > ${outdir}/temp/reads.fq
   }
   output {
-    String counts="${outdir}/temp/barcode_counts_raw.txt"
+    String count="${outdir}/temp/barcode_counts_raw.txt"
     String fastq="${outdir}/temp/reads.fq"
     String sequencingReport="${outdir}/temp/sequencing_report.txt"
   }
 }
 
 task cellCalling {
-  String counts
-  command {
-    String Rscript
-    Int ?expectCell
-    Int ?forceCell    
-    ${Rscript} ${root}/scripts/scRNA_cell_calling.R -i ${counts} -o ${outdir}/outs -e ${default=1000 expectCell} -f ${default=0 forceCell}
+  String count
+  String outdir
+  String Rscript
+  String root
+  Int ?expectCell
+  Int ?forceCell    
+  command {    
+    ${Rscript} ${root}/scripts/scRNA_cell_calling.R -i ${count} -o ${outdir}/outs -e ${default=1000 expectCell} -f ${default=0 forceCell}
   }
   output {
     String list="${outdir}/outs/cell_barcodes.txt"
@@ -111,7 +116,7 @@ task sortBam {
   String sambamba
   String root
   String outdir
-  String annoBed
+  String gtf
   String list
 
   command {
