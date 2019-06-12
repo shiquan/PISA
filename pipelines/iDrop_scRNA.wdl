@@ -25,9 +25,12 @@ orkflow main {
     outdir=makedir.Outdir,
     runID=runID,
     root=root,
+  }
+  call cellCalling {
+    count = parseFastq.count,
     Rscript=Rscript,
     expectCell=expectCell,
-    forceCell=forceCell,
+    forceCell=forceCell,  
   }
   call fastq2bam {
     input:
@@ -43,7 +46,7 @@ orkflow main {
     sambamba=sambamba,
     gtf=gtf,
     root=root,
-    list=parseFastq.list,
+    list=cellCalling.list,
     outdir=outdir
   }
 }
@@ -66,22 +69,29 @@ task parseFastq {
   String fastq2
   String outdir
   String ?runID
-  String root
-  String Rscript
-  Int ?expectCell
-  Int ?forceCell
-  
+  String root  
   command {
     ${root}/SingleCellTools parse -t 15 -f -q 20 -dropN -config ${config} -cbdis ${outdir}/temp/barcode_counts_raw.txt -run ${default="1" runID} -report ${outdir}/temp/sequencing_report.txt ${fastq1} ${fastq2}  > ${outdir}/temp/reads.fq
-    ${Rscript} ${root}/scripts/scRNA_cell_calling.R -i ${outdir}/temp/barcode_counts_raw.txt -o ${outdir}/outs -e ${default=1000 expectCell} -f ${default=0 forceCell}
   }
   output {
-    String list="${outdir}/outs/cell_barcodes.txt"
+    String counts="${outdir}/temp/barcode_counts_raw.txt"
     String fastq="${outdir}/temp/reads.fq"
     String sequencingReport="${outdir}/temp/sequencing_report.txt"
   }
 }
 
+task cellCalling {
+  String counts
+  command {
+    String Rscript
+    Int ?expectCell
+    Int ?forceCell    
+    ${Rscript} ${root}/scripts/scRNA_cell_calling.R -i ${counts} -o ${outdir}/outs -e ${default=1000 expectCell} -f ${default=0 forceCell}
+  }
+  output {
+    String list="${outdir}/outs/cell_barcodes.txt"
+  }
+}
 task fastq2bam {
   String fastq  
   String outdir
@@ -89,7 +99,7 @@ task fastq2bam {
   String refdir
   String root
   command {
-    ${STAR} --outStd SAM --genomeDir ${refdir} --readFilesIn ${fastq} | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.json -maln ${outdir}/temp/mito.bam /dev/stdin
+    ${STAR} --outStd SAM --genomeDir ${refdir} --readFilesIn ${fastq} | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt -maln ${outdir}/temp/mito.bam /dev/stdin
   }
   output {
     String bam="${outdir}/temp/aln.bam"

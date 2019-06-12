@@ -266,21 +266,20 @@ static void summary_report(struct args *opts)
 {
     struct reads_summary *summary = merge_reads_summary(opts->thread_data, opts->n_thread);
     if (opts->fp_report) {
-        fprintf(opts->fp_report,"[\n");
-        fprintf(opts->fp_report,"\t{\"name\":\"Raw reads\",\"value\":\"%"PRIu64"\"},\n", summary->n_reads);
-        fprintf(opts->fp_report,"\t{\"name\":\"Mapped reads\",\"value\":\"%"PRIu64" (%.2f%%)\"},\n", summary->n_mapped, (float)summary->n_mapped/summary->n_reads*100);
-        fprintf(opts->fp_report,"\t{\"name\":\"Mapped reads (paired)\", \"value\":\"%"PRIu64"\"},\n", summary->n_pair_map);
-        fprintf(opts->fp_report,"\t{\"name\":\"Properly paired reads\", \"value\":\"%"PRIu64"\"},\n", summary->n_pair_good);
-        fprintf(opts->fp_report,"\t{\"name\":\"Singleton reads\", \"value\":\"%"PRIu64"\"},\n", summary->n_sgltn);
-        fprintf(opts->fp_report,"\t{\"name\":\"Read 1\", \"value\":\"%"PRIu64"\"},\n", summary->n_read1);
-        fprintf(opts->fp_report,"\t{\"name\":\"Read 2\", \"value\":\"%"PRIu64"\"},\n", summary->n_read2);
-        fprintf(opts->fp_report,"\t{\"name\":\"Paired reads map on diff chr\", \"value\":\"%"PRIu64"\"},\n", summary->n_diffchr);
-        fprintf(opts->fp_report,"\t{\"name\":\"Plus strand\", \"value\":\"%"PRIu64"\"},\n", summary->n_pstrand);
-        fprintf(opts->fp_report,"\t{\"name\":\"Minus strand\", \"value\":\"%"PRIu64"\"},\n", summary->n_mstrand);
-        fprintf(opts->fp_report,"\t{\"name\":\"Mapping quals above %d\", \"value\":\"%"PRIu64"\"},\n", opts->qual_thres, summary->n_qual);
-        fprintf(opts->fp_report,"\t{\"name\":\"Mitochondria ratio\", \"value\":\"%.2f%%\"},\n", (float)summary->n_mito/summary->n_mapped*100);
-        fprintf(opts->fp_report,"\t{\"name\":\"Usable reads (ratio)\", \"value\":\"%"PRIu64" (%.2f%%)\"}\n", summary->n_usable, (float)summary->n_usable/summary->n_reads*100);
-        fprintf(opts->fp_report,"]\n");
+        fprintf(opts->fp_report,"Raw reads : %"PRIu64"\n", summary->n_reads);
+        fprintf(opts->fp_report,"Mapped reads : %"PRIu64" (%.2f%%)\n", summary->n_mapped, (float)summary->n_mapped/summary->n_reads*100);
+        fprintf(opts->fp_report,"Mapped reads (paired) : %"PRIu64"\n", summary->n_pair_map);
+        fprintf(opts->fp_report,"Properly paired reads : %"PRIu64"\n", summary->n_pair_good);
+        fprintf(opts->fp_report,"Singleton reads : %"PRIu64"\n", summary->n_sgltn);
+        fprintf(opts->fp_report,"Read 1 : %"PRIu64"\n", summary->n_read1);
+        fprintf(opts->fp_report,"Read 2 : %"PRIu64"\n", summary->n_read2);
+        fprintf(opts->fp_report,"Paired reads map on diff chr : %"PRIu64"\n", summary->n_diffchr);
+        fprintf(opts->fp_report,"Plus strand : %"PRIu64"\n", summary->n_pstrand);
+        fprintf(opts->fp_report,"Minus strand : %"PRIu64"\n", summary->n_mstrand);
+        fprintf(opts->fp_report,"Mapping quals above %d : %"PRIu64"\n", opts->qual_thres, summary->n_qual);
+        fprintf(opts->fp_report,"Mitochondria ratio : %.2f%%\n", (float)summary->n_mito/summary->n_mapped*100);
+        fprintf(opts->fp_report,"Usable reads (ratio) : %"PRIu64" (%.2f%%)\"}\n", summary->n_usable, (float)summary->n_usable/summary->n_reads*100);
+
     }
 
     free(summary);
