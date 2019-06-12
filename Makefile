@@ -44,15 +44,24 @@ AOBJ = src/bam_anno.o \
 	src/fastq_sort.o \
 	src/fastq_parse_barcode.o \
 	src/assem.o \
-	src/check_segment.o
+	src/check_segment.o \
+
+ASSM_LIB_OBJ =	fermi-lite/bfc.o fermi-lite/bseq.o fermi-lite/bubble.o fermi-lite/htab.o fermi-lite/ksw.o fermi-lite/kthread.o fermi-lite/mag.o fermi-lite/misc.o \
+	fermi-lite/mrope.o fermi-lite/rld0.o fermi-lite/rle.o fermi-lite/rope.o fermi-lite/unitig.o
+
+# bfc.c bseq.c		bubble.c	example.c	htab.c		ksw.c		kthread.c	mag.c		misc.c		mrope.c		rld0.c		rle.c		rope.c		unitigc.
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@
 	$(AR) -rcs src/$@ $(LIB_OBJ)
 
+libfml.a: $(ASSM_LIB_OBJ)
+	@-rm -f fermi-lite/$@
+	$(AR) -rcs fermi-lite/$@ $(ASSM_LIB_OBJ)
+
 test: $(HTSLIB) version.h
 
-SingleCellTools: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h
+SingleCellTools: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h libfml.a
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) fermi-lite/libfml.a  src/liba.a $(HTSLIB) $(LIBS)
 
 src/bam_anno.o: src/bam_anno.c
@@ -75,6 +84,19 @@ src/bam_rmdup.o: src/bam_rmdup.c
 src/bam_attr_count.o: src/bam_attr_count.c
 src/assem.o: src/assem.c
 src/check_segment.o: src/check_segment.c
+fermi-lite/bfc.o: fermi-lite/bfc.c
+cfermi-lite/bseq.o: fermi-lite/bseq.c
+fermi-lite/bubble.o: fermi-lite/bubble.c
+fermi-lite/htab.o: fermi-lite/htab.c
+fermi-lite/ksw.o: fermi-lite/ksw.c
+fermi-lite/kthread.o: fermi-lite/kthread.c
+fermi-lite/mag.o: fermi-lite/mag.c
+fermi-lite/misc.o: fermi-lite/misc.c
+fermi-lite/mrope.o: fermi-lite/mrope.c
+fermi-lite/rld0.o: fermi-lite/rld0.c
+fermi-lite/rle.o: fermi-lite/rle.c
+fermi-lite/rope.o: fermi-lite/rope.c
+fermi-lite/unitig.o: fermi-lite/unitig.c
 
 clean: testclean
 	-rm -f gmon.out *.o *~ $(PROG) single_cell_version.h 

@@ -19,7 +19,6 @@ int usage()
     fprintf(stderr, "    anno       Annotate peak or gene names into BAM attributions.\n");
     fprintf(stderr, "    attrcnt    Count raw reads and reads with predefined tag for each cell.\n");
     fprintf(stderr, "    count      Count matrix.\n");
-    // fprintf(stderr, "    bam2bw     Convert BAM to BigWig file.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Author : Shi Quan [shiquan(AT)genomics.cn]\n");
     fprintf(stderr, "Homepage : https://github.com/shiquan/SingleCellTools\n");
