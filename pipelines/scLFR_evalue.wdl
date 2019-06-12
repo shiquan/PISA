@@ -20,6 +20,7 @@ workflow main {
     fastq1=fastq1,
     fastq2=fastq2,
     outdir=makedir.dir,
+    beads_config = beads_config,
     root=root,
     runID=runID
   }
@@ -28,22 +29,27 @@ workflow main {
     root = root,
     read1 = parse_fastq.read1,
     read2 = parse_fastq.read2,
-    config= cell_umi_config
+    config= cell_umi_config,
+    outdir = outdir,
   }
   call parse_umi {
     input:
     root = root,
     read1 = parse_fastq.read1,
     read2 = parse_fastq.read2,
-    config = umi_config
+    config = umi_config,
+    outdir = outdir,
   }
   call aln_all_reads {
     input:
     read1 = parse_fastq.read1,
     read2 = parse_fastq.read2,
+    gtf = gtf,
     sambamba = sambamba,
     STAR = STAR,
     refdir = refdir,
+    outdir = outdir,
+    root = root,
   }
 
   call report {
@@ -51,6 +57,7 @@ workflow main {
     parse_report = parse_fastq.report,
     cell_umi = parse_cell_umi.report,
     umi = parse_umi.report,
+    outdir = outdir
   }
 }
 task report {
