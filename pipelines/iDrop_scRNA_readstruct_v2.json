@@ -2,7 +2,7 @@
     "cell barcode tag":"CB",
     "cell barcode":[
 	{
-	    "location":"R2:1-10",
+	    "location":"R1:1-10",
 	    "distance":"0",
 	    "white list":[
 		"TAACAGCCAA",
@@ -1544,7 +1544,7 @@
 	    ]
 	},
 	{
-	    "location":"R2:17-26",
+	    "location":"R1:17-26",
 	    "distance":"0",
 	    "white list":[
 		"TAACAGCCAA",
@@ -3088,10 +3088,10 @@
     ],
     "UMI tag":"UY",
     "UMI":{
-	"location":"R2:32-41",
+	"location":"R1:32-41",
     },
     "read 1":{
-	"location":"R1:1-50",
+	"location":"R2:1-100",
     }
 }
 
