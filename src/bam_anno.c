@@ -277,7 +277,8 @@ int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
     }
 
     int l;
-    // todo: multi genes
+    // for reads overlapped with multiply genes, only count the last one, since the last one is more close with the reads
+    g = g + (n-1);
     // TX
     for (i = 0; i < g->n_son; ++i) {
         struct gtf_lite *g1 = &g->son[i];
