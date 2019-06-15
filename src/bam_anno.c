@@ -18,7 +18,8 @@ static int usage()
     fprintf(stderr, "anno_bam -gtf genes.gtf -o anno.bam in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, "  -o               Output bam file.\n");
-    fprintf(stderr, "  -q               Mapping quality threshold. [60]\n");
+    fprintf(stderr, "  -q               Mapping quality threshold. [20]\n");
+    fprintf(stderr, "  -report          Summary report.\n");
     fprintf(stderr, "\nOptions for BED file :\n");
     fprintf(stderr, "  -bed             Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
     fprintf(stderr, "  -tag             Attribute tag name. Set with -bed\n");
