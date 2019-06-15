@@ -301,7 +301,9 @@ int count_matrix(int argc, char **argv)
         int *rank;
         rank = malloc((lb->n+1)*sizeof(int));
         for (i = 0; i < lb->n+1; ++i) rank[i] = i+1;
-        mergesort(rank, lb->n, sizeof(int), rank_cmp);
+
+        qsort(rank, lb->n, sizeof(int), rank_cmp);
+        
         fprintf(count, "CELL_BARCODE\tnUMI\tnGene\trank\n");
         for (i = 0; i < lb->n; ++i) 
             fprintf(count, "%s\t%d\t%d\t%d\n", lb->b[i].s, args.CBC[i].nUMI, args.CBC[i].nGene, rank[i]);
