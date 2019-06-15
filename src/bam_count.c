@@ -289,9 +289,9 @@ int count_matrix(int argc, char **argv)
 
     if (count != NULL) {
         int i, j;
-        for (i = 0; i < lb->n; ++i) {
-            struct cell_barcode_counts *C = &args.CBC[i];
-            for (j = 0; j < n; ++j) {
+        for (i = 0; i < n; ++i) {
+            for (j = 0; j < lb->n; ++j) {
+                struct cell_barcode_counts *C = &args.CBC[j];
                 if (v[i][j].c) {
                     C->nUMI += v[i][j].c;
                     C->nGene++;
