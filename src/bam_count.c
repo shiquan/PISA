@@ -284,9 +284,13 @@ int count_matrix(int argc, char **argv)
        
         uint8_t *tag = bam_aux_get(b, args.tag);
         if (!tag) {
-            warnings("Tag %s not found at line %s:%d\n", args.tag, hdr->target_name[c->tid], c->pos+1);
+            warnings("Tag %s not found at line %s:%d", args.tag, hdr->target_name[c->tid], c->pos+1);
             continue;
         }
+        
+        uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
+        if (!anno_tag) continue;
+
         if (no_white_list) {
             id = barcode_push(lb, (char*)(tag+1));
         }
@@ -294,9 +298,6 @@ int count_matrix(int argc, char **argv)
             id = barcode_select(lb, (char*)(tag+1));
             if (id == -1) continue;
         }
-        
-        uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
-        if (!anno_tag) continue;
 
         // Gene or Region
         char *val = (char*)(anno_tag+1);
