@@ -185,8 +185,7 @@ int rank_cmp(const void *va, const void *vb)
 {
     int a = *((const int*)va);
     int b = *((const int*)vb);
-    return args.CBC[a].nUMI > args.CBC[b].nUMI;
-              
+    return args.CBC[a].nUMI > args.CBC[b].nUMI;              
 }
 int count_matrix(int argc, char **argv)
 {
@@ -302,7 +301,7 @@ int count_matrix(int argc, char **argv)
         rank = malloc((lb->n+1)*sizeof(int));
         for (i = 0; i < lb->n+1; ++i) rank[i] = i+1;
 
-        qsort(rank, lb->n, sizeof(int), rank_cmp);
+        qsort(rank, lb->n+1, sizeof(int), rank_cmp);
         
         fprintf(count, "CELL_BARCODE\tnUMI\tnGene\trank\n");
         for (i = 0; i < lb->n; ++i) 
