@@ -126,12 +126,14 @@ static void mtx_counts_memset(struct mtx_counts *m)
         for (j = 0; j < m->n; ++j) free(m->bcodes[j]);
         if (m->bcodes) free(m->bcodes);
         kh_destroy(name, m->uhash);
+        m->uhash = NULL;
     }
 }
 static void mtx_counts_destory(struct mtx_counts **m, int n)
 {    
     int i;
     for (i = 0; i < n; ++i) {
+        if (m[i] == NULL) continue;
         mtx_counts_memset(m[i]);
         free(m[i]);
     }
@@ -166,6 +168,7 @@ static void update_counts_core(struct mtx_counts **m, int n)
     int j;
     for (j = 0; j < n; ++j) {
         struct mtx_counts *m1 = m[j];
+        if (m1 == NULL) continue;
         if (args.dis_corr_umi == 1) {
             m1->c = m1->n;
             mtx_counts_memset(m1);
