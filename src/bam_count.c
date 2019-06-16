@@ -283,7 +283,10 @@ int count_matrix(int argc, char **argv)
     while ((ret = sam_read1(fp, hdr, b)) >= 0) {
        
         uint8_t *tag = bam_aux_get(b, args.tag);
-        if (!tag) error("Tag %s not found at line %s:%d\n", args.tag, hdr->target_name[c->tid], c->pos+1);
+        if (!tag) {
+            warnings("Tag %s not found at line %s:%d\n", args.tag, hdr->target_name[c->tid], c->pos+1);
+            continue;
+        }
         if (no_white_list) {
             id = barcode_push(lb, (char*)(tag+1));
         }
