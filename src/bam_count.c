@@ -328,9 +328,12 @@ int count_matrix(int argc, char **argv)
         
         if (args.umi_tag) {
             uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
-            if (!umi_tag) error("No UMI tag found at record. %s:%d", hdr->target_name[c->tid], c->pos+1);
+            if (!umi_tag) {
+                warnings("No UMI tag found at record. %s:%d", hdr->target_name[c->tid], c->pos+1);
+                continue;
+            }
+            
             char *val = (char*)(umi_tag+1);
-
 
             if (v0->v[id] == NULL) {
                 v0->v[id] = malloc(sizeof(struct mtx_counts));
