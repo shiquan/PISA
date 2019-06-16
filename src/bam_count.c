@@ -165,6 +165,7 @@ static void update_counts_core(struct mtx_counts *m, int n)
         struct mtx_counts *m1 = &m[j];
         if (args.dis_corr_umi == 1) {
             m1->c = m1->n;
+            mtx_counts_clean(m1);
             continue;
         }
         int *flag = malloc(m1->n*sizeof(int));
@@ -187,6 +188,7 @@ static void update_counts_core(struct mtx_counts *m, int n)
             // debug_print("%s\t%d", m1->bcodes[i0], flag[i0]);
         }
         free(flag);
+        mtx_counts_clean(m1);
     }
 }
 
