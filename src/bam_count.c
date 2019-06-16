@@ -112,7 +112,7 @@ static struct mtx_counts *mtx_counts_arr_init(int n)
     for (i = 0; i < n; ++i) {
         struct mtx_counts *m0 = &m[i];
         memset(m0, 0, sizeof(*m0));
-        m0->uhash = kh_init(name);
+        // m0->uhash = kh_init(name);
     }
     return m;
 }
@@ -291,8 +291,8 @@ int count_matrix(int argc, char **argv)
             if (!umi_tag) error("No UMI tag found at record. %s:%d", hdr->target_name[c->tid], c->pos+1);
             char *val = (char*)(umi_tag+1);
             struct mtx_counts *t = &v[row][id];
-            // if (t->uhash == NULL) t->uhash = kh_init(name);
-            if (t->uhash == NULL) {
+            if (t->uhash == NULL) t->uhash = kh_init(name);
+            if (t->c != 0) {
                 warnings("%s is duplicate, already present in pervious regions.", val);
                 continue;
             }
