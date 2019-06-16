@@ -112,8 +112,7 @@ static struct mtx_counts *mtx_counts_arr_init(int n)
     for (i = 0; i < n; ++i) {
         struct mtx_counts *m0 = &m[i];
         memset(m0, 0, sizeof(*m0));
-        
-        // m0->uhash = kh_init(name);
+        m0->uhash = kh_init(name);
     }
     return m;
 }
@@ -156,38 +155,55 @@ static int get_val(struct mtx_counts *m, char *str)
     assert (k != kh_end(m->uhash));
     return kh_val(m->uhash, k);
 }
-static void update_counts(struct mtx_counts **m, int l, int n)
+
+static int frezeen = 0;
+
+static void update_counts_core(struct mtx_counts *m, int n)
 {
-    int i,j;
-    for (i = 0; i < l; ++i) {
-        struct mtx_counts *m0 = m[i];
-        for (j = 0; j < n; ++j) {
-            struct mtx_counts *m1 = &m0[j];
-            if (args.dis_corr_umi == 1) {
-                m1->c = m1->n;
-                continue;
-            }
-            int *flag = malloc(m1->n*sizeof(int));
-            memset(flag, 0, m1->n*sizeof(int));
-            int i0, i1;
-            for (i0 = 0; i0 < m1->n; ++i0) {
-                if (flag[i0] == 1) continue;
-                for (i1 = i0 + 1; i1 < m1->n; ++i1) {
-                    if (flag[i1] == 1) continue;
-                    if (check_similar(m1->bcodes[i0], m1->bcodes[i1]) == 0) {
-                        int v0 = get_val(m1, m1->bcodes[i0]);
-                        int v1 = get_val(m1, m1->bcodes[i1]);
-                        if (v0 > v1) flag[i1] = 1;
-                        else flag[i0] = 1;                        
-                    }
+    int j;
+    for (j = 0; j < n; ++j) {
+        struct mtx_counts *m1 = &m[j];
+        if (args.dis_corr_umi == 1) {
+            m1->c = m1->n;
+            continue;
+        }
+        int *flag = malloc(m1->n*sizeof(int));
+        memset(flag, 0, m1->n*sizeof(int));
+        int i0, i1;
+        for (i0 = 0; i0 < m1->n; ++i0) {
+            if (flag[i0] == 1) continue;
+            for (i1 = i0 + 1; i1 < m1->n; ++i1) {
+                if (flag[i1] == 1) continue;
+                if (check_similar(m1->bcodes[i0], m1->bcodes[i1]) == 0) {
+                    int v0 = get_val(m1, m1->bcodes[i0]);
+                    int v1 = get_val(m1, m1->bcodes[i1]);
+                    if (v0 > v1) flag[i1] = 1;
+                    else flag[i0] = 1;                        
                 }
             }
-            for (i0 = 0; i0 < m1->n; ++i0) {                
-                if (flag[i0] == 0) m1->c++;
-                // debug_print("%s\t%d", m1->bcodes[i0], flag[i0]);
-            }
-            free(flag);
         }
+        for (i0 = 0; i0 < m1->n; ++i0) {                
+            if (flag[i0] == 0) m1->c++;
+            // debug_print("%s\t%d", m1->bcodes[i0], flag[i0]);
+        }
+        free(flag);
+    }
+}
+
+// l for gene number
+// n for barcode count
+// all: 1 for update all matrix, 0 for update old records
+static void update_counts(struct mtx_counts **m, int l, int n, int all)
+{
+    int i;
+    if (all) {
+        for (i = frezeen; i < l; ++i) update_counts_core(m[i], n);
+    }
+    else if (l - 1000 > frezeen) {    
+        for (i = frezeen; i < l-500; ++i) {
+            update_counts_core(m[i], n);            
+        }
+        frezeen = l - 500;
     }
 }
 int rank_cmp(const void *va, const void *vb)
@@ -273,7 +289,11 @@ int count_matrix(int argc, char **argv)
             if (!umi_tag) error("No UMI tag found at record. %s:%d", hdr->target_name[c->tid], c->pos+1);
             char *val = (char*)(umi_tag+1);
             struct mtx_counts *t = &v[row][id];
-            if (t->uhash == NULL) t->uhash = kh_init(name);
+            // if (t->uhash == NULL) t->uhash = kh_init(name);
+            if (t->uhash == NULL) {
+                warnings("%s is duplicate, already present in pervious regions.", val);
+                continue;
+            }
             k = kh_get(name, t->uhash, val);
             if (k == kh_end(t->uhash)) {
                 if (t->n == t->m) {
@@ -289,13 +309,16 @@ int count_matrix(int argc, char **argv)
             else {
                 kh_val(t->uhash, k)++;
             }
+            
+            // Cache all records will exhaust memory, freeze and release old records
+            update_counts(v, n, lb->n, 0);
         }
         else 
             v[row][id].c++;
     }
     
     if (args.umi_tag) 
-        update_counts(v, n, lb->n);
+        update_counts(v, n, lb->n, 1);
 
     if (count != NULL) {
         int i, j;
