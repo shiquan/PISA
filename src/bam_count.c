@@ -28,6 +28,7 @@ static int usage()
     return 1;
 }
 struct cell_barcode_counts {
+    int idx;
     uint32_t nUMI;
     uint32_t nGene;
 };
@@ -183,9 +184,9 @@ static void update_counts(struct mtx_counts **m, int l, int n)
 }
 int rank_cmp(const void *va, const void *vb)
 {
-    int a = *((const int*)va);
-    int b = *((const int*)vb);
-    return args.CBC[a].nUMI > args.CBC[b].nUMI;              
+    struct cell_barcode_counts *a = (struct cell_barcode_counts*)va;
+    struct cell_barcode_counts *b = (struct cell_barcode_counts*)vb;
+    return a->nUMI > b->nUMI;              
 }
 int count_matrix(int argc, char **argv)
 {
@@ -291,22 +292,20 @@ int count_matrix(int argc, char **argv)
         for (i = 0; i < n; ++i) {
             for (j = 0; j < lb->n; ++j) {
                 struct cell_barcode_counts *C = &args.CBC[j];
+                C->idx = j;
                 if (v[i][j].c) {
                     C->nUMI += v[i][j].c;
                     C->nGene++;
                 }
             }
         }
-        int *rank;
-        rank = malloc((lb->n+1)*sizeof(int));
-        for (i = 0; i < lb->n+1; ++i) rank[i] = i+1;
 
-        qsort(rank, lb->n+1, sizeof(int), rank_cmp);
+        qsort(args.CBC, lb->n, sizeof(struct cell_barcode_counts), rank_cmp);
         
-        fprintf(count, "CELL_BARCODE\tnUMI\tnGene\trank\n");
+        fprintf(count, "CELL_BARCODE\tnUMI\tnGene\n");
         for (i = 0; i < lb->n; ++i) 
-            fprintf(count, "%s\t%d\t%d\t%d\n", lb->b[i].s, args.CBC[i].nUMI, args.CBC[i].nGene, rank[i]);
-        free(rank);
+            fprintf(count, "%s\t%d\t%d\n", lb->b[args.CBC[i].idx].s, args.CBC[i].nUMI, args.CBC[i].nGene);
+
         free(args.CBC);
     }
     
