@@ -116,7 +116,7 @@ static struct mtx_counts *mtx_counts_arr_init(int n)
     }
     return m;
 }
-static void mtx_counts_clean(struct mtx_counts *m)
+static void mtx_counts_memset(struct mtx_counts *m)
 {    
     if (m->uhash) {
         int j;
@@ -130,7 +130,7 @@ static void mtx_counts_destory(struct mtx_counts *m, int n)
     int i;
     for (i = 0; i < n; ++i) {
         struct mtx_counts *m0 = &m[i];
-        mtx_counts_clean(m0);
+        mtx_counts_memset(m0);
     }
     free(m);
 }
@@ -165,7 +165,7 @@ static void update_counts_core(struct mtx_counts *m, int n)
         struct mtx_counts *m1 = &m[j];
         if (args.dis_corr_umi == 1) {
             m1->c = m1->n;
-            mtx_counts_clean(m1);
+            mtx_counts_memset(m1);
             continue;
         }
         int *flag = malloc(m1->n*sizeof(int));
@@ -188,7 +188,7 @@ static void update_counts_core(struct mtx_counts *m, int n)
             // debug_print("%s\t%d", m1->bcodes[i0], flag[i0]);
         }
         free(flag);
-        mtx_counts_clean(m1);
+        mtx_counts_memset(m1);
     }
 }
 
@@ -201,11 +201,11 @@ static void update_counts(struct mtx_counts **m, int l, int n, int all)
     if (all) {
         for (i = frezeen; i < l; ++i) update_counts_core(m[i], n);
     }
-    else if (l - 1000 > frezeen) {    
+    else if (l - 100 > frezeen) {    
         for (i = frezeen; i < l-500; ++i) {
             update_counts_core(m[i], n);            
         }
-        frezeen = l - 500;
+        frezeen = l - 50;
     }
 }
 int rank_cmp(const void *va, const void *vb)
