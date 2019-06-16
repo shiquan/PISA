@@ -112,20 +112,28 @@ static struct mtx_counts *mtx_counts_arr_init(int n)
     for (i = 0; i < n; ++i) {
         struct mtx_counts *m0 = &m[i];
         memset(m0, 0, sizeof(*m0));
-        m0->uhash = kh_init(name);
+        
+        // m0->uhash = kh_init(name);
     }
     return m;
 }
+static void mtx_counts_clean(struct mtx_counts *m)
+{    
+    if (m->uhash) {
+        int j;
+        for (j = 0; j < m->n; ++j) free(m->bcodes[j]);
+        if (m->bcodes) free(m->bcodes);
+        kh_destroy(name, m->uhash);
+    }
+}
 static void mtx_counts_destory(struct mtx_counts *m, int n)
 {    
-    int i,j;
+    int i;
     for (i = 0; i < n; ++i) {
         struct mtx_counts *m0 = &m[i];
-        for (j = 0; j < m0->n; ++j) free(m0->bcodes[j]);
-        if (m0->bcodes) free(m0->bcodes);
-        kh_destroy(name, m0->uhash);
+        mtx_counts_clean(m0);
     }
-    free(m);    
+    free(m);
 }
 static int check_similar(char *a, char *b)
 {
@@ -248,7 +256,7 @@ int count_matrix(int argc, char **argv)
             if (m == n) {
                 m = m *2;
                 reg = realloc(reg, m*sizeof(char*));
-                v = realloc(v, m*sizeof(int*));
+                v = realloc(v, m*sizeof(void*));
             }
             reg[n] = strdup(val);
             k = kh_put(name, hash, reg[n], &r);
@@ -265,6 +273,7 @@ int count_matrix(int argc, char **argv)
             if (!umi_tag) error("No UMI tag found at record. %s:%d", hdr->target_name[c->tid], c->pos+1);
             char *val = (char*)(umi_tag+1);
             struct mtx_counts *t = &v[row][id];
+            if (t->uhash == NULL) t->uhash = kh_init(name);
             k = kh_get(name, t->uhash, val);
             if (k == kh_end(t->uhash)) {
                 if (t->n == t->m) {
@@ -284,6 +293,7 @@ int count_matrix(int argc, char **argv)
         else 
             v[row][id].c++;
     }
+    
     if (args.umi_tag) 
         update_counts(v, n, lb->n);
 
