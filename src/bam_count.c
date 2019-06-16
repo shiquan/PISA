@@ -336,7 +336,7 @@ int count_matrix(int argc, char **argv)
             for (j = 0; j < lb->n; ++j) {
                 struct cell_barcode_counts *C = &args.CBC[j];
                 C->idx = j;
-                if (v[i][j]->c) {
+                if (v[i][j] && v[i][j]->c) {
                     C->nUMI += v[i][j]->c;
                     C->nGene++;
                 }
@@ -367,7 +367,7 @@ int count_matrix(int argc, char **argv)
     fputc('\n', out);
     for (i = 0; i < n; ++i) {
         fprintf(out, "%s", reg[i]);
-        for (j = 0; j < lb->n; ++j)  fprintf(out, "\t%d", v[i][j]->c);
+        for (j = 0; j < lb->n; ++j)   fprintf(out, "\t%d", v[i][j] == NULL ? 0 : v[i][j]->c);
         fputc('\n', out);
     }
     fclose(out);
