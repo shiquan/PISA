@@ -424,7 +424,7 @@ int count_matrix(int argc, char **argv)
     fputc('\n', out);
     for (i = 0; i < n; ++i) {
         fprintf(out, "%s", reg[i]);
-        for (j = 0; j < lb->n; ++j)   fprintf(out, "\t%d", v[i].n < j || v[i].v[j] == NULL ? 0 : v[i].v[j]->c);
+        for (j = 0; j < lb->n; ++j)   fprintf(out, "\t%d", v[i].n <= j || v[i].v[j] == NULL ? 0 : v[i].v[j]->c);
         fputc('\n', out);
     }
     fclose(out);
