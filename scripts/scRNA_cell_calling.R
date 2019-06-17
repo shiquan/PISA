@@ -4,6 +4,7 @@ suppressMessages({
     library(ggplot2)
     library(getopt)
     library(data.table)
+    library(cowplot)
 })
 
 arg<-matrix(c("input", "i","1","character","Path of input directory",
@@ -26,16 +27,17 @@ if (is.null(opt$expect) && is.null(opt$force)) {
     q()
 }
 
-if(is.null(opt$output)) {
+if (is.null(opt$output)) {
     opt$output<-getwd()
 }
 
-bc <- fread(opt$input,header=FALSE)
+bc <- fread(opt$input,header=TRUE)
 bc <- as.data.frame(bc)
-colnames(bc) <- c("bc","counts")
+bc <- subset(bc, bc$nUMI>1)
 len <- nrow(bc)
+sor = sort(bc$nUMI, decreasing=T)
 a = log10(1:len)
-b = log10(as.numeric(bc$counts))
+b = log10(sor)
 expect <- 0
 cutoff <- 0
 m <- 0
@@ -49,7 +51,7 @@ if (!is.null(opt$expect)) {
     infl <- c(FALSE,abs(diff(out)/((c - 2)/10) - -1) == min(abs(diff(out)/((c - 2)/10)- -1)))
     m = 10 ^ out[infl] + 0.5
     m = round(m , digits =0 )
-    cutoff<-length(which(bc$counts>=m))
+    cutoff<-length(which(sor>=m))
 }
 
 if (!is.null(opt$force)) {
@@ -57,20 +59,33 @@ if (!is.null(opt$force)) {
     if (force > 0) {
         expect = force
         cutoff = expect
-        m = bc$counts[cutoff]
+        m = sor[cutoff]
     }
 }
 
-tmp<-data.frame(x=1:len,y=bc$counts,g=c(rep("true",cutoff),rep("noise",len-cutoff)))
-cbs <- bc$bc[1:len]
-write.table(cbs, file=paste(opt$output,"/cell_barcodes.txt",sep=""),row.names=FALSE,col.names=FALSE,quote=FALSE)
-pdf(paste(opt$output,"/cell_calling.pdf",sep=""))
+tmp<-data.frame(x=1:len,y=sor,cell=c(rep("true",cutoff),rep("noise",len-cutoff)))
+
+write.table(sor[1:cutoff], file=paste(opt$output,"/cell_barcodes.txt",sep=""),row.names=FALSE,col.names=FALSE,quote=FALSE)
+                                        #pdf(paste(opt$output,"/cell_calling.pdf",sep="")
+png(file=paste(opt$output,"/cell_count_summary.png",sep=""), width=700,height=300,res=100)
 p = ggplot(tmp,aes(x=x,y=y))
-p = p +geom_line(aes(color=g),size=2) +scale_color_manual(values=c("#999999","blue"))
-p = p +scale_x_log10(name="Barcodes")
-p = p +scale_y_log10(name="Raw counts",breaks=c(1,10,100,1000,10000,100000),labels=c(1,10,100,"1k","10K","100K"))
+p = p + geom_line(aes(color=cell),size=2) +scale_color_manual(values=c("#999999","blue"))
+p = p + scale_x_log10(name="Barcodes")
+p = p + scale_y_log10(name="nUMI",breaks=c(1,10,100,1000,10000,100000),labels=c(1,10,100,"1k","10K","100K"))
 p = p + theme_bw() + geom_vline(xintercept =cutoff)
-p = p +  geom_text(aes(x=10,y=1,label = paste("cell=",cutoff)), color = 'blue',size=4)
-p = p +  geom_text(aes(x=10,y=2,label = paste("counts=",m)), color = 'blue',size=4)
-p
+p = p + geom_text(aes(x=10,y=1,label = paste("cell=",cutoff)), color = 'blue',size=4)
+p = p + geom_text(aes(x=10,y=2,label = paste("nUMI=",m)), color = 'blue',size=4)
+p = p + theme(legend.position = "none")
+
+                                        #p1 <- ggplot(bc) + geom_boxplot(aes(x=5,y=nUMI), outlier.shape = 8, width=10) + theme_classic(
+#p1 <- p1 + geom_jitter(aes(x=sample(1:10,nrow(bc),replace = T),y=nUMI),alpha=0.2,color="blue") #+ scale_y_log10()
+p1 <- ggplot(bc) + geom_violin(aes(x=5,y=nUMI),stat="ydensity") + theme_classic() +geom_jitter(aes(x=5,y=nUMI),alpha=0.2,color="blue")
+p1 <- p1 + theme(axis.title.x=element_blank(),axis.text.x=element_blank(),axis.ticks.x=element_blank())
+#p2 <- ggplot(bc) + geom_boxplot(aes(x=5,y=nGene), outlier.shape = 8, width=10) + theme_classic()
+                                        #p2 <- p2 + geom_jitter(aes(x=sample(1:10,nrow(bc),replace = T),y=nGene),alpha=0.2,color="blue") #+ scale_y_log10()
+p2 <- ggplot(bc) + geom_violin(aes(x=5,y=nGene),stat="ydensity") + theme_classic() +geom_jitter(aes(x=5,y=nGene),alpha=0.2,color="blue")
+p2 <- p2 + theme(axis.title.x=element_blank(),axis.text.x=element_blank(),axis.ticks.x=element_blank())
+
+plot_grid(p, p1,p2, rel_widths = c(3,2,2),ncol=3)
+
 dev.off()
