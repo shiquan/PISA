@@ -70,7 +70,7 @@ tmp<-data.frame(x=1:len,y=sor,cell=c(rep("true",cutoff),rep("noise",len-cutoff))
 
 write.table(bc$CELL_BARCODE[1:cutoff], file=paste(opt$output,"/cell_barcodes.txt",sep=""),row.names=FALSE,col.names=FALSE,quote=FALSE)
                                         #pdf(paste(opt$output,"/cell_calling.pdf",sep="")
-png(file=paste(opt$output,"/cell_count_summary.png",sep=""), width=700,height=300,res=100,pointsize=10)
+png(file=paste(opt$output,"/cell_count_summary.png",sep=""), width=700,height=300,res=100,pointsize=10,type='cairo')
 p = ggplot(tmp,aes(x=x,y=y))
 p = p + geom_line(aes(color=cell),size=2) +scale_color_manual(values=c("#999999","blue"))
 p = p + scale_x_log10(name="Barcodes")

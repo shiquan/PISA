@@ -26,15 +26,6 @@ workflow main {
     runID=runID,
     root=root,
   }
-  call cellCalling {
-    input:
-    root=root,
-    count=parseFastq.count,
-    outdir=outdir,
-    Rscript=Rscript,
-    expectCell=expectCell,
-    forceCell=forceCell,  
-  }
   call fastq2bam {
     input:
     fastq=parseFastq.fastq,
@@ -49,11 +40,67 @@ workflow main {
     sambamba=sambamba,
     gtf=gtf,
     root=root,
-    list=cellCalling.list,
     outdir=outdir
+  }
+  call cellCount {
+    input:
+    bam=sortBam.anno,
+    outdir=outdir,
+    root=root
+  }    
+  call cellCalling {
+    input:
+    root=root,
+    count=cellCount.count,
+    outdir=outdir,
+    Rscript=Rscript,
+    expectCell=expectCell,
+    forceCell=forceCell,  
+  }
+  call countMatrix {
+    input:
+    root=root,
+    list=cellCalling.list,
+    outdir=outdir,
+    anno=sortBam.anno
+  }
+}
+task countMatrix {
+  String root
+  String list
+  String outdir
+  String anno
+  command {
+    ${root}/SingleCellTools count -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count.mtx -list ${list} ${anno}
+    echo "[`date +%F` `date +%T`] workflow end" >> ${outdir}/workflowtime.log
+  }
+}
+task cellCalling {
+  String count
+  String outdir
+  String Rscript
+  String root
+  Int ?expectCell
+  Int ?forceCell    
+  command {    
+    ${Rscript} ${root}/scripts/scRNA_cell_calling.R -i ${count} -o ${outdir}/outs -e ${default=1000 expectCell} -f ${default=0 forceCell}
+  }
+  output {
+    String list="${outdir}/outs/cell_barcodes.txt"
   }
 }
 
+task cellCount {
+  String bam
+  String outdir
+  String root
+  command {
+    ${root}/SingleCellTools count -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count_raw.mtx -count ${outdir}/temp/cell_stat.txt ${bam}
+  }
+  output {
+    String count="${outdir}/temp/cell_stat.txt"
+  }
+}
 task makedir {
   String Dir
   command {
@@ -83,20 +130,6 @@ task parseFastq {
   }
 }
 
-task cellCalling {
-  String count
-  String outdir
-  String Rscript
-  String root
-  Int ?expectCell
-  Int ?forceCell    
-  command {    
-    ${Rscript} ${root}/scripts/scRNA_cell_calling.R -i ${count} -o ${outdir}/outs -e ${default=1000 expectCell} -f ${default=0 forceCell}
-  }
-  output {
-    String list="${outdir}/outs/cell_barcodes.txt"
-  }
-}
 task fastq2bam {
   String fastq  
   String outdir
@@ -117,16 +150,13 @@ task sortBam {
   String root
   String outdir
   String gtf
-  String list
-
+  
   command {
     ${sambamba} sort -t 20 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam
     ${root}/SingleCellTools anno -gtf ${gtf} -o ${outdir}/temp/anno.bam ${outdir}/temp/sorted.bam
-    ${root}/SingleCellTools count -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count.mtx -list ${list} ${outdir}/temp/anno.bam
-    echo "[`date +%F` `date +%T`] workflow end" >> ${outdir}/workflowtime.log
   }
   output {
-    String matrix="${outdir}/outs/count.mtx"
+    String anno="${outdir}/temp/anno.bam"
   }
 }
 
