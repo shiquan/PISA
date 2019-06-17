@@ -228,10 +228,10 @@ static void update_counts(struct mtx_counts_v *v, int l, int all)
         for (i = frezeen; i < l; ++i) update_counts_core(&v[i]);
     }
     else if (l - 100 > frezeen) {    
-        for (i = frezeen; i < l-500; ++i) {
+        for (i = frezeen; i < l-10; ++i) {
             update_counts_core(&v[i]);
         }
-        frezeen = l - 50;
+        frezeen = l - 10;
     }
 }
 int rank_cmp(const void *va, const void *vb)
