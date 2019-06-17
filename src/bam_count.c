@@ -227,11 +227,11 @@ static void update_counts(struct mtx_counts_v *v, int l, int all)
     if (all) {
         for (i = frezeen; i < l; ++i) update_counts_core(&v[i]);
     }
-    else if (l - 100 > frezeen) {    
-        for (i = frezeen; i < l-10; ++i) {
+    else if (l - 1000 > frezeen) {    
+        for (i = frezeen; i < l-500; ++i) {
             update_counts_core(&v[i]);
         }
-        frezeen = l - 10;
+        frezeen = l - 500;
     }
 }
 int rank_cmp(const void *va, const void *vb)
@@ -343,10 +343,12 @@ int count_matrix(int argc, char **argv)
             struct mtx_counts *t = v0->v[id];
             
             if (t->uhash == NULL) t->uhash = kh_init(name);
+            /*
             if (t->c != 0) {
                 warnings("%s is duplicate, already present in pervious regions.", val);
                 continue;
             }
+            */
             k = kh_get(name, t->uhash, val);
             if (k == kh_end(t->uhash)) {
                 if (t->n == t->m) {
@@ -364,7 +366,7 @@ int count_matrix(int argc, char **argv)
             }
             
             // Cache all records will exhaust memory, freeze and release old records
-            update_counts(v, n, 0);
+            // update_counts(v, n, 0);
         }
         else {
             if (v0->v[id] == NULL) {
