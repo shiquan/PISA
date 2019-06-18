@@ -22,7 +22,7 @@ static int usage()
     fprintf(stderr, "    -umi        [UY]    UMI tag. Count once if more than one record has same UMI which overlapped with a region.\n");
     fprintf(stderr, "    -dis_corr            Disable correct UMI. Default all UMIs with 1 mismatch distance to each other are collapsed\n");
     fprintf(stderr, "    -q          [INT]   Minimal map quality to filter. [20]\n");
-    fprintf(stderr, "    -count      [FILE]  UMI,Gene per cell barcode.\n");
+    fprintf(stderr, "    -count      [FILE]  UMI,Gene,Saturation per cell barcode.\n");
     fprintf(stderr,"\n");
 
     return 1;
@@ -31,6 +31,7 @@ struct cell_barcode_counts {
     // int idx;
     uint32_t nUMI;
     uint32_t nGene;
+    uint32_t raw_UMI;
 };
 
 static struct args {
@@ -398,6 +399,7 @@ int count_matrix(int argc, char **argv)
                 if (v0->v[j] && v0->v[j]->c) {
                     C->nUMI += v0->v[j]->c;
                     C->nGene++;
+                    C->raw_UMI += v0->v[j]->n;
                 }
             }
         }
@@ -405,8 +407,10 @@ int count_matrix(int argc, char **argv)
         // qsort(args.CBC, lb->n, sizeof(struct cell_barcode_counts), rank_cmp);
         
         fprintf(count, "CELL_BARCODE\tnUMI\tnGene\n");
-        for (i = 0; i < lb->n; ++i) 
-            fprintf(count, "%s\t%d\t%d\n", lb->b[i].s, args.CBC[i].nUMI, args.CBC[i].nGene);
+        for (i = 0; i < lb->n; ++i) {
+            if (args.CBC[i].nUMI > 0) 
+                fprintf(count, "%s\t%d\t%d\t%.4f\n", lb->b[i].s, args.CBC[i].nUMI, args.CBC[i].nGene, 1.0-((float)args.CBC[i].nUMI/args.CBC[i].raw_UMI));
+        }
 
         free(args.CBC);
     }

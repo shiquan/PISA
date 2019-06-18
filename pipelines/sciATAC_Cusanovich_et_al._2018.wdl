@@ -101,7 +101,7 @@ task sortBam {
     ${root}/SingleCellTools rmdup -tag CB -t 20 -o ${outdir}/temp/rmdup.bam ${outdir}/temp/sorted.bam
   }
   output {
-    String sorted="${outdir}/temp/sorted.bam"
+    String sorted="${outdir}/temp/rmdup.bam"
   }
 }
 task callPeak {
