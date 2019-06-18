@@ -68,8 +68,12 @@ if (!is.null(opt$force)) {
 
 tmp<-data.frame(x=1:len,y=sor,cell=c(rep("true",cutoff),rep("noise",len-cutoff)))
 
-write.table(bc$CELL_BARCODE[1:cutoff], file=paste(opt$output,"/cell_barcodes.txt",sep=""),row.names=FALSE,col.names=FALSE,quote=FALSE)
-                                        #pdf(paste(opt$output,"/cell_calling.pdf",sep="")
+cc <- bc[1:cutoff,]
+called = sum(cc$nUMI)
+in_cell <- called/sum(bc$nUMI)
+
+write.table(cc$CELL_BARCODE, file=paste(opt$output,"/cell_barcodes.txt",sep=""),row.names=FALSE,col.names=FALSE,quote=FALSE)
+
                                         #png(file=paste(opt$output,"/cell_count_summary.png",sep=""), width=700,height=300,res=100,pointsize=10)
 pdf(file=paste(opt$output,"/cell_count_summary.pdf",sep=""), width=7,height=3)
 p = ggplot(tmp,aes(x=x,y=y))
@@ -77,18 +81,18 @@ p = p + geom_line(aes(color=cell),size=2) +scale_color_manual(values=c("#999999"
 p = p + scale_x_log10(name="Barcodes")
 p = p + scale_y_log10(name="nUMI",breaks=c(1,10,100,1000,10000,100000),labels=c(1,10,100,"1k","10K","100K"))
 p = p + theme_bw() + geom_vline(xintercept =cutoff)
-p = p + geom_text(aes(x=10,y=1,label = paste("cell=",cutoff)), color = 'blue',size=6)
+p = p + geom_text(aes(x=10,y=7,label = paste("cell=",cutoff)), color = 'blue',size=6)
 p = p + geom_text(aes(x=10,y=4,label = paste("nUMI=",m)), color = 'blue',size=6)
+p = p + geom_text(aes(x=10,y=1,label = paste("nUIM%=",in_cell)), color = 'blue',size=6)
 p = p + theme(legend.position = "none")
 
-bc <- bc[1:cutoff,]
                                         #p1 <- ggplot(bc) + geom_boxplot(aes(x=5,y=nUMI), outlier.shape = 8, width=10) + theme_classic(
 #p1 <- p1 + geom_jitter(aes(x=sample(1:10,nrow(bc),replace = T),y=nUMI),alpha=0.2,color="blue") #+ scale_y_log10()
-p1 <- ggplot(bc) + geom_violin(aes(x=5,y=nUMI),stat="ydensity") + theme_classic() +geom_jitter(aes(x=5,y=nUMI),alpha=0.2,color="blue")
+p1 <- ggplot(cc) + geom_violin(aes(x=5,y=nUMI),stat="ydensity") + theme_classic() +geom_jitter(aes(x=5,y=nUMI),alpha=0.2,color="blue")
 p1 <- p1 + theme(axis.title.x=element_blank(),axis.text.x=element_blank(),axis.ticks.x=element_blank())
 #p2 <- ggplot(bc) + geom_boxplot(aes(x=5,y=nGene), outlier.shape = 8, width=10) + theme_classic()
                                         #p2 <- p2 + geom_jitter(aes(x=sample(1:10,nrow(bc),replace = T),y=nGene),alpha=0.2,color="blue") #+ scale_y_log10()
-p2 <- ggplot(bc) + geom_violin(aes(x=5,y=nGene),stat="ydensity") + theme_classic() +geom_jitter(aes(x=5,y=nGene),alpha=0.2,color="blue")
+p2 <- ggplot(cc) + geom_violin(aes(x=5,y=nGene),stat="ydensity") + theme_classic() +geom_jitter(aes(x=5,y=nGene),alpha=0.2,color="blue")
 p2 <- p2 + theme(axis.title.x=element_blank(),axis.text.x=element_blank(),axis.ticks.x=element_blank())
 
 plot_grid(p, p1,p2, rel_widths = c(3,2,2),ncol=3)
