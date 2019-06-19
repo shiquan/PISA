@@ -251,6 +251,133 @@ int check_is_overlapped_bed(bam_hdr_t *hdr, bam1_t *b, struct bedaux *B)
     
     return 0;
 }
+struct pair {
+    int start;
+    int end;
+};
+struct isoform {
+    int n;
+    struct pair *p;
+};
+struct isoform *bend_sam_isoform(bam1_t *b)
+{
+    struct isoform *S = malloc(sizeof(*S));
+    memset(S, 0, sizeof(*S));
+    int i;
+    int start = b->core.pos;
+    int l = 0;
+    for (i = 0; i < b->core.n_cigar; ++i) {
+        int cig = bam_cigar_op(bam_get_cigar(b)[i]);
+        int ncig = bam_cigar_oplen(bam_get_cigar(b)[i]);
+        if (cig == BAM_CMATCH || cig == BAM_CEQUAL || cig == BAM_CDIFF) {
+            l += ncig;
+        }
+        else if (cig == BAM_CDEL)            
+        {
+            l += ncig;
+        }
+        else if (cig == BAM_CREF_SKIP) {
+            S->p = realloc(S->p, (S->n+1)*sizeof(struct pair));
+            S->p[S->n].start = start +1; // 0 based to 1 based
+            S->p[S->n].end = start + l;
+            // reset block
+            start = start + l + ncig;
+            l = 0;
+            S->n++;
+        }
+    } 
+    S->p = realloc(S->p, (S->n+1)*sizeof(struct pair));
+    S->p[S->n].start = start +1; // 0 based to 1 based
+    S->p[S->n].end = start + l;
+    S->n++;
+    return S;    
+}
+
+// ret == 0, enclosed in exon
+// ret == -1, will reture 3, adjust to -1 thereafter
+// ret == 1, (p::start < G::start && p::end > G::start) || (p::start < G::end && p::end > G::end)
+// ret == 2, if isoform cover two or more exomes, other cases will not count here. missed isoforms will be count at match_isoform()
+
+static void query_exon(struct pair *p, struct gtf_lite *G, int *start, int *c, int *ret)
+{
+    int i;
+    int st = -1;
+    int ed = -1;
+
+    int ic = *c;
+    
+    *ret = 0;
+    assert(G->type == feature_transcript);
+    for (i = *start; i < G->n_son; ++i) {
+       
+        struct gtf_lite *g0 = G->strand == 0 ? &G->son[i] : &G->son[G->n_son-i-1];
+        if (g0->type != feature_exon) continue;
+        ic++;
+        if (p->start >= g0->start && p->end <= g0->end) {
+            *ret = 0;
+            *c = ic;
+            break;
+        }
+
+        if (p->start > g0->end) continue;
+        
+        if (p->start > g0->start || p->end > g0->start)
+            if (st == -1) st = ic; // overlapped exome start
+
+        ed = ic;
+        
+        if (p->end < g0->start) {
+            if (st == -1) {
+                *ret = 3;
+            }
+            break;
+        }
+
+        // not break here, because isoform may cover next exome also
+        if (p->start < g0->start && p->end >g0->start) *ret = 1;
+        if (p->start > g0->end && p->end > g0->end) *ret = 1;
+        
+    }
+    *start = i;
+
+    if (ed != -1 && st != ed) *ret = 1; // cover two or more exomes
+    // fprintf(stderr, "%d\t%d\t%d\n",p->start,p->end,*c);
+}
+//-1 on intron, 0 on match on exon, 1 on overlap exon-intron, 2 on missed isoform at read, 3 on more isoform at read 
+int match_isoform(struct isoform *S, struct gtf_lite *G)
+{
+    int i;
+    int ret = 0;
+    int last_c = -1; 
+    int c = 0;
+    int j = 0;
+    for (i = 0; i < S->n; ++i) {
+
+        query_exon(&S->p[i], G, &j, &c, &ret);
+
+        if (last_c == -1) {
+            last_c = c;
+        }
+        else {
+
+            if (c == last_c) { // same exome, should not consider be this transcript. two exomes found at this regions
+                ret = 3;
+                break;
+            }
+            /*
+            else if (last_c + 1 == c) { // isoform matched, check next then
+                continue;
+            }
+            */
+            else if (last_c + 1 < c) { // skip one or more isoform at this transcript
+                ret = 2;
+                break;
+            }
+        }
+    }
+    
+    return ret;
+}
 
 int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
 {
@@ -267,69 +394,130 @@ int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
 
     args.reads_in_gene++;
 
-    int i, j;    
-    kstring_t trans = {0,0,0};
+    struct isoform *S = bend_sam_isoform(b);
     
-    if (args.ignore_strand == 0) {
-        if (c->flag & BAM_FREVERSE) {
-            if (g->strand == 0) goto antisense;
-        }
-        else if (g->strand == 1) goto antisense;
-    }
-
     int l;
-    // for reads overlapped with multiply genes, only count the last one, since the last one is more close with the reads
-    g = g + (n-1);
-    // TX
-    for (i = 0; i < g->n_son; ++i) {
-        struct gtf_lite *g1 = &g->son[i];
-        if (g1->type != feature_transcript) continue;
-        if (c->pos > g1->end|| endpos < g1->start) continue; // not in this trans
-        // check isoform
-        int in_exon = 0;     
-        for (j = 0; j < g1->n_son; ++j) {
+    kstring_t trans = {0,0,0};
+    kstring_t genes = {0,0,0};
+    kstring_t gene_id = {0,0,0};
+    int anti = 0;
+
+    int trans_novo = 0;
+    
+    // exon > intron > antisense
+    for (l = 0; l < n; ++l) {
+        struct gtf_lite *g0 = &g[l];
+        if (args.ignore_strand == 0) {
+            if (c->flag & BAM_FREVERSE) {
+                if (g->strand == 0) {
+                    anti = 1;
+                    continue;
+                }
+            }
+            else if (g->strand == 1) {
+                anti = 1;
+                continue;
+            }
+        }
+        
+        /*
+        // for reads overlapped with multiply genes, only count the last one, since the last one is more close with the reads
+        g = g + (n-1);
+        */
+        int i;
+        int in_gene = 0;
+        // TX
+        for (i = 0; i < g->n_son; ++i) {
+            struct gtf_lite *g1 = &g0->son[i];
+            if (g1->type != feature_transcript) continue;
+            int ret = match_isoform(S, g1);
+            // debug_print("%d", ret);
+            if (ret == -2) continue;
+            if (ret == 2 || ret == 3) {
+                trans_novo = 1;
+                continue; // not this transcript
+            }
+            if (ret == -1) continue; // introns will also be filter
+
+            trans_novo = 0;
+            in_gene = 1;
+            if (trans.l) kputc(';', &trans);
+            kputs(G->transcript_id->name[g1->transcript_id], &trans);
+            /* if (c->pos > g1->end|| endpos < g1->start) continue; // not in this trans
+            // check isoform
+            int in_exon = 0;     
+            for (j = 0; j < g1->n_son; ++j) {
             struct gtf_lite *g2 = &g1->son[j];
             if (g2->type != feature_exon) continue; // on check exon for converience
             if (c->pos > g1->end) continue;
             if (endpos < g1->start) continue;
             in_exon = 1;
             break;
-        }
-        if (in_exon) {
+            }
+            if (in_exon) {
             if (trans.l) kputc(';', &trans);
             kputs(G->transcript_id->name[g1->transcript_id], &trans);
+            }
+            */
+        }
+
+        if (in_gene) {
+            if (genes.l) kputc(';', &genes);
+            kputs(G->gene_name->name[g0->gene_name], &genes);
+            if (gene_id.l) kputc(';', &gene_id);
+            kputs(G->gene_id->name[g0->gene_id], &gene_id);
+
+            anti = 0; // reset antisense flag
+        } 
+    }
+    // GN_tag
+    // char *gene = G->gene_name->name[g->gene_name];
+    // l = strlen(gene);
+    if (genes.l) {
+           
+        // TX,RE
+        if (trans.l) {
+            bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
+            args.reads_in_exon++;
+        }
+        else { // not cover any transcript            
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
+            args.reads_in_intron++;
+        }
+    
+
+        bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
+
+        // GX
+        //char *gene_id = G->gene_id->name[g->gene_id];
+        // l = strlen(gene_id);
+        bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
+    }
+    else if (anti) { // antisense
+        args.reads_antisense++;
+        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
+    }
+    else {
+        if (trans_novo) {
+            kputs(G->gene_name->name[g->gene_name], &genes);
+            bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
+            bam_aux_append(b, TX_tag, 'Z', 8, (uint8_t*)"UNKNOWN");            
         }
     }
-    // TX,RE
-    if (trans.l) {
-        bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
-        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
-        free(trans.s);
-        args.reads_in_exon++;
-    }
-    else { // not cover any transcript
-        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
 
-        args.reads_in_intron++;
-    }
+    if (trans.m) free(trans.s);
+    if (genes.m) free(genes.s);
+    if (gene_id.m) free(gene_id.s);
     
-    // GN_tag
-    char *gene = G->gene_name->name[g->gene_name];
-    l = strlen(gene);
-    bam_aux_append(b, GN_tag, 'Z', l+1, (uint8_t*)gene);
-
-    // GX
-    char *gene_id = G->gene_id->name[g->gene_id];
-    l = strlen(gene_id);
-    bam_aux_append(b, GX_tag, 'Z', l+1, (uint8_t*)gene_id);
-        
     return 0;
     
 
-  antisense:
-    args.reads_antisense++;
-    // AN    
-    for (i = 0; i < g->n_son; ++i) {
+    /*
+      antisense:
+      args.reads_antisense++;
+      // AN    
+      for (i = 0; i < g->n_son; ++i) {
         struct gtf_lite *g1 = &g->son[i];
         if (g1->type != feature_transcript) continue;
         if (c->pos > g1->end|| endpos < g1->start) continue; // not in this trans
@@ -359,8 +547,8 @@ int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
         bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
     }
 
-    
-    return 0;
+    */
+
 }
 void write_report()
 {

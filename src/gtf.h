@@ -69,6 +69,7 @@ struct gtf_spec {
     struct gtf_lite *gtf;    
 };
 
+const char *get_feature_name(enum feature_type type);
 struct gtf_spec *gtf_spec_init();
 void gtf_destory(struct gtf_spec *G);
 struct gtf_spec *gtf_read(const char *fname);

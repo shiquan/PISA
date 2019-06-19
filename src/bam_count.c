@@ -300,82 +300,90 @@ int count_matrix(int argc, char **argv)
             if (id == -1) continue;
         }
 
+        kstring_t str = {0,0,0};
+        kputs((char*)(anno_tag+1), &str);
+        int n_gene;
+        int *s = ksplit(&str, ';', &n_gene);
+        int ig;
+        for (ig = 0; ig < n_gene; ++ig) {
         // Gene or Region
-        char *val = (char*)(anno_tag+1);
-        k = kh_get(name, hash, val);
-        int r;
-        if (k == kh_end(hash)) {
-            if (m == n) {
-                int i = m;
-                m = m *2;
-                reg = realloc(reg, m*sizeof(char*));
-                v = realloc(v, m*sizeof(struct mtx_counts_v));                
-                //for (; i<m; ++i) memset(&v[i], 0, sizeof(struct mtx_counts_v));
-                memset(v+i, 0, sizeof(struct mtx_counts_v)*i);
-            }
-            reg[n] = strdup(val);
-            k = kh_put(name, hash, reg[n], &r);
-            kh_val(hash, k) = n;
-            // v[n] = calloc(lb->n, sizeof(int));
-            // v[n] = mtx_counts_arr_init(lb->n);
-            n++;
-        }
-
-        // gene or region id
-        int row = kh_val(hash, k);
-
-        // enlarge vec
-        struct mtx_counts_v *v0 = &v[row];
-        enlarge_v(v0, lb->n);
-        
-        if (args.umi_tag) {
-            uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
-            if (!umi_tag) {
-                warnings("No UMI tag found at record. %s:%d", hdr->target_name[c->tid], c->pos+1);
-                continue;
-            }
-            
-            char *val = (char*)(umi_tag+1);
-
-            if (v0->v[id] == NULL) {
-                v0->v[id] = malloc(sizeof(struct mtx_counts));
-                memset(v0->v[id], 0, sizeof(struct mtx_counts));
-            }
-            struct mtx_counts *t = v0->v[id];
-            
-            if (t->uhash == NULL) t->uhash = kh_init(name);
-            /*
-            if (t->c != 0) {
-                warnings("%s is duplicate, already present in pervious regions.", val);
-                continue;
-            }
-            */
-            k = kh_get(name, t->uhash, val);
-            if (k == kh_end(t->uhash)) {
-                if (t->n == t->m) {
-                    t->m = t->m + 10;
-                    t->bcodes = realloc(t->bcodes, t->m*sizeof(char*));
+            char *val = str.s + s[ig];
+            k = kh_get(name, hash, val);
+            int r;
+            if (k == kh_end(hash)) {
+                if (m == n) {
+                    int i = m;
+                    m = m *2;
+                    reg = realloc(reg, m*sizeof(char*));
+                    v = realloc(v, m*sizeof(struct mtx_counts_v));                
+                    //for (; i<m; ++i) memset(&v[i], 0, sizeof(struct mtx_counts_v));
+                    memset(v+i, 0, sizeof(struct mtx_counts_v)*i);
                 }
-                t->bcodes[t->n] = strdup(val);
-                k = kh_put(name, t->uhash, t->bcodes[t->n], &r);
-                kh_val(t->uhash, k) = 0;
-                t->n++;
-                // t->v[id]++;
+                reg[n] = strdup(val);
+                k = kh_put(name, hash, reg[n], &r);
+                kh_val(hash, k) = n;
+                // v[n] = calloc(lb->n, sizeof(int));
+                // v[n] = mtx_counts_arr_init(lb->n);
+                n++;
             }
-            else {
-                kh_val(t->uhash, k)++;
-            }
+            
+            // gene or region id
+            int row = kh_val(hash, k);
+            
+            // enlarge vec
+            struct mtx_counts_v *v0 = &v[row];
+            enlarge_v(v0, lb->n);
+        
+            if (args.umi_tag) {
+                uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
+                if (!umi_tag) {
+                    warnings("No UMI tag found at record. %s:%d", hdr->target_name[c->tid], c->pos+1);
+                    continue;
+                }
+            
+                char *val = (char*)(umi_tag+1);
+                
+                if (v0->v[id] == NULL) {
+                    v0->v[id] = malloc(sizeof(struct mtx_counts));
+                    memset(v0->v[id], 0, sizeof(struct mtx_counts));
+                }
+                struct mtx_counts *t = v0->v[id];
+            
+                if (t->uhash == NULL) t->uhash = kh_init(name);
+                /*
+                  if (t->c != 0) {
+                  warnings("%s is duplicate, already present in pervious regions.", val);
+                  continue;
+                  }
+                */
+                k = kh_get(name, t->uhash, val);
+                if (k == kh_end(t->uhash)) {
+                    if (t->n == t->m) {
+                        t->m = t->m + 10;
+                        t->bcodes = realloc(t->bcodes, t->m*sizeof(char*));
+                    }
+                    t->bcodes[t->n] = strdup(val);
+                    k = kh_put(name, t->uhash, t->bcodes[t->n], &r);
+                    kh_val(t->uhash, k) = 0;
+                    t->n++;
+                    // t->v[id]++;
+                }
+                else {
+                    kh_val(t->uhash, k)++;
+                }
             
             // Cache all records will exhaust memory, freeze and release old records
             // update_counts(v, n, 0);
-        }
-        else {
-            if (v0->v[id] == NULL) {
-                v0->v[id] = malloc(sizeof(struct mtx_counts));
-                memset(v0->v[id], 0, sizeof(struct mtx_counts));
             }
-            v0->v[id]->c++;
+            else {
+                if (v0->v[id] == NULL) {
+                    v0->v[id] = malloc(sizeof(struct mtx_counts));
+                    memset(v0->v[id], 0, sizeof(struct mtx_counts));
+                }
+                v0->v[id]->c++;
+            }
         }
+        free(str.s);
     }
     
     if (args.umi_tag) 

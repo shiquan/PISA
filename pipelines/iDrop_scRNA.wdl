@@ -137,7 +137,7 @@ task fastq2bam {
   String refdir
   String root
   command {
-    ${STAR} --outStd SAM --genomeDir ${refdir} --readFilesIn ${fastq} | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt -maln ${outdir}/temp/mito.bam /dev/stdin
+    ${STAR} --outStd SAM --outSAMunmapped Within --outStd SAM --runThreadN --genomeDir ${refdir} --readFilesIn ${fastq} | ${root}/SingleCellTools sam2bam -k -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt  /dev/stdin
   }
   output {
     String bam="${outdir}/temp/aln.bam"
@@ -159,5 +159,3 @@ task sortBam {
     String anno="${outdir}/temp/anno.bam"
   }
 }
-
-

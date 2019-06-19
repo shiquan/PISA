@@ -32,6 +32,12 @@ static const char *feature_type_names[] = {
     // All other features will be ignored. The types must have the correct capitalization shown here.
 };
 
+const char *get_feature_name(enum feature_type type)
+{
+    assert(type>-1);
+    return feature_type_names[type];
+}
+
 struct gtf_spec *gtf_spec_init()
 {
     struct gtf_spec *G = malloc(sizeof(*G));
