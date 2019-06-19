@@ -34,7 +34,7 @@ if (is.null(opt$output)) {
 
 bc <- fread(opt$input,header=TRUE)
 bc <- as.data.frame(bc)
-bc <- subset(bc, bc$nUMI>1)
+bc <- subset(bc, bc$nUMI>0)
 bc <- bc[order(bc$nUMI, decreasing=T),]
 len <- nrow(bc)
                                         #sor = sort(bc$nUMI, decreasing=T)
@@ -78,7 +78,7 @@ write.table(cc$CELL_BARCODE, file=paste(opt$output,"/cell_barcodes.txt",sep=""),
 pdf(file=paste(opt$output,"/cell_count_summary.pdf",sep=""), width=7,height=3)
 p = ggplot(tmp,aes(x=x,y=y))
 p = p + geom_line(aes(color=cell),size=2) +scale_color_manual(values=c("#999999","blue"))
-p = p + scale_x_log10(name="Barcodes")
+p = p + scale_x_log10(name="Barcodes",breaks=c(1,10,100,1000,10000,100000),labels=c(1,10,100,"1k","10K","100K"))
 p = p + scale_y_log10(name="nUMI",breaks=c(1,10,100,1000,10000,100000),labels=c(1,10,100,"1k","10K","100K"))
 p = p + theme_bw() + geom_vline(xintercept =cutoff)
 p = p + geom_text(aes(x=10,y=10,label = paste("cell=",cutoff)), color = 'blue',size=6)
