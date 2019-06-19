@@ -70,7 +70,7 @@ tmp<-data.frame(x=1:len,y=sor,cell=c(rep("true",cutoff),rep("noise",len-cutoff))
 
 cc <- bc[1:cutoff,]
 called = sum(cc$nUMI)
-in_cell <- called/sum(bc$nUMI)
+in_cell <- round(called/sum(bc$nUMI),digits=4)
 
 write.table(cc$CELL_BARCODE, file=paste(opt$output,"/cell_barcodes.txt",sep=""),row.names=FALSE,col.names=FALSE,quote=FALSE)
 
@@ -81,7 +81,7 @@ p = p + geom_line(aes(color=cell),size=2) +scale_color_manual(values=c("#999999"
 p = p + scale_x_log10(name="Barcodes")
 p = p + scale_y_log10(name="nUMI",breaks=c(1,10,100,1000,10000,100000),labels=c(1,10,100,"1k","10K","100K"))
 p = p + theme_bw() + geom_vline(xintercept =cutoff)
-p = p + geom_text(aes(x=10,y=7,label = paste("cell=",cutoff)), color = 'blue',size=6)
+p = p + geom_text(aes(x=10,y=10,label = paste("cell=",cutoff)), color = 'blue',size=6)
 p = p + geom_text(aes(x=10,y=4,label = paste("nUMI=",m)), color = 'blue',size=6)
 p = p + geom_text(aes(x=10,y=1,label = paste("nUIM%=",in_cell)), color = 'blue',size=6)
 p = p + theme(legend.position = "none")
