@@ -27,6 +27,8 @@ static int usage()
     fprintf(stderr, "  -gtf             GTF annotation file. -gtf is conflict with -bed, if set strand will be consider.\n");
     fprintf(stderr, "  -tags            Attribute names. Default is TX,AN,GN,GX,RE.\n");
     fprintf(stderr, "  -ignore-strand   Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be count.\n");
+    fprintf(stderr, "  -t               Threads.\n");
+    fprintf(stderr, "  -chunk           Chunk size per thread.\n");
     fprintf(stderr, "\nNotice :\n");
     fprintf(stderr, " * For GTF mode, this program will set tags in default, you could also reset them by -tags.\n");
     fprintf(stderr, "   TX : Transcript id.\n");
@@ -45,6 +47,9 @@ static struct args {
     const char *report_fname;
     
     int ignore_strand;
+
+    int n_thread;
+    int chunk_size;
     
     htsFile *fp;
     htsFile *out;
@@ -74,6 +79,8 @@ static struct args {
     .gtf_fname       = NULL,
     .report_fname    = NULL,
     .ignore_strand   = 0,
+    .n_thread = 4,
+    .chunk_size = 100000,
     .fp              = NULL,
     .out             = NULL,
     .hdr             = NULL,
@@ -83,7 +90,6 @@ static struct args {
     
     .last            = NULL,
     .i_bed           = -1,
-
     .reads_input     = 0,
     .reads_pass_qc   = 0,
     .reads_in_peak   = 0,
@@ -106,6 +112,8 @@ static int parse_args(int argc, char **argv)
     int i;
     const char *tags = NULL;
     const char *qual = NULL;
+    const char *thread = NULL;
+    const char *chunk = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -117,6 +125,8 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
         else if (strcmp(a, "-tags") == 0) var = &tags;
         else if (strcmp(a, "-q") == 0) var = &qual;
+        else if (strcmp(a, "-t") == 0) var = &thread;
+        else if (strcmp(a, "-chunk") == 0) var = &chunk;
         else if (strcmp(a, "-ignore-strand") == 0) {
             args.ignore_strand = 1;
             continue;
@@ -143,7 +153,8 @@ static int parse_args(int argc, char **argv)
     
     CHECK_EMPTY(args.output_fname, "-o must be set.");
     CHECK_EMPTY(args.input_fname, "Input bam must be set.");
-
+    if (thread) args.n_thread = str2int((char*)thread);
+    if (chunk) args.chunk_size = str2int((char*)chunk);
     if (qual) args.qual_thres = str2int((char*)qual);
     if (args.qual_thres < 0) args.qual_thres = 0; // no filter
     if (tags) {
@@ -378,177 +389,180 @@ int match_isoform(struct isoform *S, struct gtf_lite *G)
     
     return ret;
 }
+#include "htslib/thread_pool.h"
 
-int check_is_overlapped_gtf(bam_hdr_t *h, bam1_t *b, struct gtf_spec *G)
+struct bam_pool {
+    int n, m;
+    bam1_t *bam;
+};
+struct bam_pool *bam_pool_create()
 {
-    bam1_core_t *c;
-    c = &b->core;
-    char *name = h->target_name[c->tid];
-    int endpos = bam_endpos(b);
-    
-    struct gtf_lite *g;
-    int n = 0;
-    // todo: improve the algorithm of overlap
-    g = gtf_overlap_gene(G, name, c->pos, endpos, &n, 1);
-    if (n==0) return 1;
+    struct bam_pool *p = malloc(sizeof(*p));
+    memset(p, 0, sizeof(*p));
+    return p;
+}
+void bam_read_pool(struct bam_pool *p, htsFile *fp, bam_hdr_t *h, int chunk_size)
+{
+    p->n = 0;
+    int ret;
+    do {
+        if (p->n >= chunk_size) break;
+        if (p->n == p->m) {
+            p->m = chunk_size;
+            p->bam = realloc(p->bam, p->m*sizeof(bam1_t));
+            int i;
+            for (i = p->n; i <p->m; ++i) memset(&p->bam[i], 0, sizeof(bam1_t));
+        }
+        
+        ret = sam_read1(fp, h, &p->bam[p->n]);
+        if (ret < 0) break;
+        p->n++;
+    } while(1);
 
-    args.reads_in_gene++;
-
-    struct isoform *S = bend_sam_isoform(b);
+    if (ret < -1) warnings("Truncated file?");    
+}
+void bam_pool_destory(struct bam_pool *p)
+{
+    int i;
+    for (i = 0; i <p->n; ++i) 
+        free(p->bam[i].data);
+    free(p);
+}
+void *run_it(void *_d)
+{
+    struct bam_pool *p = (struct bam_pool*)_d;
+    struct gtf_itr *itr = gtf_itr_build(args.G);
     
-    int l;
     kstring_t trans = {0,0,0};
     kstring_t genes = {0,0,0};
     kstring_t gene_id = {0,0,0};
-    int anti = 0;
+    bam_hdr_t *h = args.hdr;
+    struct gtf_spec *G = args.G;
+    int i;
+    for (i = 0; i < p->n; ++i) {
+        bam1_t *b = &p->bam[i];
+        bam1_core_t *c;
+        c = &b->core;
+        char *name = h->target_name[c->tid];
+        int endpos = bam_endpos(b);
 
-    int trans_novo = 0;
-    
-    // exon > intron > antisense
-    for (l = 0; l < n; ++l) {
-        struct gtf_lite *g0 = &g[l];
-        if (args.ignore_strand == 0) {
-            if (c->flag & BAM_FREVERSE) {
-                if (g->strand == 0) {
+        /*
+        struct gtf_lite *g;
+        int n = 0;
+        // todo: improve the algorithm of overlap
+        g = gtf_overlap_gene(G, name, c->pos, endpos, &n, 1);
+        if (n==0) return 1;
+        */
+        if ( gtf_query(itr, name, c->pos+1, endpos) != 0 || itr->n == 0) continue;
+        
+        args.reads_in_gene++;
+
+        struct isoform *S = bend_sam_isoform(b);
+        
+        int l;
+        int anti = 0;
+        int trans_novo = 0;
+        trans.l = genes.l = gene_id.l = 0;
+        
+        // exon > intron > antisense
+        struct gtf_lite *g = &G->gtf[itr->st];
+        for (l = 0; l < itr->n; ++l) {            
+            struct gtf_lite *g0 = &g[l];
+            if (args.ignore_strand == 0) {
+                if (c->flag & BAM_FREVERSE) {
+                    if (g0->strand == 0) {
+                        anti = 1;
+                        continue;
+                    }
+                }
+                else if (g0->strand == 1) {
                     anti = 1;
-                    continue;
+                continue;
                 }
             }
-            else if (g->strand == 1) {
-                anti = 1;
-                continue;
-            }
-        }
         
-        /*
-        // for reads overlapped with multiply genes, only count the last one, since the last one is more close with the reads
-        g = g + (n-1);
-        */
-        int i;
-        int in_gene = 0;
-        // TX
-        for (i = 0; i < g->n_son; ++i) {
-            struct gtf_lite *g1 = &g0->son[i];
-            if (g1->type != feature_transcript) continue;
-            int ret = match_isoform(S, g1);
-            // debug_print("%d", ret);
-            if (ret == -2) continue;
-            if (ret == 2 || ret == 3) {
-                trans_novo = 1;
-                continue; // not this transcript
-            }
-            if (ret == -1) continue; // introns will also be filter
-
-            trans_novo = 0;
-            in_gene = 1;
-            if (trans.l) kputc(';', &trans);
-            kputs(G->transcript_id->name[g1->transcript_id], &trans);
-            /* if (c->pos > g1->end|| endpos < g1->start) continue; // not in this trans
-            // check isoform
-            int in_exon = 0;     
-            for (j = 0; j < g1->n_son; ++j) {
-            struct gtf_lite *g2 = &g1->son[j];
-            if (g2->type != feature_exon) continue; // on check exon for converience
-            if (c->pos > g1->end) continue;
-            if (endpos < g1->start) continue;
-            in_exon = 1;
-            break;
-            }
-            if (in_exon) {
-            if (trans.l) kputc(';', &trans);
-            kputs(G->transcript_id->name[g1->transcript_id], &trans);
-            }
+            /*
+            // for reads overlapped with multiply genes, only count the last one, since the last one is more close with the reads
+            g = g + (n-1);
             */
+            int i;
+            int in_gene = 0;
+            // TX
+            for (i = 0; i < g->n_son; ++i) {
+                struct gtf_lite *g1 = &g0->son[i];
+                if (g1->type != feature_transcript) continue;
+                int ret = match_isoform(S, g1);
+                // debug_print("%d", ret);
+                if (ret == -2) continue;
+                if (ret == 2 || ret == 3) {
+                    trans_novo = 1;
+                    continue; // not this transcript
+                }
+                if (ret == -1) continue; // introns will also be filter
+
+                trans_novo = 0;
+                in_gene = 1;
+                if (trans.l) kputc(';', &trans);
+                kputs(G->transcript_id->name[g1->transcript_id], &trans);
+            }
+
+            if (in_gene) {
+                if (genes.l) kputc(';', &genes);
+                kputs(G->gene_name->name[g0->gene_name], &genes);
+                if (gene_id.l) kputc(';', &gene_id);
+                kputs(G->gene_id->name[g0->gene_id], &gene_id);
+                
+                anti = 0; // reset antisense flag
+            } 
         }
+        // GN_tag
+        // char *gene = G->gene_name->name[g->gene_name];
+        // l = strlen(gene);
+        if (genes.l) {
+            
+            // TX,RE
+            if (trans.l) {
+                bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
+                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
+                args.reads_in_exon++;
+            }
+            else { // not cover any transcript            
+                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
+                args.reads_in_intron++;
+            }
+            
 
-        if (in_gene) {
-            if (genes.l) kputc(';', &genes);
-            kputs(G->gene_name->name[g0->gene_name], &genes);
-            if (gene_id.l) kputc(';', &gene_id);
-            kputs(G->gene_id->name[g0->gene_id], &gene_id);
-
-            anti = 0; // reset antisense flag
-        } 
-    }
-    // GN_tag
-    // char *gene = G->gene_name->name[g->gene_name];
-    // l = strlen(gene);
-    if (genes.l) {
-           
-        // TX,RE
-        if (trans.l) {
-            bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
-            args.reads_in_exon++;
-        }
-        else { // not cover any transcript            
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
-            args.reads_in_intron++;
-        }
-    
-
-        bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
-
-        // GX
-        //char *gene_id = G->gene_id->name[g->gene_id];
-        // l = strlen(gene_id);
-        bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
-    }
-    else if (anti) { // antisense
-        args.reads_antisense++;
-        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
-    }
-    else {
-        if (trans_novo) {
-            kputs(G->gene_name->name[g->gene_name], &genes);
             bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
-            bam_aux_append(b, TX_tag, 'Z', 8, (uint8_t*)"UNKNOWN");            
+            
+            // GX
+            //char *gene_id = G->gene_id->name[g->gene_id];
+            // l = strlen(gene_id);
+            bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
+        }
+        else if (anti) { // antisense
+            args.reads_antisense++;
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
+        }
+        else {
+            if (trans_novo) {
+                kputs(G->gene_name->name[g->gene_name], &genes);
+                bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
+                bam_aux_append(b, TX_tag, 'Z', 8, (uint8_t*)"UNKNOWN");            
+            }
         }
     }
-
     if (trans.m) free(trans.s);
     if (genes.m) free(genes.s);
     if (gene_id.m) free(gene_id.s);
-    
-    return 0;
-    
+    return p;
+}
 
-    /*
-      antisense:
-      args.reads_antisense++;
-      // AN    
-      for (i = 0; i < g->n_son; ++i) {
-        struct gtf_lite *g1 = &g->son[i];
-        if (g1->type != feature_transcript) continue;
-        if (c->pos > g1->end|| endpos < g1->start) continue; // not in this trans
-
-        // check isoform
-        int in_exon = 0;     
-        for (j = 0; j < g1->n_son; ++j) {
-            struct gtf_lite *g2 = &g1->son[j];
-            if (g2->type != feature_exon) continue; // on check exon for converience
-            if (c->pos > g1->end) continue;
-            if (endpos < g1->start) continue;
-            in_exon = 1;
-            break;
-        }
-        if (in_exon) {
-            if (trans.l) kputc(';', &trans);
-            kputs(G->transcript_id->name[g1->transcript_id], &trans);
-        }
-    }
-
-    if (trans.l) {
-        bam_aux_append(b, AN_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
-        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
-        free(trans.s);
-    }
-    else { // not cover any transcript
-        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
-    }
-
-    */
-
+static void write_out(void *_d)
+{
+    struct bam_pool *p = (struct bam_pool *)_d;
+    int i;
+    for (i = 0; i < p->n; ++i) 
+        if (sam_write1(args.out, args.hdr, &p->bam[i]) == -1) error("Failed to write SAM.");    
 }
 void write_report()
 {
@@ -571,34 +585,67 @@ void memory_release()
     else gtf_destory(args.G);
     if (args.fp_report != stderr) fclose(args.fp_report);
 }
+
 int bam_anno_attr(int argc, char *argv[])
 {
     double t_real;
     t_real = realtime();
 
     if (parse_args(argc, argv)) return usage();
-    
-    bam1_t *b;
-    int ret;
-    b = bam_init1();
-    
-    while ((ret = sam_read1(args.fp, args.hdr, b)) >= 0) {
-        args.reads_input++;
-        // todo: QC?
-        if (b->core.qual < args.qual_thres) continue;
-        args.reads_pass_qc++;
-        if (args.B) 
+
+    if (args.B) { // todo: support multi-threads
+        bam1_t *b;
+        int ret;
+        b = bam_init1();
+        while ((ret = sam_read1(args.fp, args.hdr, b)) >= 0) {
+            args.reads_input++;
+            // todo: QC?
+            if (b->core.qual < args.qual_thres) continue;
+            args.reads_pass_qc++;
             check_is_overlapped_bed(args.hdr, b, args.B); 
-        else
-            check_is_overlapped_gtf(args.hdr, b, args.G);
-        
-        if (sam_write1(args.out, args.hdr, b) == -1) error("Failed to write SAM.");
+            if (sam_write1(args.out, args.hdr, b) == -1) error("Failed to write SAM.");
+        }
+        bam_destroy1(b);
+        if (ret != -1) warnings("Truncated file?");   
     }
+    else {
+        // multi-thread mode
 
+        hts_tpool *p = hts_tpool_init(args.n_thread);
+        hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+        hts_tpool_result *r;
 
-    bam_destroy1(b);
+        for (;;) {
+            struct bam_pool *b = bam_pool_create();
+            bam_read_pool(b, args.fp, args.hdr, args.chunk_size);
+            
+            if (b == NULL) break;
+            if (b->n == 0) { free(b); break; }
+            
+            int block;
+            do {
+                block = hts_tpool_dispatch2(p, q, run_it, b, 1);
+                if ((r = hts_tpool_next_result(q))) {
+                    struct bam_pool *d = (struct bam_pool*)hts_tpool_result_data(r);
+                    write_out(d);
+                    bam_pool_destory(d);
+                    hts_tpool_delete_result(r, 0);
+                }
+            }
+            while (block == -1);
+        }
 
-    if (ret != -1) warnings("Truncated file?");
+        hts_tpool_process_flush(q);
+
+        while ((r = hts_tpool_next_result(q))) {
+            struct bam_pool *d = (struct bam_pool*)hts_tpool_result_data(r);
+            write_out(d);
+            bam_pool_destory(d);
+            hts_tpool_delete_result(r, 0);
+        }
+        hts_tpool_process_destroy(q);
+        hts_tpool_destroy(p);
+    }
 
     write_report();
     memory_release();    

@@ -193,7 +193,7 @@ static void write_out_core(struct data_index *idx, FILE *fp)
     else
         write_out_bseq(idx->pool, fp);
 }
-void write_out(struct data_index *idx, int c)
+static void write_out(struct data_index *idx, int c)
 {
     if (args.split_file) {
         int sub0 = c/FILE_PER_FOLD;
@@ -280,6 +280,7 @@ static struct bseq *read_file_block(FILE *fp, struct data_block *block)
     free(s);
     return b;
 }
+/*
 static void test_read_file_block(FILE *fp, struct data_block *block)
 {
 
@@ -297,6 +298,7 @@ static void test_read_file_block(FILE *fp, struct data_block *block)
     free(s);
     // return NULL;
 }
+*/
 /*
 void test_file_index(struct FILE_tag_index *idx, const char *fn)
 {

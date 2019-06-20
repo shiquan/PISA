@@ -287,6 +287,10 @@ struct gtf_spec *gtf_read(const char *fname)
     
     return G;
 }
+void gtf_itr_destory(struct gtf_itr *i)
+{
+    free(i); 
+}
 /*
 char *gtf_get_gene_name(struct gtf_spec *G, struct gtf_lite *gl)
 {
@@ -304,6 +308,60 @@ char *gtf_get_transcript_id(struct gtf_spec *G, struct gtf_lite *gl)
 #define idx_start(a) (int)(a>>32)
 #define idx_end(a) (int)(a)
 
+struct gtf_itr *gtf_itr_build(struct gtf_spec *G)
+{
+    struct gtf_itr *i = malloc(sizeof(*i));
+    memset(i, 0, sizeof(*i));
+    i->G = G;
+    i->id = -1;
+    return i;
+}
+int gtf_query(struct gtf_itr *itr, char *name, int start, int end)
+{
+    struct gtf_spec *G = itr->G;
+    int id = dict_query(G->name, name);
+    if (id == -1) return -2; // not this chrom
+
+    int st = G->ctg[id].idx;
+    int ed = st + G->ctg[id].offset-1;
+    int ed0 = ed;
+    if (end < idx_start(G->idx[st])) return -1; // out of range
+    if (start > idx_end(G->idx[ed])) return -1;
+
+    if (id == itr->id) {
+        st = itr->st;
+        if (idx_end(G->idx[st]) > start) goto check_overlap;
+        if (st+1 < ed && idx_start(G->idx[st+1]) > end) return 1; // intergenic
+    }
+
+    // find the smallest i such that idx_end >= st
+    while (st < ed) {
+        int mid = st + ((ed-st)>>1);
+        if (idx_end(G->idx[mid])<start) st = mid+1;
+        else ed = mid;
+    }
+    if (st != ed) error("%d %d, %d, %d, start : %d, end : %d", st, ed, idx_start(G->idx[st]), idx_end(G->idx[st]), start, end);
+
+  check_overlap:
+    if (end < G->gtf[st].start) {
+        itr->id = id;
+        itr->st = st;
+        return 1; // intergenic
+    }
+    int i;
+    int c = 0;
+    for (i = st; i <= ed0; ++i) {
+        struct gtf_lite *g1 = &G->gtf[i];
+        if (g1->start <= end) c++;
+        else break;
+        if (c > 4) break; // cover over 4 genes?? impossible
+    }
+
+    itr->id = id;
+    itr->st = st;
+    itr->n = c;
+    return 0;
+}
 static int last_idx = -1;
 static int last_id = -1;
 
@@ -312,6 +370,7 @@ void gtf_clean_cache()
     last_idx = -1;
     last_id = -1;
 }
+
 // if cache == 1, last record will be kept and assume input records have been sorted
 struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int end, int *n, int cache)
 {
