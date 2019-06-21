@@ -161,7 +161,9 @@ static int gtf_push_new_gene(struct gtf_spec *G, struct gtf_lite *gl)
         G->gtf = realloc(G->gtf, G->m_gtf*sizeof(struct gtf_lite));
     }
     struct gtf_lite *g0 = &G->gtf[G->n_gtf];
-    memset(g0, 0, sizeof(struct gtf_lite));
+    /*
+      memset(g0, 0, sizeof(struct gtf_lite));
+    
     g0->seqname = gl->seqname;
     g0->source = gl->source;
     g0->type = gl->type;
@@ -175,7 +177,8 @@ static int gtf_push_new_gene(struct gtf_spec *G, struct gtf_lite *gl)
     g0->n_son = gl->n_son;
     g0->m_son = gl->m_son;
     g0->son = gl->son;
-    //memcpy(&G->gtf[G->n_gtf], gl, sizeof(struct gtf_lite));
+    */
+    memcpy(&G->gtf[G->n_gtf], gl, sizeof(struct gtf_lite));
     G->n_gtf++;
     return 0;
 }
@@ -191,8 +194,10 @@ static int gtf_push_to_record(struct gtf_lite *g0, struct gtf_lite *g1)
 static int gtf_push_to_last_gene(struct gtf_spec *G, struct gtf_lite *gl)
 {
     if (G->n_gtf == 0) error("No gene record found, bad format.");
+    
     struct gtf_lite *g0 = &G->gtf[G->n_gtf-1];
     if (g0->type != feature_gene) error("Last record is not a gene, the GTF is not properly defined.");
+    assert(g0->gene_name == gl->gene_name);
     if (gl->type == feature_transcript) 
         gtf_push_to_record(g0, gl);
     else {

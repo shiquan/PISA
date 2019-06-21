@@ -170,6 +170,7 @@ static int parse_args(int argc, char **argv)
         memcpy(GN_tag, str.s+s[2], 2*sizeof(char));
         memcpy(GX_tag, str.s+s[3], 2*sizeof(char));
         memcpy(RE_tag, str.s+s[4], 2*sizeof(char));
+        free(str.s);
     }
     
     if (args.bed_fname) {
@@ -560,6 +561,8 @@ void *run_it(void *_d)
     if (trans.m) free(trans.s);
     if (genes.m) free(genes.s);
     if (gene_id.m) free(gene_id.s);
+
+    gtf_itr_destory(itr);
     return p;
 }
 
