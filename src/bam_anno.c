@@ -471,7 +471,7 @@ void *run_it(void *_d)
         
         // exon > intron > antisense
         struct gtf_lite *g = &G->gtf[itr->st];
-        debug_print("%s",args.G->gene_name->name[g->gene_name]);
+        // debug_print("%s",args.G->gene_name->name[g->gene_name]);
         
         for (l = 0; l < itr->n; ++l) {            
             struct gtf_lite *g0 = &g[l];
