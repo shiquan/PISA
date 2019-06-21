@@ -317,8 +317,9 @@ static void query_exon(struct pair *p, struct gtf_lite *G, int *start, int *c, i
 
     int ic = *c;
     
-    *ret = 0;
+    *ret = -2;
     assert(G->type == feature_transcript);
+    
     for (i = *start; i < G->n_son; ++i) {
        
         struct gtf_lite *g0 = G->strand == 0 ? &G->son[i] : &G->son[G->n_son-i-1];
@@ -351,7 +352,7 @@ static void query_exon(struct pair *p, struct gtf_lite *G, int *start, int *c, i
     }
     *start = i;
 
-    if (ed != -1 && st != ed) *ret = 1; // cover two or more exomes
+    if (st != -1 && ed != -1 && st != ed) *ret = 1; // cover two or more exomes
     // fprintf(stderr, "%d\t%d\t%d\n",p->start,p->end,*c);
 }
 //-1 on intron, 0 on match on exon, 1 on overlap exon-intron, 2 on missed isoform at read, 3 on more isoform at read 
@@ -366,6 +367,7 @@ int match_isoform(struct isoform *S, struct gtf_lite *G)
 
         query_exon(&S->p[i], G, &j, &c, &ret);
 
+        if (S->n == 1 && ret == 3) ret = -1;
         if (last_c == -1) {
             last_c = c;
         }
@@ -455,17 +457,22 @@ void *run_it(void *_d)
         */
         if ( gtf_query(itr, name, c->pos+1, endpos) != 0 || itr->n == 0) continue;
         
-        args.reads_in_gene++;
+        // args.reads_in_gene++;
 
         struct isoform *S = bend_sam_isoform(b);
         
         int l;
         int anti = 0;
         int trans_novo = 0;
+        int is_intron = 0;
+        int is_ambi = 0;
+        
         trans.l = genes.l = gene_id.l = 0;
         
         // exon > intron > antisense
         struct gtf_lite *g = &G->gtf[itr->st];
+        // debug_print("%s",args.G->gene_name->name[g->gene_name]);
+        
         for (l = 0; l < itr->n; ++l) {            
             struct gtf_lite *g0 = &g[l];
             if (args.ignore_strand == 0) {
@@ -480,7 +487,12 @@ void *run_it(void *_d)
                     continue;
                 }
             }
-        
+
+            if (c->pos+1 < g0->start || endpos > g0->end || c->pos >= g0->end || endpos <= g0->start) {
+                is_ambi = 1;
+                continue; // not full enclosed in genes
+            }
+                
             /*
             // for reads overlapped with multiply genes, only count the last one, since the last one is more close with the reads
             g = g + (n-1);
@@ -491,7 +503,7 @@ void *run_it(void *_d)
             for (i = 0; i < g->n_son; ++i) {
                 struct gtf_lite *g1 = &g0->son[i];
                 if (g1->type != feature_transcript) continue;
-                debug_print("%s",args.G->transcript_id->name[g1->transcript_id]);
+                // debug_print("%s",args.G->transcript_id->name[g1->transcript_id]);
                 int ret = match_isoform(S, g1);
                 // debug_print("%d", ret);
                 if (ret == -2) continue;
@@ -499,8 +511,10 @@ void *run_it(void *_d)
                     trans_novo = 1;
                     continue; // not this transcript
                 }
-                if (ret == -1) continue; // introns will also be filter
-
+                if (ret == -1) {
+                    is_intron = 1;
+                    continue; // introns will also be filter
+                }
                 trans_novo = 0;
                 in_gene = 1;
                 if (trans.l) kputc(';', &trans);
@@ -519,37 +533,28 @@ void *run_it(void *_d)
         // GN_tag
         // char *gene = G->gene_name->name[g->gene_name];
         // l = strlen(gene);
-        if (genes.l) {
-            
-            // TX,RE
-            if (trans.l) {
-                bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
-                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
-                args.reads_in_exon++;
-            }
-            else { // not cover any transcript            
-                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
-                args.reads_in_intron++;
-            }
-            
-
+        if (trans.l) { // match case
+            bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
             bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
-            
-            // GX
-            //char *gene_id = G->gene_id->name[g->gene_id];
-            // l = strlen(gene_id);
             bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
+            // args.reads_in_exon++;
         }
         else if (anti) { // antisense
-            args.reads_antisense++;
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
+            // args.reads_antisense++;
         }
-        else {
-            if (trans_novo) {
-                kputs(G->gene_name->name[g->gene_name], &genes);
-                bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
-                bam_aux_append(b, TX_tag, 'Z', 8, (uint8_t*)"UNKNOWN");            
-            }
+        else if (trans_novo) {
+            kputs(G->gene_name->name[g->gene_name], &genes);
+            bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
+            bam_aux_append(b, TX_tag, 'Z', 8, (uint8_t*)"UNKNOWN");            
+        }
+        else if (is_intron) {
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
+            // args.reads_in_intron++;
+        }
+        else if (is_ambi) {
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"U");
         }
     }
     if (trans.m) free(trans.s);
