@@ -559,6 +559,7 @@ void *run_it(void *_d)
         else if (is_ambi) {
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"U");
         }
+        free(S->p);
         free(S);
     }
     if (trans.m) free(trans.s);
@@ -659,7 +660,7 @@ int bam_anno_attr(int argc, char *argv[])
         hts_tpool_destroy(p);
     }
 
-    write_report();
+    // write_report();
     memory_release();    
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     
