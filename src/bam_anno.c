@@ -633,7 +633,7 @@ int bam_anno_attr(int argc, char *argv[])
             bam_read_pool(b, args.fp, args.hdr, args.chunk_size);
             
             if (b == NULL) break;
-            if (b->n == 0) { free(b); break; }
+            if (b->n == 0) { free(b->bam); free(b); break; }
             
             int block;
             do {

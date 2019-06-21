@@ -125,7 +125,7 @@ static struct attr_pair *bend_pair(char *s, int *n)
     struct attr_pair *pp = malloc(*n*sizeof(struct attr_pair));
     int i;
     kstring_t key = {0,0,0};
-    for (i = 0; i < *n; ++i) {
+    for (i = 0; i < *n+1; ++i) {
         char *p0 = str.s+t[i];
         while (isspace(*p0)) p0++;
         char *p1 = p0;
@@ -219,6 +219,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str)
     gtf.strand = strand[0] == '+' ? 0 : 1;
     gtf.attr_dict = kh_init(attr);
     char *attr = str->s+s[8];
+    
     int n0, i;
     struct attr_pair *pair = bend_pair(attr, &n0);
     for (i = 0; i < n0; ++i) {
@@ -242,9 +243,11 @@ static int parse_str(struct gtf_spec *G, kstring_t *str)
         }
         free(pp->key);
         if (pp->val) free(pp->val);
-    }
-    free(s);
+    }    
+
     free(pair);
+    free(s);
+    
     switch (qry) {
         case feature_gene:
         case feature_inter:
