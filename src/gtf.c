@@ -357,7 +357,7 @@ int gtf_query(struct gtf_itr *itr, char *name, int start, int end)
         struct gtf_lite *g1 = &G->gtf[i];
         if (g1->start <= end) c++;
         else break;
-        if (c > 4) break; // cover over 4 genes?? impossible
+        // if (c > 4) break; // cover over 4 genes?? impossible
     }
 
     itr->id = id;
