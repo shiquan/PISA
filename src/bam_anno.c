@@ -171,6 +171,7 @@ static int parse_args(int argc, char **argv)
         memcpy(GX_tag, str.s+s[3], 2*sizeof(char));
         memcpy(RE_tag, str.s+s[4], 2*sizeof(char));
         free(str.s);
+        free(s);
     }
     
     if (args.bed_fname) {
@@ -429,6 +430,7 @@ void bam_pool_destory(struct bam_pool *p)
     int i;
     for (i = 0; i <p->n; ++i) 
         free(p->bam[i].data);
+    free(p->bam);
     free(p);
 }
 void *run_it(void *_d)
@@ -557,6 +559,7 @@ void *run_it(void *_d)
         else if (is_ambi) {
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"U");
         }
+        free(S);
     }
     if (trans.m) free(trans.s);
     if (genes.m) free(genes.s);
