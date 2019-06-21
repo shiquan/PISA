@@ -491,7 +491,7 @@ void *run_it(void *_d)
             for (i = 0; i < g->n_son; ++i) {
                 struct gtf_lite *g1 = &g0->son[i];
                 if (g1->type != feature_transcript) continue;
-                debug_print("%s",args.G->transcript_id[g1->transcript_id]);
+                debug_print("%s",args.G->transcript_id->name[g1->transcript_id]);
                 int ret = match_isoform(S, g1);
                 // debug_print("%d", ret);
                 if (ret == -2) continue;
