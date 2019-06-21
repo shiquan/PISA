@@ -160,24 +160,7 @@ static int gtf_push_new_gene(struct gtf_spec *G, struct gtf_lite *gl)
         G->m_gtf = G->m_gtf == 0 ? 512 : G->m_gtf<<1;
         G->gtf = realloc(G->gtf, G->m_gtf*sizeof(struct gtf_lite));
     }
-    struct gtf_lite *g0 = &G->gtf[G->n_gtf];
-    /*
-      memset(g0, 0, sizeof(struct gtf_lite));
-    
-    g0->seqname = gl->seqname;
-    g0->source = gl->source;
-    g0->type = gl->type;
-    g0->start = gl->start;
-    g0->end = gl->end;
-    g0->strand = gl->strand;
-    g0->gene_id = gl->gene_id;
-    g0->gene_name = gl->gene_name;
-    g0->transcript_id = gl->transcript_id;
-    g0->attr_dict = gl->attr_dict;
-    g0->n_son = gl->n_son;
-    g0->m_son = gl->m_son;
-    g0->son = gl->son;
-    */
+    // struct gtf_lite *g0 = &G->gtf[G->n_gtf];
     memcpy(&G->gtf[G->n_gtf], gl, sizeof(struct gtf_lite));
     G->n_gtf++;
     return 0;
@@ -185,7 +168,7 @@ static int gtf_push_new_gene(struct gtf_spec *G, struct gtf_lite *gl)
 static int gtf_push_to_record(struct gtf_lite *g0, struct gtf_lite *g1)
 {
     if (g0->n_son == g0->m_son) {
-        g0->m_son = g0->m_son == 0 ? 2 : g0->m_son<<1;
+        g0->m_son = g0->m_son == 0 ? 32 : g0->m_son<<1;
         g0->son = realloc(g0->son, g0->m_son*sizeof(struct gtf_lite));
     }
     memcpy(&g0->son[g0->n_son++], g1, sizeof(struct gtf_lite));
