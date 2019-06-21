@@ -125,7 +125,7 @@ static struct attr_pair *bend_pair(char *s, int *n)
     struct attr_pair *pp = malloc(*n*sizeof(struct attr_pair));
     int i;
     kstring_t key = {0,0,0};
-    for (i = 0; i < *n+1; ++i) {
+    for (i = 0; i < *n; ++i) {
         char *p0 = str.s+t[i];
         while (isspace(*p0)) p0++;
         char *p1 = p0;
