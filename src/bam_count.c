@@ -414,7 +414,7 @@ int count_matrix(int argc, char **argv)
 
         // qsort(args.CBC, lb->n, sizeof(struct cell_barcode_counts), rank_cmp);
         
-        fprintf(count, "CELL_BARCODE\tnUMI\tnGene\n");
+        fprintf(count, "CELL_BARCODE\tnUMI\tnGene\tSaturation\n");
         for (i = 0; i < lb->n; ++i) {
             if (args.CBC[i].nUMI > 0) 
                 fprintf(count, "%s\t%d\t%d\t%.4f\n", lb->b[i].s, args.CBC[i].nUMI, args.CBC[i].nGene, 1.0-((float)args.CBC[i].nUMI/args.CBC[i].raw_UMI));
