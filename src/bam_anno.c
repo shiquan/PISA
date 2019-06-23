@@ -27,6 +27,7 @@ static int usage()
     fprintf(stderr, "  -gtf             GTF annotation file. -gtf is conflict with -bed, if set strand will be consider.\n");
     fprintf(stderr, "  -tags            Attribute names. Default is TX,AN,GN,GX,RE.\n");
     fprintf(stderr, "  -ignore-strand   Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be count.\n");
+    fprintf(stderr, "  -splice-consider Reads covered exon-intron edge will also be count.\n");
     fprintf(stderr, "  -t               Threads.\n");
     fprintf(stderr, "  -chunk           Chunk size per thread.\n");
     fprintf(stderr, "\nNotice :\n");
@@ -47,7 +48,7 @@ static struct args {
     const char *report_fname;
     
     int ignore_strand;
-
+    int splice_consider;
     int n_thread;
     int chunk_size;
     
@@ -79,6 +80,7 @@ static struct args {
     .gtf_fname       = NULL,
     .report_fname    = NULL,
     .ignore_strand   = 0,
+    .splice_consider = 0,
     .n_thread = 4,
     .chunk_size = 100000,
     .fp              = NULL,
@@ -311,7 +313,7 @@ struct isoform *bend_sam_isoform(bam1_t *b)
 // ret == 1, (p::start < G::start && p::end > G::start) || (p::start < G::end && p::end > G::end)
 // ret == 2, if isoform cover two or more exomes, other cases will not count here. missed isoforms will be count at match_isoform()
 
-static void query_exon(struct pair *p, struct gtf_lite *G, int *start, int *c, int *ret)
+static void query_exon(struct pair *p, struct gtf_lite const *G, int *start, int *c, int *ret)
 {
     int i;
     int st = -1;
@@ -324,7 +326,7 @@ static void query_exon(struct pair *p, struct gtf_lite *G, int *start, int *c, i
     
     for (i = *start; i < G->n_son; ++i) {
        
-        struct gtf_lite *g0 = G->strand == 0 ? &G->son[i] : &G->son[G->n_son-i-1];
+        struct gtf_lite const *g0 = G->strand == 0 ? &G->son[i] : &G->son[G->n_son-i-1];
         if (g0->type != feature_exon) continue;
         ic++;
         if (p->start >= g0->start && p->end <= g0->end) {
@@ -358,7 +360,7 @@ static void query_exon(struct pair *p, struct gtf_lite *G, int *start, int *c, i
     // fprintf(stderr, "%d\t%d\t%d\n",p->start,p->end,*c);
 }
 //-1 on intron, 0 on match on exon, 1 on overlap exon-intron, 2 on missed isoform at read, 3 on more isoform at read 
-int match_isoform(struct isoform *S, struct gtf_lite *G)
+int match_isoform(struct isoform *S, struct gtf_lite const *G)
 {
     int i;
     int ret = 0;
@@ -442,7 +444,7 @@ void *run_it(void *_d)
     kstring_t genes = {0,0,0};
     kstring_t gene_id = {0,0,0};
     bam_hdr_t *h = args.hdr;
-    struct gtf_spec *G = args.G;
+    struct gtf_spec const *G = args.G;
     int i;
     for (i = 0; i < p->n; ++i) {
         bam1_t *b = &p->bam[i];
@@ -469,15 +471,15 @@ void *run_it(void *_d)
         int trans_novo = 0;
         int is_intron = 0;
         int is_ambi = 0;
-        
+        int splice_overlapped = 0;
         trans.l = genes.l = gene_id.l = 0;
         
         // exon > intron > antisense
-        struct gtf_lite *g = &G->gtf[itr->st];
+        struct gtf_lite const *g = &G->gtf[itr->st];
         // debug_print("%s",args.G->gene_name->name[g->gene_name]);
         
         for (l = 0; l < itr->n; ++l) {            
-            struct gtf_lite *g0 = &g[l];
+            struct gtf_lite const *g0 = &g[l];
             if (args.ignore_strand == 0) {
                 if (c->flag & BAM_FREVERSE) {
                     if (g0->strand == 0) {
@@ -504,7 +506,7 @@ void *run_it(void *_d)
             int in_gene = 0;
             // TX
             for (i = 0; i < g->n_son; ++i) {
-                struct gtf_lite *g1 = &g0->son[i];
+                struct gtf_lite const *g1 = &g0->son[i];
                 if (g1->type != feature_transcript) continue;
                 // debug_print("%s",args.G->transcript_id->name[g1->transcript_id]);
                 int ret = match_isoform(S, g1);
@@ -518,6 +520,11 @@ void *run_it(void *_d)
                     is_intron = 1;
                     continue; // introns will also be filter
                 }
+                if (ret == 1) { 
+                    splice_overlapped = 1;
+                    if (args.splice_consider == 0) continue;
+                }
+                
                 trans_novo = 0;
                 in_gene = 1;
                 if (trans.l) kputc(';', &trans);
@@ -559,6 +566,10 @@ void *run_it(void *_d)
         else if (is_ambi) {
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"U");
         }
+        else if (splice_overlapped) {
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"S");
+        }
+        
         free(S->p);
         free(S);
     }
