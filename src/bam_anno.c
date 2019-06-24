@@ -450,6 +450,8 @@ void *run_it(void *_d)
         bam1_t *b = &p->bam[i];
         bam1_core_t *c;
         c = &b->core;
+        if (c->tid == -1 || c->flag | BAM_FUNMAP) continue;
+        
         char *name = h->target_name[c->tid];
         int endpos = bam_endpos(b);
 
