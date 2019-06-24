@@ -161,7 +161,7 @@ task fastq2bam {
   command {
     source ${lib}
 
-    ${STAR} --outStd SAM --outSAMunmapped Within --outStd SAM --runThreadN --genomeDir ${refdir} --readFilesIn ${fastq} | ${root}/SingleCellTools sam2bam -k -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt  /dev/stdin
+    ${STAR} --outSAMunmapped Within --outStd SAM --runThreadN 20 --genomeDir ${refdir} --readFilesIn ${fastq} | ${root}/SingleCellTools sam2bam -k -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt  /dev/stdin
   }
   output {
     String bam="${outdir}/temp/aln.bam"
