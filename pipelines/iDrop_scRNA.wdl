@@ -82,7 +82,7 @@ task countMatrix {
   command {
     source ${lib}
 
-    ${root}/SingleCellTools count -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count.mtx -list ${list} ${anno}
+    ${root}/SingleCellTools count -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count_mtx.tsv -list ${list} ${anno}
     echo "[`date +%F` `date +%T`] workflow end" >> ${outdir}/workflowtime.log
   }
 }
@@ -95,8 +95,7 @@ task cellCalling {
   Int ?forceCell
   String ?lib
   command {
-    source ${lib}
-    
+    source ${lib}    
     ${Rscript} ${root}/scripts/scRNA_cell_calling.R -i ${count} -o ${outdir}/outs -e ${default=1000 expectCell} -f ${default=0 forceCell}
   }
   output {
@@ -112,7 +111,7 @@ task cellCount {
   String ?lib
   command {
     source ${lib}
-    ${root}/SingleCellTools count -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count_raw.mtx -count ${outdir}/temp/cell_stat.txt -list ${rawlist} ${bam}
+    ${root}/SingleCellTools count -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count_mtx_raw.tsv -count ${outdir}/temp/cell_stat.txt -list ${rawlist} ${bam}
   }
   output {
     String count="${outdir}/temp/cell_stat.txt"
