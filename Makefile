@@ -11,17 +11,16 @@ LIBFML = fermi-lite/libfml.a
 CC       = gcc
 CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64
 DFLAGS   =
-INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I fermi-lite 
-LIBS = -lz -lbz2 -llzma -pthread -lm
+INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I fermi-lite -I zlib-1.2.11
+LIBS = -lbz2 -llzma -pthread -lm
 
-all:$(PROG)
+#all:$(PROG)
 
 # See htslib/Makefile
 PACKAGE_VERSION := $(shell git describe --tags)
 
 single_cell_version.h:
 	echo '#define SINGLECELL_VERSION "$(PACKAGE_VERSION)"' > $@
-
 
 .SUFFIXES:.c .o
 
@@ -50,6 +49,8 @@ ASSM_LIB_OBJ =	fermi-lite/bfc.o fermi-lite/bseq.o fermi-lite/bubble.o fermi-lite
 	fermi-lite/mrope.o fermi-lite/rld0.o fermi-lite/rle.o fermi-lite/rope.o fermi-lite/unitig.o
 
 # bfc.c bseq.c		bubble.c	example.c	htab.c		ksw.c		kthread.c	mag.c		misc.c		mrope.c		rld0.c		rle.c		rope.c		unitigc.
+libz:
+	cd zlib-1.2.11 && ${MAKE}
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@
@@ -61,8 +62,8 @@ libfml.a: $(ASSM_LIB_OBJ)
 
 test: $(HTSLIB) version.h
 
-SingleCellTools: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h libfml.a
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) fermi-lite/libfml.a  src/liba.a $(HTSLIB) $(LIBS)
+SingleCellTools: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h libfml.a libz
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) fermi-lite/libfml.a  src/liba.a zlib-1.2.11/libz.a $(HTSLIB) $(LIBS)
 
 src/bam_anno.o: src/bam_anno.c
 src/bam_count.o: src/bam_count.c
