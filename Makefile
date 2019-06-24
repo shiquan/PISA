@@ -63,7 +63,7 @@ libfml.a: $(ASSM_LIB_OBJ)
 test: $(HTSLIB) version.h
 
 SingleCellTools: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h libfml.a libz
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) fermi-lite/libfml.a  src/liba.a zlib-1.2.11/libz.a $(HTSLIB) $(LIBS)
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) fermi-lite/libfml.a  src/liba.a $(HTSLIB) zlib-1.2.11/libz.a $(LIBS)
 
 src/bam_anno.o: src/bam_anno.c
 src/bam_count.o: src/bam_count.c
