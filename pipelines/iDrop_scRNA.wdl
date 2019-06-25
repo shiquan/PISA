@@ -79,10 +79,11 @@ workflow main {
     outdir=outdir,
     expectCell = expectCell,
     Rscript=Rscript,
-    matrix=countMatrix.matrix
+    matrix=countMatrix.matrix,
+    ID=ID
   }
 }
-task report {
+Task report {
   String root
   String Rscript
   String ?lib
