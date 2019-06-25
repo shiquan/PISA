@@ -194,7 +194,7 @@ static int gtf_push_to_last_gene(struct gtf_spec *G, struct gtf_lite *gl)
 1	ensembl_havana	gene	3205901	3671498	.	-	.	gene_id "ENSMUSG00000051951"; gene_version "5"; gene_name "Xkr4"; gene_source "ensembl_havana"; gene_biotype "protein_coding"
 1	havana	transcript	3205901	3216344	.	-	.	gene_id "ENSMUSG00000051951"; gene_version "5"; transcript_id "ENSMUST00000162897"; transcript_version "1"; gene_name "Xkr4"; gene_source "ensembl_havana"; gene_biotype "protein_coding"; transcript_name "Xkr4-203"; transcript_source "havana"; transcript_biotype "processed_transcript"; transcript_support_level "1"
  */
-static int parse_str(struct gtf_spec *G, kstring_t *str)
+static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
 {
     int n;
     // debug_print("%s", str->s);
@@ -207,6 +207,9 @@ static int parse_str(struct gtf_spec *G, kstring_t *str)
     if (qry == -1) {
         warnings("Unknown feature type. %s", feature);
         return 1;
+    }
+    if (filter) {
+        if (qry != feature_gene && qry != feature_exon && qry != feature_transcript) return 0;
     }
     struct gtf_lite gtf;
     memset(&gtf, 0, sizeof(gtf));
@@ -262,7 +265,8 @@ static int parse_str(struct gtf_spec *G, kstring_t *str)
     return 0;
 }
 // key names: gene_id, gene_name, transcript_id,
-struct gtf_spec *gtf_read(const char *fname)
+// if filter == 1, only keep genes, transcripts and exons
+struct gtf_spec *gtf_read(const char *fname, int filter)
 {
     gzFile fp;
     fp = gzopen(fname, "r");
@@ -281,7 +285,8 @@ struct gtf_spec *gtf_read(const char *fname)
             continue;
         }
         if (str.s[0] == '#') continue;
-        if (parse_str(G, &str)) warnings("Skip line %d, %s", line, str.s);
+        if (parse_str(G, &str, filter)) warnings("Skip line %d, %s", line, str.s);
+
     }
     free(str.s);
     gzclose(fp);
@@ -325,6 +330,7 @@ struct gtf_itr *gtf_itr_build(struct gtf_spec *G)
     i->id = -1;
     return i;
 }
+// todo: improve performance here
 int gtf_query(struct gtf_itr *itr, char *name, int start, int end)
 {
     struct gtf_spec *G = itr->G;
@@ -371,6 +377,7 @@ int gtf_query(struct gtf_itr *itr, char *name, int start, int end)
     itr->n = c;
     return 0;
 }
+/*
 static int last_idx = -1;
 static int last_id = -1;
 
@@ -429,6 +436,7 @@ struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int
     last_idx = st;
     return &G->gtf[st];
 }
+*/
 void gtf_format_print_test(struct gtf_spec *G)
 {
     int i;
@@ -448,7 +456,7 @@ void gtf_format_print_test(struct gtf_spec *G)
 int main(int argc, char **argv)
 {
     if (argc != 2) error("gtfformat in.gtf");
-    struct gtf_spec *G = gtf_read(argv[1]);
+    struct gtf_spec *G = gtf_read(argv[1], 1);
     gtf_format_print_test(G);
     gtf_destory(G);
     return 0;

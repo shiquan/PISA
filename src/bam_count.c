@@ -20,9 +20,10 @@ static int usage()
     fprintf(stderr, "    -list       [FILE]  Barcode list, white list, used as column names at matrix. If not set all barcodes will be count.\n");
     fprintf(stderr, "    -o          [FILE]  Output matrix.\n");
     fprintf(stderr, "    -umi        [UY]    UMI tag. Count once if more than one record has same UMI which overlapped with a region.\n");
-    fprintf(stderr, "    -dis_corr            Disable correct UMI. Default all UMIs with 1 mismatch distance to each other are collapsed\n");
+    fprintf(stderr, "    -dis_corr           Disable correct UMI. Default all UMIs with 1 mismatch distance to each other are collapsed\n");
     fprintf(stderr, "    -q          [INT]   Minimal map quality to filter. [20]\n");
     fprintf(stderr, "    -count      [FILE]  UMI,Gene,Saturation per cell barcode.\n");
+    fprintf(stderr, "    -@          [5]     Threads to read bam file.\n");
     fprintf(stderr,"\n");
 
     return 1;
@@ -45,6 +46,7 @@ static struct args {
     const char *count_fname; // umi per cell barcode
     int mapq_thres;
     int dis_corr_umi;
+    int file_thread;
     struct cell_barcode_counts *CBC;
 } args = {
     .input_fname = NULL,
@@ -56,6 +58,7 @@ static struct args {
     .umi_tag = NULL,
     .mapq_thres = 20,
     .dis_corr_umi = 0,
+    .file_thread = 5,
     .count_fname = NULL,
     .CBC = NULL,
 };
@@ -66,6 +69,7 @@ static int parse_args(int argc, char **argv)
 {
     int i;
     const char *mapq = NULL;
+    const char *file_thread = NULL;
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -76,6 +80,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-umi") == 0) var = &args.umi_tag;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-q") == 0) var = &mapq;
+        else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-dis_corr") == 0) {
             args.dis_corr_umi = 1;
             continue;
@@ -99,6 +104,7 @@ static int parse_args(int argc, char **argv)
     if (args.tag == 0) error("No cell barcode specified.");
     if (args.anno_tag == 0) error("No anno tag specified.");
     // if (args.whitelist_fname == 0) error("No barcode list specified.");
+    if (file_thread) args.file_thread = str2int((char*)file_thread);
     return 0;
 }
 struct mtx_counts {
@@ -259,9 +265,11 @@ int count_matrix(int argc, char **argv)
     if (type.format != bam && type.format != sam)
         error("Unsupported input format, only support BAM/SAM/CRAM format.");
 
+    hts_set_threads(fp, args.file_thread);
+    
     bam_hdr_t *hdr = sam_hdr_read(fp);
     CHECK_EMPTY(hdr, "Failed to open header.");
-    
+   
     FILE *out = fopen(args.output_fname, "w");
     CHECK_EMPTY(out, "%s : %s.", args.output_fname, strerror(errno));
 

@@ -7,6 +7,7 @@
 #include "htslib/sam.h"
 #include "htslib/khash_str2int.h"
 #include "htslib/kseq.h"
+#include "htslib/hts.h"
 #include "bed_lite.h"
 #include "gtf.h"
 #include <zlib.h>
@@ -20,6 +21,7 @@ static int usage()
     fprintf(stderr, "  -o               Output bam file.\n");
     fprintf(stderr, "  -q               Mapping quality threshold. [20]\n");
     fprintf(stderr, "  -report          Summary report.\n");
+    fprintf(stderr, "  -@               Threads to read and write bam file.\n");
     fprintf(stderr, "\nOptions for BED file :\n");
     fprintf(stderr, "  -bed             Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
     fprintf(stderr, "  -tag             Attribute tag name. Set with -bed\n");
@@ -28,7 +30,7 @@ static int usage()
     fprintf(stderr, "  -tags            Attribute names. Default is TX,AN,GN,GX,RE.\n");
     fprintf(stderr, "  -ignore-strand   Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be count.\n");
     fprintf(stderr, "  -splice-consider Reads covered exon-intron edge will also be count.\n");
-    fprintf(stderr, "  -t               Threads.\n");
+    fprintf(stderr, "  -t               Threads to annotate.\n");
     fprintf(stderr, "  -chunk           Chunk size per thread.\n");
     fprintf(stderr, "\nNotice :\n");
     fprintf(stderr, " * For GTF mode, this program will set tags in default, you could also reset them by -tags.\n");
@@ -116,6 +118,7 @@ static int parse_args(int argc, char **argv)
     const char *qual = NULL;
     const char *thread = NULL;
     const char *chunk = NULL;
+    const char *file_thread = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -128,6 +131,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-tags") == 0) var = &tags;
         else if (strcmp(a, "-q") == 0) var = &qual;
         else if (strcmp(a, "-t") == 0) var = &thread;
+        else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-chunk") == 0) var = &chunk;
         else if (strcmp(a, "-ignore-strand") == 0) {
             args.ignore_strand = 1;
@@ -186,11 +190,15 @@ static int parse_args(int argc, char **argv)
         double t_real;
         t_real = realtime();
 
-        args.G = gtf_read(args.gtf_fname);
+        args.G = gtf_read(args.gtf_fname, 1);
         LOG_print("Load time : %.3f sec", realtime() - t_real);
         
         if (args.G == NULL) error("GTF is empty.");
     }
+
+    int file_th = 5;
+    if (file_thread)
+        file_th = str2int((char*)file_thread);
     
     args.fp  = hts_open(args.input_fname, "r");
     CHECK_EMPTY(args.fp, "%s : %s.", args.input_fname, strerror(errno));
@@ -200,10 +208,12 @@ static int parse_args(int argc, char **argv)
     args.hdr = sam_hdr_read(args.fp);
     CHECK_EMPTY(args.hdr, "Failed to open header.");
     //int n_bed = 0;
-    
     args.out = hts_open(args.output_fname, "bw");
     CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
 
+    hts_set_threads(args.fp, file_th);
+    hts_set_threads(args.out, file_th);
+    
     if (args.report_fname) {
         args.fp_report = fopen(args.report_fname, "w");
         CHECK_EMPTY(args.fp_report, "%s : %s", args.report_fname, strerror(errno));
@@ -211,7 +221,8 @@ static int parse_args(int argc, char **argv)
     else args.fp_report =stderr;
     
     if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
-    
+
+
     return 0;
 }
 
