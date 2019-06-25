@@ -104,7 +104,7 @@ task countMatrix {
   command {
     source ${lib}
 
-    ${root}/SingleCellTools count -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count_mtx.tsv -list ${list} ${anno}
+    ${root}/SingleCellTools count -@ 20 -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count_mtx.tsv -list ${list} ${anno}
     echo "[`date +%F` `date +%T`] workflow end" >> ${outdir}/workflowtime.log
   }
   output {
@@ -136,7 +136,7 @@ task cellCount {
   String ?lib
   command {
     source ${lib}
-    ${root}/SingleCellTools count -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count_mtx_raw.tsv -count ${outdir}/temp/cell_stat.txt -list ${rawlist} ${bam}
+    ${root}/SingleCellTools count -tag CB -@ 20 -anno_tag GN -umi UY -o ${outdir}/outs/count_mtx_raw.tsv -count ${outdir}/temp/cell_stat.txt -list ${rawlist} ${bam}
   }
   output {
     String count="${outdir}/temp/cell_stat.txt"
