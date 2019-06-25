@@ -83,7 +83,7 @@ workflow main {
     ID=ID
   }
 }
-Task report {
+task report {
   String root
   String Rscript
   String ?lib
