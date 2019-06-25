@@ -72,6 +72,28 @@ workflow main {
     outdir=outdir,
     anno=sortBam.anno
   }
+  call report {
+    input:
+    root = root,
+    lib=lib,
+    outdir=outdir,
+    expectCell = expectCell,
+    Rscript=Rscript,
+    matrix=countMatrix.matrix
+  }
+}
+task report {
+  String root
+  String Rscript
+  String ?lib
+  Int ?expectCell
+  String ID
+  String outdir
+  String matrix
+  command {
+    source ${lib} 
+    ${Rscript} -e 'library(rmarkdown);render("${root}/scripts/iDrop_RNAseq.Report.rmd", output_format="html_document", output_file = "${outdir}/outs/${ID}.html", params = list(lib="${ID}",exp="${default=1000 expectCell}"))'
+  }
 }
 task countMatrix {
   String root
@@ -84,6 +106,9 @@ task countMatrix {
 
     ${root}/SingleCellTools count -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count_mtx.tsv -list ${list} ${anno}
     echo "[`date +%F` `date +%T`] workflow end" >> ${outdir}/workflowtime.log
+  }
+  output {
+    String matrix = "${outdir}/outs/count_mtx.tsv"
   }
 }
 task cellCalling {
