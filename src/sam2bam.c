@@ -278,7 +278,7 @@ static void summary_report(struct args *opts)
         fprintf(opts->fp_report,"Minus strand : %"PRIu64"\n", summary->n_mstrand);
         fprintf(opts->fp_report,"Mapping quals above %d : %"PRIu64"\n", opts->qual_thres, summary->n_qual);
         fprintf(opts->fp_report,"Mitochondria ratio : %.2f%%\n", (float)summary->n_mito/summary->n_mapped*100);
-        fprintf(opts->fp_report,"Usable reads (ratio) : %"PRIu64" (%.2f%%)\"}\n", summary->n_usable, (float)summary->n_usable/summary->n_reads*100);
+        fprintf(opts->fp_report,"Usable reads (ratio) : %"PRIu64" (%.2f%%)\"\n", summary->n_usable, (float)summary->n_usable/summary->n_reads*100);
 
     }
 
