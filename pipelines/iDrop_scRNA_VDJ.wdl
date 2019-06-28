@@ -101,7 +101,7 @@ task sortFastq {
   command {
     source ${lib}
     ${root}/SingleCellTools fsort -tag CB,UY -t 10 -mem -dropN ${fastq} -o ${outdir}/temp/sorted.fq
-    ${root}/SingleCellTools parse -config ${config}  ${outdir}/temp/sorted.fq -o ${outdir}/temp/select.fq    
+    ${root}/SingleCellTools parse -config ${config}  ${outdir}/temp/sorted.fq -cbdis /dev/null -repory /dev/null > ${outdir}/temp/select.fq    
   }
 }
 task report {
