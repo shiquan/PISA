@@ -92,7 +92,10 @@ task report {
   String outdir
   String matrix
   command {
-    source ${lib} 
+    if [ -f ${default=abjdbashj lib} ]; then
+    source ${lib}
+    fi
+    
     ${Rscript} -e 'library(rmarkdown);render("${root}/scripts/iDrop_RNAseq.Report.rmd", output_format="html_document", output_file = "${outdir}/outs/${ID}.html", params = list(lib="${ID}",exp="${default=1000 expectCell}"))'
   }
 }
@@ -103,7 +106,10 @@ task countMatrix {
   String anno
   String ?lib
   command {
+
+    if [ -f ${default=abjdbashj lib} ]; then
     source ${lib}
+    fi
 
     ${root}/SingleCellTools count -@ 20 -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count_mtx.tsv -list ${list} ${anno}
     echo "[`date +%F` `date +%T`] workflow end" >> ${outdir}/workflowtime.log
@@ -121,7 +127,10 @@ task cellCalling {
   Int ?forceCell
   String ?lib
   command {
-    source ${lib}    
+    if [ -f ${default=abjdbashj lib} ]; then
+    source ${lib}
+    fi
+
     ${Rscript} ${root}/scripts/scRNA_cell_calling.R -i ${count} -o ${outdir}/outs -e ${default=1000 expectCell} -f ${default=0 forceCell}
   }
   output {
@@ -136,7 +145,10 @@ task cellCount {
   String rawlist
   String ?lib
   command {
+    if [ -f ${default=abjdbashj lib} ]; then
     source ${lib}
+    fi
+
     ${root}/SingleCellTools count -tag CB -@ 20 -anno_tag GN -umi UY -o ${outdir}/outs/count_mtx_raw.tsv -count ${outdir}/temp/cell_stat.txt -list ${rawlist} ${bam}
   }
   output {
@@ -164,7 +176,9 @@ task parseFastq {
   String root
   String ?lib
   command {
+    if [ -f ${default=abjdbashj lib} ]; then
     source ${lib}
+    fi
 
     ${root}/SingleCellTools parse -t 15 -f -q 20 -dropN -config ${config} -cbdis ${outdir}/temp/barcode_counts_raw.txt -run ${default="1" runID} -report ${outdir}/temp/sequencing_report.txt ${fastq1} ${fastq2}  > ${outdir}/temp/reads.fq
     head -n 50000 ${outdir}/temp/barcode_counts_raw.txt |cut -f1 > ${outdir}/temp/barcode_raw_list.txt
@@ -185,9 +199,11 @@ task fastq2bam {
   String root
   String ?lib
   command {
+    if [ -f ${default=abjdbashj lib} ]; then
     source ${lib}
+    fi
 
-    ${STAR} --outSAMunmapped Within --outStd SAM --runThreadN 20 --genomeDir ${refdir} --readFilesIn ${fastq} | ${root}/SingleCellTools sam2bam -k -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt  /dev/stdin
+    ${STAR}  --outStd SAM --runThreadN 20 --genomeDir ${refdir} --readFilesIn ${fastq} | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt  /dev/stdin
   }
   output {
     String bam="${outdir}/temp/aln.bam"
@@ -202,7 +218,9 @@ task sortBam {
   String gtf
   String ?lib
   command {
+    if [ -f ${default=abjdbashj lib} ]; then
     source ${lib}
+    fi
 
     ${sambamba} sort -t 20 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam
     ${root}/SingleCellTools anno -gtf ${gtf} -o ${outdir}/temp/anno.bam ${outdir}/temp/sorted.bam
