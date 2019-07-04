@@ -1,14 +1,10 @@
 ---
 params:
-  directory:
-    value: x 
+  path:
+    value: .
   lib:
     value: x
   exp:
-    value: x
-  beads:
-    value: x
-  beadscon:
     value: x
   cellcon:
     value: x
@@ -39,7 +35,7 @@ suppressPackageStartupMessages({
 
 
 ```{r chunk1,fig.height=4,fig.width=12}
-bc <- fread("temp/cell_stat.txt",header=TRUE)
+bc <- fread(paste(params$path, "/temp/cell_stat.txt", sep=""),header=TRUE)
 bc <- as.data.frame(bc)
 bc <- subset(bc, bc$nUMI>0)
 bc <- bc[order(bc$nUMI, decreasing=T),]
