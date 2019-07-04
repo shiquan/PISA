@@ -139,7 +139,7 @@ task parse_fastq {
   String runID
   String beads_config
   command {
-    ${root}/SingleCellTools parse -t 15 -q 20 -dropN -config ${beads_config} -cbdis ${outdir}/temp/beads_barcode_dis.txt -run ${default="LFR" runID} -report ${outdir}/temp/beads_report.txt ${fastq1} ${fastq2} -1 ${outdir}/temp/read_1.fq -2 ${outdir}/temp/read_2.fq    
+    ${root}/SingleCellTools parse -t 15 -q 20 -dropN -config ${beads_config} -cbdis ${outdir}/temp/beads_barcode_dis.txt -run ${default="LFR" runID} -report ${outdir}/temp/beads_report.txt ${fastq1} ${fastq2} -1 ${outdir}/temp/read_1.fq -2 ${outdir}/temp/read_2.fq 
   }
   output {
     String count="${outdir}/temp/beads_barcode_dis.txt"
