@@ -44,7 +44,7 @@ len<-length(bc$nUMI)
 a = log10(1:len)
 b = log10(as.numeric(bc$nUMI))
 lo <- loess(b~a,span = 0.004,degree = 2)
-c = log10(int(params$exp)*1.7)
+c = log10(as.numeric(params$exp)*1.7)
 if(10^c>len){c=log10(600)}
 xl <- seq(2,c, (c - 2)/10)
 out = predict(lo,xl)
@@ -102,7 +102,7 @@ grid.arrange(arrangeGrob(p1, p, widths =  c(5,5)), nrow = 1)
 ```
 
 ```{r  fig.height=4,fig.width=8}
-cell <- fread(paste(params$path,"outs/count_mtx.tsv", sep=""),header = T)
+cell <- fread(paste(params$path,"/outs/count_mtx.tsv", sep=""),header = T)
 cell <- as.data.frame(cell)
 names <- as.array(as.matrix(cell[1]))
 names = gsub("_", "-", names)
