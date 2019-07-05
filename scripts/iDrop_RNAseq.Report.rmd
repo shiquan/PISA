@@ -128,8 +128,8 @@ z <- ScaleData(z, features = all.genes)
 z <- RunPCA(z, features = VariableFeatures(object = z))
 z <- FindNeighbors(z, dims = 1:10)
 z <- FindClusters(z, resolution = 0.5)
-z <- RunUMAP(z, dims = 1:10)
-DimPlot(z, reduction = "umap")
+z <- RunTSNE(z, dims = 1:10)
+DimPlot(z, reduction = "tsne")
 
 ```
 
