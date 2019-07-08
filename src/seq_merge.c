@@ -120,8 +120,8 @@ char* check_circle(char *seq)
         int c = seq[i];
         s[0][i] = c < 0 || c > 127? 4 : c <= 4? c : nst_nt4_table[c];
     }
-    for (; i < l_seq; ++i) {
-        int c = seq[i];
+    for (i = 0; i < l_seq - seed_length; ++i) {
+        int c = seq[i+seed_length];
         c = c < 0 || c > 127? 4 : c < 4? c : nst_nt4_table[c];
         s[1][i] = c < 0 || c > 127? 4 : c <= 4? c : nst_nt4_table[c];
     }
@@ -130,13 +130,15 @@ char* check_circle(char *seq)
     r = ksw_align(seed_length, s[0], l_seq-seed_length, s[1], 5, mat, 2, 17, xtra, 0);
     free(s[0]); free(s[1]);
     if (r.qe - r.qb == r.te - r.tb && r.qe - r.qb == seed_length-1 && r.score >= 40) {
+        /*
         int j, k;
-        int mis = 0;
-        for (j = r.te, k = r.qe; j < l_seq; ++j) 
+        int mis = 0;        
+        for (j = r.te, k = r.qe; j < l_seq; ++j, ++k) 
             if (s[j] != s[k]) mis++;
         if ((float)mis/(l_seq-j) > 0.1) return NULL;
+        */
         kstring_t str = {0,0,0};
-        kputsn(seq, r.tb, &str);
+        kputsn(seq, r.te+1, &str);
         kputs("", &str);
         return str.s;
     }
