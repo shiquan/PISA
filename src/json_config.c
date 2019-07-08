@@ -273,8 +273,9 @@ static int check_key_pair()
 static int check_complement(kstring_t *string)
 {
     int i;
-    int start = 0;
+    int start = 0;    
     int line = 1;
+    int is_val = 0;
     for (i = 0; i < string->l; ++i) {
 
         switch(string->s[i]) {
@@ -283,17 +284,21 @@ static int check_complement(kstring_t *string)
                 break;
             case '{' :
             case '[' :
-                if (stack_push(string->s[i], start, i, line)) {
-                    complement_error(string);
-                    return 1;
+                if (is_val == 0) {
+                    if (stack_push(string->s[i], start, i, line)) {
+                        complement_error(string);
+                        return 1;
+                    }
                 }
                 break;
                 
             case '}' :
             case ']' :
-                if (stack_pop(string->s[i], start, i, line)) {
-                    complement_error(string);
-                    return 1;
+                if (is_val == 0) {
+                    if (stack_pop(string->s[i], start, i, line)) {
+                        complement_error(string);
+                        return 1;
+                    }
                 }
                 break;
 
@@ -302,6 +307,9 @@ static int check_complement(kstring_t *string)
                 if (stack_quote(string->s[i], start, i, line)) {
                     complement_error(string);
                     return 1;
+                }
+                else {
+                    is_val = is_val ? 0 : 1;
                 }
                 
                 break;

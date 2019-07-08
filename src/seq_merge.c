@@ -1,0 +1,157 @@
+#include "utils.h"
+#include "ksw.h"
+#include "htslib/kstring.h"
+
+#define MAX_SCORE_RATIO 0.9f
+
+unsigned char nst_nt4_table[256] = {
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 5 /*'-'*/, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 0, 4, 1,  4, 4, 4, 2,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 4, 4, 4,  3, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 0, 4, 1,  4, 4, 4, 2,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 4, 4, 4,  3, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4
+};
+
+static void bwa_fill_scmat(int a, int b, int8_t mat[25])
+{
+	int i, j, k;
+	for (i = k = 0; i < 4; ++i) {
+		for (j = 0; j < 4; ++j)
+			mat[k++] = i == j? a : -b;
+		mat[k++] = -1; // ambiguous base
+	}
+	for (j = 0; j < 5; ++j) mat[k++] = -1;
+}
+
+// adapt from bwa/pemerge.c
+// return 1 on unchange, 0 on merged
+int PEmerge(int l_seq1, int l_seq2, char *s1, char *s2, char *q1, char *q2, char **_seq, char **_qual)
+{
+    uint8_t *s[2], *q[2], *seq, *qual;
+    int i, xtra, l, l_seq, sum_q, ret = 0;
+    kswr_t r;
+    int8_t mat[25];
+    bwa_fill_scmat(5, 4, mat);
+    s[0] = malloc(l_seq1); q[0] = malloc(l_seq1);
+    s[1] = malloc(l_seq2); q[1] = malloc(l_seq2);
+    for (i = 0; i < l_seq1; ++i) {
+        int c = s1[i];
+        s[0][i] = c < 0 || c > 127? 4 : c <= 4? c : nst_nt4_table[c];
+        q[0][i] = q1? q1[i] - 33 : 60;
+    }
+    for (i = 0; i < l_seq2; ++i) {
+        int c = s2[l_seq2 - 1 - i];
+        c = c < 0 || c > 127? 4 : c < 4? c : nst_nt4_table[c];
+        s[1][i] = c < 4? 3 - c : 4;
+        q[1][i] = q2? q2[l_seq2 - 1 - i] - 33 : 60;
+    }
+    
+    xtra = KSW_XSTART | KSW_XSUBO;
+    r = ksw_align(l_seq2, s[1], l_seq1, s[0], 5, mat, 2, 17, xtra, 0);
+    ++r.qe; ++r.te; // change to the half-close-half-open coordinates
+
+    if (r.score < 50) goto pem_ret; // poor alignment
+    if (r.tb < r.qb) goto pem_ret;
+    if (l_seq1 - r.te > l_seq2 - r.qe) goto pem_ret; // no enough space for the right end
+    if ((double)r.score2 / r.score >= MAX_SCORE_RATIO) goto pem_ret; // the second best score is too large
+    if (r.qe - r.qb != r.te - r.tb) goto pem_ret; // we do not allow gaps
+    
+    // test tandem match; O(n^2)
+    int max_m, max_m2, min_l, max_l, max_l2;
+    max_m = max_m2 = 0; max_l = max_l2 = 0;
+    min_l = l_seq1 < l_seq2? l_seq1 : l_seq2;
+    for (l = 1; l < min_l; ++l) {
+        int m = 0, o = l_seq1 - l;
+        uint8_t *s0o = &s[0][o], *s1 = s[1];
+        for (i = 0; i < l; ++i) // TODO: in principle, this can be done with SSE2. It is the bottleneck!
+            m += mat[(s1[i]<<2) + s1[i] + s0o[i]]; // equivalent to s[1][i]*5 + s[0][o+i]
+        if (m > max_m) max_m2 = max_m, max_m = m, max_l2 = max_l, max_l = l;
+        else if (m > max_m2) max_m2 = m, max_l2 = l;
+    }
+    if (max_m < 50 || max_l != l_seq1 - (r.tb - r.qb)) goto pem_ret;
+    if (max_l2 < max_l && max_m2 >= 50 && (double)(max_m2 + (max_l - max_l2) *5) / max_m >= MAX_SCORE_RATIO)
+        goto pem_ret;
+    
+    if (max_l2 > max_l && (double)max_m2 / max_m >= MAX_SCORE_RATIO) goto pem_ret;
+    
+    l = l_seq1 - (r.tb - r.qb); // length to merge
+    l_seq = l_seq1 + l_seq2 - l;
+    seq = malloc(l_seq + 1);
+    qual = malloc(l_seq + 1);
+    memcpy(seq,  s[0], l_seq1); memcpy(seq  + l_seq1, &s[1][l], l_seq2 - l);        
+    memcpy(qual, q[0], l_seq1); memcpy(qual + l_seq1, &q[1][l], l_seq2 - l);
+    for (i = 0; i < l_seq; ++i) seq[i] = "ACGTN"[(int)seq[i]], qual[i] += 33;
+    seq[l_seq] = qual[l_seq] = 0;
+    _seq = seq; _qual = qual;
+    return 0;
+
+pem_ret:
+    free(s[0]); free(s[1]); free(q[0]); free(q[1]);
+    return 1;
+}
+
+char* check_circle(char *seq)
+{   
+    uint8_t *s[2];
+    int i, xtra, l, l_seq;
+    kswr_t r;
+    int8_t mat[25];
+    int seed_length = 20;
+    int fragment_limit = 200;
+    l_seq = strlen(seq);
+    if (l_seq < fragment_limit) return NULL; // too short, only check large fragment
+    
+    bwa_fill_scmat(5, 4, mat);
+    
+    s[0] = malloc(seed_length);
+    s[1] = malloc(l_seq - seed_length);
+    for (i = 0; i < seed_length; ++i) {
+        int c = seq[i];
+        s[0][i] = c < 0 || c > 127? 4 : c <= 4? c : nst_nt4_table[c];
+    }
+    for (; i < l_seq; ++i) {
+        int c = seq[i];
+        c = c < 0 || c > 127? 4 : c < 4? c : nst_nt4_table[c];
+        s[1][i] = c < 0 || c > 127? 4 : c <= 4? c : nst_nt4_table[c];
+    }
+    
+    xtra = KSW_XSTART | KSW_XSUBO;
+    r = ksw_align(seed_length, s[0], l_seq-seed_length, s[1], 5, mat, 2, 17, xtra, 0);
+    free(s[0]); free(s[1]);
+    if (r.qe - r.qb == r.te - r.tb && r.qe - r.qb == seed_length-1 && r.score >= 40) {
+        int j, k;
+        int mis = 0;
+        for (j = r.te, k = r.qe; j < l_seq; ++j) 
+            if (s[j] != s[k]) mis++;
+        if ((float)mis/(l_seq-j) > 0.1) return NULL;
+        kstring_t str = {0,0,0};
+        kputsn(seq, r.tb, &str);
+        kputs("", &str);
+        return str.s;
+    }
+    return NULL;
+}
+
+/*
+int main(int argc, char **argv)
+{
+    if (argc != 2) error("check sequence");
+    char *seq = strdup(argv[1]);
+    printf("%s\n", seq);
+    char *s = check_circle(seq);
+    printf("%s\n", s);
+    free(seq); free(s);
+    return 0;
+}
+*/

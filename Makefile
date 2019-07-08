@@ -31,7 +31,7 @@ force:
 .c.o:
 	$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@
 
-LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/dict.o
+LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/dict.o src/seq_merge.o
 
 AOBJ = src/bam_anno.o \
 	src/bam_count.o \
@@ -44,6 +44,7 @@ AOBJ = src/bam_anno.o \
 	src/fastq_parse_barcode.o \
 	src/assem.o \
 	src/check_segment.o \
+	src/check_segment2.o
 
 ASSM_LIB_OBJ =	fermi-lite/bfc.o fermi-lite/bseq.o fermi-lite/bubble.o fermi-lite/htab.o fermi-lite/ksw.o fermi-lite/kthread.o fermi-lite/mag.o fermi-lite/misc.o \
 	fermi-lite/mrope.o fermi-lite/rld0.o fermi-lite/rle.o fermi-lite/rope.o fermi-lite/unitig.o
@@ -65,6 +66,7 @@ test: $(HTSLIB) version.h
 SingleCellTools: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h libfml.a libz
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) fermi-lite/libfml.a  src/liba.a $(HTSLIB) zlib-1.2.11/libz.a $(LIBS)
 
+src/seq_merge.o: src/seq_merge.c
 src/bam_anno.o: src/bam_anno.c
 src/bam_count.o: src/bam_count.c
 src/bam_pick.o: src/bam_pick.c
@@ -85,6 +87,7 @@ src/bam_rmdup.o: src/bam_rmdup.c
 src/bam_attr_count.o: src/bam_attr_count.c
 src/assem.o: src/assem.c
 src/check_segment.o: src/check_segment.c
+src/check_segment2.o: src/check_segment2.c
 fermi-lite/bfc.o: fermi-lite/bfc.c
 cfermi-lite/bseq.o: fermi-lite/bseq.c
 fermi-lite/bubble.o: fermi-lite/bubble.c
