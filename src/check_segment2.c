@@ -794,7 +794,8 @@ static char *pat2str(struct ref_pat *r, char **pat, int strand)
         int j;        
         for (j = 0; j < s->n; ++j)  {
             if (strand == 1) {
-                char *rev = rev_seq(pat[s->s[j].idx], s->s[j].l);
+                char *a = pat[s->s[j].idx];
+                char *rev = rev_seq(a, strlen(a)); // todo: bug fix??
                 kputs(rev, &str);
                 free(rev);
             }
