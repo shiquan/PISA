@@ -7,6 +7,7 @@ workflow main {
   String STAR
   String sambamba
   String Rscript
+  String Python3
   String ID
   String gtf
   String ?runID
@@ -79,6 +80,7 @@ workflow main {
     outdir=outdir,
     expectCell = expectCell,
     Rscript=Rscript,
+    Python3=Python3,
     matrix=countMatrix.matrix,
     ID=ID
   }
@@ -91,12 +93,14 @@ task report {
   String ID
   String outdir
   String matrix
+  String Python3
   command {
     if [ -f ${default=abjdbashj lib} ]; then
     source ${lib}
     fi
     
     ${Rscript} -e 'library(rmarkdown);render("${root}/scripts/iDrop_RNAseq.Report.rmd", output_format="html_document", output_file = "${outdir}/outs/${ID}.html", params = list(lib="${ID}",exp="${default=1000 expectCell}",path="${outdir}"))'
+    ${Python3} ${root}/script/cluster.py ${matrix} ${outdir}/outs/cluster.h5ad
   }
 }
 task countMatrix {

@@ -61,29 +61,32 @@ int PEmerge(int l_seq1, int l_seq2, char *s1, char *s2, char *q1, char *q2, char
     r = ksw_align(l_seq2, s[1], l_seq1, s[0], 5, mat, 2, 17, xtra, 0);
     ++r.qe; ++r.te; // change to the half-close-half-open coordinates
 
+    *_seq = NULL; *_qual = NULL;
     if (r.score < 50) goto pem_ret; // poor alignment
     if (r.tb < r.qb) goto pem_ret;
     if (l_seq1 - r.te > l_seq2 - r.qe) goto pem_ret; // no enough space for the right end
     if ((double)r.score2 / r.score >= MAX_SCORE_RATIO) goto pem_ret; // the second best score is too large
     if (r.qe - r.qb != r.te - r.tb) goto pem_ret; // we do not allow gaps
-    
-    // test tandem match; O(n^2)
-    int max_m, max_m2, min_l, max_l, max_l2;
-    max_m = max_m2 = 0; max_l = max_l2 = 0;
-    min_l = l_seq1 < l_seq2? l_seq1 : l_seq2;
-    for (l = 1; l < min_l; ++l) {
-        int m = 0, o = l_seq1 - l;
-        uint8_t *s0o = &s[0][o], *s1 = s[1];
-        for (i = 0; i < l; ++i) // TODO: in principle, this can be done with SSE2. It is the bottleneck!
-            m += mat[(s1[i]<<2) + s1[i] + s0o[i]]; // equivalent to s[1][i]*5 + s[0][o+i]
-        if (m > max_m) max_m2 = max_m, max_m = m, max_l2 = max_l, max_l = l;
-        else if (m > max_m2) max_m2 = m, max_l2 = l;
+
+    if (1) {
+        // test tandem match; O(n^2)
+        int max_m, max_m2, min_l, max_l, max_l2;
+        max_m = max_m2 = 0; max_l = max_l2 = 0;
+        min_l = l_seq1 < l_seq2? l_seq1 : l_seq2;
+        for (l = 1; l < min_l; ++l) {
+            int m = 0, o = l_seq1 - l;
+            uint8_t *s0o = &s[0][o], *s1 = s[1];
+            for (i = 0; i < l; ++i) // TODO: in principle, this can be done with SSE2. It is the bottleneck!
+                m += mat[(s1[i]<<2) + s1[i] + s0o[i]]; // equivalent to s[1][i]*5 + s[0][o+i]
+            if (m > max_m) max_m2 = max_m, max_m = m, max_l2 = max_l, max_l = l;
+            else if (m > max_m2) max_m2 = m, max_l2 = l;
+        }
+        if (max_m < 50 || max_l != l_seq1 - (r.tb - r.qb)) goto pem_ret;
+        if (max_l2 < max_l && max_m2 >= 50 && (double)(max_m2 + (max_l - max_l2) *5) / max_m >= MAX_SCORE_RATIO)
+            goto pem_ret;
+        
+        if (max_l2 > max_l && (double)max_m2 / max_m >= MAX_SCORE_RATIO) goto pem_ret;
     }
-    if (max_m < 50 || max_l != l_seq1 - (r.tb - r.qb)) goto pem_ret;
-    if (max_l2 < max_l && max_m2 >= 50 && (double)(max_m2 + (max_l - max_l2) *5) / max_m >= MAX_SCORE_RATIO)
-        goto pem_ret;
-    
-    if (max_l2 > max_l && (double)max_m2 / max_m >= MAX_SCORE_RATIO) goto pem_ret;
     
     l = l_seq1 - (r.tb - r.qb); // length to merge
     l_seq = l_seq1 + l_seq2 - l;
