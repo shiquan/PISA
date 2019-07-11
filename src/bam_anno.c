@@ -25,6 +25,7 @@ static int usage()
     fprintf(stderr, "\nOptions for BED file :\n");
     fprintf(stderr, "  -bed             Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
     fprintf(stderr, "  -tag             Attribute tag name. Set with -bed\n");
+    //fprintf(stderr, "  -uniq            Only keep first record if overlap with multi regions.\n");
     fprintf(stderr, "\nOptions for GTF file :\n");
     fprintf(stderr, "  -gtf             GTF annotation file. -gtf is conflict with -bed, if set strand will be consider.\n");
     fprintf(stderr, "  -tags            Attribute names. Default is TX,AN,GN,GX,RE.\n");
@@ -256,20 +257,27 @@ int check_is_overlapped_bed(bam_hdr_t *hdr, bam1_t *b, struct bedaux *B)
         return 0;
     }
     int end = bam_endpos(b);
+    
     if (end < args.last->b[args.i_bed].start) { // read align before region
         return 0;
     }
-    
+
+    kstring_t str = {0,0,0};// name buffer    
     uint8_t *tag = bam_aux_get(b, args.tag);
     if (tag) {
         warnings("%s already present at line %s:%d, skip", args.tag, hdr->target_name[c->tid], c->pos+1);
         return 1;
     }
-    kstring_t str = {0,0,0};// name buffer
-    if (args.last->b[args.i_bed].name == NULL) {
-        ksprintf(&str, "%s:%d-%d", B->names[args.last->id], args.last->b[args.i_bed].start, args.last->b[args.i_bed].end);
+    int i;
+    for (i = args.i_bed; i < args.last->n; ++i) {
+        if (end < args.last->b[i].start) break;
+        if (str.l) kputc(';', &str);
+        if (args.last->b[args.i_bed].name == NULL) {
+            ksprintf(&str, "%s:%d-%d", B->names[args.last->id], args.last->b[i].start, args.last->b[i].end);
+        }
+        else kputs(args.last->b[i].name, &str);
     }
-    else kputs(args.last->b[args.i_bed].name, &str);
+    
     bam_aux_append(b, args.tag, 'Z', str.l+1, (uint8_t*)str.s);
     free(str.s);
 

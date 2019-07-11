@@ -26,7 +26,7 @@ void bed_destroy(struct bedaux *bed)
         struct bed_chr *c = &bed->c[i];
         int j;
         for (j = 0; j < c->n; ++j) {
-            sfree(c->b[j].name);
+            if (c->b[j].name) free(c->b[j].name);
             if (c->b[j].data != NULL) error("Free all extern data first.");
         }
     }
