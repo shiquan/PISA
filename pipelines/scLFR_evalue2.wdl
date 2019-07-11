@@ -28,7 +28,7 @@ workflow main {
     fastq = parse_fastq.fastq,
     outdir = outdir,
     root = root,
-    counts = parse_fastq.report
+    bwa = bwa,
   }
   call assem {
     input:
@@ -131,10 +131,8 @@ task sort_fastq {
   String fastq
   String outdir
   String root
-  String counts
   String bwa
   command <<<
-    awk '{if($2>2) {print $1}}' ${counts}
     ${root}/SingleCellTools fsort -mem -tag LB -p ${fastq} | ${bwa} pemerge -t 20 /dev/stdin > ${outdir}/temp/sorted.fq
   >>>
   output {
