@@ -4,7 +4,12 @@ workflow main {
   String fastq2
   String outdir
   String beads_config
+  String seg_config
   String runID
+  String hisat2
+  String refdir
+  String sambamba
+  String bwa
   call makedir {
     input:
     outdir = outdir
@@ -31,16 +36,68 @@ workflow main {
     outdir = outdir,
     root = root
   }
+  call align1 {
+    input:
+    outdir = outdir,
+    fastq = assem.assem,
+    root = root,
+    hisat2 = hisat2,
+    refdir = refdir,
+    sambamba = sambamba,
+    seg_config = seg_config,
+  }
+  call align2 {
+    input:
+    outdir = outdir,
+    fastq = sort_fastq.sorted,
+    root = root,
+    hisat2 = hisat2,
+    refdir = refdir,
+    sambamba = sambamba,
+    seg_config = seg_config,
+  }
 }
+task align1 {
+  String fastq
+  String root
+  String hisat2
+  String refdir
+  String sambamba
+  String seg_config
+  String outdir
+  command {
+    ${root}/SingleCellTools segment2 -t 5 -config ${seg_config} ${fastq} > ${outdir}/temp/assem_format.fa
+    ${hisat2} -x ${refdir} -f ${outdir}/temp/assem_format.fa | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/assem_aln.bam
+    ${sambamba} sort -o ${outdir}/outs/assem.bam
+  }
+}
+task align2 {
+  String fastq
+  String root
+  String hisat2
+  String refdir
+  String sambamba
+  String seg_config
+  String outdir
+  command {
+    ${root}/SingleCellTools segment2 -t 5 -config ${seg_config} ${fastq} > ${outdir}/temp/pemerge_format.fa
+    ${hisat2} -x ${refdir} -f ${outdir}/temp/pemerge_format.fa | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/pemerge_aln.bam
+    ${sambamba} sort -o ${outdir}/outs/pemerge.bam
+  }
+}
+
 task assem {
   String fastq
   String outdir
   String root
   command {
-    echo "[`date +%F` `date +%T`] assembly start" > ${outdir}/workflowtime.log
+    echo "[`date +%F` `date +%T`] assembly start" >> ${outdir}/workflowtime.log
     ${root}/SingleCellTools assem -t 20 ${fastq} -tag LB -p > ${outdir}/temp/assem.fq
-    echo "[`date +%F` `date +%T`] assembly finished" > ${outdir}/workflowtime.log
+    echo "[`date +%F` `date +%T`] assembly finished" >> ${outdir}/workflowtime.log
   }
+  output {
+    String assem = "${outdir}/temp/assem.fq"
+    }
 }
 task makedir {
   String outdir
@@ -49,8 +106,6 @@ task makedir {
     mkdir -p ${outdir}
     mkdir -p ${outdir}/outs
     mkdir -p ${outdir}/temp
-    mkdir -p ${outdir}/temp/cell_barcode_umi
-    mkdir -p ${outdir}/temp/umi
   }
   output {
     String dir="${outdir}"
@@ -64,7 +119,7 @@ task parse_fastq {
   String runID
   String beads_config
   command {
-    ${root}/SingleCellTools parse -t 15 -q 20 -dropN -config ${beads_config} -cbdis ${outdir}/temp/beads_barcode_dis.txt -run ${default="LFR" runID} -report ${outdir}/temp/beads_report.txt ${fastq1} ${fastq2} > ${outdir}/temp/read.fq
+    ${root}/SingleCellTools parse -t 15 -q 20 -dropN -config ${beads_config} -cbdis ${outdir}/temp/beads_barcode_dis.txt -run ${default="LFR" runID} -report ${outdir}/temp/beads_report.txt ${fastq1} ${fastq2} | ${root}/SingleCellTools trim -mode Tn5 -t 5 -p /dev/stdin > ${outdir}/temp/read.fq
   }
   output {
     String count="${outdir}/temp/beads_barcode_dis.txt"
@@ -77,9 +132,10 @@ task sort_fastq {
   String outdir
   String root
   String counts
+  String bwa
   command <<<
     awk '{if($2>2) {print $1}}' ${counts}
-    ${root}/SingleCellTools fsort -mem -tag LB -o ${outdir}/temp/sorted.fq ${fastq}
+    ${root}/SingleCellTools fsort -mem -tag LB -p ${fastq} | ${bwa} pemerge -t 20 /dev/stdin > ${outdir}/temp/sorted.fq
   >>>
   output {
     String sorted="${outdir}/temp/sorted.fq"
