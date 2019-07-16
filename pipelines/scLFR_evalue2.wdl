@@ -9,7 +9,7 @@ workflow main {
   String hisat2
   String refdir
   String sambamba
-  String bwa
+
   call makedir {
     input:
     outdir = outdir
@@ -28,7 +28,6 @@ workflow main {
     fastq = parse_fastq.fastq,
     outdir = outdir,
     root = root,
-    bwa = bwa,
   }
   call assem {
     input:
@@ -36,7 +35,7 @@ workflow main {
     outdir = outdir,
     root = root
   }
-  call align1 {
+  call align {
     input:
     outdir = outdir,
     fastq = assem.assem,
@@ -46,18 +45,8 @@ workflow main {
     sambamba = sambamba,
     seg_config = seg_config,
   }
-  call align2 {
-    input:
-    outdir = outdir,
-    fastq = sort_fastq.sorted,
-    root = root,
-    hisat2 = hisat2,
-    refdir = refdir,
-    sambamba = sambamba,
-    seg_config = seg_config,
-  }
 }
-task align1 {
+task align {
   String fastq
   String root
   String hisat2
@@ -69,20 +58,6 @@ task align1 {
     ${root}/SingleCellTools segment2 -t 5 -config ${seg_config} ${fastq} > ${outdir}/temp/assem_format.fa
     ${hisat2} -x ${refdir} -f ${outdir}/temp/assem_format.fa | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/assem_aln.bam
     ${sambamba} sort -o ${outdir}/outs/assem.bam
-  }
-}
-task align2 {
-  String fastq
-  String root
-  String hisat2
-  String refdir
-  String sambamba
-  String seg_config
-  String outdir
-  command {
-    ${root}/SingleCellTools segment2 -t 5 -config ${seg_config} ${fastq} > ${outdir}/temp/pemerge_format.fa
-    ${hisat2} -x ${refdir} -f ${outdir}/temp/pemerge_format.fa | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/pemerge_aln.bam
-    ${sambamba} sort -o ${outdir}/outs/pemerge.bam
   }
 }
 
@@ -131,12 +106,11 @@ task sort_fastq {
   String fastq
   String outdir
   String root
-  String bwa
   command <<<
     ${root}/SingleCellTools fsort -dedup -t 10 -mem -tag LB -p ${fastq} > ${outdir}/temp/sorted.fq
-    ${root}/SingleCellTools trim -t 10 -mode Tn5 -d -tail 10 ${outdir}/temp/sorted.fq > ${outdir}/temp/trimmed.fq
+    ${root}/SingleCellTools cleanup -t 10 ${outdir}/temp/sorted.fq > ${outdir}/temp/cleanup.fq
   >>>
   output {
-    String sorted="${outdir}/temp/sorted.fq"
+    String sorted="${outdir}/temp/cleanup.fq"
   }
 }
