@@ -11,9 +11,6 @@
  *** From fermi ***
  ******************/
 
-typedef struct { size_t n, m; int32_t *a; } fm32s_v;
-typedef struct { size_t n, m; rldintv_t *a; } rldintv_v;
-
 static uint64_t utg_primes[] = { 123457, 234571, 345679, 456791, 567899, 0 };
 
 #define fm6_comp(a) ((a) >= 1 && (a) <= 4? 5 - (a) : (a))
@@ -110,17 +107,6 @@ static rldintv_t overlap_intv(const rld_t *e, int len, const uint8_t *seq, int m
 	kv_reverse(rldintv_t, *p, 0); // reverse the array such that the smallest interval comes first
 	return ik;
 }
-
-typedef struct {
-	const rld_t *e;
-	int min_match, min_merge_len;
-	rldintv_v a[2], nei;
-	fm32s_v cat;
-	uint64_t *used, *bend;
-	kstring_t str;
-	uint64_t n, sum, sum2, unpaired;
-} aux_t;
-
 int fm6_is_contained(const rld_t *e, int min_match, const kstring_t *s, rldintv_t *intv, rldintv_v *ovlp)
 { // for s is a sequence in e, test if s is contained in other sequences in e; return intervals right overlapping with s
 	rldintv_t ik, ok[6];
@@ -319,7 +305,7 @@ static void copy_nei(ku128_v *dst, const rldintv_v *src)
 	}
 }
 
-static int unitig1(aux_t *a, int64_t seed, kstring_t *s, kstring_t *cov, uint64_t end[2], ku128_v nei[2], int *n_reads)
+int unitig1(aux_t *a, int64_t seed, kstring_t *s, kstring_t *cov, uint64_t end[2], ku128_v nei[2], int *n_reads)
 {
 	rldintv_t intv0;
 	int seed_len, ret, is_loop, contained;

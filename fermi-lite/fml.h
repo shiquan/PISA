@@ -4,7 +4,8 @@
 #define FML_VERSION "r55"
 
 #include <stdint.h>
-
+#include "rld0.h"
+#include "kstring.h"
 typedef struct {
 	int32_t l_seq;
 	char *seq, *qual; // NULL-terminated strings; length expected to match $l_seq
@@ -46,6 +47,20 @@ typedef struct {
 } fml_utg_t;
 
 extern int fm_verbose;
+
+
+typedef struct { size_t n, m; int32_t *a; } fm32s_v;
+typedef struct { size_t n, m; rldintv_t *a; } rldintv_v;
+typedef struct {
+	const rld_t *e;
+	int min_match, min_merge_len;
+	rldintv_v a[2], nei;
+	fm32s_v cat;
+	uint64_t *used, *bend;
+	kstring_t str;
+	uint64_t n, sum, sum2, unpaired;
+} aux_t;
+
 
 #ifdef __cplusplus
 extern "C" {

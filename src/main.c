@@ -21,6 +21,8 @@ int usage()
     fprintf(stderr, "    assem      Assem reads per fastq block (specified with -tag, fastq need be sorted)\n");
     fprintf(stderr, "    segment    Check predefined segments from reads.\n");
     fprintf(stderr, "    segment2   Trim predefined segments from untigs.\n");
+    fprintf(stderr, "    assem1     Construct unitigs from reads.\n");
+    fprintf(stderr, "    cleanup    Clean up reads before assembly.\n");            
     fprintf(stderr, "\n");
     fprintf(stderr, "Author : Shi Quan [shiquan(AT)genomics.cn]\n");
     fprintf(stderr, "Homepage : https://github.com/shiquan/SingleCellTools\n");
@@ -40,7 +42,9 @@ int main(int argc, char *argv[])
     extern int fsort(int argc, char ** argv);
     extern int assem(int argc, char **argv);
     extern int check_segment(int argc, char **argv);
-    extern int check_segment2(int argc, char **argv);    
+    extern int check_segment2(int argc, char **argv);
+    extern int LFR_cleanup(int argc, char **argv);
+    extern int LFR_assem(int argc, char **argv);
     if (argc == 1) return usage();
     else if (strcmp(argv[1], "parse") == 0) return fastq_prase_barcodes(argc-1, argv+1);
     else if (strcmp(argv[1], "trim") == 0) return fastq_trim_adaptors(argc-1, argv+1);
@@ -54,7 +58,8 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "assem") == 0)  return assem(argc-1, argv+1);
     else if (strcmp(argv[1], "segment") == 0) return check_segment(argc-1, argv+1);
     else if (strcmp(argv[1], "segment2") == 0) return check_segment2(argc-1, argv+1);
-                    
+    else if (strcmp(argv[1], "cleanup") == 0) return LFR_cleanup(argc-1, argv+1);
+    else if (strcmp(argv[1], "assem1") == 0) return LFR_assem(argc-1, argv+1);
     else return usage();
     return 0;
 }

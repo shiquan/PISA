@@ -119,7 +119,7 @@ task parse_fastq {
   String runID
   String beads_config
   command {
-    ${root}/SingleCellTools parse -t 15 -q 20 -dropN -config ${beads_config} -cbdis ${outdir}/temp/beads_barcode_dis.txt -run ${default="LFR" runID} -report ${outdir}/temp/beads_report.txt ${fastq1} ${fastq2} | ${root}/SingleCellTools trim -mode Tn5 -t 5 -p /dev/stdin > ${outdir}/temp/read.fq
+    ${root}/SingleCellTools parse -t 10 -q 20 -dropN -config ${beads_config} -cbdis ${outdir}/temp/beads_barcode_dis.txt -run ${default="LFR" runID} -report ${outdir}/temp/beads_report.txt ${fastq1} ${fastq2} > ${outdir}/temp/read.fq
   }
   output {
     String count="${outdir}/temp/beads_barcode_dis.txt"
@@ -133,7 +133,8 @@ task sort_fastq {
   String root
   String bwa
   command <<<
-    ${root}/SingleCellTools fsort -mem -tag LB -p ${fastq} > ${outdir}/temp/sorted.fq
+    ${root}/SingleCellTools fsort -dedup -t 10 -mem -tag LB -p ${fastq} > ${outdir}/temp/sorted.fq
+    ${root}/SingleCellTools trim -t 10 -mode Tn5 -d -tail 10 ${outdir}/temp/sorted.fq > ${outdir}/temp/trimmed.fq
   >>>
   output {
     String sorted="${outdir}/temp/sorted.fq"

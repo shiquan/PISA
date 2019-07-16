@@ -228,7 +228,7 @@ static struct args {
     struct fastq_handler *fastq;
         
     int n_thread;
-
+    int input_pe;
     FILE *out;
 } args = {
     .input_fname = NULL,
@@ -241,6 +241,7 @@ static struct args {
     .fastq = NULL,
     
     .n_thread = 1,
+    .input_pe = 0,
     .out = NULL,
 };
 
@@ -623,6 +624,7 @@ static int usage()
     fprintf(stderr, "-o      [fastq]         Trimed fastq.\n");
     fprintf(stderr, "-sl     [INT]           Seed length for mapping consensus sequence.\n");
     fprintf(stderr, "-t      [INT]           Threads.\n");
+    //fprintf(stderr, "-pe                     Input is smart paired reads. Not assembled.\n");
     fprintf(stderr, "-sum    summary.txt     Summary report.\n");
     fprintf(stderr, "-strand [f|b|o]         Output reads consider the strand of pattern sequence. f for forward, b for backward, o for orgianl strand.\n");
     return 1;
@@ -891,7 +893,13 @@ static struct hits *check_kmers(struct ref *r, char *s)
     if (k == kh_end(r->map)) return NULL;
     return kh_val(r->map, k);
 }
-
+/*
+static char *find_segment_pe(struct ref *ref, struct bseq *seq)
+{
+    kstring_t str = {0,0,0};
+    
+}
+*/
 static char *find_segment(struct ref *ref, struct bseq *seq)
 {
     int is_circle = 0;
@@ -991,7 +999,7 @@ static int parse_args(int argc, char **argv)
     if (args.config_fname == NULL) error ("Configure file must be set.");
     if (args.input_fname == NULL) error("No input fastq.");
     
-    args.fastq = fastq_handler_init(args.input_fname, NULL, 0, 10000);
+    args.fastq = fastq_handler_init(args.input_fname, NULL, args.input_pe, 10000);
     CHECK_EMPTY (args.fastq, "Failed to init fastq file.");
 
     /*

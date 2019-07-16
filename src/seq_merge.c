@@ -33,13 +33,55 @@ static void bwa_fill_scmat(int a, int b, int8_t mat[25])
 	}
 	for (j = 0; j < 5; ++j) mat[k++] = -1;
 }
+#define MAX_MIS 3
+// not check the edges, **risk**
+int check_compl(const char *s1, const char *s2, int l)
+{
+    int i;
+    int m = 0;
+    for (i = 0; i < l; ++i) {
+        if (nst_nt4_table[(int)s1[i]] + nst_nt4_table[(int)s2[l-i-1]] != 4) m++;
+        if (m > MAX_MIS) return 1;
+    }
+    return 0;
+}
+uint8_t *nt4_enc(char *s, int l)
+{
+    uint8_t *e = malloc(l);
+    int i;
+    for (i = 0; i < l; ++i) e[i] = nst_nt4_table[(int)s[i]];
+    return e;
+}
+int check_overlap(const int lr, const int lq, char const *ref, uint8_t *qry)
+{
+    uint8_t *s;
+    int i, xtra;
+    kswr_t r;
+    int8_t mat[25];
+    bwa_fill_scmat(5, 4, mat);
+    s = malloc(lr);
+    for (i = 0; i < lr; ++i) {
+        int c = ref[i];
+        s[i] = c < 0 || c > 127? 4 : c <= 4? c : nst_nt4_table[c];
+    }
 
+    xtra = KSW_XSTART | KSW_XSUBO;
+    r = ksw_align(lq, qry, lr, s, 5, mat, 2, 17, xtra, 0);
+    ++r.qe; ++r.te; // change to the half-close-half-open coordinates
+   
+    if (r.score < 40 || r.qe - r.qb != r.te - r.tb) {
+        free(s);
+        return -1;
+    }
+
+    return r.tb;
+}
 // adapt from bwa/pemerge.c
 // return 1 on unchange, 0 on merged
-int PEmerge(int l_seq1, int l_seq2, char *s1, char *s2, char *q1, char *q2, char **_seq, char **_qual)
+int merge_paired(const int l_seq1, const int l_seq2, char const *s1, char const *s2, char const *q1, char const *q2, char **_seq, char **_qual)
 {
     uint8_t *s[2], *q[2], *seq, *qual;
-    int i, xtra, l, l_seq, sum_q, ret = 0;
+    int i, xtra, l_seq;
     kswr_t r;
     int8_t mat[25];
     bwa_fill_scmat(5, 4, mat);
@@ -67,28 +109,8 @@ int PEmerge(int l_seq1, int l_seq2, char *s1, char *s2, char *q1, char *q2, char
     if (l_seq1 - r.te > l_seq2 - r.qe) goto pem_ret; // no enough space for the right end
     if ((double)r.score2 / r.score >= MAX_SCORE_RATIO) goto pem_ret; // the second best score is too large
     if (r.qe - r.qb != r.te - r.tb) goto pem_ret; // we do not allow gaps
-
-    if (1) {
-        // test tandem match; O(n^2)
-        int max_m, max_m2, min_l, max_l, max_l2;
-        max_m = max_m2 = 0; max_l = max_l2 = 0;
-        min_l = l_seq1 < l_seq2? l_seq1 : l_seq2;
-        for (l = 1; l < min_l; ++l) {
-            int m = 0, o = l_seq1 - l;
-            uint8_t *s0o = &s[0][o], *s1 = s[1];
-            for (i = 0; i < l; ++i) // TODO: in principle, this can be done with SSE2. It is the bottleneck!
-                m += mat[(s1[i]<<2) + s1[i] + s0o[i]]; // equivalent to s[1][i]*5 + s[0][o+i]
-            if (m > max_m) max_m2 = max_m, max_m = m, max_l2 = max_l, max_l = l;
-            else if (m > max_m2) max_m2 = m, max_l2 = l;
-        }
-        if (max_m < 50 || max_l != l_seq1 - (r.tb - r.qb)) goto pem_ret;
-        if (max_l2 < max_l && max_m2 >= 50 && (double)(max_m2 + (max_l - max_l2) *5) / max_m >= MAX_SCORE_RATIO)
-            goto pem_ret;
-        
-        if (max_l2 > max_l && (double)max_m2 / max_m >= MAX_SCORE_RATIO) goto pem_ret;
-    }
     
-    l = l_seq1 - (r.tb - r.qb); // length to merge
+    int l = l_seq1 - (r.tb - r.qb); // length to merge
     l_seq = l_seq1 + l_seq2 - l;
     seq = malloc(l_seq + 1);
     qual = malloc(l_seq + 1);
@@ -96,7 +118,7 @@ int PEmerge(int l_seq1, int l_seq2, char *s1, char *s2, char *q1, char *q2, char
     memcpy(qual, q[0], l_seq1); memcpy(qual + l_seq1, &q[1][l], l_seq2 - l);
     for (i = 0; i < l_seq; ++i) seq[i] = "ACGTN"[(int)seq[i]], qual[i] += 33;
     seq[l_seq] = qual[l_seq] = 0;
-    _seq = seq; _qual = qual;
+    *_seq = (char*)seq; *_qual = (char*)qual;
     return 0;
 
 pem_ret:
@@ -104,10 +126,10 @@ pem_ret:
     return 1;
 }
 
-char* check_circle(char *seq)
+char *check_circle(char *seq)
 {   
     uint8_t *s[2];
-    int i, xtra, l, l_seq;
+    int i, xtra, l_seq;
     kswr_t r;
     int8_t mat[25];
     int seed_length = 20;

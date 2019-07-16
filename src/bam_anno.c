@@ -621,7 +621,7 @@ void write_report()
         fprintf(args.fp_report, "Reads Mapped Antisense to Gene : %.1f%%\n", (float)args.reads_antisense/args.reads_pass_qc*100);
     }
 }
-void memory_release()
+static void memory_release()
 {
     bam_hdr_destroy(args.hdr);
     sam_close(args.fp);

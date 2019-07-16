@@ -65,7 +65,7 @@ extern "C" {
 	void rld_rank2a(const rld_t *e, uint64_t k, uint64_t l, uint64_t *ok, uint64_t *ol);
 
 	int rld_extend(const rld_t *e, const rldintv_t *ik, rldintv_t ok[6], int is_back);
-
+    uint64_t rld_locate_blk(const rld_t *e, rlditr_t *itr, uint64_t k, uint64_t *cnt, uint64_t *sum);
 #ifdef __cplusplus
 }
 #endif

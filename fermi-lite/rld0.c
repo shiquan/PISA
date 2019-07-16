@@ -354,7 +354,7 @@ static inline int64_t rld_dec0_fast_dna(const rld_t *e, rlditr_t *itr, int *c)
 }
 #endif
 
-static inline uint64_t rld_locate_blk(const rld_t *e, rlditr_t *itr, uint64_t k, uint64_t *cnt, uint64_t *sum)
+uint64_t rld_locate_blk(const rld_t *e, rlditr_t *itr, uint64_t k, uint64_t *cnt, uint64_t *sum)
 {
 	int j;
 	uint64_t c = 0, *q, *z = e->frame + (k>>e->ibits) * e->asize1;
