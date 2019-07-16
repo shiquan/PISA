@@ -133,7 +133,7 @@ task sort_fastq {
   String root
   String bwa
   command <<<
-    ${root}/SingleCellTools fsort -mem -tag LB -p ${fastq} | ${bwa} pemerge -t 20 /dev/stdin > ${outdir}/temp/sorted.fq
+    ${root}/SingleCellTools fsort -mem -tag LB -p ${fastq} > ${outdir}/temp/sorted.fq
   >>>
   output {
     String sorted="${outdir}/temp/sorted.fq"
