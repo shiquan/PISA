@@ -135,7 +135,7 @@ static void read_block_destory(struct read_block *r)
     int i;
     for (i = 0; i < r->n; ++i) {
         free(r->b[i].seq);
-        free(r->b[i].qual);
+        if (r->b[i].qual) free(r->b[i].qual);
     }
     free(r->b);
     free(r);    
@@ -169,7 +169,7 @@ static struct read_block *read_block()
 
         bseq1_t *bb = &b->b[0];
         bb->seq = strdup(args.ks->seq.s);
-        bb->qual =  strdup(args.ks->qual.s);
+        if (args.ks->qual.l) bb->qual =  strdup(args.ks->qual.s);
         bb->l_seq = args.ks->seq.l;
         b->n++;
         free(args.last_name);
@@ -193,7 +193,7 @@ static struct read_block *read_block()
         if (strcmp(n, b->name) == 0) {
             bseq1_t *b1 = &b->b[b->n++];
             b1->seq = strdup(args.ks->seq.s);
-            b1->qual = strdup(args.ks->qual.s);
+            if (args.ks->qual.l) b1->qual = strdup(args.ks->qual.s);
             b1->l_seq = args.ks->seq.l;
             free(n);
         }
@@ -215,13 +215,15 @@ static char *rend_bseq(struct read_block *b)
     kstring_t str = {0,0,0};
     for (i = 0; i < b->n; ++i) {
         bseq1_t *b1 = &b->b[i];
-        kputc('@', &str);
+        kputc(b1->qual ? '@' : '>', &str);
         kputw(i, &str);kputc('_', &str);
         kputs(b->name, &str);
         kputc('\n', &str);
         kputs(b1->seq, &str); kputc('\n', &str);
-        kputc('+', &str);  kputc('\n', &str);
-        kputs(b1->qual, &str); kputc('\n', &str);
+        if (b1->qual) {
+            kputc('+', &str);  kputc('\n', &str);
+            kputs(b1->qual, &str); kputc('\n', &str);
+        }
     }
     read_block_destory(b);
     kputs("", &str);

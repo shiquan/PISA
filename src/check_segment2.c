@@ -1008,7 +1008,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-config") == 0) var = &args.config_fname;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-t") == 0) var = &thread;
-
+        else if (strcmp(a, "-f") == 0) {
+            args.filter_reads = 1;
+            continue;
+        }
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];

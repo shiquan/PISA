@@ -52,6 +52,14 @@ uint8_t *nt4_enc(char *s, int l)
     for (i = 0; i < l; ++i) e[i] = nst_nt4_table[(int)s[i]];
     return e;
 }
+uint8_t *rev_enc(uint8_t *s, int l)
+{
+    uint8_t *e = malloc(l);
+    int i;
+    for (i = 0; i < l; ++i) e[i] = s[l-i-1] == 4 ? 4 : 3 - s[l-i-1];
+    return e;
+}
+
 int check_overlap(const int lr, const int lq, char const *ref, uint8_t *qry)
 {
     uint8_t *s;
@@ -65,13 +73,14 @@ int check_overlap(const int lr, const int lq, char const *ref, uint8_t *qry)
         s[i] = c < 0 || c > 127? 4 : c <= 4? c : nst_nt4_table[c];
     }
 
-    xtra = KSW_XSTART | KSW_XSUBO;
+    xtra = KSW_XSTART;
     r = ksw_align(lq, qry, lr, s, 5, mat, 2, 17, xtra, 0);
     ++r.qe; ++r.te; // change to the half-close-half-open coordinates
-    free(s);   
-    if (r.score < 40 || r.qe - r.qb != r.te - r.tb) {
-        return -1;
-    }
+    free(s);
+    debug_print("%d\t%d,%d\t%d,%d", r.score, r.qe, r.qb, r.te, r.tb);
+    if (r.score < 40)  return -1;
+
+    if (r.qe - r.qb != r.te - r.tb) return -1;
 
     return r.tb;
 }

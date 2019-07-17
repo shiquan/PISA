@@ -18,6 +18,7 @@ static struct args {
     int n_thread;
     FILE *out;
     uint8_t *me_enc;
+    uint8_t *rev_enc;
     struct fastq_handler *fastq;
 } args = {
     .input_fname = NULL,
@@ -25,6 +26,7 @@ static struct args {
     .n_thread = 1,
     .out = NULL,
     .me_enc = NULL,
+    .rev_enc = NULL,
     .fastq = NULL,
 };
 
@@ -38,7 +40,7 @@ extern int check_compl(const char *s1, const char *s2, int l);
 extern uint8_t *nt4_enc(char *s, int l);
 extern int check_overlap(const int lr, const int lq, char const *r, uint8_t const *qry);
 extern int merge_paired(const int l_seq1, const int l_seq2, char const *s1, char const *s2, char const *q1, char const *q2, char **_seq, char **_qual);
-
+extern uint8_t *rev_enc(uint8_t *s, int l);
 static int parse_args(int argc, char **argv)
 {
     int i;
@@ -80,10 +82,9 @@ static int parse_args(int argc, char **argv)
         if (args.out == NULL) error("%s : %s.", args.output_fname, strerror(errno));
     }
     else args.out = stdout;
-
-    const char *ME = "CTGTCTCTTATACACATCTGACGTC";
+    const char *ME = "CTGTCTCTTATACACATCT";
     args.me_enc = nt4_enc(ME,19);
-    
+    args.rev_enc = rev_enc(args.me_enc, 19);
     return 0;
 }
 
@@ -102,7 +103,13 @@ char *trim_ends(struct bseq_pool *p)
     for (i = 0; i < p->n; ++i) {
         struct bseq *b = &p->s[i];
         int l;
-        l = check_overlap(b->l0, 19, b->s0, args.me_enc);
+        // all reverse ME sequence should not be detected
+        l = check_overlap(b->l0, 19, b->s0, args.rev_enc);
+        if (l != -1) continue;
+        l = check_overlap(b->l1, 19, b->s1, args.rev_enc);
+        if (l != -1) continue;
+        
+        l = check_overlap(b->l0, 19, b->s0, args.me_enc);        
         if (l == -1) {
             char *s, *q;
             if (merge_paired(b->l0, b->l1, b->s0, b->s1, b->q0, b->q1, &s, &q) == 0) {
