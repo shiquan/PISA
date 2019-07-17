@@ -176,7 +176,7 @@ static void write_out_bseq(struct bseq_pool *pool, FILE *fp)
         struct bseq *b = &pool->s[i];
         if (b->flag == FQ_PASS) {            
             fprintf(fp, "@%s\n%s\n+\n%s\n", b->n0, b->s0, b->q0);
-            if (b->l1) fprintf(fp, "%s\n%s\n+\n%s\n", b->n0, b->s1, b->q1);
+            if (b->l1) fprintf(fp, "@%s\n%s\n+\n%s\n", b->n0, b->s1, b->q1);
         }
     }
     // bseq_pool_destroy(pool);
