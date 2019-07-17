@@ -68,9 +68,8 @@ int check_overlap(const int lr, const int lq, char const *ref, uint8_t *qry)
     xtra = KSW_XSTART | KSW_XSUBO;
     r = ksw_align(lq, qry, lr, s, 5, mat, 2, 17, xtra, 0);
     ++r.qe; ++r.te; // change to the half-close-half-open coordinates
-   
+    free(s);   
     if (r.score < 40 || r.qe - r.qb != r.te - r.tb) {
-        free(s);
         return -1;
     }
 

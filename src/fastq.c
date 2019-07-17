@@ -216,6 +216,7 @@ static char **split_multi_files(const char *fname, int *n)
     int *s = ksplit(&str, ',', n);
     if (*n == 1 || s == 0) {
         free(str.s);
+        if (s) free(s);
         return NULL;
     }
     
