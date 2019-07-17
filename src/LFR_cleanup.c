@@ -114,6 +114,7 @@ char *trim_ends(struct bseq_pool *p)
                 kputs(b->n0, &str); kputc('\n', &str);
                 kputs(s, &str); kputs("\n+\n", &str);
                 kputs(q, &str); kputc('\n', &str);
+                free(s); free(q);
             }
             else {
                 kputc('@', &str);
@@ -128,16 +129,18 @@ char *trim_ends(struct bseq_pool *p)
         }
         else {
             if (l < 40) continue; // to short;
-            char *s0 = b->s0;
-            char *s1 = b->s1 + (b->l1 - l);
-            if (check_compl(s0, s1, l) == 0) {                                
+            //char *s0 = b->s0;
+            // char *s1 = b->s1 + (b->l1 - l);
+            if (check_compl(b->s0, b->s1, l) == 0) {                                
                 kputc('@', &str);
                 kputs(b->n0, &str); kputc('\n', &str);
-                kputs(b->s0, &str); kputs("\n+\n", &str);
-                kputs(b->q0, &str); kputc('\n', &str);
+                kputsn(b->s0, l, &str); kputs("\n+\n", &str);
+                kputsn(b->q0, l, &str); kputc('\n', &str);
             }
         }
     }
+
+    bseq_pool_destroy(p);
     return str.s;
 }
 

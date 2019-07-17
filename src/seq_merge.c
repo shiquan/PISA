@@ -40,7 +40,7 @@ int check_compl(const char *s1, const char *s2, int l)
     int i;
     int m = 0;
     for (i = 0; i < l; ++i) {
-        if (nst_nt4_table[(int)s1[i]] + nst_nt4_table[(int)s2[l-i-1]] != 4) m++;
+        if (nst_nt4_table[(int)s1[i]] + nst_nt4_table[(int)s2[l-i-1]] != 3) m++;
         if (m > MAX_MIS) return 1;
     }
     return 0;
