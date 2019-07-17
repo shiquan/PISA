@@ -229,7 +229,8 @@ static struct args {
         
     int n_thread;
     int input_pe;
-    FILE *out;
+    int filter_reads;
+    FILE *out;    
 } args = {
     .input_fname = NULL,
     .config_fname = NULL,
@@ -239,7 +240,7 @@ static struct args {
     .r = NULL,
 
     .fastq = NULL,
-    
+    .filter_reads = 0,
     .n_thread = 1,
     .input_pe = 0,
     .out = NULL,
@@ -624,6 +625,7 @@ static int usage()
     fprintf(stderr, "-o      [fastq]         Trimed fastq.\n");
     fprintf(stderr, "-sl     [INT]           Seed length for mapping consensus sequence.\n");
     fprintf(stderr, "-t      [INT]           Threads.\n");
+    fprintf(stderr, "-f                      Filter reads without tags.\n");
     //fprintf(stderr, "-pe                     Input is smart paired reads. Not assembled.\n");
     fprintf(stderr, "-sum    summary.txt     Summary report.\n");
     fprintf(stderr, "-strand [f|b|o]         Output reads consider the strand of pattern sequence. f for forward, b for backward, o for orgianl strand.\n");
@@ -795,14 +797,18 @@ static char *pat2str(struct ref_pat *r, char **pat, int strand)
         kputs("|||", &str);
         int j;        
         for (j = 0; j < s->n; ++j)  {
+            char *a = pat[s->s[j].idx];
+            if (a == NULL) {
+                if (str.s) free(str.s);
+                return NULL;
+            }
             if (strand == 1) {
-                char *a = pat[s->s[j].idx];
                 char *rev = rev_seq(a, strlen(a)); // todo: bug fix??
                 kputs(rev, &str);
                 free(rev);
             }
             else 
-                kputs(pat[s->s[j].idx], &str);
+                kputs(a, &str);
         }
         
     }
@@ -822,7 +828,8 @@ static int check_pattern(char *name, char *s, int start, int strand, struct ref 
     s1 = check_pattern_left(s, start, r, h, pat, is_circle);
 
     s2 = check_pattern_right(s, start, r, h, pat, is_circle);
-    // debug_print("s1, %d; s2, %d", s1, s2);
+
+
     if (s1 < 0 || s2 < 0) {
         for (i = 0; i < r->n_tag; ++i)
             if (pat[i] != NULL) free(pat[i]);
@@ -839,8 +846,7 @@ static int check_pattern(char *name, char *s, int start, int strand, struct ref 
     for (i = 0; i < r->n_tag; ++i)
         if (pat[i]) free(pat[i]);
     free(pat);
-    
-    if (new_name == NULL) return 1; // not found
+    if (args.filter_reads && new_name == NULL) return 1; // not found
     int id = 0;
     kstring_t str = {0,0,0};
     //debug_print("%d\t%d\t%d", s1, s2, is_circle);
@@ -850,28 +856,41 @@ static int check_pattern(char *name, char *s, int start, int strand, struct ref 
                 free(new_name);
                 return 1;
             }
-            ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
+            if (new_name) 
+                ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
+            else
+                ksprintf(&str, ">%d_%s\n", id, name);
             kputsn(s+s2-1, s1-s2+3, &str);
             kputc('\n', &str);
         }
-        else error("start position greater than end. Should not happen.");            
     }
     else {
         if (is_circle) {
-            ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
+            if (new_name) 
+                ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
+            else
+                ksprintf(&str, ">%d_%s\n", id, name);
+
             kputs(s+s2, &str);
             kputsn(s, s1, &str);
             kputc('\n', &str);
         }
         else {
             if (l - s2 >= 20) {
-                ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
+                if (new_name) 
+                    ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
+                else
+                    ksprintf(&str, ">%d_%s\n", id, name);
+                
                 kputs(s+s2, &str);
                 kputc('\n', &str);
                 id++;
             }
             if (s1 >= 20) {
-                ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
+                if (new_name) 
+                    ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
+                else
+                    ksprintf(&str, ">%d_%s\n", id, name);
                 kputsn(s, s1, &str);
                 kputc('\n', &str);
             }
@@ -915,6 +934,7 @@ static char *find_segment(struct ref *ref, struct bseq *seq)
     kstring_t out = {0,0,0};
     int length = is_circle ? l + args.seed_length : l - args.seed_length;
     int i;
+    int checked = 0;
     for (i = 0; i < length; ++i) {
         int j;
         for (j = 0; j < args.seed_length; ++j) {
@@ -925,6 +945,7 @@ static char *find_segment(struct ref *ref, struct bseq *seq)
         kputs("", &str);
         struct hits *hh = check_kmers(ref, str.s);
         if (hh) {
+            checked = 1;
             int j;
             for (j = 0; j < hh->n; ++j) {
                 struct hit *h = &hh->hit[j];
@@ -936,6 +957,11 @@ static char *find_segment(struct ref *ref, struct bseq *seq)
         }
         str.l = 0;
     }
+
+    if ( args.filter_reads == 0 && checked == 0)
+        ksprintf(&out, ">%s\n%s\n", seq->n0, s);
+   
+    
   generate_output:
     free(s);
     free(str.s);
