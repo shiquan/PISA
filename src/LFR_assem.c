@@ -528,7 +528,7 @@ static void *run_it(void *_d)
     mag_t *g = fml_fmi2mag(args.assem_opt, e);
     
     int n_utg;
-    fml_utg_t *utg = fml_mag2utg(args.assem_opt, g);
+    fml_utg_t *utg = fml_mag2utg(g, &n_utg);
     // fml_assemble(args.assem_opt, b->n, b->b, &n_utg);
     char *out = rend_utg(b->name, utg, n_utg);
     fml_utg_destroy(n_utg, utg);
