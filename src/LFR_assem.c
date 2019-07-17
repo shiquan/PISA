@@ -152,7 +152,7 @@ static int parse_args(int argc, char **argv)
     if (tags == NULL) error("-tag must be set.");
     if (seed) { //error("Seed sequence for scLFR must be set with -ss.");
         args.l_seed = strlen(seed);
-        if (args.l_seed < 10) error("Seed is too short, need >= 10bp.");
+        if (args.l_seed < 6) error("Seed is too short, need >= 6bp.");
         args.seed = enc_str(seed, args.l_seed);
     }
     
@@ -478,6 +478,7 @@ static void *run_it(void *_d)
 
     // Step 2: build eBWT
     rld_t *e = bwt_build(v);
+    free(v->v); free(v);
     //debug_print("%s", b->name);
     // Step 3: adaptors and polyTs, if no just skip this block
     if (check_polyTs(e, 10)) goto empty_block;
@@ -514,7 +515,7 @@ static void *run_it(void *_d)
     */
     /*
     kstring_t s = {0,0,0};
-    mag_t *mg = fml_fmi2mag(args.assem_opt, e);
+
     int i;
     for (i = 0; i < mg->v.n; ++i) {
         magv_t *v = &mg->v.a[i];
@@ -524,11 +525,14 @@ static void *run_it(void *_d)
         kputc('\n', &s);            
     }
     */
+    mag_t *g = fml_fmi2mag(args.assem_opt, e);
+    
     int n_utg;
-    fml_utg_t *utg = fml_assemble(args.assem_opt, b->n, b->b, &n_utg);
+    fml_utg_t *utg = fml_mag2utg(args.assem_opt, g);
+    // fml_assemble(args.assem_opt, b->n, b->b, &n_utg);
     char *out = rend_utg(b->name, utg, n_utg);
     fml_utg_destroy(n_utg, utg);
-
+    free(b->name);
     free(b);
     // read_block_destory(b);
 
