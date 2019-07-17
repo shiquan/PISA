@@ -532,9 +532,7 @@ static void *run_it(void *_d)
     // fml_assemble(args.assem_opt, b->n, b->b, &n_utg);
     char *out = rend_utg(b->name, utg, n_utg);
     fml_utg_destroy(n_utg, utg);
-    free(b->name);
-    free(b);
-    // read_block_destory(b);
+    read_block_destory(b);
 
     // free(str.s);
     // free(cov.s);
