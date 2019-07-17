@@ -77,7 +77,7 @@ int check_overlap(const int lr, const int lq, char const *ref, uint8_t *qry)
     r = ksw_align(lq, qry, lr, s, 5, mat, 2, 17, xtra, 0);
     ++r.qe; ++r.te; // change to the half-close-half-open coordinates
     free(s);
-    debug_print("%d\t%d,%d\t%d,%d", r.score, r.qe, r.qb, r.te, r.tb);
+    // debug_print("%d\t%d,%d\t%d,%d", r.score, r.qe, r.qb, r.te, r.tb);
     if (r.score < 40)  return -1;
 
     if (r.qe - r.qb != r.te - r.tb) return -1;
