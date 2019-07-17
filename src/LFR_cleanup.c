@@ -16,16 +16,13 @@ static struct args {
     const char *input_fname;
     const char *output_fname;
     int n_thread;
-    FILE *in;
     FILE *out;
     uint8_t *me_enc;
     struct fastq_handler *fastq;
-    // struct adaptor *ADA;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
     .n_thread = 1,
-    .in = NULL,
     .out = NULL,
     .me_enc = NULL,
     .fastq = NULL,
@@ -33,7 +30,6 @@ static struct args {
 
 static void memory_release()
 {
-    fclose(args.in);
     fclose(args.out);
     free(args.me_enc);
     fastq_handler_destory(args.fastq);

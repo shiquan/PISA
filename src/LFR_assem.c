@@ -150,10 +150,11 @@ static int parse_args(int argc, char **argv)
     }
     if (args.input_fname == NULL ) error("No input fastq specified.");
     if (tags == NULL) error("-tag must be set.");
-    if (seed == NULL) error("Seed sequence for scLFR must be set with -ss.");
-    args.l_seed = strlen(seed);
-    if (args.l_seed < 10) error("Seed is too short, need >= 10bp.");
-    args.seed = enc_str(seed, args.l_seed);
+    if (seed) { //error("Seed sequence for scLFR must be set with -ss.");
+        args.l_seed = strlen(seed);
+        if (args.l_seed < 10) error("Seed is too short, need >= 10bp.");
+        args.seed = enc_str(seed, args.l_seed);
+    }
     
     kstring_t str = {0,0,0};
     kputs(tags, &str);
@@ -480,11 +481,12 @@ static void *run_it(void *_d)
     //debug_print("%s", b->name);
     // Step 3: adaptors and polyTs, if no just skip this block
     if (check_polyTs(e, 10)) goto empty_block;
-    uint64_t n;
-    uint64_t st = 0, ed = 0;
-    n = bwt_backward_search(e, args.l_seed, args.seed, &st, &ed);
-    if (n == 0) goto empty_block;
-
+    if (args.l_seed) {
+        uint64_t n;
+        uint64_t st = 0, ed = 0;
+        n = bwt_backward_search(e, args.l_seed, args.seed, &st, &ed);
+        if (n == 0) goto empty_block;
+    }
     // Step 4: construct unitigs
     /*
     aux_t a;

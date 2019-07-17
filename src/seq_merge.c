@@ -119,6 +119,7 @@ int merge_paired(const int l_seq1, const int l_seq2, char const *s1, char const 
     for (i = 0; i < l_seq; ++i) seq[i] = "ACGTN"[(int)seq[i]], qual[i] += 33;
     seq[l_seq] = qual[l_seq] = 0;
     *_seq = (char*)seq; *_qual = (char*)qual;
+    free(s[0]); free(s[1]); free(q[0]); free(q[1]);
     return 0;
 
 pem_ret:
