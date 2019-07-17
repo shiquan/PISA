@@ -54,7 +54,13 @@ static uint8_t *enc_str(char *s, int l)
     e[l] = 0;
     return e;
 }
-
+static void assem_opt_init(fml_opt_t *opt)
+{
+    fml_opt_init(opt);
+    opt->min_asm_ovlp = 10;
+    opt->ec_k = -1;
+    opt->mag_opt.flag = MAG_F_NO_SIMPL | MAG_F_AGGRESSIVE;
+};
 static struct args {
     const char *input_fname;
     const char *output_fname;
@@ -68,6 +74,7 @@ static struct args {
     gzFile fp_in;
     FILE *out;
     kseq_t *ks;
+    fml_opt_t *assem_opt;
     int l_seed;
     uint8_t *seed;
     uint64_t filter_block;
@@ -81,10 +88,11 @@ static struct args {
     .min_ovlp = 10,
     .n_thread = 1,
     .last_name = NULL,
-
+   
     .fp_in = NULL,
     .out = NULL,
     .ks = NULL,
+    .assem_opt = NULL,
     .l_seed = 0,
     .seed = NULL,
     .filter_block = 0,
@@ -166,7 +174,8 @@ static int parse_args(int argc, char **argv)
     CHECK_EMPTY(args.fp_in, "%s : %s.", args.input_fname, strerror(errno));
 
     args.ks = kseq_init(args.fp_in);
-                
+    args.assem_opt = malloc(sizeof(fml_opt_t));
+    assem_opt_init(args.assem_opt);
     return 0;
 }
 
@@ -419,7 +428,7 @@ static rld_t *bwt_build_core(rld_t *e0, int asize, int sbits, int64_t l, uint8_t
 {
 	rld_t *e;
         bwt_gen(asize, l, s);
-        putchar('\n');                
+        // putchar('\n');                
         e = bwt_enc(asize, sbits, l, s);
 	return e;
 }
@@ -442,6 +451,22 @@ int64_t bwt_retrieve(const rld_t *e, uint64_t x, kstring_t *s)
 }
 extern int unitig1(aux_t *a, int64_t seed, kstring_t *s, kstring_t *cov, uint64_t end[2], ku128_v nei[2], int *n_reads);
 
+static char *rend_utg(char *name, fml_utg_t *utg, int n)
+{
+    int i;
+    kstring_t str = {0,0,0};
+    for (i = 0; i < n; ++i) {
+        fml_utg_t *u = &utg[i];
+        kputc('>', &str);
+        kputw(i, &str);kputc('_', &str);
+        kputs(name, &str);
+        kputc('\n', &str);
+        kputsn(u->seq, u->len, &str); kputc('\n', &str);
+    }
+    kputs("", &str);
+    return str.s;
+}
+
 static void *run_it(void *_d)
 {
     struct read_block *b = (struct read_block*)_d;
@@ -452,7 +477,7 @@ static void *run_it(void *_d)
 
     // Step 2: build eBWT
     rld_t *e = bwt_build(v);
-
+    //debug_print("%s", b->name);
     // Step 3: adaptors and polyTs, if no just skip this block
     if (check_polyTs(e, 10)) goto empty_block;
     uint64_t n;
@@ -461,6 +486,7 @@ static void *run_it(void *_d)
     if (n == 0) goto empty_block;
 
     // Step 4: construct unitigs
+    /*
     aux_t a;
     memset(&a, 0, sizeof(a));
     a.e = e;
@@ -468,7 +494,6 @@ static void *run_it(void *_d)
     a.bend = (uint64_t*)calloc((e->mcnt[1] + 63)/64, 8);
     a.min_match = args.min_ovlp;
     a.min_merge_len = 0;
-    kstring_t s = {0,0,0};
     int i, j = 0;
     kstring_t str, cov;
     magv_t z;
@@ -484,13 +509,31 @@ static void *run_it(void *_d)
             kputc('\n', &s);
         }
     }
-    
-    read_block_destory(b);
-    rld_destroy(e);
-    free(str.s);
-    free(cov.s);
-    free(a.used); free(a.bend);
-    return s.s;
+    */
+    /*
+    kstring_t s = {0,0,0};
+    mag_t *mg = fml_fmi2mag(args.assem_opt, e);
+    int i;
+    for (i = 0; i < mg->v.n; ++i) {
+        magv_t *v = &mg->v.a[i];
+        ksprintf(&s, ">%d_%d%s\n", i, v->nsr, b->name);
+        int j;
+        for (j = 0; j < v->len; ++j) kputc("$ACGTN"[(int)v->seq[j]], &s);
+        kputc('\n', &s);            
+    }
+    */
+    int n_utg;
+    fml_utg_t *utg = fml_assemble(args.assem_opt, b->n, b->b, &n_utg);
+    char *out = rend_utg(b->name, utg, n_utg);
+    fml_utg_destroy(n_utg, utg);
+
+    free(b);
+    // read_block_destory(b);
+
+    // free(str.s);
+    // free(cov.s);
+    // free(a.used); free(a.bend);
+    return out;
     
   empty_block:
     read_block_destory(b);
@@ -503,7 +546,7 @@ static void write_out(void *s)
     if (s == NULL) args.filter_block++;
     else {
         args.assem_block++;
-        puts((char*)s);
+        fputs((char*)s, args.out);
         free(s);
     }
     // free(s);
