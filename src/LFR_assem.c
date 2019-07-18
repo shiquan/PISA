@@ -78,7 +78,9 @@ static struct args {
     int l_seed;
     uint8_t *seed;
     uint64_t filter_block;
-    uint64_t assem_block;    
+    uint64_t assem_block;
+    uint64_t full_covered;
+    uint64_t part_covered;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
@@ -97,6 +99,8 @@ static struct args {
     .seed = NULL,
     .filter_block = 0,
     .assem_block = 0,
+    .full_covered = 0,
+    .part_covered = 0,
 };
 
 static int usage()
@@ -450,96 +454,19 @@ int64_t bwt_retrieve(const rld_t *e, uint64_t x, kstring_t *s)
         kputc(c, s);
     }
 }
-extern int unitig1(aux_t *a, int64_t seed, kstring_t *s, kstring_t *cov, uint64_t end[2], ku128_v nei[2], int *n_reads);
 
-static char *rend_utg(char *name, fml_utg_t *utg, int n)
+struct ret_block {
+    int full;
+    int part;
+    char *s;
+};
+
+struct ret_block *ret_block_build()
 {
-    int i;
-    kstring_t str = {0,0,0};
-    for (i = 0; i < n; ++i) {
-        fml_utg_t *u = &utg[i];
-        kputc('>', &str);
-        kputw(i, &str);kputc('_', &str);
-        kputs(name, &str);
-        kputc('\n', &str);
-        kputsn(u->seq, u->len, &str); kputc('\n', &str);
-    }
-    kputs("", &str);
-    return str.s;
+    struct ret_block *r = malloc(sizeof(*r));
+    memset(r, 0, sizeof(*r));
+    return r;
 }
-
-static uint64_t utg_primes[] = { 123457, 234571, 345679, 456791, 567899, 0 };
-
-typedef struct {
-	long max_l;
-	aux_t a;
-	kstring_t str, cov, out;
-	magv_t z;
-} thrdat_t;
-
-typedef struct {
-	uint64_t prime, *used, *bend, *visited;
-	const rld_t *e;
-	thrdat_t *d;
-} worker_t;
-
-static void worker(void *data, long _i, int tid)
-{
-	worker_t *w = (worker_t*)data;
-	thrdat_t *d = &w->d[tid];
-	uint64_t i = (w->prime * _i) % w->e->mcnt[1];
-	if (unitig1(&d->a, i, &d->str, &d->cov, d->z.k, d->z.nei, &d->z.nsr) >= 0) { // then we keep the unitig
-		uint64_t *p[2], x[2];
-		p[0] = w->visited + (d->z.k[0]>>6); x[0] = 1LLU<<(d->z.k[0]&0x3f);
-		p[1] = w->visited + (d->z.k[1]>>6); x[1] = 1LLU<<(d->z.k[1]&0x3f);
-		if ((__sync_fetch_and_or(p[0], x[0])&x[0]) || (__sync_fetch_and_or(p[1], x[1])&x[1])) return;
-		d->z.len = d->str.l;
-		if (d->max_l < d->str.m) {
-			d->max_l = d->str.m;
-			d->z.seq = realloc(d->z.seq, d->max_l);
-			d->z.cov = realloc(d->z.cov, d->max_l);
-		}
-		memcpy(d->z.seq, d->str.s, d->z.len);
-		memcpy(d->z.cov, d->cov.s, d->z.len + 1);
-		mag_v_write(&d->z, &d->out);
-		fputs(d->out.s, stdout);
-	}
-}
-
-int fm6_unitig(const rld_t *e, int min_match, int min_merge_len)
-{
-    int n_threads = 1;
-	extern void kt_for(int n_threads, void (*func)(void*,long,int), void *data, long n);
-	worker_t w;
-	int j;
-	w.used    = (uint64_t*)calloc((e->mcnt[1] + 63)/64, 8);
-	w.bend    = (uint64_t*)calloc((e->mcnt[1] + 63)/64, 8);
-	w.visited = (uint64_t*)calloc((e->mcnt[1] + 63)/64, 8);
-	w.e       = e;
-	assert(e->mcnt[1] >= n_threads * 2);
-	w.d = calloc(n_threads, sizeof(thrdat_t));
-	w.prime = 0;
-	for (j = 0; utg_primes[j] > 0; ++j)
-		if (e->mcnt[1] % utg_primes[j] != 0) {
-			w.prime = utg_primes[j];
-			break;
-		}
-	assert(w.prime);
-	if (fm_verbose >= 3) fprintf(stderr, "[M::%s] choose prime %llu\n", __func__, (unsigned long long)w.prime);
-	for (j = 0; j < n_threads; ++j) {
-		w.d[j].a.e = e; w.d[j].a.min_match = min_match; w.d[j].a.min_merge_len = min_merge_len;
-		w.d[j].a.used = w.used; w.d[j].a.bend = w.bend;
-	}
-	kt_for(n_threads, worker, &w, e->mcnt[1]);
-	for (j = 0; j < n_threads; ++j) {
-		free(w.d[j].a.a[0].a); free(w.d[j].a.a[1].a); free(w.d[j].a.nei.a); free(w.d[j].a.cat.a);
-		free(w.d[j].z.nei[0].a); free(w.d[j].z.nei[1].a); free(w.d[j].z.seq); free(w.d[j].z.cov);
-		free(w.d[j].a.str.s); free(w.d[j].str.s); free(w.d[j].cov.s); free(w.d[j].out.s);
-	}
-	free(w.used); free(w.bend); free(w.visited);
-	return 0;
-}
-
 static void *run_it(void *_d)
 {
     struct read_block *b = (struct read_block*)_d;
@@ -553,17 +480,25 @@ static void *run_it(void *_d)
     free(v->v); free(v);
     //debug_print("%s", b->name);
     // Step 3: adaptors and polyTs, if no just skip this block
-    // if (check_polyTs(e, 10)) goto empty_block;
-    if (args.l_seed) {
+
+    int has_seed = 0;
+    int has_poly = 0;    
+    if (args.l_seed) {        
         uint64_t n;
         uint64_t st = 0, ed = 0;
         n = bwt_backward_search(e, args.l_seed, args.seed, &st, &ed);
-        if (n == 0) goto empty_block;
+        if (n == 0) has_seed = 0;
+        if (check_polyTs(e, 10)) has_poly = 0;
+        if (has_seed == 0 && has_poly == 0) goto empty_block;
     }
+
+    struct ret_block *r = ret_block_build();
+    if (has_seed && has_poly) r->full=1;
+    else if (has_seed || has_poly) r->part = 1;
+    
     // Step 4: construct unitigs
     mag_t *g = fml_fmi2mag(args.assem_opt, e);
-    kstring_t s = {0,0,0};
-        
+    kstring_t s = {0,0,0};        
     int i;
     for (i = 0; i < g->v.n; ++i) {
         magv_t *v = &g->v.a[i];
@@ -573,58 +508,10 @@ static void *run_it(void *_d)
         kputc('\n', &s);            
     }
     mag_g_destroy(g);
-
-    /*
-    aux_t a;
-    memset(&a, 0, sizeof(a));
-    a.e = e;
-    a.used = (uint64_t*)calloc((e->mcnt[1] + 63)/64, 8);
-    a.bend = (uint64_t*)calloc((e->mcnt[1] + 63)/64, 8);
-    uint64_t *visited = (uint64_t*)calloc((e->mcnt[1] + 63)/64, 8);
-    a.min_match = 20;
-    a.min_merge_len = 0;
-    int i, j = 0;
-    kstring_t s = {0,0,0};
-    kstring_t str = {0,0,0};
-    kstring_t cov = {0,0,0};
-    magv_t z;
-    for (i = 1; i < e->mcnt[1]; i+=2) {
-        str.l = 0;
-        cov.l = 0;
-        if (unitig1(&a, i, &str, &cov, z.k, z.nei, &z.nsr) == 0) {
-            
-            uint64_t *p[2], x[2];
-            p[0] = visited + (z.k[0]>>6); x[0] = 1LLU<<(z.k[0]&0x3f);
-            p[1] = visited + (z.k[1]>>6); x[1] = 1LLU<<(z.k[1]&0x3f);
-            if ((__sync_fetch_and_or(p[0], x[0])&x[0]) || (__sync_fetch_and_or(p[1], x[1])&x[1])) continue;
-            
-            j++;
-            // debug_print("%s", str.s);
-            ksprintf(&s, ">%d_%d%s\n", j, z.nsr, b->name);
-            int j;
-            for (j = 0; j < str.l; ++j) kputc("$ACGTN"[(int)str.s[j]], &s);
-            kputc('\n', &s);
-        }
-    }
-    */
-   
-    /*
-    
-    int n_utg;
-    fml_utg_t *utg = fml_mag2utg(g, &n_utg);
-    // fml_mag_clean(args.assem_opt, g);
-    char *out = rend_utg(b->name, utg, n_utg);
-    fml_utg_destroy(n_utg, utg);
-    */
-
-    
-    // fm6_unitig(e, 20, 0);
     read_block_destory(b);
 
-    // free(str.s);
-    // free(cov.s);
-    // free(a.used); free(a.bend);
-    return s.s;
+    r->s = s.s;
+    return r;
     
   empty_block:
     read_block_destory(b);
@@ -636,15 +523,18 @@ static void write_out(void *s)
 {
     if (s == NULL) args.filter_block++;
     else {
+        struct ret_block *r = (struct ret_block*)s;
+        fputs(r->s, args.out);
         args.assem_block++;
-        fputs((char*)s, args.out);
-        free(s);
-    }
-    // free(s);
+        args.full_covered = r->full;
+        args.part_covered = r->part;
+        free(r->s);
+        free(r);
+    }    
 }
 
 
-int LFR_assem(int argc, char **argv)
+int LFR_unitig(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
@@ -685,6 +575,8 @@ int LFR_assem(int argc, char **argv)
 
     fprintf(stderr, "Filter block: %"PRIu64"\n", args.filter_block);
     fprintf(stderr, "Assembled block: %"PRIu64"\n", args.assem_block);
+    fprintf(stderr, "Block with full pattern: %"PRIu64"\n", args.full_covered);
+    fprintf(stderr, "Block with partly pattern: %"PRIu64"\n", args.part_covered);
     memory_release();
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;

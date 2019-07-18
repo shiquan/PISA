@@ -44,7 +44,8 @@ int main(int argc, char *argv[])
     extern int check_segment(int argc, char **argv);
     extern int check_segment2(int argc, char **argv);
     extern int LFR_cleanup(int argc, char **argv);
-    extern int LFR_assem(int argc, char **argv);
+    // extern int LFR_assem(int argc, char **argv);
+    extern int LFR_unitig(int argc, char **argv);
     if (argc == 1) return usage();
     else if (strcmp(argv[1], "parse") == 0) return fastq_prase_barcodes(argc-1, argv+1);
     else if (strcmp(argv[1], "trim") == 0) return fastq_trim_adaptors(argc-1, argv+1);
@@ -59,7 +60,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "segment") == 0) return check_segment(argc-1, argv+1);
     else if (strcmp(argv[1], "segment2") == 0) return check_segment2(argc-1, argv+1);
     else if (strcmp(argv[1], "cleanup") == 0) return LFR_cleanup(argc-1, argv+1);
-    else if (strcmp(argv[1], "assem1") == 0) return LFR_assem(argc-1, argv+1);
+    else if (strcmp(argv[1], "unitig") == 0) return LFR_unitig(argc-1, argv+1);
     else return usage();
     return 0;
 }
