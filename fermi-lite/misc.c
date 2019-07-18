@@ -309,17 +309,16 @@ fml_utg_t *fml_assemble(const fml_opt_t *opt0, int n_seqs, bseq1_t *seqs, int *n
 
 	*n_utg = 0;
 	fml_opt_adjust(&opt, n_seqs, seqs);
-        // fprintf(stderr,"Adjust time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
 	if (opt.ec_k >= 0) fml_correct(&opt, n_seqs, seqs);
-        // fprintf(stderr,"Correct time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
+
 	kcov = fml_fltuniq(&opt, n_seqs, seqs);
-        // fprintf(stderr,"Uniq time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
+
 	e = fml_seq2fmi(&opt, n_seqs, seqs);
-        // fprintf(stderr,"Convert time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
+
 	if (e == 0) return 0; // this may happen when all sequences are filtered out
 
 	g = fml_fmi2mag(&opt, e);
-        // fprintf(stderr,"MAG time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
+
 	opt.mag_opt.min_ensr = opt.mag_opt.min_ensr > kcov * MAG_MIN_NSR_COEF? opt.mag_opt.min_ensr : (int)(kcov * MAG_MIN_NSR_COEF + .499);
 	opt.mag_opt.min_ensr = opt.mag_opt.min_ensr < opt0->max_cnt? opt.mag_opt.min_ensr : opt0->max_cnt;
 	opt.mag_opt.min_ensr = opt.mag_opt.min_ensr > opt0->min_cnt? opt.mag_opt.min_ensr : opt0->min_cnt;

@@ -553,7 +553,7 @@ static void *run_it(void *_d)
     free(v->v); free(v);
     //debug_print("%s", b->name);
     // Step 3: adaptors and polyTs, if no just skip this block
-    if (check_polyTs(e, 10)) goto empty_block;
+    // if (check_polyTs(e, 10)) goto empty_block;
     if (args.l_seed) {
         uint64_t n;
         uint64_t st = 0, ed = 0;
@@ -561,7 +561,20 @@ static void *run_it(void *_d)
         if (n == 0) goto empty_block;
     }
     // Step 4: construct unitigs
-    
+    mag_t *g = fml_fmi2mag(args.assem_opt, e);
+    kstring_t s = {0,0,0};
+        
+    int i;
+    for (i = 0; i < g->v.n; ++i) {
+        magv_t *v = &g->v.a[i];
+        ksprintf(&s, ">%d_%d%s\n", i, v->nsr, b->name);
+        int j;
+        for (j = 0; j < v->len; ++j) kputc("$ACGTN"[(int)v->seq[j]], &s);
+        kputc('\n', &s);            
+    }
+    mag_g_destroy(g);
+
+    /*
     aux_t a;
     memset(&a, 0, sizeof(a));
     a.e = e;
@@ -593,21 +606,9 @@ static void *run_it(void *_d)
             kputc('\n', &s);
         }
     }
+    */
    
     /*
-    kstring_t s = {0,0,0};
-
-    int i;
-    for (i = 0; i < mg->v.n; ++i) {
-        magv_t *v = &mg->v.a[i];
-        ksprintf(&s, ">%d_%d%s\n", i, v->nsr, b->name);
-        int j;
-        for (j = 0; j < v->len; ++j) kputc("$ACGTN"[(int)v->seq[j]], &s);
-        kputc('\n', &s);            
-    }
-    */
-    /*
-        mag_t *g = fml_fmi2mag(args.assem_opt, e);
     
     int n_utg;
     fml_utg_t *utg = fml_mag2utg(g, &n_utg);
