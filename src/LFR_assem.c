@@ -507,9 +507,16 @@ static void *run_it(void *_d)
         for (j = 0; j < v->len; ++j) kputc("$ACGTN"[(int)v->seq[j]], &s);
         kputc('\n', &s);            
     }
+    if (s.l == 0) {
+        warnings("%s is empty.", b->name);        
+        mag_g_destroy(g);
+        read_block_destory(b);
+        free(r);
+        return NULL;
+    }
     mag_g_destroy(g);
     read_block_destory(b);
-
+        
     r->s = s.s;
     return r;
     
@@ -521,9 +528,10 @@ static void *run_it(void *_d)
 
 static void write_out(void *s)
 {
-    if (s == NULL) args.filter_block++;
+    if (s == NULL) args.filter_block++;    
     else {
         struct ret_block *r = (struct ret_block*)s;
+
         fputs(r->s, args.out);
         args.assem_block++;
         args.full_covered += r->full;
