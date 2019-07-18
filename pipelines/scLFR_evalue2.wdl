@@ -67,11 +67,11 @@ task assem {
   String root
   command {
     echo "[`date +%F` `date +%T`] assembly start" >> ${outdir}/workflowtime.log
-    ${root}/SingleCellTools assem -t 20 ${fastq} -tag LB -p > ${outdir}/temp/assem.fq
+    ${root}/SingleCellTools unitig -ss GTTCTGCG -t 20 ${fastq} -tag LB -p > ${outdir}/temp/unitig.fq
     echo "[`date +%F` `date +%T`] assembly finished" >> ${outdir}/workflowtime.log
   }
   output {
-    String assem = "${outdir}/temp/assem.fq"
+    String assem = "${outdir}/temp/unitig.fq"
     }
 }
 task makedir {
