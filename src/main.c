@@ -21,7 +21,7 @@ int usage()
     fprintf(stderr, "    assem      Assem reads per fastq block (specified with -tag, fastq need be sorted)\n");
     fprintf(stderr, "    segment    Check predefined segments from reads.\n");
     fprintf(stderr, "    segment2   Trim predefined segments from untigs.\n");
-    fprintf(stderr, "    assem1     Construct unitigs from reads.\n");
+    fprintf(stderr, "    unitig     Construct unitigs from LFR sorted blocks.\n");
     fprintf(stderr, "    cleanup    Clean up reads before assembly.\n");            
     fprintf(stderr, "\n");
     fprintf(stderr, "Author : Shi Quan [shiquan(AT)genomics.cn]\n");
@@ -44,7 +44,6 @@ int main(int argc, char *argv[])
     extern int check_segment(int argc, char **argv);
     extern int check_segment2(int argc, char **argv);
     extern int LFR_cleanup(int argc, char **argv);
-    // extern int LFR_assem(int argc, char **argv);
     extern int LFR_unitig(int argc, char **argv);
     if (argc == 1) return usage();
     else if (strcmp(argv[1], "parse") == 0) return fastq_prase_barcodes(argc-1, argv+1);

@@ -487,8 +487,8 @@ static void *run_it(void *_d)
         uint64_t n;
         uint64_t st = 0, ed = 0;
         n = bwt_backward_search(e, args.l_seed, args.seed, &st, &ed);
-        if (n == 0) has_seed = 0;
-        if (check_polyTs(e, 10)) has_poly = 0;
+        if (n != 0) has_seed = 1;
+        if (check_polyTs(e, 10) == 0) has_poly = 1;
         if (has_seed == 0 && has_poly == 0) goto empty_block;
     }
 
@@ -532,7 +532,6 @@ static void write_out(void *s)
         free(r);
     }    
 }
-
 
 int LFR_unitig(int argc, char **argv)
 {
