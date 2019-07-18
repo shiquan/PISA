@@ -526,8 +526,8 @@ static void write_out(void *s)
         struct ret_block *r = (struct ret_block*)s;
         fputs(r->s, args.out);
         args.assem_block++;
-        args.full_covered = r->full;
-        args.part_covered = r->part;
+        args.full_covered += r->full;
+        args.part_covered += r->part;
         free(r->s);
         free(r);
     }    
