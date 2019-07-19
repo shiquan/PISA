@@ -280,9 +280,10 @@ void push_str_base(struct base_v *v, char *s)
     v->v = realloc(v->v, v->l+(l+1)*2);
     uint8_t *e = enc_str(s, l);
     memcpy(v->v+v->l, e, l+1);
+    v->l += l+1;
     revcomp6(e, l);
-    memcpy(v->v + v->l + l+1, e, l+1);
-    v->l = v->l + (l+1)*2;
+    memcpy(v->v + v->l, e, l+1);
+    v->l += l+1;
     free(e);
 }
 
@@ -295,28 +296,9 @@ static struct base_v *rend_bseq(struct read_block *b)
     v->l = 0; v->v = NULL;
 
     int i;
-    for (i = 0; i < b->n; ) {
-        bseq1_t *b1 = &b->b[i++];
-        /*
-        if (pair) {
-            bseq1_t *b2 = &b->b[i++];
-            assert(i < b->n);
-            char *seq = NULL;
-            char *qual = NULL;
-            if (PEmerge(b1->l_seq, b2->l_seq, b1->seq, b2->seq, b1->qual, b2->qual, &seq, &qual) == 0) {
-                push_str_base(v, seq);
-                free(seq);
-                if (qual) free(qual);
-            }
-            else {
-                push_str_base(v, b1->seq);
-                push_str_base(v, b2->seq);
-            }
-        }
-        else 
-        */
-        push_str_base(v, b1->seq);
-    }    
+    for (i = 0; i < b->n; i++)
+        push_str_base(v, b->b[i].seq);
+       
     return v;
 }
 /*
@@ -455,6 +437,34 @@ int64_t bwt_retrieve(const rld_t *e, uint64_t x, kstring_t *s)
     }
 }
 
+struct rld_t *fmi_gen2(struct base_v *v)
+{
+    mrope_t *mr;
+    kstring_t str = {0,0,0};
+    mritr_t itr;
+    rlditr_t di;
+    const uint8_t *block;
+    rld_t *e = 0;
+    mr = mr_init(ROPE_DEF_MAX_NODES, ROPE_DEF_BLOCK_LEN, MR_SO_RCLO);
+    mr_insert_multi(mr, v->l, v->v, 0);
+    e = rld_init(6, 3);
+    rld_itr_init(e, &di, 0);
+    mr_itr_first(mr, &itr, 1);
+    while ((block = mr_itr_next_block(&itr)) != 0) {
+        const uint8_t *q = block + 2, *end = block + 2 + *rle_nptr(block);
+        while (q < end) {
+            int c = 0;
+            int64_t l;
+            rle_dec1(q, c, l);
+            rld_enc(e, &di, l, c);
+        }
+    }
+    rld_enc_finish(e, &di);
+    
+    mr_destroy(mr);
+    return e;
+}
+
 struct ret_block {
     int full;
     int part;
@@ -471,12 +481,14 @@ static void *run_it(void *_d)
 {
     struct read_block *b = (struct read_block*)_d;
     if (b->n == 0) return NULL;
-
+    
     // Step 1: Pure clean up of ME sequences, merge short reads 
-    struct base_v *v = rend_bseq(b);    
+    struct base_v *v = rend_bseq(b);
 
+    // assert(v->v[v->l] == 0);
     // Step 2: build eBWT
-    rld_t *e = bwt_build(v);
+    // rld_t *e = bwt_build(v);
+    rld_t *e = fmi_gen2(v);
     free(v->v); free(v);
     //debug_print("%s", b->name);
     // Step 3: adaptors and polyTs, if no just skip this block
