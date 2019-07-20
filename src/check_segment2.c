@@ -803,8 +803,10 @@ static int check_segment_core(struct segment1 *G, char *s)
 static char *pat2str(struct ref_pat *r, char **pat, int strand)
 {
     int i;
+    /*
     for (i = 0; i < r->n_tag; ++i)
         if (pat[i] == NULL) return NULL;
+    */
     kstring_t str = {0,0,0};
     for (i = 0; i < r->n; i++) {
         struct segment *s = &r->segs[i];
@@ -817,7 +819,7 @@ static char *pat2str(struct ref_pat *r, char **pat, int strand)
         for (j = 0; j < s->n; ++j)  {
             char *a = pat[s->s[j].idx];
             if (a == NULL) {
-                free(tmp.s); break;
+                tmp.l = 0; break;
             }
             if (strand == 1) {
                 char *rev = rev_seq(a, strlen(a)); // todo: bug fix??
@@ -828,8 +830,10 @@ static char *pat2str(struct ref_pat *r, char **pat, int strand)
                 kputs(a, &tmp);
         }
         
-        kputs(tmp.s, &str);
-        free(tmp.s);
+        if (tmp.l) {
+            kputs(tmp.s, &str);
+        }
+        if (tmp.m) free(tmp.s);
     }
 
     return str.s;
