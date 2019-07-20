@@ -36,11 +36,41 @@
 #include "htslib/kseq.h"
 #include "htslib/thread_pool.h"
 
+struct ref;
+
+static struct args {
+    const char *input_fname;
+    const char *config_fname;
+    const char *output_fname;
+    int seed_length;    
+    struct ref *r;
+
+    struct fastq_handler *fastq;
+        
+    int n_thread;
+    int input_pe;
+    int filter_reads;
+    
+    FILE *out;    
+} args = {
+    .input_fname = NULL,
+    .config_fname = NULL,
+    .output_fname = NULL,
+    .seed_length = 6,
+    
+    .r = NULL,
+
+    .fastq = NULL,
+    .filter_reads = 0,
+    .n_thread = 1,
+    .input_pe = 0,
+    .out = NULL,
+};
+
 extern char* check_circle(char *seq);
 
 #define MIN_SEED_LENGTH    6
 #define MAX_SEED_LENGTH    20
-
 
 struct hit {
     int loc;
@@ -53,6 +83,8 @@ struct hits {
 
 KHASH_MAP_INIT_STR(hit, struct hits*)
 KHASH_MAP_INIT_STR(str, int)
+
+#define MAX_MISMATCH 3
 
 struct segment1 {
     int idx;
@@ -218,33 +250,65 @@ static struct ref_pat *build_rev_pat(struct ref_pat *r)
     }
     return v;
 }
-static struct args {
-    const char *input_fname;
-    const char *config_fname;
-    const char *output_fname;
-    int seed_length;    
-    struct ref *r;
 
-    struct fastq_handler *fastq;
-        
-    int n_thread;
-    int input_pe;
-    int filter_reads;
-    FILE *out;    
-} args = {
-    .input_fname = NULL,
-    .config_fname = NULL,
-    .output_fname = NULL,
-    .seed_length = 6,
+static void build_kmers_ref(struct ref *r)
+{
+    char *ref[2];
+    ref[0] = r->ref->seq;
+    ref[1] = r->rev->seq;
     
-    .r = NULL,
-
-    .fastq = NULL,
-    .filter_reads = 0,
-    .n_thread = 1,
-    .input_pe = 0,
-    .out = NULL,
-};
+    r->map = kh_init(hit);
+    
+    int strand = 0;
+    for (; strand < 2; ++strand) {
+        int i;
+        int l = r->ref->l_seq;
+        // debug_print("ref : %d %s", strand, ref[strand]);
+        for (i = 0; i < l; ) {
+            char *s = ref[strand];
+            int j;
+            kstring_t str = {0,0,0};
+            if (s[i] == 'N') { i++; continue; }
+            else if (s[i] == 'B')
+                for (j = 0; j < args.seed_length; ++j) kputc('A', &str);
+            else if (s[i] == 'P')
+                for (j = 0; j < args.seed_length; ++j) kputc('T', &str);
+            else {
+                for (j = 0; j < args.seed_length && i+j < r->ref->l_seq; j++)
+                    if (s[i+j] == 'N' || s[i+j] == 'B' || s[i+j] == 'P') break;
+                if (j < args.seed_length) { i+=j; continue; }
+                kputsn(s+i, args.seed_length, &str);
+            }
+            kputs("", &str);
+            khint_t k;
+            int ret;
+            k = kh_put(hit, r->map, str.s, &ret);
+            if (ret) {
+                struct hits *h = malloc(sizeof(struct hits));
+                h->n = 1;
+                h->hit = malloc(sizeof(struct hit));
+                h->hit->strand = strand;
+                h->hit->loc = i;
+                kh_val(r->map, k) = h;
+                if (r->n == r->m) {
+                    r->m += 100;
+                    r->kmers = realloc(r->kmers, r->m*sizeof(char*));
+                }
+                r->kmers[r->n++] = str.s; // keep key
+                // debug_print("kmers : %s, %d, %d", str.s, i, strand);
+            }
+            else {
+                struct hits *h = kh_val(r->map, k);
+                h->hit = realloc(h->hit, (h->n+1)*sizeof(struct hit));
+                struct hit *hh = &h->hit[h->n++];
+                hh->strand = strand;
+                hh->loc = i;
+                free(str.s);
+            }            
+            i++;
+        }
+    }
+}
 
 static int parse_seg1(struct segment1 *s, const kson_node_t *n)
 {
@@ -385,59 +449,6 @@ static struct ref_pat *config_parse(const char *fn)
     
     if (ref->seq == NULL) error("\"pattern\" must be set in the configure file.");
     return ref;
-}
-static void build_kmers_ref(struct ref *r)
-{
-    char *ref[2];
-    ref[0] = r->ref->seq;
-    ref[1] = r->rev->seq;
-    
-    r->map = kh_init(hit);
-    
-    int strand = 0;
-    for ( ;strand < 2; ++strand) {
-        int i, j;
-        khint_t k;
-        int ret;
-
-        for (i = 0; i < r->ref->l_seq-args.seed_length+1;) {
-            char *s = ref[strand];
-            if (s[i] == 'N' || s[i] == 'B' || s[i] == 'P') { i++; continue; }
-            for (j = 0; j < args.seed_length && i+j < r->ref->l_seq; j++)
-                if (s[i+j] == 'N' || s[i+j] == 'B' || s[i+j] == 'P') {
-                    i+=j;
-                    break;
-                }
-            if (j == args.seed_length) {
-                kstring_t str = {0,0,0};
-                kputsn(s+i, args.seed_length, &str);
-                kputs("", &str);
-                k = kh_put(hit, r->map, str.s, &ret);
-                if (ret) {
-                    struct hits *h = malloc(sizeof(struct hits));
-                    h->n = 1;
-                    h->hit = malloc(sizeof(struct hit));
-                    h->hit->strand = strand;
-                    h->hit->loc = i;
-                    kh_val(r->map, k) = h;
-                    if (r->n == r->m) {
-                        r->m += 100;
-                        r->kmers = realloc(r->kmers, r->m*sizeof(char*));
-                    }
-                    r->kmers[r->n++] = str.s; // keep key
-                }
-                else {
-                    struct hits *h = kh_val(r->map, k);
-                    h->hit = realloc(h->hit, (h->n+1)*sizeof(struct hit));
-                    struct hit *hh = &h->hit[h->n++];
-                    hh->strand = strand;
-                    hh->loc = i;
-                    free(str.s); // free key
-                }
-            }
-            i++;
-        }
-    }
 }
 
 static void config_update_tag_index(struct ref *r)
@@ -611,7 +622,6 @@ static struct ref *config_init(const char *fn)
 
     build_kmers_ref(r);
 
-
     return r;
 }
 
@@ -638,14 +648,16 @@ static int check_pattern_right(char *s, const int start,  struct ref_pat *r, con
     int st1, st2;
     int mis = 0;
     int n_base = 0;
-    
-    for (st1 = h->loc + args.seed_length, st2 = start + args.seed_length; st1 < r->l_seq;) {
+    st1 = h->loc;
+    if (r->seq[st1] != 'B' && r->seq[st1] != 'P') st1 += args.seed_length; // skip seed if not polyT/As
+    st2 = start + args.seed_length;
+    for ( ; st1 < r->l_seq;) {
         
         if (st2 >= len) { // adjust position for circle sequence
             if (is_circle) st2 = st2-len; // circle
-            else break;
+            else { st2 = len; break; }
         }
-        
+        // debug_print("right: %c", r->seq[st1]);
         if (r->seq[st1] == 'N') {
             if (r->tags[st1] == NULL) {
                 st1++; st2++;
@@ -660,7 +672,7 @@ static int check_pattern_right(char *s, const int start,  struct ref_pat *r, con
                         kputsn(s, g->l+st2-len, &str);
                         kputs("", &str);
                     }
-                    else return -2;
+                    else return len; // return the last position
                 }
                 else {
                     kputsn(s+st2, g->l, &str); kputs("", &str);
@@ -673,34 +685,35 @@ static int check_pattern_right(char *s, const int start,  struct ref_pat *r, con
                     }                    
                 }
                 if (pat[g->idx] != NULL) {
-                    free(str.s);
+                    free(pat[g->idx]); // for polyA/T ends, may introduce bias if last base at tag is A or T
                     warnings("Double tag found.");
                 }
-                else pat[g->idx] = str.s;
+                pat[g->idx] = str.s; 
                 st2 += g->l;
                 st1++;
             }
         }
         else if (r->seq[st1] == 'B') {
-            if (s[st2++] == 'A') continue;
+            if (s[st2] == 'A') { st2++; continue;}
             else st1++;
         }
         else if (r->seq[st1] == 'P') {
-            if (s[st2++] == 'T') continue;
+            if (s[st2] == 'T') { st2++; continue;}
             else st1++;
         }
         else {
             if (r->seq[st1] != s[st2]) mis++;
+            if (mis > MAX_MISMATCH) return -1;
             st1++, st2++;
             n_base++;
         }
     }
-    
+    // debug_print("right: %d,%d", n_base, mis);
     // todo: improve filtering
-    if (n_base <= 10 && mis >= 3) return -1;
-    if (n_base > 10 && (float)mis/n_base > 0.1) return -1;
+    if (n_base <= 30 && mis >= MAX_MISMATCH) return -1;
+    if (n_base > 30 && (float)mis/n_base > 0.1) return -1;
     
-    return st2;
+    return st2-1;
 }
 static int check_pattern_left(char *s, const int start, struct ref_pat *r, const struct hit *h, const char **pat, int is_circle)
 {
@@ -708,8 +721,9 @@ static int check_pattern_left(char *s, const int start, struct ref_pat *r, const
     int len = strlen(s);
     int mis = 0;
     int n_base = 0;
+
     for (st1 = h->loc, st2= start; st1 >= 0;) {
-        // debug_print("%c %c", r->seq[st1], s[st2]);
+        // debug_print("%c",r->seq[st1]);
         if (st2 < 0) {
             if (is_circle) st2 = len+st2;
             else break;
@@ -731,14 +745,14 @@ static int check_pattern_left(char *s, const int start, struct ref_pat *r, const
                         kputsn(s, st2, &str);
                         kputs("",&str);
                     }
-                    else return -2; // truncated tag, ignore this sequence
+                    else return 0; // truncated tag, ignore this tag.
                 }
                 else {
                     char *ss = s + st2 - g->l + 1;
                     kputsn(ss, g->l, &str);
                     kputs("", &str);
                 }
-
+                
                 if (g->n) {
                     khint_t k;
                     k = kh_get(str, g->hash, str.s);
@@ -747,33 +761,35 @@ static int check_pattern_left(char *s, const int start, struct ref_pat *r, const
                     }                    
                 }
                 if (pat[g->idx] != NULL) {
-                    free(str.s);
+                    free(pat[g->idx]);
                     warnings("Double tag found.");
                 }
-                else pat[g->idx] = str.s;
+                pat[g->idx] = str.s;
                 st2 -= g->l;
                 st1--;
             }
         }
         else if (r->seq[st1] == 'B') {
-            if (s[st2--] == 'A') continue;
+            // todo: improve performance here
+            if (s[st2] == 'A') { st2--; continue;}
             else st1--;
         }
         else if (r->seq[st1] == 'P') {
-            if (s[st2--] == 'T') continue;
+            if (s[st2] == 'T') { st2--; continue;}
             else st1--;
         }
         else {
             if (r->seq[st1] != s[st2]) mis++;
+            if (mis > MAX_MISMATCH) return -1;
             st1--, st2--;
             n_base++;
         }
     }    // todo: improve filtering
-
-    if (n_base <= 10 && mis >= 3) return -1;
-    if (n_base > 10 && (float)mis/n_base > 0.1) return -1;
+    // debug_print("left: %d,%d", n_base, mis);
+    if (n_base <= 30 && mis >= MAX_MISMATCH) return -1;
+    if (n_base > 30 && (float)mis/n_base > 0.1) return -1;
     
-    return st2;
+    return st2+1;
 }
 /*
 static int check_segment_core(struct segment1 *G, char *s)
@@ -792,25 +808,28 @@ static char *pat2str(struct ref_pat *r, char **pat, int strand)
     kstring_t str = {0,0,0};
     for (i = 0; i < r->n; i++) {
         struct segment *s = &r->segs[i];
-        kputs("|||", &str);
-        kputs(s->tag, &str);
-        kputs("|||", &str);
-        int j;        
+        kstring_t tmp = {0,0,0};
+        int j;
+        kputs("|||", &tmp);
+        kputs(s->tag, &tmp);
+        kputs("|||", &tmp);
+
         for (j = 0; j < s->n; ++j)  {
             char *a = pat[s->s[j].idx];
             if (a == NULL) {
-                if (str.s) free(str.s);
-                return NULL;
+                free(tmp.s); break;
             }
             if (strand == 1) {
                 char *rev = rev_seq(a, strlen(a)); // todo: bug fix??
-                kputs(rev, &str);
+                kputs(rev, &tmp);
                 free(rev);
             }
             else 
-                kputs(a, &str);
+                kputs(a, &tmp);
         }
         
+        kputs(tmp.s, &str);
+        free(tmp.s);
     }
 
     return str.s;
@@ -818,7 +837,7 @@ static char *pat2str(struct ref_pat *r, char **pat, int strand)
 static int check_pattern(char *name, char *s, int start, int strand, struct ref *ref, struct hit *h, int is_circle, kstring_t *out)
 {
     struct ref_pat *r = strand == 0 ? ref->ref : ref->rev;
-    
+    // debug_print("pattern : %s", r->seq);
     char **pat = malloc(r->n_tag*sizeof(void*));
     memset(pat, 0, r->n_tag*sizeof(void*));
     int l;
@@ -829,8 +848,9 @@ static int check_pattern(char *name, char *s, int start, int strand, struct ref 
 
     s2 = check_pattern_right(s, start, r, h, pat, is_circle);
 
-
-    if (s1 < 0 || s2 < 0) {
+    // debug_print("%d\t%d",s1, s2);
+    
+    if (s1 == -1 || s2 == -1) {
         for (i = 0; i < r->n_tag; ++i)
             if (pat[i] != NULL) free(pat[i]);
         free(pat);
@@ -846,53 +866,68 @@ static int check_pattern(char *name, char *s, int start, int strand, struct ref 
     for (i = 0; i < r->n_tag; ++i)
         if (pat[i]) free(pat[i]);
     free(pat);
-    if (args.filter_reads && new_name == NULL) return 1; // not found
+    // if (args.filter_reads && new_name == NULL) return 1; // not found
     int id = 0;
     kstring_t str = {0,0,0};
     //debug_print("%d\t%d\t%d", s1, s2, is_circle);
-    if (s1 > s2) {
-        if (is_circle) {
-            if (s1 - s2 < 20) { // too short
-                free(new_name);
-                return 1;
-            }
-            if (new_name) 
-                ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
-            else
-                ksprintf(&str, ">%d_%s\n", id, name);
-            kputsn(s+s2-1, s1-s2+3, &str);
-            kputc('\n', &str);
-        }
+    if (s1 == 0) {
+        if (l == s2) return 0; // no insertion found, skip
+        if (new_name) 
+            ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
+        else
+            ksprintf(&str, ">%d_%s\n", id, name);
+        kputs(s+s2, &str);
+        kputc('\n', &str);
+    }
+    else if (s2 == l) {
+        if (new_name) 
+            ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
+        else
+            ksprintf(&str, ">%d_%s\n", id, name);
+        kputsn(s, s1, &str); kputc('\n',&str);
     }
     else {
-        if (is_circle) {
-            if (new_name) 
-                ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
-            else
-                ksprintf(&str, ">%d_%s\n", id, name);
-
-            kputs(s+s2, &str);
-            kputsn(s, s1, &str);
-            kputc('\n', &str);
+        if (s1 > s2) {
+            if (is_circle) {
+                if (new_name) 
+                    ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
+                else
+                    ksprintf(&str, ">%d_%s\n", id, name);
+                kputsn(s+s2-1, s1-s2+3, &str);
+                kputc('\n', &str);
+            }
         }
         else {
-            if (l - s2 >= 20) {
+            if (is_circle) {
                 if (new_name) 
                     ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
                 else
                     ksprintf(&str, ">%d_%s\n", id, name);
                 
                 kputs(s+s2, &str);
-                kputc('\n', &str);
-                id++;
-            }
-            if (s1 >= 20) {
-                if (new_name) 
-                    ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
-                else
-                    ksprintf(&str, ">%d_%s\n", id, name);
                 kputsn(s, s1, &str);
                 kputc('\n', &str);
+            }
+            else {
+                if (s2 < l) {
+                    if (new_name) 
+                        ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
+                    else
+                        ksprintf(&str, ">%d_%s\n", id, name);
+                    
+                    kputs(s+s2, &str);
+                    kputc('\n', &str);
+                    id++;
+                }
+                
+                if (s1 > 0) {
+                    if (new_name) 
+                        ksprintf(&str, ">%d_%s%s\n", id, name, new_name);
+                    else
+                        ksprintf(&str, ">%d_%s\n", id, name);
+                    kputsn(s, s1, &str);
+                    kputc('\n', &str);
+                }
             }
         }
     }
@@ -929,13 +964,15 @@ static char *find_segment(struct ref *ref, struct bseq *seq)
         l = strlen(s);
     }
     else s = strdup(seq->s0);
-    
+
+    // debug_print("%s %d %d", s, l, is_circle);
     kstring_t str = {0,0,0};
     kstring_t out = {0,0,0};
     int length = is_circle ? l + args.seed_length : l - args.seed_length;
     int i;
-    int checked = 0;
+    
     for (i = 0; i < length; ++i) {
+        str.l = 0;
         int j;
         for (j = 0; j < args.seed_length; ++j) {
             int k = i + j;
@@ -944,21 +981,18 @@ static char *find_segment(struct ref *ref, struct bseq *seq)
         }
         kputs("", &str);
         struct hits *hh = check_kmers(ref, str.s);
-        if (hh) {
-            checked = 1;
+        if (hh) {    
             int j;
             for (j = 0; j < hh->n; ++j) {
                 struct hit *h = &hh->hit[j];
                 // debug_print("key: %s, %d, %d, %d", str.s, h->loc, h->strand, i);
                 if (check_pattern(seq->n0, s, i, h->strand, ref, h, is_circle, &out) == 0) 
                     goto generate_output;
-                
             }
         }
-        str.l = 0;
     }
 
-    if ( args.filter_reads == 0 && checked == 0)
+    if ( args.filter_reads == 0)
         ksprintf(&out, ">%s\n%s\n", seq->n0, s);
    
     
