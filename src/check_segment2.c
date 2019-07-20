@@ -657,7 +657,7 @@ static int check_pattern_right(char *s, const int start,  struct ref_pat *r, con
             if (is_circle) st2 = st2-len; // circle
             else { st2 = len; break; }
         }
-        // debug_print("right: %c", r->seq[st1]);
+        debug_print("right: %c", r->seq[st1]);
         if (r->seq[st1] == 'N') {
             if (r->tags[st1] == NULL) {
                 st1++; st2++;
@@ -708,7 +708,7 @@ static int check_pattern_right(char *s, const int start,  struct ref_pat *r, con
             n_base++;
         }
     }
-    // debug_print("right: %d,%d", n_base, mis);
+    debug_print("right: %d,%d", n_base, mis);
     // todo: improve filtering
     if (n_base <= 30 && mis >= MAX_MISMATCH) return -1;
     if (n_base > 30 && (float)mis/n_base > 0.1) return -1;
@@ -723,7 +723,7 @@ static int check_pattern_left(char *s, const int start, struct ref_pat *r, const
     int n_base = 0;
 
     for (st1 = h->loc, st2= start; st1 >= 0;) {
-        // debug_print("%c",r->seq[st1]);
+        debug_print("%c %c", r->seq[st1], s[st2]);
         if (st2 < 0) {
             if (is_circle) st2 = len+st2;
             else break;
@@ -740,7 +740,7 @@ static int check_pattern_left(char *s, const int start, struct ref_pat *r, const
                 if (st2 < g->l) {
                     if (is_circle) {
                         char *ss = s+len+st2-g->l;
-                        // debug_print("%d\t%d\t%s",st2, g->l, ss);
+                        debug_print("%d\t%d\t%s",st2, g->l, ss);
                         kputsn(ss, g->l-st2, &str);
                         kputsn(s, st2, &str);
                         kputs("",&str);
@@ -771,12 +771,14 @@ static int check_pattern_left(char *s, const int start, struct ref_pat *r, const
         }
         else if (r->seq[st1] == 'B') {
             // todo: improve performance here
-            if (s[st2] == 'A') { st2--; continue;}
-            else st1--;
+            // if (s[st2] == 'A') { st2--; continue;}
+            // else st1--;
+            st1--; // because we check from left to right, so avoid extend polyT/A to left
         }
         else if (r->seq[st1] == 'P') {
-            if (s[st2] == 'T') { st2--; continue;}
-            else st1--;
+            //if (s[st2] == 'T') { st2--; continue;}
+            //else st1--;
+            st1--;
         }
         else {
             if (r->seq[st1] != s[st2]) mis++;
@@ -785,7 +787,7 @@ static int check_pattern_left(char *s, const int start, struct ref_pat *r, const
             n_base++;
         }
     }    // todo: improve filtering
-    // debug_print("left: %d,%d", n_base, mis);
+    debug_print("left: %d,%d", n_base, mis);
     if (n_base <= 30 && mis >= MAX_MISMATCH) return -1;
     if (n_base > 30 && (float)mis/n_base > 0.1) return -1;
     
@@ -841,7 +843,7 @@ static char *pat2str(struct ref_pat *r, char **pat, int strand)
 static int check_pattern(char *name, char *s, int start, int strand, struct ref *ref, struct hit *h, int is_circle, kstring_t *out)
 {
     struct ref_pat *r = strand == 0 ? ref->ref : ref->rev;
-    // debug_print("pattern : %s", r->seq);
+    debug_print("pattern : %s", r->seq);
     char **pat = malloc(r->n_tag*sizeof(void*));
     memset(pat, 0, r->n_tag*sizeof(void*));
     int l;
@@ -852,7 +854,7 @@ static int check_pattern(char *name, char *s, int start, int strand, struct ref 
 
     s2 = check_pattern_right(s, start, r, h, pat, is_circle);
 
-    // debug_print("%d\t%d",s1, s2);
+    debug_print("%d\t%d",s1, s2);
     
     if (s1 == -1 || s2 == -1) {
         for (i = 0; i < r->n_tag; ++i)
@@ -873,7 +875,7 @@ static int check_pattern(char *name, char *s, int start, int strand, struct ref 
     // if (args.filter_reads && new_name == NULL) return 1; // not found
     int id = 0;
     kstring_t str = {0,0,0};
-    //debug_print("%d\t%d\t%d", s1, s2, is_circle);
+    debug_print("%d\t%d\t%d", s1, s2, is_circle);
     if (s1 == 0) {
         if (l == s2) return 0; // no insertion found, skip
         if (new_name) 
@@ -936,7 +938,7 @@ static int check_pattern(char *name, char *s, int start, int strand, struct ref 
         }
     }
     free(new_name);
-    // debug_print("%s", str.s);
+    debug_print("%s", str.s);
     if (str.l) {
         kputs(str.s, out);
         // debug_print("%s\t%d", name, strand);
@@ -969,7 +971,7 @@ static char *find_segment(struct ref *ref, struct bseq *seq)
     }
     else s = strdup(seq->s0);
 
-    // debug_print("%s %d %d", s, l, is_circle);
+    debug_print("%s %d %d", s, l, is_circle);
     kstring_t str = {0,0,0};
     kstring_t out = {0,0,0};
     int length = is_circle ? l + args.seed_length : l - args.seed_length;
@@ -989,7 +991,7 @@ static char *find_segment(struct ref *ref, struct bseq *seq)
             int j;
             for (j = 0; j < hh->n; ++j) {
                 struct hit *h = &hh->hit[j];
-                // debug_print("key: %s, %d, %d, %d", str.s, h->loc, h->strand, i);
+                debug_print("key: %s, %d, %d, %d", str.s, h->loc, h->strand, i);
                 if (check_pattern(seq->n0, s, i, h->strand, ref, h, is_circle, &out) == 0) 
                     goto generate_output;
             }
