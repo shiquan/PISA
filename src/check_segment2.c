@@ -652,7 +652,7 @@ static int check_pattern_right(char *s, const int start,  struct ref_pat *r, con
     if (r->seq[st1] != 'B' && r->seq[st1] != 'P') st1 += args.seed_length; // skip seed if not polyT/As
     st2 = start + args.seed_length;
     for ( ; st1 < r->l_seq;) {
-        
+        // debug_print("%d",st1);
         if (st2 >= len) { // adjust position for circle sequence
             if (is_circle) st2 = st2-len; // circle
             else { st2 = len; break; }
@@ -964,6 +964,7 @@ static char *find_segment(struct ref *ref, struct bseq *seq)
 {
     int is_circle = 0;
     int l = seq->l0;
+    // debug_print("%s", seq->s0);
     char *s = check_circle(seq->s0);
     if (s) {
         is_circle = 1;

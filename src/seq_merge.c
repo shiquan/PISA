@@ -7,7 +7,7 @@
 unsigned char nst_nt4_table[256] = {
 	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
 	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
-	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 5 /*'-'*/, 4, 4,
+	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
 	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
 	4, 0, 4, 1,  4, 4, 4, 2,  4, 4, 4, 4,  4, 4, 4, 4, 
 	4, 4, 4, 4,  3, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4, 
@@ -134,7 +134,16 @@ pem_ret:
     free(s[0]); free(s[1]); free(q[0]); free(q[1]);
     return 1;
 }
+static int extend_seq(char *s1, char *s2, int l, int max_m) {
+    int i;
+    int m = 0;
 
+    for (i = 0; i < l; ++i) {
+        if (s1[i] != s2[i]) m++;
+        if (m > max_m) return 1;
+    }
+    return 0;
+}
 char *check_circle(char *seq)
 {   
     uint8_t *s[2];
@@ -147,23 +156,24 @@ char *check_circle(char *seq)
     if (l_seq < fragment_limit) return NULL; // too short, only check large fragment
     
     bwa_fill_scmat(5, 4, mat);
-    
+    int query_l = l_seq - seed_length-100;
     s[0] = malloc(seed_length);
-    s[1] = malloc(l_seq - seed_length);
+    s[1] = malloc(query_l);
+    
     for (i = 0; i < seed_length; ++i) {
         int c = seq[i];
         s[0][i] = c < 0 || c > 127? 4 : c <= 4? c : nst_nt4_table[c];
     }
-    for (i = 0; i < l_seq - seed_length; ++i) {
-        int c = seq[i+seed_length];
+    for (i = 0; i < query_l; ++i) {
+        int c = seq[i+seed_length+100];
         c = c < 0 || c > 127? 4 : c < 4? c : nst_nt4_table[c];
         s[1][i] = c < 0 || c > 127? 4 : c <= 4? c : nst_nt4_table[c];
     }
-    
+
     xtra = KSW_XSTART | KSW_XSUBO;
-    r = ksw_align(seed_length, s[0], l_seq-seed_length, s[1], 5, mat, 2, 17, xtra, 0);
+    r = ksw_align(seed_length, s[0], query_l, s[1], 5, mat, 2, 17, xtra, 0);
     free(s[0]); free(s[1]);
-    if (r.qe - r.qb == r.te - r.tb && r.qe - r.qb == seed_length-1 && r.score >= 40) {
+    if (r.qe - r.qb == r.te - r.tb && r.qe - r.qb == seed_length-1 && r.score >= 40 ) {
         /*
         int j, k;
         int mis = 0;        
@@ -171,8 +181,14 @@ char *check_circle(char *seq)
             if (s[j] != s[k]) mis++;
         if ((float)mis/(l_seq-j) > 0.1) return NULL;
         */
+        int check_l = query_l - r.te;
+        char *s1 = seq+seed_length;
+        char *s2 = seq+seed_length+100+r.te+1;
+        if (extend_seq(s1,s2, check_l, 3)) return NULL;
+        l_seq = l_seq - seed_length - check_l;
+        assert(l_seq>=100);
         kstring_t str = {0,0,0};
-        kputsn(seq, r.te+1, &str);
+        kputsn(seq, l_seq, &str);
         kputs("", &str);
         return str.s;
     }
