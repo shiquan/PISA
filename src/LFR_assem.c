@@ -50,7 +50,7 @@ static uint8_t *enc_str(char *s, int l)
 {
     uint8_t *e = malloc(l+1);
     int i;
-    for (i = 0; i < l; ++i) e[i] = seq_nt6_table[(int)s[i]];
+    for (i = 0; i < l; ++i) e[i] = seq_nt6_table[(int)s[l-i-1]]; // reverse string
     e[l] = 0;
     return e;
 }
@@ -487,7 +487,7 @@ static void *run_it(void *_d)
 
     // assert(v->v[v->l] == 0);
     // Step 2: build eBWT
-    // rld_t *e = bwt_build(v);
+    //rld_t *e = bwt_build(v);
     rld_t *e = fmi_gen2(v);
     free(v->v); free(v);
     //debug_print("%s", b->name);
