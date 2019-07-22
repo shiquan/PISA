@@ -700,9 +700,8 @@ static int check_pattern_right(char *s, const int start,  struct ref_pat *r, con
             st1++;
         }
         else if (r->seq[st1] == 'P') {
-            // if (s[st2] == 'T') { st2++; continue;}
-            // else
-            st1++;
+            if (s[st2] == 'T') { st2++; continue;}
+            else  st1++;
         }
         else {
             if (r->seq[st1] != s[st2]) mis++;
@@ -772,11 +771,11 @@ static int check_pattern_left(char *s, const int start, struct ref_pat *r, const
                 st1--;
             }
         }
-        else if (r->seq[st1] == 'B') {
+        else if (r->seq[st1] == 'B') { // TODO: for polyT/As. should redesigned here.
             // todo: improve performance here
-            // if (s[st2] == 'A') { st2--; continue;}
-            // else st1--;
-            st1--; // because we check from left to right, so avoid extend polyT/A to left
+            if (s[st2] == 'A') { st2--; continue;}
+            else st1--;
+            // st1--; // because we check from left to right, so avoid extend polyT/A to left
         }
         else if (r->seq[st1] == 'P') {
             //if (s[st2] == 'T') { st2--; continue;}
