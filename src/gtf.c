@@ -140,12 +140,19 @@ static struct attr_pair *bend_pair(char *s, int *n)
         else {
             p0 = ++p1;
             key.l = 0;
-            if (*p0 != '"') error("Bad format.");
-            ++p0;
-            for (j = 0, p1 = p0; *p1 != '"'; ++p1,++j);
-            kputsn(p0, j, &key);
-            kputs("",&key);
-            pp[i].val = strdup(key.s);
+            if (*p0 != '"') { // no common
+                for (j = 0, p1 = p0; *p1 != ';'; ++p1,++j);
+                kputsn(p0, j, &key);
+                kputs("",&key);
+                pp[i].val = strdup(key.s);
+            }
+            else {
+                ++p0;
+                for (j = 0, p1 = p0; *p1 != '"'; ++p1,++j);
+                kputsn(p0, j, &key);
+                kputs("",&key);
+                pp[i].val = strdup(key.s);
+            }
         }        
     }
     free(str.s);
