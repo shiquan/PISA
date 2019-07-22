@@ -212,7 +212,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
 
     int qry = dict_query(G->features, feature);
     if (qry == -1) {
-        warnings("Unknown feature type. %s", feature);
+        // warnings("Unknown feature type. %s", feature);
         return 1;
     }
     if (filter) {
@@ -292,7 +292,7 @@ struct gtf_spec *gtf_read(const char *fname, int filter)
             continue;
         }
         if (str.s[0] == '#') continue;
-        if (parse_str(G, &str, filter)) warnings("Skip line %d, %s", line, str.s);
+        parse_str(G, &str, filter); //warnings("Skip line %d, %s", line, str.s);
 
     }
     free(str.s);
