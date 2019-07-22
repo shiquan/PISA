@@ -141,7 +141,7 @@ static struct attr_pair *bend_pair(char *s, int *n)
             p0 = ++p1;
             key.l = 0;
             if (*p0 != '"') { // no common
-                for (j = 0, p1 = p0; *p1 != '=\0'; ++p1,++j);
+                for (j = 0, p1 = p0; *p1 != '\0'; ++p1,++j);
                 kputsn(p0, j, &key);
                 kputs("",&key);
                 pp[i].val = strdup(key.s);
