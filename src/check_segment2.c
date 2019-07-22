@@ -642,12 +642,13 @@ static int usage()
     return 1;
 }
 
-static int check_pattern_right(char *s, const int start,  struct ref_pat *r, const struct hit *h, const char **pat, int is_circle)
+static int check_pattern_right(char *s, const int start,  struct ref_pat *r, const struct hit *h, const char **pat, int is_circle, int *checked)
 {
     int len = strlen(s);
     int st1, st2;
     int mis = 0;
     int n_base = 0;
+    *checked = 0;
     st1 = h->loc;
     if (r->seq[st1] != 'B' && r->seq[st1] != 'P') st1 += args.seed_length; // skip seed if not polyT/As
     st2 = start + args.seed_length;
@@ -694,12 +695,14 @@ static int check_pattern_right(char *s, const int start,  struct ref_pat *r, con
             }
         }
         else if (r->seq[st1] == 'B') {
-            if (s[st2] == 'A') { st2++; continue;}
-            else st1++;
+            // if (s[st2] == 'A') { st2++; continue;}
+            //else st1++;
+            st1++;
         }
         else if (r->seq[st1] == 'P') {
-            if (s[st2] == 'T') { st2++; continue;}
-            else st1++;
+            // if (s[st2] == 'T') { st2++; continue;}
+            // else
+            st1++;
         }
         else {
             if (r->seq[st1] != s[st2]) mis++;
@@ -712,16 +715,16 @@ static int check_pattern_right(char *s, const int start,  struct ref_pat *r, con
     // todo: improve filtering
     if (n_base <= 30 && mis >= MAX_MISMATCH) return -1;
     if (n_base > 30 && (float)mis/n_base > 0.1) return -1;
-    
-    return st2-1;
+    if (n_base > 5) *checked = 1; // pattern checked, not just seed
+    return st2;
 }
-static int check_pattern_left(char *s, const int start, struct ref_pat *r, const struct hit *h, const char **pat, int is_circle)
+static int check_pattern_left(char *s, const int start, struct ref_pat *r, const struct hit *h, const char **pat, int is_circle, int *checked)
 {
     int st1, st2;
     int len = strlen(s);
     int mis = 0;
     int n_base = 0;
-
+    *checked = 0;
     for (st1 = h->loc, st2= start; st1 >= 0;) {
         // debug_print("%c %c", r->seq[st1], s[st2]);
         if (st2 < 0) {
@@ -790,7 +793,7 @@ static int check_pattern_left(char *s, const int start, struct ref_pat *r, const
     // debug_print("left: %d,%d", n_base, mis);
     if (n_base <= 30 && mis >= MAX_MISMATCH) return -1;
     if (n_base > 30 && (float)mis/n_base > 0.1) return -1;
-    
+    if (n_base > 5) *checked = 1;
     return st2+1;
 }
 /*
@@ -850,13 +853,14 @@ static int check_pattern(char *name, char *s, int start, int strand, struct ref 
     int i;
     int s1, s2;
     l = strlen(s);
-    s1 = check_pattern_left(s, start, r, h, pat, is_circle);
+    int c1, c2;
+    s1 = check_pattern_left(s, start, r, h, pat, is_circle, &c1);
 
-    s2 = check_pattern_right(s, start, r, h, pat, is_circle);
+    s2 = check_pattern_right(s, start, r, h, pat, is_circle, &c2);
 
     // debug_print("%d\t%d",s1, s2);
     
-    if (s1 == -1 || s2 == -1) {
+    if (s1 == -1 || s2 == -1 || (c1==0 && c2==0)) {
         for (i = 0; i < r->n_tag; ++i)
             if (pat[i] != NULL) free(pat[i]);
         free(pat);
