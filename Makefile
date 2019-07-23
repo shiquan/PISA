@@ -31,7 +31,7 @@ force:
 .c.o:
 	$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@
 
-LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/dict.o src/seq_merge.o src/ksa.o
+LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/dict.o src/seq_merge.o src/ksa.o src/bam_pool.o
 
 AOBJ = src/bam_anno.o \
 	src/bam_count.o \
@@ -93,6 +93,7 @@ src/check_segment2.o: src/check_segment2.c
 src/LFR_cleanup.o: src/LFR_cleanup.c
 src/LFR_assem.o: src/LFR_assem.c
 src/ksa.o: src/ksa.c
+src/bam_pool.o: src/bam_pool.c
 fermi-lite/bfc.o: fermi-lite/bfc.c
 fermi-lite/bseq.o: fermi-lite/bseq.c
 fermi-lite/bubble.o: fermi-lite/bubble.c
