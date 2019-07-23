@@ -54,7 +54,7 @@ void umi_tag_push(struct umi_tag *U, char const *_s)
 {
     khint_t k;
     int l;
-    char *s = strdup(s);
+    char *s = strdup(_s);
     l = strlen(s);
     if (l == 0) error("Try to push empty string.");
     if (U->l == 0) U->l = l;
