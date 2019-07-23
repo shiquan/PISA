@@ -253,7 +253,7 @@ int count_matrix(int argc, char **argv)
     t_real = realtime();
     if (parse_args(argc, argv)) return usage();
 
-    struct lbarcode *lb = barcode_init();
+    struct barcode_list *lb = barcode_init();
     if (args.whitelist_fname) {
         if (barcode_read(lb, args.whitelist_fname)) error("Empty white list.");
     }

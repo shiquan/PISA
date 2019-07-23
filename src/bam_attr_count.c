@@ -103,7 +103,7 @@ int bam_count_attr(int argc, char *argv[])
     fputc('\n', out);
     int is_dyn_alloc = 1;
 
-    struct lbarcode *barcode = barcode_init();
+    struct barcode_list *barcode = barcode_init();
     if (args.barcode_fname) {
         barcode_read(barcode, args.barcode_fname);
         is_dyn_alloc = 0;

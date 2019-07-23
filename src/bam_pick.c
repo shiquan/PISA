@@ -76,7 +76,7 @@ int bam_pick(int argc, char **argv)
     CHECK_EMPTY(out, "%s : %s.", args.output_fname, strerror(errno));
     if (sam_hdr_write(out, hdr)== -1) error("Failed to write SAM header.");
 
-    struct lbarcode *barcode = barcode_init();
+    struct barcode_list *barcode = barcode_init();
     if (barcode_read(barcode, args.barcode_fname)) error("Empty barcode.");
     
     bam1_t *b;

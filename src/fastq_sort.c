@@ -144,7 +144,7 @@ static struct args {
     // For each thread, keep file handler
     //FILE **fp;
     FILE *fp_in;
-    struct lbarcode *lb;
+    struct barcode_list *lb;
     long end;
     
 } args = {

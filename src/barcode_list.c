@@ -46,15 +46,15 @@ static struct barcode *init_barcode_list(const char *fname, int *n, int *m)
     }
     return b;
 }
-struct lbarcode *barcode_init()
+struct barcode_list *barcode_init()
 {
-    struct lbarcode *lb = malloc(sizeof(struct lbarcode));
-    memset(lb, 0, sizeof(struct lbarcode));
+    struct barcode_list *lb = malloc(sizeof(struct barcode_list));
+    memset(lb, 0, sizeof(struct barcode_list));
     taghash_t *h = kh_init(tag);
     lb->hash = (void*)h;
     return lb;
 }
-void barcode_destory(struct lbarcode *b)
+void barcode_destory(struct barcode_list *b)
 {
     int i;
     for (i = 0; i < b->n; ++i) 
@@ -63,7 +63,7 @@ void barcode_destory(struct lbarcode *b)
     kh_destroy(tag, (taghash_t*)b->hash);
     free(b);
 }
-int barcode_read(struct lbarcode *lb, const char *fname)
+int barcode_read(struct barcode_list *lb, const char *fname)
 {
     lb->b = init_barcode_list(fname, &lb->n, &lb->m);
     if (lb->n == 0) return 1;
@@ -80,7 +80,7 @@ int barcode_read(struct lbarcode *lb, const char *fname)
 
     return 0;
 }
-int barcode_select(struct lbarcode *lb, char *s)
+int barcode_select(struct barcode_list *lb, char *s)
 {
     taghash_t *hash = (taghash_t*)lb->hash;
     khiter_t k = kh_get(tag, hash, s);
@@ -88,7 +88,7 @@ int barcode_select(struct lbarcode *lb, char *s)
     return kh_val(hash, k);
 }
 // for barcode already existed, reture the index
-int barcode_push(struct lbarcode *lb, char *s)
+int barcode_push(struct barcode_list *lb, char *s)
 {
     int ret = barcode_select(lb, s);
     if (ret != -1) return ret;
