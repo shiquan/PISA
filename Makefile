@@ -31,7 +31,7 @@ force:
 .c.o:
 	$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@
 
-LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/dict.o src/seq_merge.o src/ksa.o src/bam_pool.o
+LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/dict.o src/seq_merge.o src/ksa.o src/bam_pool.o src/umi_corr.o
 
 AOBJ = src/bam_anno.o \
 	src/bam_count.o \
@@ -46,7 +46,8 @@ AOBJ = src/bam_anno.o \
 	src/check_segment.o \
 	src/check_segment2.o \
 	src/LFR_cleanup.o \
-	src/LFR_assem.o
+	src/LFR_assem.o \
+	src/bam_corr_umi.o
 
 ASSM_LIB_OBJ =	fermi-lite/bfc.o fermi-lite/bseq.o fermi-lite/bubble.o fermi-lite/htab.o fermi-lite/ksw.o fermi-lite/kthread.o fermi-lite/mag.o fermi-lite/misc.o \
 	fermi-lite/mrope.o fermi-lite/rld0.o fermi-lite/rle.o fermi-lite/rope.o fermi-lite/unitig.o
@@ -72,6 +73,8 @@ src/seq_merge.o: src/seq_merge.c
 src/bam_anno.o: src/bam_anno.c
 src/bam_count.o: src/bam_count.c
 src/bam_pick.o: src/bam_pick.c
+src/bam_corr_umi.o: src/bam_corr_umi.c
+src/umi_corr.o: src/umi_corr.c
 src/fastq_parse_barcode.o: src/fastq_parse_barcode.c
 src/fastq_sort.o: src/fastq_sort.c
 src/dyncut.o: src/dyncut.c

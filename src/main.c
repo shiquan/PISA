@@ -15,6 +15,7 @@ int usage()
     fprintf(stderr, "    rmdup      Remove PCR duplicates, consider cell barcodes and UMI tag.\n");
     fprintf(stderr, "    pick       Pick alignments of specific cells.\n");
     fprintf(stderr, "    anno       Annotate peak or gene names into BAM attributions.\n");
+    fprintf(stderr, "    corr       Correct low frequency UMI to close one, 1 mismatch considered.\n");
     fprintf(stderr, "    attrcnt    Count raw reads and reads with predefined tag for each cell.\n");
     fprintf(stderr, "    count      Count matrix.\n");
     fprintf(stderr, "\n--- Processing scLFR reads. *experimental*\n");
@@ -38,6 +39,7 @@ int main(int argc, char *argv[])
     extern int bam_anno_attr(int argc, char *argv[]);
     extern int bam_count_attr(int argc, char *argv[]);
     extern int bam_pick(int argc, char *argv[]);
+    extern int bam_corr_umi(int argc, char **argv);
     extern int count_matrix(int argc, char *argv[]);
     extern int fsort(int argc, char ** argv);
     extern int assem(int argc, char **argv);
@@ -52,6 +54,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "sam2bam") == 0) return sam2bam(argc-1, argv+1);
     else if (strcmp(argv[1], "rmdup") == 0) return bam_rmdup(argc-1, argv+1);
     else if (strcmp(argv[1], "anno") == 0) return bam_anno_attr(argc-1, argv+1);
+    else if (strcmp(argv[1], "corr") == 0) return bam_corr_umi(argc-1, argv+1);
     else if (strcmp(argv[1], "attrcnt") == 0) return bam_count_attr(argc-1, argv+1);
     else if (strcmp(argv[1], "pick") == 0) return bam_pick(argc-1, argv+1);
     else if (strcmp(argv[1], "count") == 0) return count_matrix(argc-1, argv+1);
