@@ -50,7 +50,7 @@ static int parse_args(int argc, char **argv)
         error("Unknown argument: %s", a);
     }
 
-    CHECK_EMPTY(args.barcode_fname, "-list Cell barcode list must be set.");
+    // CHECK_EMPTY(args.barcode_fname, "-list Cell barcode list must be set.");
     CHECK_EMPTY(args.input_fname, "Input BAM file must be set.");
     CHECK_EMPTY(args.output_fname, "Output BAM file must be set.");
     
@@ -76,8 +76,11 @@ int bam_pick(int argc, char **argv)
     CHECK_EMPTY(out, "%s : %s.", args.output_fname, strerror(errno));
     if (sam_hdr_write(out, hdr)== -1) error("Failed to write SAM header.");
 
-    struct barcode_list *barcode = barcode_init();
-    if (barcode_read(barcode, args.barcode_fname)) error("Empty barcode.");
+    struct barcode_list *barcode = NULL;
+    if (args.barcode_fname) {
+        barcode = barcode_init();
+        if (barcode_read(barcode, args.barcode_fname)) error("Empty barcode");
+    }
     
     bam1_t *b;
     bam1_core_t *c;
@@ -87,17 +90,23 @@ int bam_pick(int argc, char **argv)
     int id;
     while ((ret = sam_read1(fp, hdr, b)) >= 0) {
         uint8_t *tag = bam_aux_get(b, args.tag);
-        if (!tag) error("Tag %s not found at line %s:%d\n", args.tag, hdr->target_name[c->tid], c->pos+1);
-        id = barcode_select(barcode, (char*)(tag+1));
-        if (id == -1) continue;
-        if (sam_write1(out, hdr, b) == -1) error("Failed to write SAM.");
+        // if (!tag) error("Tag %s not found at line %s:%d\n", args.tag, hdr->target_name[c->tid], c->pos+1);
+        if (barcode) {
+            id = barcode_select(barcode, (char*)(tag+1));
+            if (id == -1) continue;
+            if (sam_write1(out, hdr, b) == -1) error("Failed to write SAM.");
+        }
+        else if (tag) {
+            if (sam_write1(out, hdr, b) == -1) error("Failed to write SAM.");
+        }
     }
     
     bam_destroy1(b);
     bam_hdr_destroy(hdr);
     sam_close(fp);
     sam_close(out);
-    barcode_destory(barcode);
+    if (barcode)
+        barcode_destory(barcode);
     
     if (ret != -1) warnings("Truncated file?");
     return 0;
