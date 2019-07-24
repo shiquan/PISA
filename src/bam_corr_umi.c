@@ -166,12 +166,14 @@ static void *build_idx_read(void *data)
         for (j = 0; j < args.n_block; ++j) {
             uint8_t *tag = bam_aux_get(b, args.blocks[j]);
             if (!tag) { str.l = 0; break; }
+            kputs((char*)(tag+1), &str);
         }
         if (str.l == 0) continue;
         uint8_t *tag = bam_aux_get(b, args.tag);
         if (!tag) continue;
         p->is[p->n].key = strdup(str.s);
         p->is[p->n].val = strdup((char*)(tag+1));
+        p->n++;
     }
     if (str.m) free(str.s);
 
@@ -193,7 +195,7 @@ static struct corr_tag *build_index(const char *fn)
 
     for (;;) {
         struct bam_pool *b = bam_pool_create();
-        bam_read_pool(b, args.in, args.hdr, args.chunk_size);
+        bam_read_pool(b, fp, hdr, args.chunk_size);
         
         if (b == NULL) break;
         if (b->n == 0) { free(b->bam); free(b); break; }
@@ -243,12 +245,14 @@ static void *run_it(void *data)
         for (j = 0; j < args.n_block; ++j) {
             uint8_t *tag = bam_aux_get(b, args.blocks[j]);
             if (!tag) { str.l = 0; break; }
+            kputs((char*)(tag+1), &str);
         }
         if (str.l == 0) continue;
         uint8_t *tag = bam_aux_get(b, args.tag);
         if (!tag) continue;
         char *old_tag = (char*)(tag+1);
         char *new_tag = corr_tag_retrieve(args.Cindex, str.s, old_tag);
+        debug_print("%s\t%s", old_tag, new_tag);
         if (strcmp(old_tag, new_tag) == 0) continue;
         if (bam_aux_update_str(b, args.tag, strlen(new_tag), new_tag))
             warnings("Failed to update tag. %s", (char*)b->data);
@@ -328,3 +332,11 @@ int bam_corr_umi(int argc, char **argv)
     LOG_print("%d records updated.", args.update_count);
     return 0;
 }
+
+#ifdef CORR_UMI
+int main(int argc, char **argv)
+{
+    return bam_corr_umi(argc, argv);
+}
+
+#endif
