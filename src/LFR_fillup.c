@@ -3,13 +3,30 @@
 #include "htslib/hts.h"
 #include "htslib/kstring.h"
 #include "htslib/sam.h"
+#include "htslib/thread_pool.h"
+#include "bam_pool.h"
 #include "number.h"
 
 struct fill_tags {
+    char *name;
     char **tags;
 };
 
-KHASH_MAP_INIT_STR(fu, struct fill_tags)
+KHASH_MAP_INIT_STR(name, int)
+
+struct fill_index {
+    int n, m;
+    struct fill_tags *tags;
+    kh_name_t *dict;
+};
+
+static struct fill_tags *fill_index_retrieve(struct fill_index *idx, char *s)
+{
+    khint_t k;
+    k = kh_get(name, idx->dict, s);
+    if (k == kh_end(idx->dict)) return NULL;
+    return &idx->tags[kh_val(idx->dict, k)];
+}
 
 static struct args {
     const char *input_fname;
@@ -19,11 +36,19 @@ static struct args {
     int n_block;
     char **block_tags;
 
-    htsFile *fp;
+    htsFile *in;
     htsFile *out;
     bam_hdr_t *hdr;
     int qual_thres;
     int keep_all; // default will filter unannotated reads
+
+    struct fill_index *index;
+
+    int file_th;
+    int n_thread;
+    int chunk_size;
+    uint64_t filled_records;
+    
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
@@ -31,11 +56,16 @@ static struct args {
     .fill_tags = NULL,
     .n_block = 0,
     .block_tags = NULL,
-    .fp = NULL,
+    .in = NULL,
     .out = NULL,
     .hdr = NULL,
     .qual_thres = 20,
     .keep_all = 0,
+    .index =NULL,
+    .file_th = 4,
+    .n_thread = 1,
+    .chunk_size = 1000000,
+    .filled_records = 0,
 };
 
 static int parse_args(int argc, char **argv)
@@ -44,6 +74,7 @@ static int parse_args(int argc, char **argv)
     const char *block_tags = NULL;
     const char *fill_tags = NULL;
     const char *file_thread = NULL;
+    const char *thread = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -72,6 +103,7 @@ static int parse_args(int argc, char **argv)
     CHECK_EMPTY(args.input_fname, "Input bam must be set.");
     CHECK_EMPTY(block_tags, "-block must be set.");
     CHECK_EMPTY(fill_tags, "-fill must be set.");
+    
     kstring_t str = {0,0,0};
     kputs(block_tags, &str);
     int *s = ksplit(&str, ',', &args.n_block);
@@ -94,23 +126,24 @@ static int parse_args(int argc, char **argv)
     }
     free(s0);
     free(str.s);
+        
+    if (file_thread) args.file_th = str2int((char*)file_thread);
+    assert(args.file_th>0);
+    if (thread) args.n_thread = str2int((char*)thread);
     
-    int file_th = 5;
-    if (file_thread) file_th = str2int((char*)file_thread);
-    
-    args.fp  = hts_open(args.input_fname, "r");
-    CHECK_EMPTY(args.fp, "%s : %s.", args.input_fname, strerror(errno));
-    htsFormat type = *hts_get_format(args.fp);
+    args.in  = hts_open(args.input_fname, "r");
+    CHECK_EMPTY(args.in, "%s : %s.", args.input_fname, strerror(errno));
+    htsFormat type = *hts_get_format(args.in);
     if (type.format != bam && type.format != sam)
         error("Unsupported input format, only support BAM/SAM/CRAM format.");
-    args.hdr = sam_hdr_read(args.fp);
+    args.hdr = sam_hdr_read(args.in);
     CHECK_EMPTY(args.hdr, "Failed to open header.");
     //int n_bed = 0;
     args.out = hts_open(args.output_fname, "bw");
     CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
 
-    hts_set_threads(args.fp, file_th);
-    hts_set_threads(args.out, file_th);
+    hts_set_threads(args.in, args.file_th);
+    hts_set_threads(args.out, args.file_th);
     
     if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
     return 0;
@@ -118,185 +151,207 @@ static int parse_args(int argc, char **argv)
 static void memory_release()
 {
     bam_hdr_destroy(args.hdr);
-    sam_close(args.fp);
+    sam_close(args.in);
     sam_close(args.out);
 }
-struct bam_stack {
+
+struct fill_tags_pool {
     int n, m;
-    bam1_t **bam;
-    kh_fu_t *dict;
-    int n_name, m_name;
-    char **names;
+    struct fill_tags *tags;
 };
 
-static struct bam_stack *stack_build()
+static struct fill_index *fill_index_build()
 {
-    struct bam_stack *s = malloc(sizeof(*s));
-    memset(s, 0, sizeof(*s));
-    s->dict = kh_init(fu);
-    return s;
+    struct fill_index *i = malloc(sizeof(*i));
+    memset(i, 0, sizeof(*i));
+    i->dict = kh_init(name);
+    return i;
 }
-static void stack_reset(struct bam_stack *s)
+static void *build_idx_read(void *_p)
 {
-    int i;
-    for (i = 0; i < s->n; ++i)
-        if (s->bam[i]) bam_destroy1(s->bam[i]);
-    s->n = 0;
-    for (i = 0; i < s->n_name; ++i) {
-        khint_t k;
-        k = kh_get(fu, s->dict, s->names[i]);
-        struct fill_tags *t = &kh_val(s->dict, k);
-        int j;
-        for (j = 0; j < args.n_fill; ++j)
-            if (t->tags[j]) free(t->tags[j]);
-        free(t->tags);
-        kh_del(fu, s->dict,k);
-        free(s->names[i]);
-    }
-    s->n_name = 0;
-    // kh_destroy(fu, s->dict);
-    // s->dict = kh_init(fu);
-}
-static void stack_destory(struct bam_stack *s)
-{
-    int i;
-    for (i = 0; i < s->n; ++i)
-        if (s->bam[i]) bam_destroy1(s->bam[i]);
-
-    free(s->bam);
-    for (i = 0; i < s->n_name; ++i) {
-        khint_t k;
-        k = kh_get(fu, s->dict, s->names[i]);
-        struct fill_tags *t = &kh_val(s->dict, k);
-        int j;
-        for (j = 0; j < args.n_fill; ++j)
-            if (t->tags[j]) free(t->tags[j]);
-        free(t->tags);
-        // kh_del(fu,s->dict,k);
-        free(s->names[i]);
-    }
-    free(s->names);
-    kh_destroy(fu,s->dict);
-    free(s);
-}
-static void stack_finish(struct bam_stack *s)
-{
-    int i;
-    for (i = 0; i < s->n; ++i) {
-        // if (s->bam[i] == NULL) continue;
-        bam1_t *b = s->bam[i];
-        kstring_t str = {0,0,0};
+    struct fill_tags_pool *raw = malloc(sizeof(*raw));
+    memset(raw, 0, sizeof(*raw));
+    struct bam_pool *p = (struct bam_pool *)_p;
+    
+    kstring_t str = {0,0,0};
+    int i;    
+    for (i = 0; i < p->n; ++i) {
+        bam1_t *b = &p->bam[i];
+        str.l = 0;
+        if (raw->n == raw->m) {
+            raw->m = raw->m == 0 ? 1024 : raw->m<<1;
+            raw->tags = realloc(raw->tags, sizeof(struct fill_tags)*raw->m);
+            raw->tags[raw->n].tags = malloc(args.n_fill*sizeof(void*)); // allocated
+        }
         int j;
         for (j = 0; j < args.n_block; ++j) {
             uint8_t *tag = bam_aux_get(b, args.block_tags[j]);
-            if (!tag) {
-                if (str.m) free(str.s);
-                str.l = 0;
-                break;
-            }
+            if (!tag) { str.l = 0; break; }
             kputs((char*)(tag+1), &str);
         }
-        if (str.l) {
-            khint_t k;
-            k = kh_get(fu, s->dict, str.s);
-            if (k == kh_end(s->dict)) warnings("%s is not inited.", str.s);
-            struct fill_tags *f = &kh_val(s->dict, k);
-            int j;
-            for (j = 0; j < args.n_fill; ++j) {
-                if (f->tags[j] == NULL) continue; // no tag found in this block
-                uint8_t *tag = bam_aux_get(b, args.fill_tags[j]);                
-                if (!tag) { // empty, fill
-                    // debug_print("Append %s to %s", f->tags[j], (char*)b->data);
-                    bam_aux_append(b, args.fill_tags[j], 'Z', strlen(f->tags[j])+1, (uint8_t*)f->tags[j]);                    
-                }
-            }
-        }            
-    }
-}
-static void stack_push(struct bam_stack *s, bam1_t *b)
-{
-    if (s->n == s->m) {
-        s->m = s->m == 0 ? 1024 : s->m*2;
-        s->bam = realloc(s->bam, s->m*sizeof(void*));
-    }
-    s->bam[s->n++] = bam_dup1(b);
-    kstring_t str = {0,0,0};
-    int i;
-    for (i = 0; i < args.n_block; ++i) {
-        uint8_t *tag = bam_aux_get(b, args.block_tags[i]);
-        if (!tag) { // no tag, skip
-            if (str.m) free(str.s);
-            return;
+        if (str.l == 0) continue;
+        struct fill_tags *f = &raw->tags[raw->n];
+        int is_empty = 1;        
+        for (j = 0; j < args.n_fill; ++j) {
+            uint8_t *tag = bam_aux_get(b, args.fill_tags[j]);
+            f->tags[j] = NULL;
+            if (!tag) continue;
+            is_empty = 0;
+            f->tags[j] = strdup((char*)(tag+1));
         }
-        kputs((char*)(tag+1), &str);
+        
+        if (is_empty) continue; 
+        f->name = strdup(str.s);
+        raw->n++;
+        if (raw->n < raw->m) 
+            raw->tags[raw->n].tags = malloc(args.n_fill*sizeof(void*)); // init next record;
+    }
+    if (str.m) free(str.s);
+    return raw;
+}
+static void build_idx_core(struct fill_index *idx, struct fill_tags_pool *raw)
+{
+    int i;
+    for (i = 0; i < raw->n; ++i) {
+        struct fill_tags *r = &raw->tags[i];
+        assert(r->name);
+        khint_t k;
+        int ret;
+        char *s = strdup(r->name);
+        k = kh_put(name, idx->dict, s, &ret);
+        if (ret) {
+            if (idx->n == idx->m) {
+                idx->m = idx->m == 0 ? 1024 : idx->m<<1;
+                idx->tags = realloc(idx->tags, idx->m*sizeof(struct fill_tags));
+            }
+            struct fill_tags *f = &idx->tags[idx->n];
+            f->name = s;
+            f->tags = malloc(sizeof(void*)*args.n_fill);
+            int j;
+            for (j = 0; j < args.n_fill; ++j)
+                if (r->tags[j] == NULL) f->tags[j] = NULL;
+                else f->tags[j] = strdup(r->tags[j]);
+            kh_val(idx->dict, k) = idx->n++;            
+        }
+        else {
+            int itr = kh_val(idx->dict, k);
+            struct fill_tags *f = &idx->tags[itr];
+            int j;
+            for (j = 0; j < args.n_fill; ++j)
+                if (f->tags[j] == NULL && r->tags[j]) f->tags[j] = strdup(r->tags[j]);
+            free(s);
+        }
+        free(r->name);
+        int j;
+        for (j = 0; j < args.n_fill; ++j)
+            if (r->tags[j]) free(r->tags[j]);
+        free(r->tags);
     }
 
-    khint_t k;
-    k = kh_get(fu, s->dict, str.s);
-    if (k == kh_end(s->dict)) {
-        if (s->n_name == s->m_name) {
-            s->m_name += 2;
-            s->names = realloc(s->names, s->m_name*sizeof(char*));
+    if (raw->n < raw->m) free(raw->tags[raw->n].tags); // because we pre-allocate memory for next record ..
+}
+
+static struct fill_index *build_index(const char *fn)
+{
+    htsFile *fp = hts_open(fn, "r");
+    assert(fp);
+    bam_hdr_t *hdr = sam_hdr_read(fp);
+    hts_set_threads(fp, args.file_th);
+
+    struct fill_index *index = fill_index_build();
+    
+    hts_tpool *p = hts_tpool_init(args.n_thread);
+    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+    hts_tpool_result *r;
+
+    for (;;) {
+        struct bam_pool *b = bam_pool_create();
+        bam_read_pool(b, fp, hdr, args.chunk_size);
+        
+        if (b == NULL) break;
+        if (b->n == 0) { free(b->bam); free(b); break; }
+        
+        int block;
+        do {
+            block = hts_tpool_dispatch2(p, q, build_idx_read, b, 1);
+            if ((r = hts_tpool_next_result(q))) {
+                struct fill_tags_pool *d = (struct fill_tags_pool*)hts_tpool_result_data(r);
+                build_idx_core(index, d);
+                hts_tpool_delete_result(r, 0);
+            }
         }
-        s->names[s->n_name] = strdup(str.s);
-        int ret;
-        k = kh_put(fu, s->dict, s->names[s->n_name], &ret);
-        s->n_name++;
-        struct fill_tags *ft = &kh_val(s->dict, k);
-        ft->tags = malloc(args.n_fill*sizeof(void*));
-        memset(ft->tags,0,args.n_fill*sizeof(void*));
+        while (block == -1);
     }
     
-    struct fill_tags *ft = &kh_val(s->dict, k);
-    for (i = 0; i < args.n_fill; ++i) {
-        uint8_t *tag = bam_aux_get(b, args.fill_tags[i]);
-        if (!tag) continue;
-        char *v = (char*)(tag+1);
-        if (ft->tags[i] != NULL) {
-            // if (strcmp(ft->tags[i],v) !=0) warnings("Unequal tags in the same block, %s vs %s", ft->tags[i], v);            
-        }
-        else ft->tags[i] = strdup(v);
+    hts_tpool_process_flush(q);
+
+    while ((r = hts_tpool_next_result(q))) {
+        struct fill_tags_pool *d = (struct fill_tags_pool*)hts_tpool_result_data(r);
+        build_idx_core(index, d);
+        hts_tpool_delete_result(r, 0);
     }
-    free(str.s);
+    hts_tpool_process_destroy(q);
+    hts_tpool_destroy(p);
+
+    bam_hdr_destroy(hdr);
+    sam_close(fp);
+
+    return index;
 }
-static void stack_write(struct bam_stack *s)
+
+struct p_data {
+    struct bam_pool *bam;
+    uint64_t c;
+};
+
+static void *run_it(void *data)
 {
+    struct bam_pool *p = (struct bam_pool*)data;
+    struct p_data *d = malloc(sizeof(*d));
+    memset(d, 0, sizeof(*d));
+    
     int i;
-    for (i = 0; i < s->n; ++i) {
-        if (s->bam[i]) {
-            if (sam_write1(args.out, args.hdr, s->bam[i]) == -1) error("Failed to write SAM.");
-            // bam_destroy1(s->bam[i]);
+    kstring_t str = {0,0,0};
+    for (i = 0; i < p->n; ++i) {
+        str.l = 0;
+        bam1_t *b = &p->bam[i];
+        int j;
+        for (j = 0; j < args.n_block; ++j) {
+            uint8_t *tag = bam_aux_get(b, args.block_tags[j]);
+            if (!tag) { str.l = 0; break; }
+            kputs((char*)(tag+1), &str);
         }
+        if (str.l == 0) continue;
+        struct fill_tags *f = fill_index_retrieve(args.index, str.s);
+        if (f == NULL) continue;
+        int set = 0;
+        for (j = 0; j < args.n_fill; ++j) {
+            uint8_t *tag = bam_aux_get(b, args.fill_tags[j]);
+            if (!tag) {
+                if (f->tags[j] == NULL) continue;
+                // TODO: support type now
+                bam_aux_append(b, args.fill_tags[j], 'Z', strlen(f->tags[j])+1, (uint8_t*)f->tags[j]);
+                set = 1;
+            }
+        }
+        if (set) d->c++;        
     }
-    stack_reset(s);
+    d->bam = p;
+    return d;
 }
-static int LFR_fillup()
+
+static void write_out(struct p_data *p)
 {
-    int last_id = -2;
-    int ret;
-    struct bam_stack *s = stack_build();
-    bam1_t *b;
-    b = bam_init1();
-    while (1) {
-        ret = sam_read1(args.fp, args.hdr , b);        
-        if (ret < 0) break;
-        if (args.keep_all == 0 && b->core.qual < args.qual_thres) continue;
-        if (args.keep_all == 0 && b->core.tid < 0) continue;
-        if (last_id == -2) last_id = b->core.tid;
-        // I could not pre-define how many genes overlapped and how large of each gene, so here only treat each chromsome one by one
-        if (b->core.tid != last_id) {
-            stack_finish(s);
-            stack_write(s);
-            last_id = b->core.tid;
-        }
-        stack_push(s, b);        
-    }
-    stack_finish(s);
-    stack_write(s);
-    stack_destory(s);
-    bam_destroy1(b);
-    return 0;
+    args.filled_records += p->c;
+    int i;
+    struct bam_pool *bam = p->bam;
+    for (i = 0; i < bam->n; ++i)
+        if (sam_write1(args.out, args.hdr, &bam->bam[i]) == -1) error("Failed to write SAM.");
+
+    bam_pool_destory(bam);
+    free(p);
 }
+
 // reads in each block with same BCs will be intepret as fragments from same template
 // this program used to fill missed tags for reads from same block.
 static int usage()
@@ -305,16 +360,56 @@ static int usage()
     fprintf(stderr, "  -fill         Tags to fill.\n");
     fprintf(stderr, "  -block        Tags to identify each block.\n");
     fprintf(stderr, "  -k            Keep unclassified reads in the output.\n");
+    fprintf(stderr, "  -@            Threads to pack and unpack bam file.\n");
+    fprintf(stderr, "  -t            Threads to process.\n");
     return 1;
 }
 
 int LFR_fillup_main(int argc, char **argv)
 {
     if (parse_args(argc, argv)) return usage();
-
-    LFR_fillup();
-
-    memory_release();
     
+    LOG_print("Build index ..");
+    double t_real;
+    t_real = realtime();        
+    args.index = build_index(args.input_fname);
+    
+    LOG_print("Index build finished: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
+    
+    hts_tpool *p = hts_tpool_init(args.n_thread);
+    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+    hts_tpool_result *r;
+
+    for (;;) {
+        struct bam_pool *b = bam_pool_create();
+        bam_read_pool(b, args.in, args.hdr, args.chunk_size);
+            
+        if (b == NULL) break;
+        if (b->n == 0) { free(b->bam); free(b); break; }
+        
+        int block;
+        do {
+            block = hts_tpool_dispatch2(p, q, run_it, b, 1);
+            if ((r = hts_tpool_next_result(q))) {
+                struct p_data *d = (struct p_data*)hts_tpool_result_data(r);
+                write_out(d);   
+                hts_tpool_delete_result(r, 0);
+            }
+        }
+        while (block == -1);
+    }
+    
+    hts_tpool_process_flush(q);
+
+    while ((r = hts_tpool_next_result(q))) {
+        struct p_data *d = (struct p_data*)hts_tpool_result_data(r);
+        write_out(d);
+        hts_tpool_delete_result(r, 0);
+    }
+    hts_tpool_process_destroy(q);
+    hts_tpool_destroy(p);
+    memory_release();    
+    LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
+    LOG_print("%"PRIu64" records updated.", args.filled_records);
     return 0;
 }
