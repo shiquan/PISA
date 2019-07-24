@@ -293,7 +293,7 @@ int count_matrix(int argc, char **argv)
        
         uint8_t *tag = bam_aux_get(b, args.tag);
         if (!tag) {
-            warnings("Tag %s not found at line %s:%d", args.tag, hdr->target_name[c->tid], c->pos+1);
+            // warnings("Tag %s not found at line %s:%d", args.tag, hdr->target_name[c->tid], c->pos+1);
             continue;
         }
         
@@ -345,7 +345,8 @@ int count_matrix(int argc, char **argv)
             if (args.umi_tag) {
                 uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
                 if (!umi_tag) {
-                    warnings("No UMI tag found at record. %s:%d", hdr->target_name[c->tid], c->pos+1);
+                    // disable warnings
+                    // warnings("No UMI tag found at record. %s:%d", hdr->target_name[c->tid], c->pos+1); 
                     continue;
                 }
             

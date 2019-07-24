@@ -19,5 +19,6 @@ void corr_tag_push(struct corr_tag *C, char const *n, char const *u);
 
 char *corr_tag_retrieve(struct corr_tag *C, char const *n, char const *u);
 
+void corr_tag(struct corr_tag *C);
 
 #endif

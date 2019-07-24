@@ -116,7 +116,7 @@ char *umi_tag_query(struct umi_tag *U, char const *s)
     k = kh_get(name, (kh_name_t*)U->dict, s);
     if (k == kh_end((kh_name_t*)U->dict)) return NULL;
     int idx = kh_val((kh_name_t*)U->dict, k);
-    return U->kmers[idx].kmer;
+    return U->kmers[U->kmers[idx].idx].kmer;
 }
 
 void umi_tag_clear(struct umi_tag *U)
@@ -170,14 +170,17 @@ void corr_tag_destory(struct corr_tag *C)
 void corr_tag_push(struct corr_tag *C, char const *n, char const *u)
 {
     khint_t k;
-    k = kh_get(name, (kh_name_t*)C->dict, n);
-    if (k == kh_end((kh_name_t*)C->dict)) {
+    int ret;
+    char *s = strdup(n);
+    k = kh_put(name, (kh_name_t*)C->dict,s, &ret);
+    if (ret) {
         if (C->n == C->m) {
             C->m = C->m == 0 ? 1024 : C->m*2;
             C->umi = realloc(C->umi, C->m*sizeof(struct block_umi));
         }
-        struct block_umi *umi = &C->umi[C->n++];
-        umi->name = strdup(n);
+        struct block_umi *umi = &C->umi[C->n];
+        umi->name = s;
+        kh_val((kh_name_t*)C->dict,k) = C->n++;
         umi->umi = umi_tag_build();
         umi_tag_push(umi->umi, u);
     }
@@ -185,6 +188,7 @@ void corr_tag_push(struct corr_tag *C, char const *n, char const *u)
         int idx = kh_val((kh_name_t*)C->dict, k);
         struct block_umi *umi = &C->umi[idx];
         umi_tag_push(umi->umi, u);
+        free(s);
     }
 }
 
@@ -195,4 +199,11 @@ char *corr_tag_retrieve(struct corr_tag *C, char const *n, char const *u)
     if (k == kh_end((kh_name_t*)C->dict)) return NULL;
     int idx = kh_val((kh_name_t*)C->dict, k);
     return umi_tag_query(C->umi[idx].umi, u);
+}
+
+void corr_tag(struct corr_tag *C)
+{
+    int i;
+    for (i = 0; i < C->n; ++i)
+        umi_tag_corr(C->umi[i].umi);
 }

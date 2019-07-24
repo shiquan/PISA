@@ -225,6 +225,7 @@ static struct corr_tag *build_index(const char *fn)
     bam_hdr_destroy(hdr);
     sam_close(fp);
 
+    corr_tag(Cindex);
     return Cindex;
 }
 struct p_data {
@@ -252,10 +253,9 @@ static void *run_it(void *data)
         if (!tag) continue;
         char *old_tag = (char*)(tag+1);
         char *new_tag = corr_tag_retrieve(args.Cindex, str.s, old_tag);
-        debug_print("%s\t%s", old_tag, new_tag);
+        if (new_tag == NULL) continue;
         if (strcmp(old_tag, new_tag) == 0) continue;
-        if (bam_aux_update_str(b, args.tag, strlen(new_tag), new_tag))
-            warnings("Failed to update tag. %s", (char*)b->data);
+        memcpy(tag+1, new_tag, strlen(new_tag)); // since it is equal length, just reset the memory..
         c++;
     }
 
