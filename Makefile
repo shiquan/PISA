@@ -48,7 +48,8 @@ AOBJ = src/bam_anno.o \
 	src/LFR_cleanup.o \
 	src/LFR_assem.o \
 	src/LFR_impute.o \
-	src/bam_corr_umi.o
+	src/bam_corr_umi.o \
+	src/bam_extract_tags.o
 
 ASSM_LIB_OBJ =	fermi-lite/bfc.o fermi-lite/bseq.o fermi-lite/bubble.o fermi-lite/htab.o fermi-lite/ksw.o fermi-lite/kthread.o fermi-lite/mag.o fermi-lite/misc.o \
 	fermi-lite/mrope.o fermi-lite/rld0.o fermi-lite/rle.o fermi-lite/rope.o fermi-lite/unitig.o
@@ -99,6 +100,7 @@ src/LFR_assem.o: src/LFR_assem.c
 src/ksa.o: src/ksa.c
 src/bam_pool.o: src/bam_pool.c
 src/LFR_impute.o: src/LFR_impute.c
+src/bam_extract_tags.o: src/bam_extract_tags.c
 fermi-lite/bfc.o: fermi-lite/bfc.c
 fermi-lite/bseq.o: fermi-lite/bseq.c
 fermi-lite/bubble.o: fermi-lite/bubble.c
