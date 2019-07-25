@@ -118,6 +118,7 @@ static void write_out(struct bam_pool *p)
         if (b->core.flag & BAM_FQCFAIL) continue;
         if (sam_write1(args.out, args.hdr, b) == -1) error("Failed to write SAM.");
     }
+    bam_pool_destory(p);
 }
 static void *run_it(void *data)
 {
