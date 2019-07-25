@@ -92,14 +92,14 @@ static int parse_args(int argc, char **argv)
 
     args.out = hts_open(args.output_fname, "bw");
     CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
-    if (sam_hdr_write(args.out, args.hdr)== -1) error("Failed to write SAM header.");
 
     hts_set_threads(args.in, args.file_th);
     hts_set_threads(args.out, args.file_th);
 
     args.hdr = sam_hdr_read(args.in);
     CHECK_EMPTY(args.hdr, "Failed to open header.");
-        
+
+    if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
     return 0;
 }
 static void memory_release()
