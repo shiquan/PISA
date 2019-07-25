@@ -119,7 +119,7 @@ int bam_count_attr(int argc, char *argv[])
         //char *name = hdr->target_name[c->tid];
         uint8_t *tag = bam_aux_get(b, args.cb_tag);
         if (!tag) { // skip records without cell barcodes
-            warnings("No cell barcode tag at alignment. %s:%d", hdr->target_name[c->tid], c->pos+1);
+            // warnings("No cell barcode tag at alignment. %s:%d", hdr->target_name[c->tid], c->pos+1);
             continue;
         }
         char *name = (char*)(tag+1);
