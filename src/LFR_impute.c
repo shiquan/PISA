@@ -167,6 +167,11 @@ static void memory_release()
     bam_hdr_destroy(args.hdr);
     sam_close(args.in);
     sam_close(args.out);
+    int i;
+    for (i = 0; i < args.n_impute; ++i) free(args.impute_tags[i]);
+    free(args.impute_tags);
+    for (i = 0; i < args.n_block; ++i) free(args.block_tags[i]);
+    free(args.block_tags);    
 }
 
 struct impute_tags_pool {
