@@ -250,6 +250,7 @@ static void build_idx_core(struct impute_index *idx, struct impute_tags_pool *ra
     }
 
     if (raw->n < raw->m) free(raw->tags[raw->n].tags); // because we pre-allocate memory for next record ..
+    free(raw);
 }
 
 static struct impute_index *build_index(const char *fn)
@@ -337,6 +338,7 @@ static void *run_it(void *data)
         }
         if (set) d->c++;        
     }
+    if (str.m) free(str.s);
     d->bam = p;
     return d;
 }
