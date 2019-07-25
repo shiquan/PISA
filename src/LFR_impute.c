@@ -267,8 +267,8 @@ static void build_idx_core(struct impute_index *idx, struct impute_tags_pool *ra
             if (r->tags[j]) free(r->tags[j]);
         free(r->tags);
     }
-
     if (raw->n < raw->m) free(raw->tags[raw->n].tags); // because we pre-allocate memory for next record ..
+    free(raw->tags);
     free(raw);
 }
 
