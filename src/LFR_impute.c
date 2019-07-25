@@ -207,6 +207,7 @@ static void *build_idx_read(void *_p)
             raw->tags[raw->n].tags = malloc(args.n_impute*sizeof(void*)); // init next record;
     }
     if (str.m) free(str.s);
+    bam_pool_destory(p);
     return raw;
 }
 static void build_idx_core(struct impute_index *idx, struct impute_tags_pool *raw)
