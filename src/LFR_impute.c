@@ -95,6 +95,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-impute") == 0) var = &impute_tags;
         else if (strcmp(a, "-block") == 0 ) var = &block_tags;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
+        else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-k") == 0) {
             args.keep_all = 1;
