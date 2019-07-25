@@ -19,7 +19,6 @@ struct impute_index {
     struct impute_tags *tags;
     kh_name_t *dict;
 };
-
 static struct impute_tags *impute_index_retrieve(struct impute_index *idx, char *s)
 {
     khint_t k;
@@ -67,6 +66,20 @@ static struct args {
     .chunk_size = 1000000,
     .imputed_records = 0,
 };
+static void impute_index_destory(struct impute_index *idx)
+{
+    int i;
+    for (i = 0; i < idx->n; ++i) {
+        int j;
+        for (j = 0; j < args.n_impute; ++j)
+            if (idx->tags[i].tags[j]) free(idx->tags[i].tags[j]);
+        free(idx->tags[i].tags);
+        free(idx->tags[i].name);
+    }
+    free(idx->tags);
+    kh_destroy(name,idx->dict);
+    free(idx);
+}
 
 static int parse_args(int argc, char **argv)
 {
@@ -150,6 +163,7 @@ static int parse_args(int argc, char **argv)
 }
 static void memory_release()
 {
+    impute_index_destory(args.index);
     bam_hdr_destroy(args.hdr);
     sam_close(args.in);
     sam_close(args.out);
