@@ -127,14 +127,16 @@ static void *run_it(void *data)
     for (i = 0; i < p->n; ++i) {
         bam1_t *b = &p->bam[i];
         uint8_t *tag = bam_aux_get(b, args.tag);
+        if (!tag) {
+            b->core.flag = BAM_FQCFAIL;
+            continue;
+        }
+
         if (args.barcode) {
             int id;
             id = barcode_select(args.barcode, (char*)(tag+1));
             if (id == -1)
                 b->core.flag = BAM_FQCFAIL; // destroy this bam
-        }
-        else if (!tag) {
-            b->core.flag = BAM_FQCFAIL;
         }
     }
     return p;

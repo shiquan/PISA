@@ -33,24 +33,27 @@ int usage()
 }
 int main(int argc, char *argv[])
 {
+    // process FQ
     extern int fastq_prase_barcodes(int argc, char *argv[]);
     extern int fastq_trim_adaptors(int argc, char *argv[]);
-
+    // process BAM
     extern int sam2bam(int argc, char *argv[]);
     extern int bam_rmdup(int argc, char *argv[]);
     extern int bam_anno_attr(int argc, char *argv[]);
     extern int bam_count_attr(int argc, char *argv[]);
     extern int bam_pick(int argc, char *argv[]);
     extern int bam_corr_umi(int argc, char **argv);
+    extern int bam_extract_tags(int argc, char **argv);
     extern int count_matrix(int argc, char *argv[]);
     extern int fsort(int argc, char ** argv);
+    // process scLFR
     extern int assem(int argc, char **argv);
     extern int check_segment(int argc, char **argv);
     extern int check_segment2(int argc, char **argv);
     extern int LFR_cleanup(int argc, char **argv);
     extern int LFR_unitig(int argc, char **argv);
     extern int LFR_impute(int argc, char **argv);
-    extern int bam_extract_tags(int argc, char **argv);
+
     if (argc == 1) return usage();
     else if (strcmp(argv[1], "parse") == 0) return fastq_prase_barcodes(argc-1, argv+1);
     else if (strcmp(argv[1], "trim") == 0) return fastq_trim_adaptors(argc-1, argv+1);
