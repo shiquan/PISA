@@ -86,7 +86,7 @@ task fastq2bam {
   String refdir
   String root
   command {
-    ${bwapath} mem -t 20 -p ${refdir} ${fastq} | ${root}/SingleCellTools sam2bam -p -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt -maln ${outdir}/temp/mito.bam /dev/stdin
+    ${bwapath} mem -t 24 -p ${refdir} ${fastq} | ${root}/SingleCellTools sam2bam -p -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt -maln ${outdir}/temp/mito.bam /dev/stdin
   }
   output {
     String bam="${outdir}/temp/aln.bam"
@@ -99,8 +99,8 @@ task sortBam {
   String root
   String outdir
   command {
-    ${sambambapath} sort -t 20 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam 
-    ${root}/SingleCellTools rmdup -tag CB -t 5 -o ${outdir}/temp/rmdup.bam ${outdir}/temp/sorted.bam
+    ${sambambapath} sort -t 24 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam 
+    ${root}/SingleCellTools rmdup -tag CB -t 20 -o ${outdir}/temp/rmdup.bam ${outdir}/temp/sorted.bam
   }
   output {
     String sorted="${outdir}/temp/rmdup.bam"
