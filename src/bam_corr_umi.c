@@ -16,7 +16,7 @@ static int usage()
     fprintf(stderr, "  -tag           Tag for kmers to correct. Usually be UMI tag.\n");
     fprintf(stderr, "  -tags-block    Tags for each block. Reads in one block will be corrected with each other. Usually be cell barcode tag and gene tag.\n");
     fprintf(stderr, "  -@             Thread to unpack and pack BAM file.[5]\n");
-    fprintf(stderr, "  -p             Thread to process data.[4]\n");
+    fprintf(stderr, "  -t             Thread to process data.[4]\n");
     // fprintf(stderr, "  -white-list    White list. Conflict with -block. If set tag will be correct with white list.\n");
     return 1;
 }
@@ -73,7 +73,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-tag") == 0) var = &args.tag;
         else if (strcmp(a, "-tags-block") == 0) var = &block_tags;
         else if (strcmp(a, "-@") == 0) var = &file_th;
-        else if (strcmp(a, "-p") == 0) var = &thread;
+        else if (strcmp(a, "-t") == 0) var = &thread;
 
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);

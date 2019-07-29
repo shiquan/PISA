@@ -1,0 +1,22 @@
+{
+    "pattern":"CCCCAGAACGACATGGCTACGAAGTCGGANNNNNNNNNNNNNNNNNNNCCTTATCAGCGTCCGACTTCGTAGCCATGTCGTTCTGCG(T1)CCTTCC(T2)CGATG(UY)[polyT]",
+    "segments":[
+        {
+	    "tag":"CB",
+            "seg":[
+                {
+                    "tag":"T1",
+                    "length":"10",
+                },
+                {
+                    "tag":"T2",
+                    "length":"10",
+                }
+            ]
+	},
+	{
+            "tag":"UY",
+            "length":"10",
+        }
+    ]
+}
