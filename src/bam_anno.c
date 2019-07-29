@@ -139,6 +139,10 @@ static int parse_args(int argc, char **argv)
             args.ignore_strand = 1;
             continue;
         }
+        else if (strcmp(a, "-splice-consider") == 0) {
+            args.splice_consider = 1;
+            continue;
+        }
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
