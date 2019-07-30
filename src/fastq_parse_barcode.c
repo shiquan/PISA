@@ -1199,7 +1199,7 @@ static int parse_args(int argc, char **argv)
         if (args.cbdis_fp == NULL) error("%s : %s.", args.cbdis_fname, strerror(errno));        
     } 
         
-    if (args.run_code == NULL) args.run_code = strdup("1");
+    // if (args.run_code == NULL) args.run_code = strdup("1");
 
     if (args.dis_fname != NULL) {
         args.barcode_dis_fp = fopen(args.dis_fname, "w");
