@@ -1019,7 +1019,7 @@ static int cmpfunc (const void *a, const void *b)
 }
 void cell_barcode_count_pair_write()
 {
-    if (args.n_name && args.cbhash) {
+    if (args.cbdis_fp && args.n_name && args.cbhash) {
         qsort(args.names, args.n_name, sizeof(struct NameCountPair), cmpfunc);
         int i;
         for (i = 0; i < args.n_name; ++i) {
@@ -1086,7 +1086,7 @@ static void memory_release()
     if (args.r2_fp) gzclose(args.r2_fp);
     if (args.out1_fp) fclose(args.out1_fp);
     if (args.out2_fp) fclose(args.out2_fp);
-    fclose(args.barcode_dis_fp);
+    if (args.barcode_dis_fp) fclose(args.barcode_dis_fp);
     fastq_handler_destory(args.fastq);
     int i;
     for (i = 0; i < args.n_thread; ++i) thread_hold_destroy(args.hold[i]);
@@ -1141,9 +1141,9 @@ static int parse_args(int argc, char **argv)
     }
 
     if (args.config_fname == NULL) error("Option -config is required.");
-    if (args.cbdis_fname == NULL) error("-cbdis is required.");
     config_init(args.config_fname);
-        
+
+    //if (args.cbdis_fname == NULL) error("-cbdis is required.");
     if (thread) args.n_thread = str2int((char*)thread);
     if (chunk_size) args.chunk_size = str2int((char*)chunk_size);
     assert(args.n_thread >= 1 && args.chunk_size >= 1);
@@ -1180,7 +1180,7 @@ static int parse_args(int argc, char **argv)
         args.report_fp = fopen(args.report_fname, "w");
         CHECK_EMPTY(args.report_fp, "%s : %s.", args.report_fname, strerror(errno));
     }
-    else error("-report must be set.");
+    else args.report_fp=stderr; //error("-report must be set.");
 
     if (args.out1_fname) {
         args.out1_fp = fopen(args.out1_fname, "w");
@@ -1197,7 +1197,7 @@ static int parse_args(int argc, char **argv)
     if (args.cbdis_fname) {
         args.cbdis_fp = fopen(args.cbdis_fname, "w");
         if (args.cbdis_fp == NULL) error("%s : %s.", args.cbdis_fname, strerror(errno));        
-    }   
+    } 
         
     if (args.run_code == NULL) args.run_code = strdup("1");
 

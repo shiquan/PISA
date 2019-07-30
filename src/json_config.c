@@ -277,7 +277,6 @@ static int check_complement(kstring_t *string)
     int line = 1;
     int is_val = 0;
     for (i = 0; i < string->l; ++i) {
-
         switch(string->s[i]) {
             case '\n':
                 start = i + 1, line++;
@@ -316,12 +315,14 @@ static int check_complement(kstring_t *string)
 
             case ':' :
                 // check the key
-                if (stack_check_quote() == 0) { 
+                /*
+                if (stack_check_quote() == 0) {
                     if (check_key_pair() == 1) {
                         format_error(string, start, i, line);
                         return 1;
                     }
-                }
+                } 
+                */
                 break;
                 
             case ',' :
@@ -349,6 +350,10 @@ static int check_complement(kstring_t *string)
     stack_destroy();
     return 0;
 }
+static char *read_line(char *fn, int l, void *fp)
+{
+    return fgets(fn, l, (FILE*)fp);
+}
 char *json_config_open(const char *fname)
 {
     FILE *fp;
@@ -359,7 +364,7 @@ char *json_config_open(const char *fname)
     }
     kstring_t string = KSTRING_INIT;
     kstring_t temp = KSTRING_INIT;
-    while (kgetline(&temp, fgets, fp) >= 0) {
+    while (kgetline(&temp, read_line, fp) >= 0) {
         if (parse_comment_line(&temp)) {
             kputs(temp.s, &string);
             kputc('\n', &string);
