@@ -494,7 +494,7 @@ static void *run_it(void *_d)
     // Step 3: adaptors and polyTs, if no just skip this block
 
     int has_seed = 0;
-    int has_poly = 0;    
+    int has_poly = 0;
     if (args.l_seed) {        
         uint64_t n;
         uint64_t st = 0, ed = 0;
@@ -528,7 +528,7 @@ static void *run_it(void *_d)
     }
     mag_g_destroy(g);
     read_block_destory(b);
-        
+    
     r->s = s.s;
     return r;
     

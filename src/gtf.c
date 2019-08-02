@@ -69,8 +69,8 @@ static int cmpfunc (const void *_a, const void *_b)
 static void gtf_build_index(struct gtf_spec *G)
 {
     qsort(G->gtf, G->n_gtf, sizeof(struct gtf_lite), cmpfunc);
-    G->ctg = malloc(G->name->n*sizeof(struct ctg_idx));
-    memset(G->ctg, 0, sizeof(struct ctg_idx)*G->name->n);
+    G->ctg = malloc(dict_size(G->name)*sizeof(struct ctg_idx));
+    memset(G->ctg, 0, sizeof(struct ctg_idx)*dict_size(G->name));
     G->idx = malloc(G->n_gtf*sizeof(uint64_t));
     int i;
     for (i = 0; i < G->n_gtf; ++i) {
@@ -79,7 +79,7 @@ static void gtf_build_index(struct gtf_spec *G)
         G->ctg[gl->seqname].offset++;        
         if (G->ctg[gl->seqname].idx == 0) G->ctg[gl->seqname].idx = i+1;
     }
-    for (i = 0; i < G->name->n; ++i) G->ctg[i].idx -= 1; // convert to 0 based
+    for (i = 0; i < dict_size(G->name); ++i) G->ctg[i].idx -= 1; // convert to 0 based
 }
 static void gtf_lite_clean(struct gtf_lite *g)
 {
@@ -102,13 +102,13 @@ void gtf_destory(struct gtf_spec *G)
     free(G->idx);
     // free(G->gene_idx);
     free(G->gtf);
-    dict_destory(G->name);
-    dict_destory(G->gene_name);
-    dict_destory(G->gene_id);
-    dict_destory(G->transcript_id);
-    dict_destory(G->sources);
-    dict_destory(G->attrs);
-    dict_destory(G->features);
+    dict_destroy(G->name);
+    dict_destroy(G->gene_name);
+    dict_destroy(G->gene_id);
+    dict_destroy(G->transcript_id);
+    dict_destroy(G->sources);
+    dict_destroy(G->attrs);
+    dict_destroy(G->features);
     free(G);
 }
 
@@ -211,13 +211,11 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
     char *feature = str->s + s[2];
 
     int qry = dict_query(G->features, feature);
-    if (qry == -1) {
-        // warnings("Unknown feature type. %s", feature);
-        return 1;
-    }
-    if (filter) {
+    if (qry == -1) return 1;
+    
+    if (filter)
         if (qry != feature_gene && qry != feature_exon && qry != feature_transcript) return 0;
-    }
+    
     struct gtf_lite gtf;
     memset(&gtf, 0, sizeof(gtf));
     gtf.seqname = dict_push(G->name, str->s + s[0]);
@@ -245,10 +243,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
             khint_t k;
             int ret;
             k = kh_put(attr, (kh_attr_t*)gtf.attr_dict, attr_id, &ret);
-            if (!ret) {
-                // warnings("Duplicate attribute ? %s", pp->key);
-                continue;
-            }
+            if (!ret) continue;
             kh_val((kh_attr_t*)gtf.attr_dict, k) = pp->val == NULL ? NULL : strdup(pp->val);
         }
         free(pp->key);
@@ -257,6 +252,9 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
 
     free(pair);
     free(s);
+
+    // gtf_push(G, &gtf);
+    
     
     switch (qry) {
         case feature_gene:
@@ -268,7 +266,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
             gtf_push_to_last_gene(G, &gtf);
             break;
     }
-
+    
     return 0;
 }
 // key names: gene_id, gene_name, transcript_id,
@@ -443,13 +441,13 @@ struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int
     last_idx = st;
     return &G->gtf[st];
 }
-*/
+
 void gtf_format_print_test(struct gtf_spec *G)
 {
     int i;
     for (i = 0; i < G->n_gtf; ++i) {
         struct gtf_lite *gl = &G->gtf[i];
-        printf("%s\t%d\t%d\t%s\t%s\n", G->name->name[gl->seqname], gl->start, gl->end, G->features->name[gl->type], G->gene_name->name[gl->gene_name]);
+        printf("%s\t%d\t%d\t%s\t%s\n", dict_name(G->name,gl->seqname), gl->start, gl->end, dict_name(G->features, gl->type), G->gene_name->name[gl->gene_name]);
         int j;
         for (j = 0; j < gl->n_son; ++j) {
             struct gtf_lite *tx = &gl->son[j];
@@ -457,7 +455,7 @@ void gtf_format_print_test(struct gtf_spec *G)
         }
     }
 }
-
+*/
 #ifdef GTF_MAIN
 
 int main(int argc, char **argv)

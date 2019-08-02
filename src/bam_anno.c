@@ -11,6 +11,7 @@
 #include "bed_lite.h"
 #include "bam_pool.h"
 #include "gtf.h"
+#include "dict.h"
 #include <zlib.h>
 
 static int usage()
@@ -25,7 +26,10 @@ static int usage()
     fprintf(stderr, "  -@               Threads to read and write bam file.\n");
     fprintf(stderr, "\nOptions for BED file :\n");
     fprintf(stderr, "  -bed             Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
-    fprintf(stderr, "  -tag             Attribute tag name. Set with -bed\n");
+    fprintf(stderr, "  -tag             Attribute tag name. Set with -bed.\n");
+    fprintf(stderr, "\nOptions for mixed samples.\n");
+    fprintf(stderr, "  -chr-species     Chromosome name and related species binding list.\n");
+    fprintf(stderr, "  -btag            Species tag name. Set with -chr-species.\n");
     //fprintf(stderr, "  -uniq            Only keep first record if overlap with multi regions.\n");
     fprintf(stderr, "\nOptions for GTF file :\n");
     fprintf(stderr, "  -gtf             GTF annotation file. -gtf is conflict with -bed, if set strand will be consider.\n");
@@ -43,6 +47,7 @@ static int usage()
     fprintf(stderr, "   RE : Region type, should E(exon), N(intron)\n");
     return 1;
 }
+
 static struct args {
     const char *input_fname;
     const char *output_fname;
@@ -50,6 +55,10 @@ static struct args {
     const char *tag; // attribute in BAM
     const char *gtf_fname;
     const char *report_fname;
+    const char *chr_spec_fname;
+
+    char **chr_binding;
+    const char *btag;
     
     int ignore_strand;
     int splice_consider;
@@ -83,6 +92,9 @@ static struct args {
     .tag             = NULL,    
     .gtf_fname       = NULL,
     .report_fname    = NULL,
+
+    .chr_binding     = NULL,
+    .btag            = NULL,
     .ignore_strand   = 0,
     .splice_consider = 0,
     .n_thread = 4,
@@ -104,8 +116,46 @@ static struct args {
     .reads_in_intron = 0,
     .reads_antisense = 0,
 
-    .qual_thres      = 60,
+    .qual_thres      = 20,
 };
+
+static char **chr_binding(const char *fname, bam_hdr_t *hdr)
+{
+    int n;
+    char **list = hts_readlist(fname, 1, &n);
+    if (n == 0) error("Empty file.");
+    
+    char **bind = malloc(n*sizeof(char*));
+    struct dict *d = dict_init();
+    int i;
+    for (i = 0; i < n; ++i) {
+        char *s = list[i];
+        char *p;
+        for (p = s; *p && *p != '\t'; p++);
+        if (*p == '\t') *p = '\0';
+        int idx = dict_push(d, s);
+        if (idx != i) error("Duplicated records ? %s", s);        
+        s = p +1;
+        bind[i] = strdup(s);
+        free(list[i]);
+    }
+    free(list);
+
+    char **ret = malloc(hdr->n_targets*sizeof(char*));
+    for (i = 0; i < hdr->n_targets; ++i) {
+        int idx = dict_query(d, hdr->target_name[i]);
+        if (idx == -1) ret[i] = NULL;
+        else {
+            ret[i] = bind[idx];
+            bind[idx] = NULL;
+        }
+    }
+    
+    for (i = 0; i < n; ++i)
+        if (bind[i]) free(list[i]);
+    free(bind);
+    return ret;
+}
 
 static char TX_tag[2] = "TX";
 static char AN_tag[2] = "AN";
@@ -135,6 +185,8 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-chunk") == 0) var = &chunk;
+        else if (strcmp(a, "-chr-species") == 0) var = &args.chr_spec_fname;
+        else if (strcmp(a, "-btag") == 0) var = &args.btag;
         else if (strcmp(a, "-ignore-strand") == 0) {
             args.ignore_strand = 1;
             continue;
@@ -148,18 +200,22 @@ static int parse_args(int argc, char **argv)
             *var = argv[i++];
             continue;
         }
+        if (a[0] == '-' && a[1] != '\0') error("Unknown argument, %s",a);
         if (args.input_fname == NULL) {
             args.input_fname = a;
             continue;
-        }
+        }        
         error("Unknown argument: %s", a);
     }
     // CHECK_EMPTY(args.bed_fname, "-bed must be set.");
 
-    if (args.bed_fname == NULL && args.gtf_fname == NULL) 
-        error("-bed or -gtf must be set.");
+    
+    if (args.bed_fname == NULL && args.gtf_fname == NULL && args.chr_spec_fname == NULL) 
+        error("-bed or -gtf or -chr-species must be set.");
+    
     if (args.bed_fname && args.gtf_fname)
         error("-bed is conflict with -gtf, you can only choose one mode.");
+    
     if (args.ignore_strand && args.gtf_fname == NULL)
         error("Only set -ignore-strand with -gtf.");
     
@@ -169,39 +225,6 @@ static int parse_args(int argc, char **argv)
     if (chunk) args.chunk_size = str2int((char*)chunk);
     if (qual) args.qual_thres = str2int((char*)qual);
     if (args.qual_thres < 0) args.qual_thres = 0; // no filter
-    if (tags) {
-        kstring_t str = {0,0,0};
-        kputs(tags, &str);
-        if (str.l != 14) error("Bad format of -tags, require five tags and splited by ','.");
-        int n;
-        int *s = ksplit(&str, ',', &n);
-        if (n != 5) error("-tags required five tag names.");
-        
-        memcpy(TX_tag, str.s+s[0], 2*sizeof(char));
-        memcpy(AN_tag, str.s+s[1], 2*sizeof(char));
-        memcpy(GN_tag, str.s+s[2], 2*sizeof(char));
-        memcpy(GX_tag, str.s+s[3], 2*sizeof(char));
-        memcpy(RE_tag, str.s+s[4], 2*sizeof(char));
-        free(str.s);
-        free(s);
-    }
-    
-    if (args.bed_fname) {
-        CHECK_EMPTY(args.tag, "-tag must be set.");
-        args.B = bed_read(args.bed_fname);
-        if (args.B == 0 || args.B->n == 0) error("Bed is empty.");
-    }
-    else {
-        LOG_print("Loading GTF.");
-        double t_real;
-        t_real = realtime();
-
-        args.G = gtf_read(args.gtf_fname, 1);
-        LOG_print("Load time : %.3f sec", realtime() - t_real);
-        
-        if (args.G == NULL) error("GTF is empty.");
-    }
-
     int file_th = 5;
     if (file_thread)
         file_th = str2int((char*)file_thread);
@@ -213,21 +236,56 @@ static int parse_args(int argc, char **argv)
         error("Unsupported input format, only support BAM/SAM/CRAM format.");
     args.hdr = sam_hdr_read(args.fp);
     CHECK_EMPTY(args.hdr, "Failed to open header.");
-    //int n_bed = 0;
-    args.out = hts_open(args.output_fname, "bw");
-    CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
+        
+    if (args.bed_fname) {
+        CHECK_EMPTY(args.tag, "-tag must be set.");
+        args.B = bed_read(args.bed_fname);
+        if (args.B == 0 || args.B->n == 0) error("Bed is empty.");
+    }
+    else if (args.gtf_fname) {
+        LOG_print("Loading GTF.");
+        double t_real;
+        t_real = realtime();
 
-    hts_set_threads(args.fp, file_th);
-    hts_set_threads(args.out, file_th);
-    
+        args.G = gtf_read(args.gtf_fname, 1);
+        LOG_print("Load time : %.3f sec", realtime() - t_real);
+        
+        if (args.G == NULL) error("GTF is empty.");
+        if (tags) {
+            kstring_t str = {0,0,0};
+            kputs(tags, &str);
+            if (str.l != 14) error("Bad format of -tags, require five tags and splited by ','.");
+            int n;
+            int *s = ksplit(&str, ',', &n);
+            if (n != 5) error("-tags required five tag names.");
+            
+            memcpy(TX_tag, str.s+s[0], 2*sizeof(char));
+            memcpy(AN_tag, str.s+s[1], 2*sizeof(char));
+            memcpy(GN_tag, str.s+s[2], 2*sizeof(char));
+            memcpy(GX_tag, str.s+s[3], 2*sizeof(char));
+            memcpy(RE_tag, str.s+s[4], 2*sizeof(char));
+            free(str.s);
+            free(s);
+        }
+    }
+
+    if (args.chr_spec_fname) {
+        if (args.btag == NULL) error("-btag must be set with -chr-species.");
+        args.chr_binding = chr_binding(args.chr_spec_fname, args.hdr);
+    }
+
     if (args.report_fname) {
         args.fp_report = fopen(args.report_fname, "w");
         CHECK_EMPTY(args.fp_report, "%s : %s", args.report_fname, strerror(errno));
     }
     else args.fp_report =stderr;
-    
+
+    args.out = hts_open(args.output_fname, "bw");
+    CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
     if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
 
+    hts_set_threads(args.fp, file_th); 
+    hts_set_threads(args.out, file_th);
 
     return 0;
 }
@@ -421,9 +479,8 @@ int match_isoform(struct isoform *S, struct gtf_lite const *G)
 }
 #include "htslib/thread_pool.h"
 
-void *run_it(void *_d)
+void bam_gtf_anno(struct bam_pool *p)
 {
-    struct bam_pool *p = (struct bam_pool*)_d;
     struct gtf_itr *itr = gtf_itr_build(args.G);
     
     kstring_t trans = {0,0,0};
@@ -516,14 +573,14 @@ void *run_it(void *_d)
                 trans_novo = 0;
                 in_gene = 1;
                 if (trans.l) kputc(';', &trans);
-                kputs(G->transcript_id->name[g1->transcript_id], &trans);
+                kputs(dict_name(G->transcript_id,g1->transcript_id), &trans);
             }
 
             if (in_gene) {
                 if (genes.l) kputc(';', &genes);
-                kputs(G->gene_name->name[g0->gene_name], &genes);
+                kputs(dict_name(G->gene_name,g0->gene_name), &genes);
                 if (gene_id.l) kputc(';', &gene_id);
-                kputs(G->gene_id->name[g0->gene_id], &gene_id);
+                kputs(dict_name(G->gene_id,g0->gene_id), &gene_id);
                 
                 anti = 0; // reset antisense flag
             } 
@@ -543,7 +600,7 @@ void *run_it(void *_d)
             // args.reads_antisense++;
         }
         else if (trans_novo) {
-            kputs(G->gene_name->name[g->gene_name], &genes);
+            kputs(dict_name(G->gene_name,g->gene_name), &genes);
             bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
             bam_aux_append(b, TX_tag, 'Z', 8, (uint8_t*)"UNKNOWN");            
         }
@@ -566,6 +623,24 @@ void *run_it(void *_d)
     if (gene_id.m) free(gene_id.s);
 
     gtf_itr_destory(itr);
+}
+
+void *run_it(void *_d)
+{
+    struct bam_pool *p = (struct bam_pool*)_d;
+
+    if (args.G) bam_gtf_anno(p);
+
+    if (args.chr_binding) {
+        int i;
+        for (i = 0; i < p->n; ++i) {
+            bam1_t *b = &p->bam[i];
+            char *v = args.chr_binding[b->core.tid];
+            if (v == NULL) continue;
+            bam_aux_append(b, args.btag, 'Z', strlen(v)+1, (uint8_t*)v);
+        }
+    }
+    
     return p;
 }
 
@@ -594,7 +669,7 @@ static void memory_release()
     sam_close(args.fp);
     sam_close(args.out);
     if (args.B) bed_destroy(args.B);
-    else gtf_destory(args.G);
+    else if (args.G) gtf_destory(args.G);
     if (args.fp_report != stderr) fclose(args.fp_report);
 }
 

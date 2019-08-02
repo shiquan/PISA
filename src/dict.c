@@ -1,49 +1,110 @@
-#include "utils.h"
 #include "dict.h"
 #include "htslib/khash.h"
+#include "htslib/kseq.h"
+#include <zlib.h>
 
-KHASH_MAP_INIT_STR(dict, int)
+KHASH_MAP_INIT_STR(name, int)
+KSTREAM_INIT(gzFile, gzread, 8193);
+
+struct dict {
+    int n, m;
+    char **name;
+    kh_name_t *dict;
+    uint32_t *count;
+};
 
 struct dict *dict_init()
 {
-    struct dict *d = malloc(sizeof(*d));
-    memset(d, 0, sizeof(*d));
-    d->dict = kh_init(dict);
-    return d;
+    struct dict *D = malloc(sizeof(*D));
+    memset(D, 0, sizeof(*D));
+    D->dict = kh_init(name);
+    return D;
 }
-void dict_destory(struct dict *d)
+
+char *dict_name(struct dict *D, int idx)
+{
+    assert(idx >= 0 && idx < D->n);
+    return D->name[idx];
+}
+
+int dict_size(struct dict *D)
+{
+    return D->n;    
+}
+uint32_t dict_count(struct dict *D, int idx)
+{
+    return D->count[idx];
+}
+uint32_t dict_count_sum(struct dict *D)
+{
+    uint32_t sum = 0;
+    int i;
+    for (i = 0; i < D->n; ++i) sum+=D->count[i];
+    return sum;
+}
+void dict_destroy(struct dict *D)
 {
     int i;
-    for (i = 0; i < d->n; ++i) free(d->name[i]);
-    free(d->name);
-    kh_destroy(dict,(kh_dict_t*)d->dict);
-    free(d);
+    for (i = 0; i < D->n; ++i) free(D->name[i]);
+    free(D->name);
+    free(D->count);
+    kh_destroy(name,D->dict);
+    free(D);
 }
 
-int dict_query(struct dict *d, char *name)
+int dict_query(struct dict *D, char *key)
 {
+    if (key == NULL) error("Trying to query an empty key.");
     khint_t k;
-    k = kh_get(dict, (kh_dict_t*)d->dict, name);
-    if (k == kh_end((kh_dict_t*)d->dict)) return -1;
-
-    return kh_val((kh_dict_t*)d->dict, k);
+    k = kh_get(name, D->dict, key);
+    if (k == kh_end(D->dict)) return -1;
+    return kh_val(D->dict, k);
 }
 
-int dict_push(struct dict *d, char *name)
+int dict_push(struct dict *D, char *key)
 {
-    int check = dict_query(d, name);
-    if (check == -1) {
-        khint_t k;
-        int ret;
-        if (d->n == d->m) {
-            d->m = d->m == 0 ? 32 : d->m<<1;
-            d->name = realloc(d->name, sizeof(char *)*d->m);
-        }
-        d->name[d->n] = strdup(name);
-        k = kh_put(dict, (kh_dict_t*)d->dict, d->name[d->n], &ret);
-        kh_val((kh_dict_t*)d->dict, k) = d->n;
-        check = d->n;
-        d->n++;
+    if (key == NULL) error("Trying to push an empty key.");
+    int ret;
+    ret = dict_query(D, key);
+    if (ret != -1) {
+        D->count[ret]++;
+        return ret;
     }
-    return check;
+    if (D->n == D->m) {
+        D->m = D->m == 0 ? 1024 : D->m<<1;
+        D->count = realloc(D->count, sizeof(uint32_t)*D->m);
+        int i;
+        for (i = D->n; i < D->m; ++i) D->count[i] = 0;
+        D->name = realloc(D->name, sizeof(char*)*D->m);
+    }
+    D->name[D->n] = strdup(key);
+    D->count[D->n]++;
+    khint_t k;
+    k = kh_put(name, D->dict, D->name[D->n], &ret);
+    kh_val(D->dict, k) = D->n;
+    return D->n++;    
+}
+
+int dict_read(struct dict *D, const char *fname)
+{
+    gzFile fp;
+    fp = gzopen(fname, "r");
+    CHECK_EMPTY(fp, "%s : %s.", fname, strerror(errno));
+    kstream_t *ks = ks_init(fp);
+    kstring_t str = {0,0,0};
+    int ret;
+    while (ks_getuntil(ks, 2, &str, &ret)>=0){
+        if (str.l == 0) continue;
+        if (str.s[0] == '#') continue;
+        if (strcmp(str.s, "Barcode") == 0) continue; // emit header
+        char *p = str.s;
+        char *e = str.s + str.l;
+        while (p < e && !isspace(*p)) p++;
+        *p = '\0';
+        dict_push(D, str.s);
+    }
+    if (str.m) free(str.s);
+    ks_destroy(ks);
+    gzclose(fp);
+    return 0;
 }

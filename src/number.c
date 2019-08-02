@@ -313,11 +313,11 @@ double force2num_l(char *str, int l)
         return nondec2num(str, l);
     }
 }
-int str2int(char *str)
+int str2int(void *str)
 {
-    return (int)force2num(str);
+    return (int)force2num((char*)str);
 }
-int str2int_l(char *str, int l)
+int str2int_l(void *str, int l)
 {
-    return (int)force2num_l(str, l);
+    return (int)force2num_l((char*)str, l);
 }
