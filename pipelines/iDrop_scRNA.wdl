@@ -211,8 +211,7 @@ task fastq2bam {
     source ${lib}
     fi
 
-    ${STAR}  --outStd SAM --runThreadN 20 --genomeDir ${refdir} --readFilesIn ${fastq} > temp.sam
-    ${root}/SingleCellTools sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt temp.sam && rm -f temp.sam
+    ${STAR}  --outStd SAM --runThreadN 20 --genomeDir ${refdir} --readFilesIn ${fastq} | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt /dev/stdin
     
   }
   output {
