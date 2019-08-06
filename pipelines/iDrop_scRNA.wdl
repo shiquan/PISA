@@ -208,7 +208,7 @@ task fastq2bam {
     source ${lib}
     fi
 
-    ${STAR}  --outStd SAM --runThreadN 20 --genomeDir ${refdir} --readFilesIn ${fastq} | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt /dev/stdin
+    ${STAR}  --outStd SAM --runThreadN 20 --genomeDir ${refdir} --readFilesIn ${fastq} --outFileNamePrefix ${outdir}/temp/ | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt /dev/stdin
     
   }
   output {
@@ -229,9 +229,9 @@ task sortBam {
     fi
 
     ${sambamba} sort -t 20 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam
-    ${root}/SingleCellTools anno -gtf ${gtf} -o ${outdir}/temp/anno.bam ${outdir}/temp/sorted.bam
+    ${root}/SingleCellTools anno -gtf ${gtf} -o ${outdir}/outs/annotated.bam -report ${outdir}/temp/annotated_report.txt ${outdir}/temp/sorted.bam
   }
   output {
-    String anno="${outdir}/temp/anno.bam"
+    String anno="${outdir}/outs/annotated.bam"
   }
 }
