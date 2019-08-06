@@ -734,7 +734,7 @@ int bam_anno_attr(int argc, char *argv[])
         hts_tpool_destroy(p);
     }
 
-    // write_report();
+    write_report();
     memory_release();    
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     
