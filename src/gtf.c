@@ -127,10 +127,12 @@ static struct attr_pair *bend_pair(char *s, int *n)
     kstring_t key = {0,0,0};
     for (i = 0; i < *n; ++i) {
         char *p0 = str.s+t[i];
+        char *e = p0 + strlen(p0);
         while (isspace(*p0)) p0++;
+        if (p0 == e || *p0 == '\0') break;
         char *p1 = p0;
         int j = 0;
-        for (p1 = p0; !isspace(*p1); p1++,j++);
+        for (p1 = p0; !isspace(*p1) && p1 != e; p1++,j++);
         key.l = 0;
         kputsn(p0, j, &key);
         kputs("",&key);
@@ -138,7 +140,8 @@ static struct attr_pair *bend_pair(char *s, int *n)
         if (*p1 == '\0') // flag
             pp[i].val = NULL;
         else {
-            p0 = ++p1;
+            while (isspace(*p1)) p1++; // skip space
+            p0 = p1;
             key.l = 0;
             if (*p0 != '"') { // no common
                 for (j = 0, p1 = p0; *p1 != '\0'; ++p1,++j);
@@ -153,8 +156,9 @@ static struct attr_pair *bend_pair(char *s, int *n)
                 kputs("",&key);
                 pp[i].val = strdup(key.s);
             }
-        }        
+        }
     }
+    *n = i; // in case empty endss
     free(str.s);
     free(key.s);
     free(t);
