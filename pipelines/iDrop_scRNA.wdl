@@ -100,7 +100,7 @@ task report {
     fi
     
     ${Rscript} -e 'library(rmarkdown);render("${root}/scripts/iDrop_RNAseq.Report.rmd", output_format="html_document", output_file = "${outdir}/outs/${ID}.html", params = list(lib="${ID}",exp="${default=1000 expectCell}",path="${outdir}"))'
-    if [ -f ${Python3} ]; then
+    if [ -f ${default=dakdhaksjdh Python3} ]; then
     ${Python3} ${root}/scripts/cluster.py ${matrix} ${outdir}/outs/cluster.h5ad
     fi
   }

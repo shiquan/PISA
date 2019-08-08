@@ -54,7 +54,7 @@ task makedir {
         "location":"R1:1-16",
       }
       ],
-      "UMI tag":"UB",
+      "UMI tag":"UY",
       "UMI":{
         "location":"R1:17-26",
         },
@@ -93,11 +93,11 @@ task fastq2bam {
   String refdir
   String root
   command {
-    ${STARpath} --genomeDir ${refdir} --readFilesIn ${fastq} --outStd SAM --runThreadN 10 | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.json -maln ${outdir}/temp/mito.bam -filter ${outdir}/temp/filter.bam /dev/stdin 
+    ${STARpath} --genomeDir ${refdir} --readFilesIn ${fastq} --outStd SAM --runThreadN 10 | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt /dev/stdin 
   }
   output {
     String bam="${outdir}/temp/aln.bam"
-    String alnReport="{outdir}/temp/alignment_report.json"
+    String alnReport="{outdir}/temp/alignment_report.txt"
   }
 }
 task sortBam {
