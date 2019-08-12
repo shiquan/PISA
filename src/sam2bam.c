@@ -278,8 +278,7 @@ static void summary_report(struct args *opts)
         fprintf(opts->fp_report,"Minus strand : %"PRIu64"\n", summary->n_mstrand);
         fprintf(opts->fp_report,"Mapping quals above %d : %"PRIu64"\n", opts->qual_thres, summary->n_qual);
         fprintf(opts->fp_report,"Mitochondria ratio : %.2f%%\n", (float)summary->n_mito/summary->n_mapped*100);
-        fprintf(opts->fp_report,"Usable reads (ratio) : %"PRIu64" (%.2f%%)\"\n", summary->n_usable, (float)summary->n_usable/summary->n_reads*100);
-
+        fprintf(opts->fp_report,"Usable reads (ratio) : %"PRIu64" (%.2f%%)\n", summary->n_usable, (float)summary->n_usable/summary->n_reads*100);
     }
 
     free(summary);
@@ -287,50 +286,45 @@ static void summary_report(struct args *opts)
 
 static int parse_name_str(kstring_t *s)
 {
-    // CL100053545L1C001R001_2|||BC|||TTTCATGA|||CR|||TANTGGTAGCCACTAT
+    // CL100053545L1C001R001_2|||BC:Z:TTTCATGA|||CR:Z:TANTGGTAGCCACTAT|||PL:i:20
     // CL100053545L1C001R001_2 .. CR:Z:TANTGGTAGCCACTAT ..
     int n, i;
     for (n = 0; n < s->l && !isspace(s->s[n]); ++n);
     for (i = 0; i < n && s->s[i] != '|'; ++i);
     
-    int is_name = 1; // first key is name, next is value
+    // int is_name = 1; // first key is name, next is value
 
-    if (i < n-8) { // detected
+    if (i < n-5) { // detected
         char *p = s->s+i;
+        char *r = 0;
         char *e = s->s+n;
         kstring_t t = {0,0,0};
         kputsn(s->s, i, &t);
         kputsn(s->s+n, s->l-n, &t);
-        for (;;) {
+        *e = '\0';
+
+        for ( ; p != e; ) {
             if (*p == '|' && *(p+1) == '|' && *(p+2) == '|') {
-                p = p + 3;
-                if (is_name) {
-                    if (*(p + 2) != '|') {
-                        warnings("Failed to parse name %s", s->s);
-                        if (t.m) free(t.s);
-                        break;
-                    }
-                    kputc('\t', &t); kputsn(p, 2, &t); kputs(":Z:", &t);
-                    p = p + 2;
-                    is_name = 0;
+                *p = '\0';                
+                if (r != 0) {
+                    kputc('\t', &t);
+                    kputs(r, &t);
                 }
-                else {
-                    char *pp = p;
-                    int l = 0;
-                    while (*pp != '|' && pp != e) { ++pp; ++l; }
-                    kputsn(p, l, &t);
-                    is_name = 1;
-                    p = pp;
-                }
-                continue;
+                p += 3;
+                r = p;                
             }
-            break;
+            p++;
+        }
+        if (r) {
+            kputc('\t', &t);
+            kputs(r, &t);
         }
         s->l = t.l;
         s->m = t.m;
         free(s->s);
         s->s = t.s;
     }
+
     return 0;
 }
 static void sam_stat_reads(bam1_t *b, struct reads_summary *s, int *flag, struct args *opts)
@@ -459,11 +453,6 @@ static int usage()
     fprintf(stderr, " -r [1000000]             Records per chunk.\n");
     fprintf(stderr, " -p                       Input reads are paired.\n");
     return 1;
-}
-
-int bam_fixmate()
-{
-    return 0;
 }
 
 static int parse_args(int argc, char **argv)

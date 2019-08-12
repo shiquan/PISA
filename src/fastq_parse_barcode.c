@@ -31,7 +31,7 @@ static int usage()
     fprintf(stderr, "  -r      [INT]      Records per chunk. [10000]\n");
     fprintf(stderr, "  -report [txt]      Summary report.\n");
     fprintf(stderr, "  -dis    [txt]      Barcode distribution count.\n");
-    fprintf(stderr, "  -f                 Filter reads based on BGISEQ standard. Two bases quality < q10 at first 15.\n");
+    fprintf(stderr, "  -f                 Filter reads based on BGISEQ standard (2 bases < q10 at first 15 bases).\n");
     fprintf(stderr, "  -q      [INT]      Drop this read if average sequencing quality below this value.\n");
     fprintf(stderr, "  -dropN             Drop the reads if N base in reads or UMI.\n");
     fprintf(stderr, "\n");
@@ -248,8 +248,8 @@ static struct args {
 };
     
 static struct config {
-    const char *platform;
-    const char *version;
+    // const char *platform;
+    // const char *version;
     // consistant with white list if set
     const char *cell_barcode_tag; 
     const char *sample_barcode_tag;
@@ -273,8 +273,8 @@ static struct config {
     struct BarcodeRegion *read_1; 
     struct BarcodeRegion *read_2;  // for single ends, read2 == NULL
 } config = {
-    .platform = NULL,
-    .version = NULL,
+    // .platform = NULL,
+    // .version = NULL,
     .cell_barcode_tag = NULL,
     .sample_barcode_tag = NULL,
     .raw_cell_barcode_tag = NULL,
@@ -310,10 +310,12 @@ static void config_init(const char *fn)
             continue;
         }
         if (strcmp(node->key, "platform") == 0) {
-           if (node->v.str) config.platform = strdup(node->v.str);
+            continue;
+            // if (node->v.str) config.platform = strdup(node->v.str);
         }
         else if (strcmp(node->key, "version") == 0) {
-            if (node->v.str) config.version = strdup(node->v.str);
+            continue;
+            // if (node->v.str) config.version = strdup(node->v.str);
         }
         else if (strcmp(node->key, "cell barcode tag") == 0) {
             if (node->v.str) config.cell_barcode_tag = strdup(node->v.str);
@@ -321,7 +323,7 @@ static void config_init(const char *fn)
         else if (strcmp(node->key, "cell barcode raw tag") == 0) {
             if (node->v.str) config.raw_cell_barcode_tag = strdup(node->v.str);
         }
-        else if (strcmp(node->key, "cell barcode raw qual tag") == 0) {
+        else if (strcmp(node->key, "cell barcode raw qual tag") == 0) { 
             if (node->v.str) config.raw_cell_barcode_qual_tag = strdup(node->v.str);
         }        
         else if (strcmp(node->key, "cell barcode") == 0) {
@@ -595,7 +597,7 @@ static void update_rname(struct bseq *b, const char *tag, char *s)
     kputs(b->n0, &str);
     kputs("|||", &str);
     kputs(tag, &str);
-    kputs("|||", &str);
+    kputs(":Z:", &str);
     kputs(s, &str);
     free(b->n0);
     b->n0 = str.s;
@@ -1035,18 +1037,6 @@ void cell_barcode_count_pair_write()
 }
 void report_write()
 {
-    /* fprintf(args.report_fp, "[\n");
-    fprintf(args.report_fp, "\t{\"name\":\"Number of Fragments\", \"value\":\"%"PRIu64"\"},\n", args.raw_reads);
-    fprintf(args.report_fp, "\t{\"name\":\"Fragments with Exactly Matched Barcodes\", \"value\":\"%"PRIu64"\"},\n", args.barcode_exactly_matched);
-    fprintf(args.report_fp, "\t{\"name\":\"Fragments with Failed Barcodes\", \"value\":\"%"PRIu64"\"},\n", args.filtered_by_barcode);
-    fprintf(args.report_fp, "\t{\"name\":\"Fragments Filtered on Low Qulity\", \"value\":\"%"PRIu64"\"},\n", args.filtered_by_lowqual);
-    fprintf(args.report_fp, "\t{\"name\":\"Fragments Filtered on Unknown Sample Barcodes\", \"value\":\"%"PRIu64"\"},\n", args.filtered_by_sample);
-    fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in Cell Barcode\", \"value\":\"%.1f%%\"},\n",args.bases_cell_barcode == 0 ? 0 : (float)args.q30_bases_cell_barcode/(args.bases_cell_barcode+1)*100);
-    fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in Sample Barcode\", \"value\":\"%.1f%%\"},\n", args.bases_sample_barcode == 0 ? 0 : (float)args.q30_bases_sample_barcode/(args.bases_sample_barcode+1)*100);
-    fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in UMI\", \"value\":\"%.1f%%\"},\n", args.bases_umi == 0 ? 0 : (float)args.q30_bases_umi/(args.bases_umi+1)*100);
-    fprintf(args.report_fp, "\t{\"name\":\"Q30 bases in Reads\", \"value\":\"%.1f%%\"}\n", (float)args.q30_bases_reads/(args.bases_reads+1)*100);
-    fprintf(args.report_fp, "]\n");
-    */
     fprintf(args.report_fp, "Number of Fragments : %"PRIu64"\n", args.raw_reads);
     fprintf(args.report_fp, "Fragments pass QC: %"PRIu64"\n", args.reads_pass_qc);
     fprintf(args.report_fp, "Fragments with Exactly Matched Barcodes : %"PRIu64"\n", args.barcode_exactly_matched);

@@ -11,7 +11,7 @@ static int usage()
     fprintf(stderr, "fastq_split [options] in.fq\n");
     fprintf(stderr, "      -chunk     Minimize records per file.\n");
     fprintf(stderr, "      -out       Outdir.\n");
-    fprintf(stderr, "      -tag      Tags.\n");
+    fprintf(stderr, "      -tag       Tags.\n");
     fprintf(stderr, "\n");
     return 1;
 }
