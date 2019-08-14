@@ -27,7 +27,7 @@ static int usage()
     return 1;
 }
 
-#define MIN_MEM_PER_THREAD  100000000 // 100M
+#define MIN_MEM_PER_THREAD  10000000 // 10M
 
 static struct args {
     const char *input_fname;
@@ -565,7 +565,7 @@ int cmpfunc(const void *a, const void *b)
     
     return strcmp(((struct fastq_stream_reader*)a)->name, ((struct fastq_stream_reader*)b)->name);
 }
-int merge_files(const char *fn, int n_file, const char **files, int pair)
+int merge_files(const char *fn, int n_file, char **files, int pair)
 {
     FILE *out = fopen(fn, "r");
     if (out == NULL) error("%s : %s.", fn, strerror(errno));
