@@ -313,11 +313,21 @@ double force2num_l(char *str, int l)
         return nondec2num(str, l);
     }
 }
-int str2int(void *str)
+int str2int(const char *str)
 {
     return (int)force2num((char*)str);
 }
-int str2int_l(void *str, int l)
+int str2int_l(const char *str, int l)
 {
     return (int)force2num_l((char*)str, l);
+}
+
+int human2int(const char *str)
+{
+    char *q;
+    int m = strtol(str, &q, 0);
+    if (*q == 'k'||*q=='K') m<<=10;
+    else if (*q == 'm'||*q=='M') m<<=20;
+    else if (*q == 'g'||*q=='G') m<<=30;
+    return m;
 }

@@ -1,16 +1,12 @@
 #include "utils.h"
 #include "htslib/khash.h"
 #include "htslib/kstring.h"
-#include "htslib/kseq.h"
-#include "fastq.h"
-#include "barcode_list.h"
+#include "dict.h"
 #include "number.h"
 #include "htslib/thread_pool.h"
 #include <zlib.h>
 #include <ctype.h>
 #include <sys/stat.h>
-
-KSEQ_INIT(gzFile, gzread)
 
 static int usage()
 {
@@ -18,578 +14,52 @@ static int usage()
     fprintf(stderr, "fastq-sort  in.fq\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "General options:\n");
-    fprintf(stderr, " -tag       Tags, such as CB,UR. Order of these tags is sensitive.\n");
-    fprintf(stderr, " -dedup     Remove dna copies with same tags. Only keep reads have the best quality.\n");
-    fprintf(stderr, " -list      White list for first tag, usually for cell barcodes.\n");
-    fprintf(stderr, " -t         Threads to deduplicate.\n");
-    fprintf(stderr, " -o         Output fastq.");
-    fprintf(stderr, " -p         Input fastq is smart pairing.\n");
-    fprintf(stderr, " -dropN     Drop if N found in tags.\n");
-    fprintf(stderr, " -mem       In memory mode. Put all records in memory.\n");
+    fprintf(stderr, " -tag         Tags, such as CB,UR. Order of these tags is sensitive.\n");
+    fprintf(stderr, " -dedup       Remove dna copies with same tags. Only keep reads have the best quality.\n");
+    fprintf(stderr, " -list        White list for first tag, usually for cell barcodes.\n");
+    fprintf(stderr, " -t           Threads.\n");
+    fprintf(stderr, " -o           Output fastq.\n");
+    fprintf(stderr, " -m           Memory per thread. [1G]\n");
+    fprintf(stderr, " -p           Input fastq is smart pairing.\n");
+    fprintf(stderr, " -T PREFIX    Write temporary files to PREFIX.nnnn.fq\n");
+    fprintf(stderr, " -dropN       Drop if N found in tags.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "Options for splited output files:\n");
-    fprintf(stderr, " -split     Split records to files by first tag. -O and -list must be set with this parameter.\n");
-    fprintf(stderr, " -O         Outdir of split fastq. Conflict with -o.\n");
-    fprintf(stderr, "Notice:\n");
-    fprintf(stderr, "     1. This program is designed for single cell data. Deduplicate step is computing \n");
-    fprintf(stderr, "        extensive if too much reads in one block. It is not suggest apply to bulk data.\n");
-    fprintf(stderr, "     2. For index mode (default), input should be unpacked.\n");
-    fprintf(stderr, "     3. In case you don't care about the memory and need the result ASAP. -mem may be a choice.\n");
     return 1;
 }
 
-struct data_block {
-    long start;
-    long end;
-};
+#define MIN_MEM_PER_THREAD  100000000 // 100M
 
-struct data_index;
-KHASH_MAP_INIT_STR(idx, struct data_index*)
-
-struct data_index {
-    char *fkey; // point to key, don't free it
-    int n, m;
-    char **keys;
-    int n_idx, m_idx;
-    struct data_block *idx;
-    struct bseq_pool *pool;
-    kh_idx_t *dict;
-};
-struct data_index *data_index_create()
-{
-    struct data_index *d = malloc(sizeof(*d));
-    memset(d, 0, sizeof(*d));
-    return d;
-}
-static struct data_index *data_idx_retrieve(struct data_index *idx, char *s)
-{
-    khint_t k;
-    if (idx->dict == 0) {
-        idx->dict = kh_init(idx);
-        goto idx_hash_push;
-    }
-
-    k = kh_get(idx, idx->dict, s);
-    if (k != kh_end(idx->dict)) return kh_val(idx->dict,k);
-
-  idx_hash_push:
-    if (idx->n == idx->m) {
-        idx->m = idx->m == 0 ? 10 : idx->m<<1;
-        idx->keys = realloc(idx->keys, idx->m*sizeof(char*));
-    }
-    
-    idx->keys[idx->n] = strdup(s);
-    int ret;
-    k = kh_put(idx, idx->dict, idx->keys[idx->n], &ret);
-    struct data_index *i0 = data_index_create();
-    i0->fkey = idx->keys[idx->n];
-    kh_val(idx->dict, k) = i0;
-    idx->n++;
-    
-    return kh_val(idx->dict, k);
-}
-
-static void data_index_clean(struct data_index *d)
-{
-    if (d->n > 0) {
-        int i;
-        for (i = 0; i < d->n; i++) {
-            if (d->keys[i]) {
-                struct data_index *i0 = data_idx_retrieve(d, d->keys[i]);
-                data_index_clean(i0);
-                free(d->keys[i]);
-                free(i0);
-            }
-        }
-        free(d->keys);
-        kh_destroy(idx, d->dict);
-    }
-    else {
-        if (d->m_idx) free(d->idx);
-        if (d->pool) bseq_pool_destroy(d->pool);
-    }
-    memset(d, 0, sizeof(*d));
-}
-void data_index_destory(struct data_index *d)
-{
-    data_index_clean(d);
-    free(d);
-}
-
-/*
-struct FILE_tag_index {
-    int n, m;
-    char **key;
-    void *dict;
-};
-*/
 static struct args {
     const char *input_fname;
     const char *list_fname;
     const char *output_fname;
-    const char *outdir;
-    int split_file;
+    const char *prefix;
     int dropN;    
     int n_thread;
     int dedup;
-    int n_tag;
-    int in_mem;
     int smart_pairing;
     int check_list;
-
-    int file_count;
-    
-    char **tags;
+    int mem_per_thread;
+    struct dict *tags;
     FILE *out;
-    // For each thread, keep file handler
-    //FILE **fp;
     FILE *fp_in;
-    struct barcode_list *lb;
-    long end;
-    
+    struct dict *bcodes;
 } args = {
     .input_fname = NULL,
     .list_fname = NULL,
     .output_fname = NULL,
-    .outdir = NULL,
-    .split_file = 0,
+    .prefix = NULL,
     .dropN = 0,
     .smart_pairing = 0,
-    .check_list = 0,
-    .file_count = 0,
     .dedup = 0,
-    .n_tag = 0,
-    .in_mem = 0,
+    .mem_per_thread = 1000000000, // 1G
     .tags = NULL,
+    .check_list = 0,
     .out = NULL,
     .fp_in = NULL,
-    .lb = NULL,
-    .end = 0,
+    .bcodes = NULL,
 };
 
-#define FILE_PER_FOLD 100
-#define MAX_FILE_NUM  10000
-static void write_out_bseq(struct bseq_pool *pool, FILE *fp)
-{
-    int i;
-    for (i = 0; i < pool->n; ++i) {
-        struct bseq *b = &pool->s[i];
-        if (b->flag == FQ_PASS) {            
-            fprintf(fp, "@%s\n%s\n+\n%s\n", b->n0, b->s0, b->q0);
-            if (b->l1) fprintf(fp, "@%s\n%s\n+\n%s\n", b->n0, b->s1, b->q1);
-        }
-    }
-    // bseq_pool_destroy(pool);
-}
-static void write_out_core(struct data_index *idx, FILE *fp)
-{
-    if (idx->n > 0) {
-        int i;
-        for (i = 0; i < idx->n; ++i) {
-            struct data_index *i0 = data_idx_retrieve(idx, idx->keys[i]);
-            write_out_bseq(i0->pool, fp);
-        }
-    }
-    else
-        write_out_bseq(idx->pool, fp);
-}
-static void write_out(struct data_index *idx, int c)
-{
-    if (args.split_file) {
-        int sub0 = c/FILE_PER_FOLD;
-        kstring_t str = {0,0,0};
-        if (args.outdir) kputs(args.outdir, &str); // / already added
-        if (str.s[str.l-1] != '/') kputc('/', &str);
-        kputw(sub0,&str);kputc('/', &str);
-        mkdir(str.s, 0777);
-        kputs(idx->fkey, &str);
-        kputs(".fq", &str);
-        FILE *fp = fopen(str.s, "w");
-        CHECK_EMPTY(fp, "%s : %s.", str.s, strerror(errno));
-        write_out_core(idx, fp);
-        fclose(fp);
-        free(str.s);
-    }
-    else {
-        assert(args.out);
-        write_out_core(idx, args.out);
-    }
-    data_index_clean(idx);
-}
-/*
-static void FILE_tag_destroy(struct FILE_tag_index *idx)
-{
-    int i;
-    for (i = 0; i < idx->n; ++i) {
-        khiter_t k;
-        k = kh_get(idx, (kh_idx_t*)idx->dict, idx->key[i]);
-        struct data_index *di = kh_val((kh_idx_t*)idx->dict, k);
-        free(di->idx);
-        free(di);
-        kh_del(idx,(kh_idx_t*)idx->dict,k);
-        free(idx->key[i]);
-    }
-    free(idx->key);
-    kh_destroy(idx,(kh_idx_t*)idx->dict);
-    free(idx);
-}
-*/
-struct bseq *bend_to_bseq(char *s)
-{
-    kstring_t str = {0,0,0};
-    kputs(s, &str);
-    int n;
-    int *p = ksplit(&str, '\n', &n);
-    if (n != 4 && n!= 8) {
-        fprintf(stderr, "%d\n%s\n", n, s);
-        assert(1);
-    }
-    struct bseq *b = malloc(sizeof(*b));
-    memset(b, 0, sizeof(struct bseq));
-    b->n0 = strdup(str.s+p[0]);
-    b->s0 = strdup(str.s+p[1]);
-    b->q0 = strdup(str.s+p[3]);
-    b->l0 = strlen(b->s0);
-    int l;
-    l = strlen(b->q0);
-    if (l != b->l0) error("Unequal sequence and quality length. %s vs %s", b->s0, b->q0);
-    if (args.smart_pairing) {
-        b->s1 = strdup(str.s+p[5]);
-        b->q1 = strdup(str.s+p[7]);
-        b->l1 = strlen(b->s1);
-        l = strlen(b->q1);
-        if (l != b->l1) error("Unequal sequence and quality length. %s vs %s", b->s1, b->q1);
-    }
-    free(p);
-    free(str.s);
-    return b;
-}
-static struct bseq *read_file_block(FILE *fp, struct data_block *block)
-{
-    int l = block->end - block->start;    
-    if (fseek(fp, block->start,SEEK_SET)) error("failed to seek.");
-    char *s = malloc(sizeof(char)*(block->end -block->start+1));
-    if (s == NULL) error("Fail to allocate memory.");    
-    fread(s, sizeof(char), block->end-block->start, fp);
-    s[l] = '\0';
-    kstring_t str = {0,0,0};
-    kputsn(s, 100, &str);
-    // debug_print("%llu\t%s", block->start, str.s);
-    free(str.s);
-    struct bseq *b = bend_to_bseq(s);
-    free(s);
-    return b;
-}
-/*
-static void test_read_file_block(FILE *fp, struct data_block *block)
-{
-
-    int l = block->end - block->start;
-    
-    fseek(fp, block->start,SEEK_SET);
-    char *s = malloc(sizeof(char)*(block->end -block->start+1));    
-    fread(s, sizeof(char), block->end-block->start, fp);
-    s[l] = '\0';
-
-    puts(s);
-
-    puts("\n=======\n");
-    
-    free(s);
-    // return NULL;
-}
-*/
-/*
-void test_file_index(struct FILE_tag_index *idx, const char *fn)
-{
-    FILE *fp = fopen(fn, "r");
-    
-    int i, j;
-    for (i = 0; i < idx->n; ++i) {
-        khint_t k;
-        k = kh_get(idx, (kh_idx_t*)idx->dict, idx->key[i]);
-        struct data_index *di = kh_val((kh_idx_t*)idx->dict, k);
-        assert(di);
-        for (j = 0; j < di->n; ++j) {
-            test_read_file_block(fp, &di->idx[j]);
-        }
-    }
-
-    fclose(fp);
-}
-
-char *build_string_from_array(int n, char **v)
-{
-    kstring_t str = {0,0,0};
-    int i;
-    for (i = 0; i < n; ++i) kputs(v[i], &str);
-    return str.s;
-}
-*/
-static void memory_release()
-{
-    if(args.out) fclose(args.out);
-    int i;
-    //for (i = 0; i < args.n_thread; ++i) fclose(args.fp[i]);
-    if (args.fp_in) fclose(args.fp_in);
-
-    for (i = 0; i < args.n_tag; ++i) free(args.tags[i]);
-    free(args.tags);
-    if (args.check_list) barcode_destory(args.lb);
-}
-static int FILE_read_line_length(FILE *fp)
-{
-    int l;
-    for (l= 0; fgetc(fp) != '\n';++l);
-    return l;
-}
-static void push_idx_idx_core(struct data_index *idx, long start, long end)
-{
-    if (idx->n_idx == idx->m_idx) {
-        idx->m_idx = idx->m_idx == 0 ? 10 : idx->m_idx<<1;
-        idx->idx = realloc(idx->idx, idx->m_idx *sizeof(struct data_block));
-    }
-    idx->idx[idx->n_idx].start = start;
-    idx->idx[idx->n_idx].end = end;
-    idx->n_idx++;
-}
-void push_idx_idx(struct data_index *idx, int n, char **names, long start, long end)
-{
-
-    struct data_index *i0 = data_idx_retrieve(idx, names[0]);
-
-    if (n > 1) {
-        kstring_t str= {0,0,0};
-        int i;
-        for (i = 1; i < n;++i) kputs(names[i], &str);
-        struct data_index *i1 = data_idx_retrieve(i0, str.s);
-        push_idx_idx_core(i1, start, end);
-
-        free(str.s);
-    }
-    else
-        push_idx_idx_core(i0, start, end);
-}
-static void push_idx_mem_core(struct data_index *idx, struct bseq *b)
-{
-    if (idx->pool == NULL)
-        idx->pool = bseq_pool_init();
-    bseq_pool_push(b, idx->pool);
-}
-static void push_idx_mem(struct data_index *idx, int n, char **names, struct bseq *b)
-{
-    struct data_index *i0 = data_idx_retrieve(idx, names[0]);
-    if (n > 1) {
-        kstring_t str= {0,0,0};
-        int i;
-        for (i = 1; i < n;++i) kputs(names[i], &str);
-        struct data_index *i1 = data_idx_retrieve(i0, str.s);
-        push_idx_mem_core(i1, b);
-        free(str.s);
-    }
-    else
-        push_idx_mem_core(i0, b);
-}
-//static struct FILE_tag_index *build_file_index(const char *fname, int in_mem)
-static struct data_index *build_file_index(const char *fname, int in_mem)
-{
-    struct data_index *idx = malloc(sizeof(*idx));
-    memset(idx, 0, sizeof(*idx));
-    // idx->dict = kh_init(idx);
-        
-    if (args.in_mem) {
-        gzFile fp = gzopen(fname, "r");
-        kseq_t *ks;
-        ks = kseq_init(fp);
-        struct bseq b = {0,0,0,0,0,0,0,0};
-        while (kseq_read(ks)>=0) {
-            memset(&b, 0, sizeof(b));
-            if ( ks->name.s[ks->name.l-2] == '/' ) { // trim tail
-                ks->name.s[ks->name.l-2] = '\0';
-                ks->name.l -= 2;
-            }
-            b.n0 = strdup(ks->name.s);
-            b.s0 = strdup(ks->seq.s);
-            b.l0 = ks->seq.l;
-            b.q0 = strdup(ks->qual.s);
-
-
-
-            if (args.smart_pairing) {
-                if (kseq_read(ks) < 0) error("Failed to found read 2.");
-                if ( ks->name.s[ks->name.l-2] == '/' ) { // trim tail
-                    ks->name.s[ks->name.l-2] = '\0';
-                    ks->name.l -= 2;
-                }
-                if (strcmp(ks->name.s, b.n0) != 0) error("Inconsistant read name, %s vs %s", ks->name.s, b.n0);
-                b.s1 = strdup(ks->seq.s);
-                b.q1 = strdup(ks->qual.s);
-                b.l1 = ks->seq.l;
-            }
-            char **names = fastq_name_pick_tags(ks->name.s, args.n_tag, args.tags);
-            int i;
-            if (args.check_list) {
-                int ret = barcode_select(args.lb, names[0]);
-                if (ret == -1) {
-                    
-                    for (i = 0; i < args.n_tag; ++i) free(names[i]);
-                    free(names);
-                    continue;  
-                }
-            }
-                        
-            push_idx_mem(idx,args.n_tag, names, &b);
-            for (i = 0; i < args.n_tag; ++i) free(names[i]);
-            free(names);
-        }
-        kseq_destroy(ks);
-        gzclose(fp);
-    }
-    else {
-        FILE *fp = fopen(fname, "r");
-        CHECK_EMPTY(fp, "%s : %s.", fname, strerror(errno));
-        fseek(fp,0L,SEEK_END);
-        fflush(fp);
-        args.end = ftell(fp);
-        // debug_print("%d", args.end);
-        fseek(fp,0L, SEEK_SET);
-        
-        LOG_print("The file is %ld B.", args.end);
-        // struct FILE_tag_index *idx = malloc(sizeof(*idx));
-
-        kstring_t str = {0,0,0};
-        kstring_t str2 = {0,0,0}; // for read 2, used in smart pairing mode
-        long start, end;
-        int begin_of_record = 1;
-        
-        for (;;) {
-            int c = fgetc(fp);
-            if (c == EOF) break;
-            
-            str.l = 0; // clear buffer
-            
-            if (begin_of_record) {
-                fflush(fp);
-                start = ftell(fp);
-                begin_of_record = 0;
-                assert (c == '@');
-            }
-            for (; !isspace(c) && c != '\n';) {
-                kputc(c, &str);
-                c = fgetc(fp);
-            }
-            if (isspace(c) && c!= '\n') {
-                for (;c!= '\n' && c!= EOF; c= fgetc(fp)); // emit tails
-                // c = fgetc(fp); // emit '\n'
-            }
-            
-            char **names = fastq_name_pick_tags(str.s, args.n_tag, args.tags);  
-            int l = FILE_read_line_length(fp);
-            fseek(fp, l+3, SEEK_CUR);
-            begin_of_record = 1;
-            
-            if (args.smart_pairing) { // the next read is paired end
-                str2.l = 0; // clean buffer
-                c = fgetc(fp);
-                while (isspace(c)) c = fgetc(fp); // skip empty line
-                assert(c == '@'); // read names
-                for (;c != '\n';) {
-                    c = fgetc(fp);
-                    kputc(c, &str2);
-                }
-                if (strcmp(str.s, str2.s) != 0) error("Inconstant read name at smart pairing mode. %s vs %s.", str.s, str2.s);
-                int l = FILE_read_line_length(fp);
-                fseek(fp, l+3, SEEK_CUR);            
-            }
-            fflush(fp);
-            end = ftell(fp);
-            
-            assert(end <= args.end);
-            // block FILE:start-end store this read
-            int i;
-            if (names == NULL) continue; // no tags in the read names
-            if (args.check_list) {
-                //debug_print("%s", names[0]);
-                int ret = barcode_select(args.lb, names[0]);
-                if (ret == -1) {
-                    for (i = 0; i < args.n_tag; ++i) free(names[i]);
-                    free(names);
-                    continue;  
-                }
-            }
-                    
-            push_idx_idx(idx, args.n_tag, names, start, end);
-            for (i = 0; i < args.n_tag; ++i) free(names[i]);
-            free(names);            
-        }
-        if (str.m) free(str.s);
-        if (str2.m) free(str2.s);
-
-        fclose(fp);
-        
-    }
-    return idx;
-}
-/*
-static void *run_it(void *_d, int i)
-{
-    struct data_index *idx = (struct data_index*)_d;    
-    struct bseq_pool *p = bseq_pool_init();
-
-    // FILE *fp = args.fp[i];
-    
-    int k;   
-    for (k = 0; k < idx->n; ++k) {
-        struct bseq *b = read_file_block(fp, &idx->idx[k]);
-        bseq_pool_push(b, p);
-    }
-    if (args.dedup == 1)
-        bseq_pool_dedup(p);
-    return p;        
-}
-*/
-static void *run_it1(void *_d)
-{
-    /*
-    struct bseq_pool *p = (struct bseq_pool*)_d;
-    if (p->n > 1) 
-        bseq_pool_dedup(p);
-    */
-    struct data_index *p = (struct data_index*)_d;
-    if (args.dedup == 0) return p; // do nothing, here only dedup 
-    // per tag
-    
-    if (p->n > 0) { // have keys, more than one tags            
-        int i;
-        for (i = 0; i < p->n; ++i) {    
-            struct data_index *i0 = data_idx_retrieve(p, p->keys[i]);
-            i0->fkey = p->keys[i];
-            bseq_pool_dedup(i0->pool);
-        }
-    }
-    else {
-        bseq_pool_dedup(p->pool);
-    }
-    return p;        
-}
-
-//static void write_out(struct bseq_pool *p)
-/*
-static void write_out(struct data_index *p)
-{
-
-    int i;
-    for (i = 0; i < p->n; ++i) {
-        struct bseq *b = &p->s[i];
-        if (b->flag == FQ_PASS) {            
-            fprintf(args.out, "%s\n%s\n+\n%s\n", b->n0, b->s0, b->q0);
-            if (b->l1) fprintf(args.out, "%s\n%s\n+\n%s\n", b->n0, b->s1, b->q1);
-        }
-    }
-    bseq_pool_destroy(p);
-
-}
-*/
 static int parse_args(int argc, char **argv)
 {
     if (argc == 1) return 1;
@@ -597,6 +67,7 @@ static int parse_args(int argc, char **argv)
     int i;
     const char *thread = NULL;
     const char *tags = NULL;
+    const char *memory = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -605,7 +76,8 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-tag") == 0) var = &tags;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
-        else if (strcmp(a, "-O") == 0) var = &args.outdir;
+        else if (strcmp(a, "-prefix") == 0) var = &args.prefix;
+        else if (strcmp(a, "-m") == 0) var = &memory;
         else if (strcmp(a, "-dropN") == 0) {
             args.dropN = 1;
             continue;
@@ -616,14 +88,6 @@ static int parse_args(int argc, char **argv)
         }
         else if (strcmp(a, "-p") == 0) {
             args.smart_pairing = 1;
-            continue;
-        }
-        else if (strcmp(a, "-mem") == 0) {
-            args.in_mem = 1;
-            continue;
-        }
-        else if (strcmp(a, "-split") == 0) {
-            args.split_file = 1;
             continue;
         }
 
@@ -639,7 +103,7 @@ static int parse_args(int argc, char **argv)
         
         error("Unknown argument : %s", a);
     }
-    // todo: check file, NO streaming allowed
+
     if (args.input_fname == NULL ) error("No input fastq specified.");
     if (tags == NULL) error("-tag must be set.");
 
@@ -647,133 +111,565 @@ static int parse_args(int argc, char **argv)
     kputs(tags, &str);
     int n;
     int *s = ksplit(&str, ',', &n);
-    args.n_tag = n;
-    args.tags = malloc(n*sizeof(char*));
-    for (i = 0; i <n; ++i) args.tags[i] = strdup(str.s+s[i]);
+    
+    char **attr = malloc(n*sizeof(char*));
+    args.tags = dict_init();    
+    for (i = 0; i <n; ++i) {
+        dict_push(args.tags, attr[i]);
+        free(attr[i]);
+    }
+    free(attr);
+    
     free(s); free(str.s);
-
-    if (thread) args.n_thread = str2int((char*)thread);
+    
+    if (thread) args.n_thread = str2int(thread);
     if (args.n_thread < 1) args.n_thread = 1;
+    if (memory) args.mem_per_thread = human2int(memory);
 
+    if (args.mem_per_thread < MIN_MEM_PER_THREAD) args.mem_per_thread = MIN_MEM_PER_THREAD;
+    
     if (args.list_fname) {
-        args.lb = barcode_init();
-        if (barcode_read(args.lb, args.list_fname)) error("Barcode list is empty.");
+        args.bcodes = dict_init();
+        if (dict_read(args.bcodes, args.list_fname))
+            error("Barcode list is empty.");
         args.check_list = 1;
-        if (args.split_file && args.lb->n > MAX_FILE_NUM)
-            error("Too much split files. Try to reduce you list under %d", MAX_FILE_NUM);
     }
 
-    if (args.split_file) {
-        if (args.outdir == NULL) error("Please set -O when use -split.");
-        if (args.output_fname) warnings("-o will be ignore when set -split.");
-        if (args.check_list == 0) error("-list must be set if use -split.");
-    }
-
-    if (args.outdir == NULL && args.split_file == 0) {
-        args.out = args.output_fname == NULL ? stdout : fopen(args.output_fname, "w");
-        CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
-    }
     return 0;
 }
 
-int fill_pool_by_index(struct data_index *idx)
+#define MAX_OPEN_FILE  100
+
+struct fastq_idx {
+    int n, m;
+    uint32_t *idx;
+};
+
+KHASH_MAP_INIT_STR(name, struct fastq_idx)
+
+struct fastq_stream {
+    int n, m;
+    char **names;
+    kh_name_t *dict;
+    size_t l_buf;
+    uint8_t *buf;
+    char *out_fn;
+    int reads; // reads in this block
+    int dedup; // deduplicated reads in this block
+    int pair;
+    int fasta;
+};
+void fastq_stream_destroy(struct fastq_stream *d)
 {
-    if (args.in_mem == 1) return 0;
-    if (idx->n > 0) {
-        int i;
-        for (i = 0; i < idx->n; ++i) {
-            struct data_index *i0 = data_idx_retrieve(idx, idx->keys[i]);
-            fill_pool_by_index(i0);
+    int i;
+    for (i = 0; i < d->n; ++i) {
+        khint_t k;
+        k = kh_get(name, d->dict, d->names[i]);
+        free(kh_val(d->dict, k).idx);
+        free(d->names[i]);
+    }
+    free(d->names);
+    kh_destroy(name, d->dict);
+    free(d->buf);
+    free(d);
+}
+struct fastq_stream_handler {
+    FILE *fp;
+    int l_buf;
+    uint8_t *buf;
+    int pair;
+    int fasta;
+    int mem_per_thread;
+};
+struct fastq_stream_handler *fastq_stream_handler_init(const char *fn)
+{
+    struct fastq_stream_handler *f = malloc(sizeof(*f));
+    memset(f, 0, sizeof(*f));
+    
+    f->fp = fopen(fn, "r");
+    if (f->fp == NULL) error("%s : %s.", fn, strerror(errno));
+    uint8_t c = fgetc(f->fp);
+    switch(c) {
+        case '@': f->fasta = 0; break;
+        case '>': f->fasta = 1; break;
+        default: error("Unknown input format. %s", fn); break;
+    }
+
+    fseek(f->fp, 0, SEEK_SET);
+    
+    return f;
+}
+void fastq_stream_handler_destroy(struct fastq_stream_handler *f)
+{
+    fclose(f->fp);
+    if (f->buf) free(f->buf);
+}
+
+#define BUF_SEG 1000000 // 1M
+
+struct fastq_stream *fastq_stream_read_block(struct fastq_stream_handler *fastq)
+{
+    struct fastq_stream *s = malloc(sizeof(*s));
+    memset(s, 0, sizeof(*s));
+
+    s->buf = calloc(fastq->mem_per_thread+ fastq->l_buf, 1);
+    memcpy(s->buf, fastq->buf, fastq->l_buf);
+    s->l_buf = fastq->l_buf;
+    if (fastq->l_buf != 0) {
+        free(fastq->buf);
+        fastq->l_buf = 0;
+    }
+    size_t ret = fread(s->buf+s->l_buf, 1, fastq->mem_per_thread, fastq->fp);
+    if (ret == 0 && s->l_buf == 0) {
+        free(s);
+        return NULL;
+    }
+    
+    if (ret < fastq->mem_per_thread) {
+        s->l_buf += ret;
+        return s;
+    }
+    fastq->buf = calloc(BUF_SEG, 1);
+    ret = fread(fastq->buf, 1, BUF_SEG, fastq->fp);
+    if (ret < BUF_SEG) {
+        s->buf = realloc(s->buf, s->l_buf + ret);
+        memcpy(s->buf+s->l_buf, fastq->buf, ret);
+        free(fastq->buf);
+        fastq->l_buf = 0;
+        return s;
+    }
+
+    int i = 0;
+    uint8_t *p = fastq->buf;
+    int l; // push to buf
+    for (;;) {
+        for (; i < fastq->l_buf; ++i) if (p[i] == '\n') break;
+        ++i; // skip \n        
+        if (fastq->fasta == 1) {
+            if (p[i] == '>') { // header
+                l = i;
+                if (l == 0) return s; //
+                
+                s->buf = realloc(s->buf, s->l_buf + l);
+                memcpy(s->buf+s->l_buf, fastq->buf, l);
+                s->l_buf += l;
+                
+                memmove(fastq->buf, fastq->buf+l, fastq->l_buf -l);
+                fastq->l_buf -= l;
+                return s;
+            }
+            else continue;
+        }
+        // fastq format
+        if (p[i] == '@') { // this line could be read name or quality string
+            l = i;
+            for (; i < fastq->l_buf; ++i) if (p[i] == '\n') break;
+            i++;
+            if (p[i] == '@') { // last line is quality string
+                l = i;
+                s->buf = realloc(s->buf, s->l_buf + l);
+                memcpy(s->buf+s->l_buf, fastq->buf, l);
+                s->l_buf += l;
+                
+                memmove(fastq->buf, fastq->buf+l, fastq->l_buf -l);
+                fastq->l_buf -= l;
+                return s;                    
+            }
+            // DNA sequence
+            for (; i < fastq->l_buf; ++i) if (p[i] == '\n') break;
+            i++;
+            if (p[i] != '+') error("Unknown format.");
+            
+            s->buf = realloc(s->buf, s->l_buf + l);
+            memcpy(s->buf+s->l_buf, fastq->buf, l);
+            s->l_buf += l;
+            
+            memmove(fastq->buf, fastq->buf+l, fastq->l_buf -l);
+            fastq->l_buf -= l;
+            return s;                    
+        }
+        else continue;
+    }
+}
+
+static char *query_tags(uint8_t *p, struct dict *dict)
+{
+    char **val = calloc(dict_size(dict),sizeof(char*));
+    int i;
+    for (i = 0; p[i] != '\n' && p[i] != '\0';) {
+        if (p[i++] == '|' && p[i++] == '|' && p[i++] == '|') {
+            char tag[2];
+            tag[0] = p[i++];
+            tag[1] = p[i++];
+            if (p[i++] != ':') continue; // not a tag format
+            int idx = dict_query(dict, tag);
+            if (idx == -1) continue;
+            i++; // skip tag character
+            if (p[i++] != ':') val[idx] = strdup("1"); // flag tag
+            else {
+                int j;
+                for (j = i; p[j] != '\n' && p[j] != '\0' && p[j] != '|'; ++j);
+                char *v = malloc(j-i+1);
+                memcpy(v, p+i, j-i);
+                v[j-i] = '\0';
+                val[idx] = v;
+            }
         }
     }
-    else {
-        assert(idx->pool == NULL);
-        idx->pool = bseq_pool_init();
-        int j;
-        for (j = 0; j < idx->n_idx; ++j) {
-            struct bseq *b = read_file_block(args.fp_in, &idx->idx[j]);
-            bseq_pool_push(b, idx->pool);
-            free(b);
-        }        
+
+    int empty = 0;
+    kstring_t str = {0,0,0};
+    for (i = 0; i < dict_size(dict); ++i) {
+        if (val[i] == NULL) {
+            empty = 1;
+            continue;
+        }
+        if (empty == 0) kputs(val[i], &str);
+        free(val[i]);
     }
+    free(val);
+        
+    if (empty == 1) {
+        if (str.m) free(str.s);
+        return NULL;
+    }
+    return str.s;
+}
+
+int name_cmp(const void *a, const void *b)
+{
+    return strcmp((const char*)a, (const char*)b);
+}
+char *get_rname(uint8_t *p)
+{
+    int i;
+    for (i = 0; p[i] != '\n' && p[i] != '\0'; ++i);
+    char *r = malloc(i+1);
+    memcpy(r, p, i);
+    r[i] = '\0';
+    return r;
+}
+void sort_block(struct fastq_stream *buf)
+{
+    buf->dict = kh_init(name);
+    uint8_t *p = buf->buf;
+    uint8_t *e = buf->buf + buf->l_buf;
+    int offset = 0;
+    for ( ; p != e; ) {
+        char *name = query_tags(p, args.tags);
+        char *rname = get_rname(p);
+        if (buf->n == buf->m) {
+            buf->m = buf->m == 0 ? 1024 : buf->m<<1;
+            buf->names = realloc(buf->names, buf->m*sizeof(void*));
+        }
+        
+        khint_t k = kh_get(name, buf->dict, name);
+        if (k == kh_end(buf->dict)) {
+            buf->names[buf->n] = strdup(name);
+            int ret;
+            k = kh_put(name, buf->dict, buf->names[buf->n], &ret);            
+        }
+        free(name);
+        struct fastq_idx *idx = &kh_val(buf->dict, k);
+        if (idx->n == idx->m) {
+            idx->m = idx->m == 0 ? 10 : idx->m<<1;
+            idx->idx = realloc(idx->idx, 4*idx->m);
+        }
+        idx->idx[idx->n] = offset;
+        
+        int i = 0;
+        for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // name
+        i++; // skip \n
+        offset++;
+        for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // sequence
+        i++;
+        offset++;
+        if (buf->fasta) {
+            p[i-1] = '\0';
+        }
+        else {
+            if (p[i] != '+') error("Format is unrecognised.");
+            for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // + line
+            i++; // skip \n
+            offset++;
+            for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // qual
+            i++;
+            offset++;
+            if (buf->pair) {
+                char *rname2 = get_rname(p);
+                if (strcmp(rname, rname2) != 0) error("Inconsistance read name, %s vs %s", rname, rname2);
+                free(rname2);
+                for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // read name
+                i++; // skip \n
+                offset++;
+                for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // sequence
+                i++;
+                offset++;
+                for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // +
+                i++; // skip \n
+                offset++;
+                for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // qual
+                i++;
+                offset++;
+                p[i-1] = '\0';
+            }
+            else {
+                p[i-1] = '\0';
+            }
+        }
+        free(rname);
+        p = buf->buf + offset;
+    }
+
+    qsort(buf->names, buf->n, sizeof(char*), name_cmp);
+
+    // todo: dedup
+}
+
+int write_file(struct fastq_stream *buf)
+{
+    FILE *out = fopen(buf->out_fn, "r");
+    if (out == NULL) error("%s : %s.", buf->out_fn, strerror(errno));
+    
+    int i;
+    for (i = 0; i < buf->n; ++i) {
+        khint_t k;
+        k = kh_get(name, buf->dict, buf->names[i]);
+        assert(k != kh_end(buf->dict));
+        struct fastq_idx *idx = &kh_val(buf->dict, k);
+        int j;
+        for (j = 0; j < idx->n; ++j) fputs((char*)(buf->buf+idx->idx[j]), out);
+        fputc('\n', out);
+    }
+
+    fclose(out);
+    // fastq_stream_destroy(buf);
     return 0;
 }
-int fsort(int argc, char ** argv)
+
+struct fastq_stream_reader {
+    FILE *fp;
+    int blength; // block length
+    int n, m; // alloced length of the block
+    uint8_t *buf;
+    char *name;
+    int pair;
+    int fasta;
+};
+
+struct fastq_stream_reader *fastq_stream_reader_init(const char *fn, int pair)
+{
+    struct fastq_stream_reader *r = malloc(sizeof(*r));
+    memset(r, 0, sizeof(struct fastq_stream_reader));
+    r->fp = fopen(fn, "r");
+    if (r->fp == NULL) error("%s : %s.", fn, strerror(errno));
+    char c = fgetc(r->fp);
+    switch(c) {
+        case '>': r->fasta = 1; break;
+        case '@': r->fasta = 0; break;
+        default: error("Unknown file format."); break;
+    }
+
+    fseek(r->fp, 0, SEEK_SET);
+
+    r->pair = pair;
+    return r;
+}
+
+void fastq_stream_reader_close(struct fastq_stream_reader *r)
+{
+    fclose(r->fp);
+    if (r->name) free(r->name);
+    if (r->m) free(r->buf);
+    free(r);
+}
+uint8_t *read_next_read(struct fastq_stream_reader *r, uint8_t *p, int *n)
+{
+    int i = 0;
+    for ( ; p[i] != '\n'; ++i); // rname
+    for ( ; p[i] != '\n' && p[i] != '\0'; ++i); // seq
+    if (r->fasta == 1) {
+        *n = i;
+        return p+i;
+    }
+    if (p[i] != '+') error("Bad format.");
+    
+    for ( ; p[i] != '\n'; ++i); // +\n
+    for ( ; p[i] != '\n' && p[i] != '\0'; ++i); // qual
+
+    if (r->pair) {
+        for ( ; p[i] != '\n'; ++i); // rname
+        for ( ; p[i] != '\n'; ++i); // seq
+        if (p[i] != '+') error("Bad format.");
+        for ( ; p[i] != '\n'; ++i); // +\n
+        for ( ; p[i] != '\n' && p[i] != '\0'; ++i); // seq
+    }
+
+    *n = i;
+    return p+i;
+}
+
+int fastq_stream_reader_sync(struct fastq_stream_reader *r)
+{
+    if (r->blength != 0) error("Call sync function after print.");
+
+    if (r->fp) { // cache more reads
+        int new_alloc = r->n + BUF_SEG;
+        if (new_alloc > r->m) {
+            r->buf = realloc(r->buf, new_alloc);
+            r->m = new_alloc;
+        }
+        int ret;
+        ret = fread(r->buf+r->n, 1, BUF_SEG, r->fp);
+        r->n += ret;
+        if (ret < BUF_SEG) {
+            fclose(r->fp);
+            r->fp = NULL;
+        }
+    }
+    else if (r->n == 0) return 1; 
+    
+    uint8_t *p = r->buf;
+    r->name = query_tags(p, args.tags);
+    for ( ;;) {
+        int block;
+        p = read_next_read(r, p, &block);
+        if (p == NULL) break;
+        r->blength += block;
+        char *name = query_tags(p, args.tags);       
+        if (strcmp(r->name, name) != 0) {
+            r->buf[r->blength-1] = '\0';
+            free(name);
+            break;
+        }
+
+        free(name);
+    }
+    
+    return 0;
+}
+
+int fastq_stream_print(FILE *out, struct fastq_stream_reader *r)
+{
+    fputs((char*)r->buf, out);
+    memmove(r->buf, r->buf+r->blength, r->n - r->blength);
+    r->n -= r->blength;
+    r->blength = 0;
+    free(r->name);
+    return fastq_stream_reader_sync(r);
+}
+int cmpfunc(const void *a, const void *b)
+{
+    if (a == NULL) return -1;
+    if (b == NULL) return 1;
+    
+    return strcmp(((struct fastq_stream_reader*)a)->name, ((struct fastq_stream_reader*)b)->name);
+}
+int merge_files(const char *fn, int n_file, const char **files, int pair)
+{
+    FILE *out = fopen(fn, "r");
+    if (out == NULL) error("%s : %s.", fn, strerror(errno));
+
+    struct fastq_stream_reader **readers = malloc(n_file*sizeof(void *));
+    int i;
+    for (i = 0; i < n_file; ++i) readers[i] = fastq_stream_reader_init(files[i], pair);
+
+    int32_t *idx = malloc(sizeof(n_file)*4);
+    for (i = 0; i < n_file; ++i) idx[i] = i;
+
+
+    for (;;) {
+        qsort(idx, n_file, 4, cmpfunc);
+        int j;
+        int finished = 1;
+        char *last_name = NULL;
+        for (j = 0; j < n_file; ++j) {
+            if (readers[j] == NULL) continue;
+            if (last_name == NULL) {
+                last_name = strdup(readers[j]->name);
+                fastq_stream_print(out, readers[j]);
+                finished = 0;
+            }
+            else if (strcmp(last_name, readers[j]->name) == 0) {
+                fastq_stream_print(out, readers[j]);
+                break;
+            }
+        }
+        if (last_name) free(last_name);
+        if (finished == 1) break;
+    }
+    fclose(out);
+    free(idx);
+    return 0;
+}
+
+static void *run_it(void *d)
+{
+    sort_block((struct fastq_stream *)d);
+    return d;
+}
+
+int fsort(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
 
     if (parse_args(argc, argv)) return usage();
-
-    //struct FILE_tag_index *idx = build_file_index(args.input_fname);
-    struct data_index *idx = build_file_index(args.input_fname, args.in_mem);
-
-    LOG_print("Build index time: %.3f sec; CPU: %.3f sec", realtime()-t_real, cputime());
-
-    // thread cache
-    /*
-    args.fp = malloc(args.n_thread*sizeof(void*));
-    int i;
-    for (i = 0; i < args.n_thread; ++i) args.fp[i] = fopen(args.input_fname, "r");
-    */
-
-    // test_file_index(idx, args.input_fname);
-
-    int i;
-    // khint_t k;
-    if (args.in_mem == 0) 
-        args.fp_in = fopen(args.input_fname,"r");
+    // init fastq handler
+    struct fastq_stream_handler *fastq = fastq_stream_handler_init(args.input_fname);
+    fastq->pair = args.smart_pairing;
+    fastq->mem_per_thread = args.mem_per_thread;
     
-    if (args.dedup) {
-        hts_tpool *pool = hts_tpool_init(args.n_thread);
-        hts_tpool_process *q = hts_tpool_process_init(pool, args.n_thread*2, 0);
-        hts_tpool_result *r;        
-        for (i = 0; i < idx->n; ++i) {
-            struct data_index *i0 = data_idx_retrieve(idx, idx->keys[i]);
-            fill_pool_by_index(i0);
+    int n_file = 0;
+    int m_file = 0;
+    char **files = NULL;
+    
+    hts_tpool *pool = hts_tpool_init(args.n_thread);
+    hts_tpool_process *q = hts_tpool_process_init(pool, args.n_thread*2, 0);
+    hts_tpool_result *r;
 
-            int block;
-            do {
-                block = hts_tpool_dispatch2(pool, q, run_it1, i0, 1);
-                if ((r = hts_tpool_next_result(q))) {                
-                    struct data_index  *di = (struct data_index*)hts_tpool_result_data(r);
-                    write_out(di, args.file_count++);
-                    hts_tpool_delete_result(r, 0);
-                }
-            }
-            while (block == -1);
+    for ( ;;) {
+
+        struct fastq_stream *stream = fastq_stream_read_block(fastq);
+        if (stream == NULL) break;
+
+        if (n_file == m_file) {
+            m_file = m_file == 0 ? 10 : m_file<<1;
+            files = realloc(files, m_file*sizeof(char*));
         }
-        hts_tpool_process_flush(q);
+        files[n_file] = calloc(strlen(args.prefix)+20,1);
+        sprintf(files[n_file], "%s.%.4d.fq", args.prefix, n_file);
+        stream->out_fn = files[n_file];
+        n_file++;
         
-        while ((r = hts_tpool_next_result(q))) {
-            struct data_index *di = (struct data_index*)hts_tpool_result_data(r);
-            write_out(di, args.file_count++);
-            hts_tpool_delete_result(r, 0);
+        int block;
+        do {
+            block = hts_tpool_dispatch2(pool, q, run_it, stream, 1);
+            if ((r = hts_tpool_next_result(q))) {    
+                struct fastq_stream *d = (struct fastq_stream*)hts_tpool_result_data(r);
+                write_file(d);
+                hts_tpool_delete_result(r, 0);
+            }
         }
-        hts_tpool_process_destroy(q);
-        hts_tpool_destroy(pool);
+        while (block == -1);
     }
-    else {
     
-        for (i = 0; i < idx->n; ++i) {
-            struct data_index *i0 = data_idx_retrieve(idx, idx->keys[i]);
-            fill_pool_by_index(i0);
-            write_out(i0, args.file_count++);
-        }
+    hts_tpool_process_flush(q);
+        
+    while ((r = hts_tpool_next_result(q))) {
+        struct fastq_stream *d = (struct fastq_stream*)hts_tpool_result_data(r);
+        write_file(d);
+        
+        hts_tpool_delete_result(r, 0);
     }
+    hts_tpool_process_destroy(q);
+    hts_tpool_destroy(pool);
 
-    //FILE_tag_destroy(idx);
-    data_index_destory(idx);
-    memory_release();
-    
+    merge_files(args.output_fname, n_file, files, args.smart_pairing);
+
+    fastq_stream_handler_destroy(fastq);
+
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
 
     return 0;
 }
-
-/*
-int main(int argc, char **argv)
-{
-    return fsort(argc, argv);
-}
-*/

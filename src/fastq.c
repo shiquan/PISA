@@ -13,9 +13,9 @@ int check_name(char *s1, char *s2)
     if ( l1 != l2 ) return 1;
 
     size_t n;
-    for(n = 0; n < l1; ++n, ++s1, ++s2) {
+    for(n = 0; n < l1; ++n, ++s1, ++s2)
         if (*s1 != *s2) return 1;
-    }
+    
     return 0;
 }
 
@@ -675,3 +675,22 @@ int bseq_pool_dedup(struct bseq_pool *p)
     kh_destroy(key, hash);
     return 0;   
 }
+/* TODO: improve buffer performance
+#define MIN_BUFFER      1     // 1M
+#define DEFAULT_BUFFER  1000  // 1G
+#define MAX_BUFFER      10000 // 10G
+
+struct fastq_buffer {
+    uint32_t n, m;
+    struct bseq *s;
+    int paired;
+    uint32_t l_buf, m_buf;
+    uint8_t *buf;
+};
+
+struct fastq_handler {
+    gzFile read_1;
+    gzFile read_2;
+    uint8_t *buf;
+}
+*/

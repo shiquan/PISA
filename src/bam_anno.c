@@ -30,7 +30,7 @@ static int usage()
     fprintf(stderr, "\nOptions for mixed samples.\n");
     fprintf(stderr, "  -chr-species     Chromosome name and related species binding list.\n");
     fprintf(stderr, "  -btag            Species tag name. Set with -chr-species.\n");
-    //fprintf(stderr, "  -uniq            Only keep first record if overlap with multi regions.\n");
+
     fprintf(stderr, "\nOptions for GTF file :\n");
     fprintf(stderr, "  -gtf             GTF annotation file. -gtf is conflict with -bed, if set strand will be consider.\n");
     fprintf(stderr, "  -tags            Attribute names. Default is TX,AN,GN,GX,RE.\n");

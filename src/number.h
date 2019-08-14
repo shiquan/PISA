@@ -36,11 +36,7 @@ extern int check_num_likely_l(const char *str, int length);
 extern int check_char_num(const char x);
 extern double force2num(char *str);
 extern double force2num_l(char *str, int l);
-extern int str2int(void *str);
-extern int str2int_l(void *str, int l);
-
-
-
-
-
+extern int str2int(const char *str);
+extern int str2int_l(const char *str, int l);
+extern int human2int(const char *str);
 #endif
