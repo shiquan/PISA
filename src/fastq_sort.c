@@ -112,14 +112,10 @@ static int parse_args(int argc, char **argv)
     int n;
     int *s = ksplit(&str, ',', &n);
     
-    char **attr = malloc(n*sizeof(char*));
     args.tags = dict_init();    
-    for (i = 0; i <n; ++i) {
-        dict_push(args.tags, attr[i]);
-        free(attr[i]);
-    }
-    free(attr);
-    
+    for (i = 0; i <n; ++i)
+        dict_push(args.tags, str.s+s[i]);
+
     free(s); free(str.s);
     
     if (thread) args.n_thread = str2int(thread);
