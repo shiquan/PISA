@@ -27,7 +27,7 @@ static int usage()
     return 1;
 }
 
-#define MIN_MEM_PER_THREAD  10000000 // 10M
+#define MIN_MEM_PER_THREAD  100 // 10M
 
 static struct args {
     const char *input_fname;
@@ -48,7 +48,7 @@ static struct args {
     .input_fname = NULL,
     .list_fname = NULL,
     .output_fname = NULL,
-    .prefix = NULL,
+    .prefix = "./fsort_temp",
     .dropN = 0,
     .smart_pairing = 0,
     .dedup = 0,
@@ -198,7 +198,7 @@ struct fastq_stream_handler *fastq_stream_handler_init(const char *fn)
 void fastq_stream_handler_destroy(struct fastq_stream_handler *f)
 {
     fclose(f->fp);
-    if (f->buf) free(f->buf);
+    if (f->l_buf) free(f->buf);
 }
 
 #define BUF_SEG 1000000 // 1M
@@ -216,13 +216,14 @@ struct fastq_stream *fastq_stream_read_block(struct fastq_stream_handler *fastq)
         fastq->l_buf = 0;
     }
     size_t ret = fread(s->buf+s->l_buf, 1, fastq->mem_per_thread, fastq->fp);
+    s->l_buf += ret;
+    
     if (ret == 0 && s->l_buf == 0) {
         free(s);
         return NULL;
     }
     
     if (ret < fastq->mem_per_thread) {
-        s->l_buf += ret;
         return s;
     }
     fastq->buf = calloc(BUF_SEG, 1);
@@ -230,15 +231,16 @@ struct fastq_stream *fastq_stream_read_block(struct fastq_stream_handler *fastq)
     if (ret < BUF_SEG) {
         s->buf = realloc(s->buf, s->l_buf + ret);
         memcpy(s->buf+s->l_buf, fastq->buf, ret);
+        s->l_buf+=ret;
         free(fastq->buf);
         fastq->l_buf = 0;
         return s;
     }
-
+    fastq->l_buf = ret;
     int i = 0;
     uint8_t *p = fastq->buf;
     int l; // push to buf
-    for (;;) {
+    for ( ;;) {
         for (; i < fastq->l_buf; ++i) if (p[i] == '\n') break;
         ++i; // skip \n        
         if (fastq->fasta == 1) {
@@ -288,29 +290,41 @@ struct fastq_stream *fastq_stream_read_block(struct fastq_stream_handler *fastq)
     }
 }
 
-static char *query_tags(uint8_t *p, struct dict *dict)
+static char *query_tags(uint8_t *p, struct dict *dict, int *e)
 {
+    if (p == NULL) { *e = 1; return NULL; }
     char **val = calloc(dict_size(dict),sizeof(char*));
     int i;
+    *e = 0;
     for (i = 0; p[i] != '\n' && p[i] != '\0';) {
-        if (p[i++] == '|' && p[i++] == '|' && p[i++] == '|') {
-            char tag[2];
-            tag[0] = p[i++];
-            tag[1] = p[i++];
-            if (p[i++] != ':') continue; // not a tag format
-            int idx = dict_query(dict, tag);
-            if (idx == -1) continue;
-            i++; // skip tag character
-            if (p[i++] != ':') val[idx] = strdup("1"); // flag tag
-            else {
-                int j;
-                for (j = i; p[j] != '\n' && p[j] != '\0' && p[j] != '|'; ++j);
-                char *v = malloc(j-i+1);
-                memcpy(v, p+i, j-i);
-                v[j-i] = '\0';
-                val[idx] = v;
+        if (p[i] == '\0') { *e = 1; break; }
+        if (p[i++] == '|') {
+            if (p[i++] == '|') {
+                if (p[i++] == '|') {
+                    char tag[3];
+                    tag[0] = p[i++];
+                    tag[1] = p[i++];
+                    tag[2] = '\0';
+                    if (p[i++] != ':') continue; // not a tag format
+                    int idx = dict_query(dict, tag);
+                    if (idx == -1) continue;
+                    i++; // skip tag character
+                    if (p[i++] != ':') val[idx] = strdup("1"); // flag tag
+                    else {
+                        int j;
+                        for (j = i; p[j] != '\n' && p[j] != '\0' && p[j] != '|'; ++j);
+                        if (p[j] == '\0') { *e = 1; break; }
+                        char *v = malloc(j-i+1);
+                        memcpy(v, p+i, j-i);
+                        v[j-i] = '\0';
+                        val[idx] = v;
+                    }
+                }
+                else if (p[i] == '\0') { *e = 1; break; }
             }
+            else if (p[i] == '\0') { *e = 1; break; }
         }
+        else if (p[i] == '\0') { *e = 1; break; }
     }
 
     int empty = 0;
@@ -334,7 +348,9 @@ static char *query_tags(uint8_t *p, struct dict *dict)
 
 int name_cmp(const void *a, const void *b)
 {
-    return strcmp((const char*)a, (const char*)b);
+    const char **ia = (const char **)a;
+    const char **ib = (const char **)b;
+    return strcmp(*ia, *ib);
 }
 char *get_rname(uint8_t *p)
 {
@@ -351,9 +367,12 @@ void sort_block(struct fastq_stream *buf)
     uint8_t *p = buf->buf;
     uint8_t *e = buf->buf + buf->l_buf;
     int offset = 0;
+    int end;
     for ( ; p != e; ) {
-        char *name = query_tags(p, args.tags);
+        char *name = query_tags(p, args.tags, &end);
         char *rname = get_rname(p);
+        if (name == NULL) error("No tag found at %s", rname);
+        
         if (buf->n == buf->m) {
             buf->m = buf->m == 0 ? 1024 : buf->m<<1;
             buf->names = realloc(buf->names, buf->m*sizeof(void*));
@@ -363,50 +382,48 @@ void sort_block(struct fastq_stream *buf)
         if (k == kh_end(buf->dict)) {
             buf->names[buf->n] = strdup(name);
             int ret;
-            k = kh_put(name, buf->dict, buf->names[buf->n], &ret);            
+            k = kh_put(name, buf->dict, buf->names[buf->n], &ret);
+            struct fastq_idx *idx = &kh_val(buf->dict, k);
+            memset(idx, 0, sizeof(*idx));
+            buf->n++;
         }
         free(name);
+
         struct fastq_idx *idx = &kh_val(buf->dict, k);
         if (idx->n == idx->m) {
             idx->m = idx->m == 0 ? 10 : idx->m<<1;
             idx->idx = realloc(idx->idx, 4*idx->m);
         }
         idx->idx[idx->n] = offset;
-        
+        idx->n++;
         int i = 0;
-        for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // name
+        for ( ; p + i != e; ++i) if (p[i] == '\n') break; // name
         i++; // skip \n
-        offset++;
-        for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // sequence
+        for ( ; p + i != e; ++i) if (p[i] == '\n') break; // sequence
         i++;
-        offset++;
         if (buf->fasta) {
             p[i-1] = '\0';
         }
         else {
-            if (p[i] != '+') error("Format is unrecognised.");
-            for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // + line
-            i++; // skip \n
-            offset++;
-            for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // qual
+            if (p[i] != '+') {
+                error("Format is unrecognised.");
+            }
+            for ( ; p + i != e; ++i) if (p[i] == '\n') break; // + line
+            i++; // skip \n           
+            for ( ; p + i != e; ++i) if (p[i] == '\n') break; // qual
             i++;
-            offset++;
             if (buf->pair) {
                 char *rname2 = get_rname(p);
                 if (strcmp(rname, rname2) != 0) error("Inconsistance read name, %s vs %s", rname, rname2);
                 free(rname2);
-                for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // read name
+                for ( ; p + i != e; ++i) if (p[i] == '\n') break; // read name
                 i++; // skip \n
-                offset++;
-                for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // sequence
+                for ( ; p + i != e; ++i) if (p[i] == '\n') break; // sequence
                 i++;
-                offset++;
-                for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // +
+                for ( ; p + i != e; ++i) if (p[i] == '\n') break; // +
                 i++; // skip \n
-                offset++;
-                for ( ; p + i != e; ++i, ++offset) if (p[i] == '\n') break; // qual
+                for ( ; p + i != e; ++i) if (p[i] == '\n') break; // qual
                 i++;
-                offset++;
                 p[i-1] = '\0';
             }
             else {
@@ -414,7 +431,9 @@ void sort_block(struct fastq_stream *buf)
             }
         }
         free(rname);
-        p = buf->buf + offset;
+        offset += i;
+        p += i;
+        // p = buf->buf + offset;
     }
 
     qsort(buf->names, buf->n, sizeof(char*), name_cmp);
@@ -424,7 +443,7 @@ void sort_block(struct fastq_stream *buf)
 
 int write_file(struct fastq_stream *buf)
 {
-    FILE *out = fopen(buf->out_fn, "r");
+    FILE *out = fopen(buf->out_fn, "w");
     if (out == NULL) error("%s : %s.", buf->out_fn, strerror(errno));
     
     int i;
@@ -434,8 +453,10 @@ int write_file(struct fastq_stream *buf)
         assert(k != kh_end(buf->dict));
         struct fastq_idx *idx = &kh_val(buf->dict, k);
         int j;
-        for (j = 0; j < idx->n; ++j) fputs((char*)(buf->buf+idx->idx[j]), out);
-        fputc('\n', out);
+        for (j = 0; j < idx->n; ++j) {
+            fputs((char*)(buf->buf+idx->idx[j]), out);
+            fputc('\n', out);
+        }
     }
 
     fclose(out);
@@ -479,123 +500,225 @@ void fastq_stream_reader_close(struct fastq_stream_reader *r)
     if (r->m) free(r->buf);
     free(r);
 }
-uint8_t *read_next_read(struct fastq_stream_reader *r, uint8_t *p, int *n)
+uint8_t *read_next_read(struct fastq_stream_reader *r, uint8_t *p, int *n, int *e)
 {
     int i = 0;
-    for ( ; p[i] != '\n'; ++i); // rname
+    *n = 0;
+    for ( ; p[i] != '\n' && p[i] != '\0'; ++i); // rname
+    if (p[i] == '\0') goto truncated_buf;
+    else ++i; // skip \n
+
     for ( ; p[i] != '\n' && p[i] != '\0'; ++i); // seq
+    if (p[i] == '\0') goto truncated_buf;
+    else ++i; // skip \n
+    
     if (r->fasta == 1) {
         *n = i;
         return p+i;
     }
-    if (p[i] != '+') error("Bad format.");
+    if (p[i] != '+') {
+        error("Bad format.");
+    }
     
-    for ( ; p[i] != '\n'; ++i); // +\n
+    for ( ; p[i] != '\n' && p[i] != '\0'; ++i); // +\n
+    if (p[i] == '\0') goto truncated_buf;
+    else ++i; // skip \n
+
     for ( ; p[i] != '\n' && p[i] != '\0'; ++i); // qual
+    if (p[i] == '\0') goto truncated_buf;
+    else ++i; // skip \n
 
     if (r->pair) {
-        for ( ; p[i] != '\n'; ++i); // rname
-        for ( ; p[i] != '\n'; ++i); // seq
-        if (p[i] != '+') error("Bad format.");
-        for ( ; p[i] != '\n'; ++i); // +\n
+        for ( ; p[i] != '\n' && p[i] != '\0'; ++i); // rname
+        if (p[i] == '\0') goto truncated_buf;
+        else ++i; // skip \n
+
         for ( ; p[i] != '\n' && p[i] != '\0'; ++i); // seq
+        if (p[i] == '\0') goto truncated_buf;
+        else ++i; // skip \n
+
+        if (p[i] != '+') error("Bad format.");
+
+        for ( ; p[i] != '\n' && p[i] != '\0'; ++i); // +\n
+        if (p[i] == '\0') goto truncated_buf;
+        else ++i; // skip \n
+
+        for ( ; p[i] != '\n' && p[i] != '\0'; ++i); // qual
+        if (p[i] == '\0') goto truncated_buf;
+        else ++i; // skip \n
     }
 
     *n = i;
     return p+i;
+
+  truncated_buf:
+    *e = 1;
+    return NULL;
 }
 
 int fastq_stream_reader_sync(struct fastq_stream_reader *r)
 {
     if (r->blength != 0) error("Call sync function after print.");
-
-    if (r->fp) { // cache more reads
-        int new_alloc = r->n + BUF_SEG;
-        if (new_alloc > r->m) {
-            r->buf = realloc(r->buf, new_alloc);
-            r->m = new_alloc;
-        }
-        int ret;
-        ret = fread(r->buf+r->n, 1, BUF_SEG, r->fp);
-        r->n += ret;
-        if (ret < BUF_SEG) {
-            fclose(r->fp);
-            r->fp = NULL;
-        }
-    }
-    else if (r->n == 0) return 1; 
-    
     uint8_t *p = r->buf;
-    r->name = query_tags(p, args.tags);
+    if (p==NULL) {
+      load_buffer:
+        if (r->fp) { // cache more reads
+            debug_print("%d",r->n);
+            int new_alloc = r->n + BUF_SEG;
+            if (new_alloc > r->m) {
+                r->buf = realloc(r->buf, new_alloc);
+                r->m = new_alloc;
+            }
+            int ret;
+            ret = fread(r->buf+r->n, 1, BUF_SEG, r->fp);
+            r->n += ret;
+            if (ret < BUF_SEG) {
+                fclose(r->fp);
+                r->fp = NULL;
+            }
+            debug_print("%d",r->n);
+        }
+        else if (r->n == 0) return 1;
+
+        p = r->buf;
+    }
+    
+    if (r->name) {
+        free(r->name);
+        r->name = NULL;
+    }
+    
+    int end = 0;
+    r->name = query_tags(p, args.tags, &end);
+    if (end) goto load_buffer;
+    
+    if (r->name == NULL) {
+        debug_print("%d", r->n);
+    }
+
+    // debug_print("%p", p);
     for ( ;;) {
+        if (r->blength == r->n) break;
         int block;
-        p = read_next_read(r, p, &block);
-        if (p == NULL) break;
-        r->blength += block;
-        char *name = query_tags(p, args.tags);       
+        if (p) {
+            int i;
+            for (i = 0; i < 10; ++i) fputc(p[i], stderr);
+            debug_print("%p", p);
+        }
+
+        p = read_next_read(r, p, &block, &end);
+        if (p) {
+            int i;
+            for (i = 0; i < 10; ++i) fputc(p[i], stderr);
+            debug_print("%p", p);
+        }
+        if (end) goto load_buffer;
+        if (*p == '\0') break;
+        char *name = query_tags(p, args.tags, &end);        
+        if (end) goto load_buffer;
+
+        if (name == NULL) {
+            debug_print("%p", p);
+            //debug_print("%d\t%s\t%s",r->n, r->name, p);
+        }
+        /*
+          if (*p != '@') {
+         
+          debug_print("%d\t%d\t%s\t%s\t%s",r->n, p-r->buf,r->name, name, p);
+        }
+        */
         if (strcmp(r->name, name) != 0) {
             r->buf[r->blength-1] = '\0';
             free(name);
             break;
         }
-
+        r->blength += block;
         free(name);
     }
     
-    return 0;
+    return r->n == 0;
 }
 
 int fastq_stream_print(FILE *out, struct fastq_stream_reader *r)
 {
+    if(r->blength==0) return 1;
     fputs((char*)r->buf, out);
+    fputc('\n', out);
+    if (r->buf[r->blength+1] != 'C') {
+        debug_print("%s", r->buf);
+    }
+
     memmove(r->buf, r->buf+r->blength, r->n - r->blength);
-    r->n -= r->blength;
+    //memcpy(r->buf, r->buf+r->blength, r->n - r->blength);
+    debug_print("%d\t%d\t%d",r->n, r->blength, r->n-r->blength);
+    r->n = r->n - r->blength;
     r->blength = 0;
+    r->buf[r->n] = '\0';
     free(r->name);
+    r->name = NULL;
     return fastq_stream_reader_sync(r);
 }
 int cmpfunc(const void *a, const void *b)
 {
-    if (a == NULL) return -1;
-    if (b == NULL) return 1;
+    struct fastq_stream_reader**ia = (struct fastq_stream_reader**)a;
+    struct fastq_stream_reader**ib = (struct fastq_stream_reader**)b;
+    if (*ia == NULL) return -1;
+    if (*ib == NULL) return 1;
     
-    return strcmp(((struct fastq_stream_reader*)a)->name, ((struct fastq_stream_reader*)b)->name);
+    return strcmp((*ia)->name,(*ib)->name);
 }
 int merge_files(const char *fn, int n_file, char **files, int pair)
 {
-    FILE *out = fopen(fn, "r");
+    if (n_file == 1) {
+        rename(files[0], fn);
+        return 0;
+    }
+    FILE *out = fn == NULL ? stdout :  fopen(fn, "w");
     if (out == NULL) error("%s : %s.", fn, strerror(errno));
-
+    
     struct fastq_stream_reader **readers = malloc(n_file*sizeof(void *));
     int i;
-    for (i = 0; i < n_file; ++i) readers[i] = fastq_stream_reader_init(files[i], pair);
-
-    int32_t *idx = malloc(sizeof(n_file)*4);
-    for (i = 0; i < n_file; ++i) idx[i] = i;
-
+    for (i = 0; i < n_file; ++i) {
+        readers[i] = fastq_stream_reader_init(files[i], pair);
+        fastq_stream_reader_sync(readers[i]);
+    }
 
     for (;;) {
-        qsort(idx, n_file, 4, cmpfunc);
+        // qsort(readers, n_file, sizeof(void*), cmpfunc);
         int j;
         int finished = 1;
         char *last_name = NULL;
         for (j = 0; j < n_file; ++j) {
             if (readers[j] == NULL) continue;
+            if (readers[j]->name == NULL) {
+                debug_print("%d", readers[j]->n);
+            }
             if (last_name == NULL) {
+                
                 last_name = strdup(readers[j]->name);
-                fastq_stream_print(out, readers[j]);
+                int ret;
+                ret = fastq_stream_print(out, readers[j]);
+                if (ret == 1) {
+                    fastq_stream_reader_close(readers[j]);
+                    readers[j] = NULL;
+                }
+
                 finished = 0;
             }
             else if (strcmp(last_name, readers[j]->name) == 0) {
-                fastq_stream_print(out, readers[j]);
-                break;
+                int ret;
+                ret = fastq_stream_print(out, readers[j]);
+                if (ret == 1) {
+                    fastq_stream_reader_close(readers[j]);
+                    readers[j] = NULL;
+                }
+                // break;
             }
         }
         if (last_name) free(last_name);
         if (finished == 1) break;
     }
     fclose(out);
-    free(idx);
     return 0;
 }
 
@@ -661,8 +784,15 @@ int fsort(int argc, char **argv)
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(pool);
 
+    
     merge_files(args.output_fname, n_file, files, args.smart_pairing);
 
+    int i;
+    for (i = 0; i < n_file; ++i) {
+        unlink(files[i]);
+        free(files[i]);
+    }
+    free(files);
     fastq_stream_handler_destroy(fastq);
 
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());

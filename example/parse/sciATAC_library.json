@@ -1,9 +1,5 @@
 {
-    "platform":"sci-atac", 
-    "version":"v1.0",
-    "cell barcode tag":"CR",
-    "cell barcode raw tag":"XR",
-    "cell barcode raw qual tag":"XQ",
+    "cell barcode tag":"CB",
     "cell barcode":[
         {
             "location":"R1:1-10",
