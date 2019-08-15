@@ -562,9 +562,9 @@ int fastq_stream_reader_sync(struct fastq_stream_reader *r)
     uint8_t *p = r->buf;
     if (p==NULL) {
       load_buffer:
+        r->blength = 0;
         if (r->fp) { // cache more reads
-            debug_print("%d",r->n);
-            int new_alloc = r->n + BUF_SEG;
+            int new_alloc = r->n + BUF_SEG+1;
             if (new_alloc > r->m) {
                 r->buf = realloc(r->buf, new_alloc);
                 r->m = new_alloc;
@@ -572,14 +572,13 @@ int fastq_stream_reader_sync(struct fastq_stream_reader *r)
             int ret;
             ret = fread(r->buf+r->n, 1, BUF_SEG, r->fp);
             r->n += ret;
+            r->buf[r->n] = '\0';
             if (ret < BUF_SEG) {
                 fclose(r->fp);
                 r->fp = NULL;
             }
-            debug_print("%d",r->n);
         }
         else if (r->n == 0) return 1;
-
         p = r->buf;
     }
     
@@ -591,67 +590,43 @@ int fastq_stream_reader_sync(struct fastq_stream_reader *r)
     int end = 0;
     r->name = query_tags(p, args.tags, &end);
     if (end) goto load_buffer;
-    
-    if (r->name == NULL) {
-        debug_print("%d", r->n);
-    }
 
-    // debug_print("%p", p);
     for ( ;;) {
         if (r->blength == r->n) break;
         int block;
-        if (p) {
-            int i;
-            for (i = 0; i < 10; ++i) fputc(p[i], stderr);
-            debug_print("%p", p);
-        }
-
         p = read_next_read(r, p, &block, &end);
-        if (p) {
-            int i;
-            for (i = 0; i < 10; ++i) fputc(p[i], stderr);
-            debug_print("%p", p);
-        }
+        r->blength += block;
         if (end) goto load_buffer;
-        if (*p == '\0') break;
+        if (*p == '\0') {
+            r->buf[r->blength-1] = '\0';
+            break;
+        }
         char *name = query_tags(p, args.tags, &end);        
         if (end) goto load_buffer;
 
-        if (name == NULL) {
-            debug_print("%p", p);
-            //debug_print("%d\t%s\t%s",r->n, r->name, p);
-        }
-        /*
-          if (*p != '@') {
-         
-          debug_print("%d\t%d\t%s\t%s\t%s",r->n, p-r->buf,r->name, name, p);
-        }
-        */
         if (strcmp(r->name, name) != 0) {
             r->buf[r->blength-1] = '\0';
             free(name);
             break;
         }
-        r->blength += block;
         free(name);
     }
-    
-    return r->n == 0;
+    return 0;
+    //return r->n == 0;
 }
 
 int fastq_stream_print(FILE *out, struct fastq_stream_reader *r)
 {
-    if(r->blength==0) return 1;
+    if(r->blength==0) {
+        assert(r->n != 0);
+        return 1;
+    }
     fputs((char*)r->buf, out);
     fputc('\n', out);
-    if (r->buf[r->blength+1] != 'C') {
-        debug_print("%s", r->buf);
-    }
-
-    memmove(r->buf, r->buf+r->blength, r->n - r->blength);
-    //memcpy(r->buf, r->buf+r->blength, r->n - r->blength);
-    debug_print("%d\t%d\t%d",r->n, r->blength, r->n-r->blength);
     r->n = r->n - r->blength;
+    if (r->n == 0) return 1;
+    
+    memmove(r->buf, r->buf+r->blength, r->n);
     r->blength = 0;
     r->buf[r->n] = '\0';
     free(r->name);
@@ -662,8 +637,8 @@ int cmpfunc(const void *a, const void *b)
 {
     struct fastq_stream_reader**ia = (struct fastq_stream_reader**)a;
     struct fastq_stream_reader**ib = (struct fastq_stream_reader**)b;
-    if (*ia == NULL) return -1;
-    if (*ib == NULL) return 1;
+    if (*ia == NULL) return 1;
+    if (*ib == NULL) return -1;
     
     return strcmp((*ia)->name,(*ib)->name);
 }
@@ -684,17 +659,16 @@ int merge_files(const char *fn, int n_file, char **files, int pair)
     }
 
     for (;;) {
-        // qsort(readers, n_file, sizeof(void*), cmpfunc);
+        qsort(readers, n_file, sizeof(void*), cmpfunc);
         int j;
         int finished = 1;
         char *last_name = NULL;
         for (j = 0; j < n_file; ++j) {
             if (readers[j] == NULL) continue;
-            if (readers[j]->name == NULL) {
-                debug_print("%d", readers[j]->n);
-            }
-            if (last_name == NULL) {
-                
+            finished = 0;
+            assert(readers[j]->name != NULL);
+
+            if (last_name == NULL) {    
                 last_name = strdup(readers[j]->name);
                 int ret;
                 ret = fastq_stream_print(out, readers[j]);
@@ -702,8 +676,6 @@ int merge_files(const char *fn, int n_file, char **files, int pair)
                     fastq_stream_reader_close(readers[j]);
                     readers[j] = NULL;
                 }
-
-                finished = 0;
             }
             else if (strcmp(last_name, readers[j]->name) == 0) {
                 int ret;
@@ -712,10 +684,12 @@ int merge_files(const char *fn, int n_file, char **files, int pair)
                     fastq_stream_reader_close(readers[j]);
                     readers[j] = NULL;
                 }
-                // break;
+            }
+            else {
+                free(last_name);
+                break;
             }
         }
-        if (last_name) free(last_name);
         if (finished == 1) break;
     }
     fclose(out);
