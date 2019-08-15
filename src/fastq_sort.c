@@ -199,6 +199,7 @@ void fastq_stream_handler_destroy(struct fastq_stream_handler *f)
 {
     fclose(f->fp);
     if (f->l_buf) free(f->buf);
+    free(f);
 }
 
 #define BUF_SEG 1000000 // 1M
@@ -460,7 +461,7 @@ int write_file(struct fastq_stream *buf)
     }
 
     fclose(out);
-    // fastq_stream_destroy(buf);
+    fastq_stream_destroy(buf);
     return 0;
 }
 
