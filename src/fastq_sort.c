@@ -282,9 +282,13 @@ struct fastq_stream *fastq_stream_read_block(struct fastq_stream_handler *fastq)
             s->buf = realloc(s->buf, s->l_buf + l);
             memcpy(s->buf+s->l_buf, fastq->buf, l);
             s->l_buf += l;
-            
-            memmove(fastq->buf, fastq->buf+l, fastq->l_buf -l);
+
             fastq->l_buf -= l;
+            if (fastq->l_buf == 0) {
+                free(fastq->buf);
+                return NULL;
+            }
+            memmove(fastq->buf, fastq->buf+l, fastq->l_buf);
             return s;                    
         }
         else continue;
@@ -298,9 +302,10 @@ static char *query_tags(uint8_t *p, struct dict *dict, int *e)
     int i;
     *e = 0;
     for (i = 0; p[i] != '\n' && p[i] != '\0';) {
-        if (p[i] == '\0') { *e = 1; break; }
         if (p[i++] == '|') {
+            if (p[i] == '\0') { *e = 1; break; }
             if (p[i++] == '|') {
+                if (p[i] == '\0') { *e = 1; break; }
                 if (p[i++] == '|') {
                     char tag[3];
                     tag[0] = p[i++];
@@ -319,15 +324,13 @@ static char *query_tags(uint8_t *p, struct dict *dict, int *e)
                         memcpy(v, p+i, j-i);
                         v[j-i] = '\0';
                         val[idx] = v;
-                    }
+                    }                    
                 }
-                else if (p[i] == '\0') { *e = 1; break; }
             }
-            else if (p[i] == '\0') { *e = 1; break; }
         }
-        else if (p[i] == '\0') { *e = 1; break; }
     }
 
+    if (p[i] == '\0') *e = 1;
     int empty = 0;
     kstring_t str = {0,0,0};
     for (i = 0; i < dict_size(dict); ++i) {
@@ -372,7 +375,9 @@ void sort_block(struct fastq_stream *buf)
     for ( ; p != e; ) {
         char *name = query_tags(p, args.tags, &end);
         char *rname = get_rname(p);
-        if (name == NULL) error("No tag found at %s", rname);
+        if (name == NULL) {
+            error("No tag found at %s", rname);
+        }
         
         if (buf->n == buf->m) {
             buf->m = buf->m == 0 ? 1024 : buf->m<<1;
@@ -433,8 +438,9 @@ void sort_block(struct fastq_stream *buf)
         }
         free(rname);
         offset += i;
-        p += i;
-        // p = buf->buf + offset;
+        // p += i;
+
+        p = buf->buf + offset;
     }
 
     qsort(buf->names, buf->n, sizeof(char*), name_cmp);
@@ -595,16 +601,20 @@ int fastq_stream_reader_sync(struct fastq_stream_reader *r)
     for ( ;;) {
         if (r->blength == r->n) break;
         int block;
+        // debug_print("%c", *p);
         p = read_next_read(r, p, &block, &end);
         r->blength += block;
         if (end) goto load_buffer;
         if (*p == '\0') {
-            r->buf[r->blength-1] = '\0';
+            r->buf[r->blength-1] = '\0'; // change last character to terminal sential
             break;
         }
+        // debug_print("%c %d", *p, r->blength);
         char *name = query_tags(p, args.tags, &end);        
         if (end) goto load_buffer;
-
+        if (name == NULL) {
+            debug_print("%s",r->name);
+        }
         if (strcmp(r->name, name) != 0) {
             r->buf[r->blength-1] = '\0';
             free(name);
