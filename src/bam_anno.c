@@ -30,7 +30,6 @@ static int usage()
     fprintf(stderr, "\nOptions for mixed samples.\n");
     fprintf(stderr, "  -chr-species     Chromosome name and related species binding list.\n");
     fprintf(stderr, "  -btag            Species tag name. Set with -chr-species.\n");
-
     fprintf(stderr, "\nOptions for GTF file :\n");
     fprintf(stderr, "  -gtf             GTF annotation file. -gtf is conflict with -bed, if set strand will be consider.\n");
     fprintf(stderr, "  -tags            Attribute names. Default is TX,AN,GN,GX,RE.\n");
@@ -479,7 +478,18 @@ int match_isoform(struct isoform *S, struct gtf_lite const *G)
 }
 #include "htslib/thread_pool.h"
 
-void bam_gtf_anno(struct bam_pool *p)
+struct read_stat {
+    uint64_t reads_input;
+    uint64_t reads_pass_qc;
+    uint64_t reads_in_peak;
+    // gtf
+    uint64_t reads_in_gene;
+    uint64_t reads_in_exon;
+    uint64_t reads_in_intron;
+    uint64_t reads_antisense;
+};
+
+void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
 {
     struct gtf_itr *itr = gtf_itr_build(args.G);
     
@@ -507,7 +517,7 @@ void bam_gtf_anno(struct bam_pool *p)
         */
         if ( gtf_query(itr, name, c->pos+1, endpos) != 0 || itr->n == 0) continue;
         
-        // args.reads_in_gene++;
+        stat->reads_in_gene++;
 
         struct isoform *S = bend_sam_isoform(b);
         
@@ -593,11 +603,11 @@ void bam_gtf_anno(struct bam_pool *p)
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
             bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
             bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
-            // args.reads_in_exon++;
+            stat->reads_in_exon++;
         }
         else if (anti) { // antisense
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
-            // args.reads_antisense++;
+            stat->reads_antisense++;
         }
         else if (trans_novo) {
             kputs(dict_name(G->gene_name,g->gene_name), &genes);
@@ -606,7 +616,7 @@ void bam_gtf_anno(struct bam_pool *p)
         }
         else if (is_intron) {
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
-            // args.reads_in_intron++;
+            stat->reads_in_intron++;
         }
         else if (is_ambi) {
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"U");
@@ -625,31 +635,50 @@ void bam_gtf_anno(struct bam_pool *p)
     gtf_itr_destory(itr);
 }
 
+struct ret_dat {
+    struct bam_pool *p;
+    struct read_stat *stat;
+};
 void *run_it(void *_d)
-{
-    struct bam_pool *p = (struct bam_pool*)_d;
-
-    if (args.G) bam_gtf_anno(p);
+{    
+    struct ret_dat *dat = malloc(sizeof(struct ret_dat));
+    dat->p = (struct bam_pool*)_d;
+    dat->stat = malloc(sizeof(struct read_stat));
+    memset(dat->stat, 0, sizeof(struct read_stat));
+    
+    if (args.G) bam_gtf_anno(dat->p, dat->stat);
 
     if (args.chr_binding) {
         int i;
-        for (i = 0; i < p->n; ++i) {
-            bam1_t *b = &p->bam[i];
+        for (i = 0; i < dat->p->n; ++i) {
+            bam1_t *b = &dat->p->bam[i];
             char *v = args.chr_binding[b->core.tid];
             if (v == NULL) continue;
             bam_aux_append(b, args.btag, 'Z', strlen(v)+1, (uint8_t*)v);
         }
     }
     
-    return p;
+    return dat;
 }
 
 static void write_out(void *_d)
 {
-    struct bam_pool *p = (struct bam_pool *)_d;
+    struct ret_dat *dat = (struct ret_dat *)_d;
     int i;
-    for (i = 0; i < p->n; ++i) 
-        if (sam_write1(args.out, args.hdr, &p->bam[i]) == -1) error("Failed to write SAM.");    
+    for (i = 0; i < dat->p->n; ++i) 
+        if (sam_write1(args.out, args.hdr, &dat->p->bam[i]) == -1) error("Failed to write SAM.");
+
+    args.reads_in_peak += dat->stat->reads_in_peak;
+    args.reads_input += dat->stat->reads_input;
+    args.reads_pass_qc += dat->stat->reads_pass_qc;
+    args.reads_in_gene += dat->stat->reads_in_gene;
+    args.reads_in_exon += dat->stat->reads_in_exon;
+    args.reads_in_intron += dat->stat->reads_in_intron;
+    args.reads_antisense += dat->stat->reads_antisense;
+
+    bam_pool_destory(dat->p);
+    free(dat->stat);
+    free(dat);
 }
 void write_report()
 {
@@ -715,7 +744,6 @@ int bam_anno_attr(int argc, char *argv[])
                 if ((r = hts_tpool_next_result(q))) {
                     struct bam_pool *d = (struct bam_pool*)hts_tpool_result_data(r);
                     write_out(d);
-                    bam_pool_destory(d);
                     hts_tpool_delete_result(r, 0);
                 }
             }
@@ -727,7 +755,6 @@ int bam_anno_attr(int argc, char *argv[])
         while ((r = hts_tpool_next_result(q))) {
             struct bam_pool *d = (struct bam_pool*)hts_tpool_result_data(r);
             write_out(d);
-            bam_pool_destory(d);
             hts_tpool_delete_result(r, 0);
         }
         hts_tpool_process_destroy(q);
