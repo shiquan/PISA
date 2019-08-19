@@ -257,8 +257,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
     free(pair);
     free(s);
 
-    // gtf_push(G, &gtf);
-    
+    // gtf_push(G, &gtf);    
     
     switch (qry) {
         case feature_gene:
