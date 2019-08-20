@@ -71,7 +71,7 @@ task parseFastq {
   String ?runID
   String root
   command {
-    ${root}/SingleCellTools parse -t 15 -f -q 20 -config ${config} -cbdis ${outdir}/temp/barcode_counts_raw.txt -run ${default="1" runID} -report ${outdir}/temp/sequencing_report.json ${fastq1} ${fastq2} | ${root}/SingleCellTools  trim -report ${outdir}/temp/trim_report.json -mode Tn5 -p -t 3 > ${outdir}/temp/reads.fq
+    ${root}/SingleCellTools parse -t 15 -f -q 20 -config ${config} -cbdis ${outdir}/temp/barcode_counts_raw.txt -run ${default="1" runID} -report ${outdir}/temp/sequencing_report.txt ${fastq1} ${fastq2} > ${outdir}/temp/reads.fq
   }
   output {
     String rawtable="${outdir}/temp/barcode_counts_raw.txt"
@@ -86,7 +86,7 @@ task fastq2bam {
   String refdir
   String root
   command {
-    ${bwapath} mem -t 24 -p ${refdir} ${fastq} | ${root}/SingleCellTools sam2bam -p -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt -maln ${outdir}/temp/mito.bam /dev/stdin
+    ${bwapath} mem -t 20 -p ${refdir} ${fastq} | ${root}/SingleCellTools sam2bam -p -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt /dev/stdin
   }
   output {
     String bam="${outdir}/temp/aln.bam"
@@ -99,7 +99,7 @@ task sortBam {
   String root
   String outdir
   command {
-    ${sambambapath} sort -t 24 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam 
+    ${sambambapath} sort -t 20 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam 
     ${root}/SingleCellTools rmdup -tag CB -t 20 -o ${outdir}/temp/rmdup.bam ${outdir}/temp/sorted.bam
   }
   output {
@@ -116,11 +116,11 @@ task callPeak {
   command <<<
     ${macspath} callpeak -t ${bam} -f BAM --keep-dup all --nomodel --shift -100 --extsize 200 -g ${default="mm" gsize} -n ${ID} --outdir ${outdir}/outs
     cut -f1,2,3 ${outdir}/outs/${ID}_peaks.narrowPeak > ${outdir}/temp/peak.bed
-    ${root}/SingleCellTools anno -bed ${outdir}/temp/peak.bed -tag PK -o ${outdir}/outs/processed.bam ${bam}
-    ${root}/SingleCellTools attrcnt -cb CB -tag PK -o ${outdir}/temp/readcount.report.txt ${outdir}/outs/processed.bam
-    awk '{if($1 !~ /CELL_BARCODE/ && $2>1000 && $3/$2>0.1){print $1;}}' ${outdir}/temp/readcount.report.txt > ${outdir}/temp/barcodes_called.txt
-    awk '{if($1 !~ /CELL_BARCODE/ && $2>1000 && $3/$2>0.1){print $0;}}' ${outdir}/temp/readcount.report.txt |awk 'BEGIN{rw=0;tar=0;i=0}{rw+=$2; tar+=$3; i++} END{print rw/i,tar/i}' >> ${outdir}/workflowtime.log
-    ${root}/SingleCellTools count -tag CB -anno_tag PK -list ${outdir}/temp/barcodes_called.txt -o ${outdir}/outs/count_matrix.txt ${outdir}/outs/processed.bam
+    #${root}/SingleCellTools anno -bed ${outdir}/temp/peak.bed -tag PK -o ${outdir}/outs/processed.bam ${bam}
+    #${root}/SingleCellTools attrcnt -cb CB -tag PK -o ${outdir}/temp/readcount.report.txt ${outdir}/outs/processed.bam
+    #awk '{if($1 !~ /CELL_BARCODE/ && $2>1000 && $3/$2>0.1){print $1;}}' ${outdir}/temp/readcount.report.txt > ${outdir}/temp/barcodes_called.txt
+    #awk '{if($1 !~ /CELL_BARCODE/ && $2>1000 && $3/$2>0.1){print $0;}}' ${outdir}/temp/readcount.report.txt |awk 'BEGIN{rw=0;tar=0;i=0}{rw+=$2; tar+=$3; i++} END{print rw/i,tar/i}' >> ${outdir}/workflowtime.log
+    #${root}/SingleCellTools count -tag CB -anno_tag PK -list ${outdir}/temp/barcodes_called.txt -o ${outdir}/outs/count_matrix.txt ${outdir}/outs/processed.bam
     echo "[`date +%F` `date +%T`] workflow end" >> ${outdir}/workflowtime.log
   >>>
 }
