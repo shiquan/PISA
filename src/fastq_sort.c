@@ -350,13 +350,13 @@ static char *query_tags(uint8_t *p, struct dict *dict, int *e)
     return str.s;
 }
 
-int name_cmp(const void *a, const void *b)
+static int name_cmp(const void *a, const void *b)
 {
     const char **ia = (const char **)a;
     const char **ib = (const char **)b;
     return strcmp(*ia, *ib);
 }
-char *get_rname(uint8_t *p)
+static char *get_rname(uint8_t *p)
 {
     int i;
     for (i = 0; p[i] != '\n' && p[i] != '\0'; ++i);
@@ -365,7 +365,7 @@ char *get_rname(uint8_t *p)
     r[i] = '\0';
     return r;
 }
-void sort_block(struct fastq_stream *buf)
+static void sort_block(struct fastq_stream *buf)
 {
     buf->dict = kh_init(name);
     uint8_t *p = buf->buf;
@@ -644,7 +644,7 @@ int fastq_stream_print(FILE *out, struct fastq_stream_reader *r)
     r->name = NULL;
     return fastq_stream_reader_sync(r);
 }
-int cmpfunc(const void *a, const void *b)
+static int cmpfunc(const void *a, const void *b)
 {
     struct fastq_stream_reader**ia = (struct fastq_stream_reader**)a;
     struct fastq_stream_reader**ib = (struct fastq_stream_reader**)b;

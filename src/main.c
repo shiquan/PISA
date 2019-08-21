@@ -22,6 +22,7 @@ int usage()
     fprintf(stderr, "    extract    Extract tags information from BAM.\n");
     fprintf(stderr, "    count      Count matrix.\n");
     fprintf(stderr, "    bam2fq     Convert bam to fastq file. Select tags will be export at read name.\n");
+    fprintf(stderr, "    genecov    Calculate reads coverage over gene body.\n");
     fprintf(stderr, "\n--- Processing scLFR reads. *experimental*\n");
     fprintf(stderr, "    assem      Assem reads per fastq block (specified with -tag, fastq need be sorted)\n");
     fprintf(stderr, "    segment    Check predefined segments from reads.\n");
@@ -50,6 +51,7 @@ int main(int argc, char *argv[])
     extern int bam_extract_tags(int argc, char **argv);
     extern int count_matrix(int argc, char *argv[]);
     extern int bam2fq(int argc, char *argv[]);
+    extern int gene_cov(int argc, char **argv);
     // process scLFR
     extern int assem(int argc, char **argv);
     extern int check_segment(int argc, char **argv);
@@ -70,6 +72,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "attrcnt") == 0) return bam_count_attr(argc-1, argv+1);
     else if (strcmp(argv[1], "extract") == 0) return bam_extract_tags(argc-1, argv+1);
     else if (strcmp(argv[1], "pick") == 0) return bam_pick(argc-1, argv+1);
+    else if (strcmp(argv[1], "genecov") == 0) return gene_cov(argc-1, argv+1);
     else if (strcmp(argv[1], "count") == 0) return count_matrix(argc-1, argv+1);
     else if (strcmp(argv[1], "assem") == 0)  return assem(argc-1, argv+1);
     else if (strcmp(argv[1], "segment") == 0) return check_segment(argc-1, argv+1);

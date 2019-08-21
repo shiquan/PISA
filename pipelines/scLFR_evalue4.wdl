@@ -101,8 +101,8 @@ task parse_lfr {
     ${root}/SingleCellTools fsort -dedup -t 10 -mem -tag LB -p ${outdir}/scLFR/read.fq > ${outdir}/scLFR/sorted.fq 2>> ${outdir}/workflowtime.log
     ${root}/SingleCellTools cleanup -t 10 ${outdir}/scLFR/sorted.fq > ${outdir}/scLFR/cleanup.fq 2>> ${outdir}/workflowtime.log
     ${root}/SingleCellTools unitig -ss GTTCTGCG -t 20 -tag LB ${outdir}/scLFR/cleanup.fq > ${outdir}/scLFR/unitig.fq 2>> ${outdir}/workflowtime.log
-    ${root}/SingleCellTools segment2 -config ${segment_config} ${outdir}/scLFR/unitig.fq > ${outdir}/scLFR/parsed_reads.fq 2>> ${outdir}/workflowtime.log
-    ${hisat} -p 20  -x ${refdir} -q ${outdir}/scLFR/parsed_reads.fq | ${root}/SingleCellTools sam2bam -o ${outdir}/scLFR/aln.bam /dev/stdin
+    ${root}/SingleCellTools segment2 -config ${segment_config} ${outdir}/scLFR/unitig.fq > ${outdir}/scLFR/parsed_reads.fa 2>> ${outdir}/workflowtime.log
+    ${hisat} -p 20  -x ${refdir} -f ${outdir}/scLFR/parsed_reads.fa | ${root}/SingleCellTools sam2bam -o ${outdir}/scLFR/aln.bam /dev/stdin
     ${sambamba} sort -t 20 -o ${outdir}/scLFR/sorted.bam ${outdir}/scLFR/aln.bam
     ${root}/SingleCellTools anno -gtf ${gtf}  -ignore-strand  -splice-consider -t 20 -o ${outdir}/scLFR/annotated.bam ${outdir}/scLFR/sorted.bam 2>>${outdir}/workflowtime.log
     ${sambamba} index ${outdir}/scLFR/annotated.bam 
