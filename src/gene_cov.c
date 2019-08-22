@@ -514,7 +514,6 @@ int gene_cov(int argc, char **argv)
             acc_gene_cov = realloc(acc_gene_cov, m_gen);            
         }
         
-        int lgen = cov_sum(gene_bed);        
         int lcov = cov_sum(acc_cov);
         int sum  = cov_sum2(gene_bed, acc_cov);
         if (lcov == 0) continue;
