@@ -220,8 +220,10 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
         return 1;
     }
     
-    if (filter)
-        if (qry != feature_gene && qry != feature_exon && qry != feature_transcript) return 0;
+    if (filter && qry != feature_gene && qry != feature_exon && qry != feature_transcript) {
+        free(s);
+        return 0;
+    }
     
     struct gtf_lite gtf;
     memset(&gtf, 0, sizeof(gtf));
