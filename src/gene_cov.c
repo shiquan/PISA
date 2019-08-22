@@ -474,7 +474,7 @@ int gene_cov(int argc, char **argv)
                 cov_push(acc_cov, start, start+l-1);
             }
         }
-
+        hts_itr_destroy(itr);
         struct cov *gene_bed = gl2bed(gl);
         // count coverage of this block and reset buffer
         int gid = dict_query(gcov->genes, gene);
@@ -514,6 +514,10 @@ int gene_cov(int argc, char **argv)
         if (lcov == 0) continue;
         assert(lgen+lcov-sum <= lgen);
         acc_gene_cov[n_gen++] = (uint8_t)(((float)(lgen+lcov-sum)/lgen)*100);
+        free(gene_bed->bed);
+        free(gene_bed);
+        free(acc_cov->bed);
+        free(acc_cov);
     }
 
     bam_destroy1(b);
