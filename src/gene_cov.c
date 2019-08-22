@@ -268,12 +268,13 @@ static struct cov *gl2bed(struct gtf_lite *gl)
         assert(g1->type == feature_transcript);
         int j;
         for (j = 0; j < g1->n_son; ++j) {
-            struct gtf_lite *g2 = &g1->son[i];
+            struct gtf_lite *g2 = &g1->son[j];
             cov_push(cov, g2->start, g2->end);
         }
     }
     return cov;
 }
+/*
 int calc_buf_gene_cov(struct gcov *g, struct gtf_spec *G, struct gtf_lite *gl)
 {
     int gid = dict_query(g->genes, dict_name(G->gene_name,gl->gene_name));
@@ -284,7 +285,6 @@ int calc_buf_gene_cov(struct gcov *g, struct gtf_spec *G, struct gtf_lite *gl)
     struct cov *gene_bed = gl2bed(gl);    
     int i;
     int lgen = cov_sum(gene_bed);
-    debug_print("lgene : %d", lgen);        
     for (i = 0; i < dict_size(g->bcodes); ++i) {
         // g->covs[gid][i] = 0;
         struct cov *cov = &g->temp_cov[i];        
@@ -292,12 +292,12 @@ int calc_buf_gene_cov(struct gcov *g, struct gtf_spec *G, struct gtf_lite *gl)
         if (lcov == 0) continue;
         int sum = cov_sum2(gene_bed, cov);
         float f = (float)(lgen + lcov - sum)/lgen;
-        debug_print("lcov: %d, sum: %d, %d", lcov, sum, lgen + lcov - sum);  
         g->covs[gid][i] = (uint8_t)(f*100);        
     }
     for (i = 0; i < dict_size(g->bcodes); ++i) g->temp_cov[i].n = 0;
     return 0;
 }
+*/
 int write_cov_mtx(const char *fname, struct gcov *g)
 {
     if (fname == NULL) return 1;
@@ -473,8 +473,28 @@ int gene_cov(int argc, char **argv)
             }
         }
 
+        struct cov *gene_bed = gl2bed(gl);
         // count coverage of this block and reset buffer
-        calc_buf_gene_cov(gcov, G, gl);
+        int gid = dict_query(gcov->genes, dict_name(G->gene_name,gl->gene_name));
+        assert(gid>=0);
+        if (gid != dict_size(gcov->genes)-1)
+            warnings("Duplicated gene ? %s",dict_name(G->gene_name,gl->gene_name));
+        else {
+            int k;
+            int lgen = cov_sum(gene_bed);
+        
+            for (k = 0; k < dict_size(gcov->bcodes); ++k) {
+                
+                struct cov *cov = &gcov->temp_cov[k];        
+                int lcov = cov_sum(cov);
+                if (lcov == 0) continue;
+                int sum = cov_sum2(gene_bed, cov);
+                float f = (float)(lgen + lcov - sum)/lgen;
+                gcov->covs[gid][k] = (uint8_t)(f*100);        
+            }
+            for (k = 0; k < dict_size(gcov->bcodes); ++k) gcov->temp_cov[k].n = 0;
+        }
+        // calc_buf_gene_cov(gcov, G, gl);
 
         //
         if (n_gen == m_gen) {
@@ -483,7 +503,6 @@ int gene_cov(int argc, char **argv)
             acc_gene_cov = realloc(acc_gene_cov, m_gen);            
         }
         
-        struct cov *gene_bed = gl2bed(gl);
         int lgen = cov_sum(gene_bed);        
         int lcov = cov_sum(acc_cov);
         int sum  = cov_sum2(gene_bed, acc_cov);
