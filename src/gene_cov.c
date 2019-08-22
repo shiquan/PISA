@@ -409,9 +409,12 @@ int gene_cov(int argc, char **argv)
         struct cov *acc_cov = malloc(sizeof(struct cov));
         memset(acc_cov, 0, sizeof(struct cov));
         
-        int tid;
-        tid = bam_name2id(hdr, dict_name(G->name, gl->seqname));
+        int tid;       
+        tid = bam_name2id(hdr,dict_name(G->name, gl->seqname));
         if (tid == -1) continue;
+
+        char *gene = dict_name(G->gene_name, gl->gene_name);
+        
         int r;
         hts_itr_t *itr = sam_itr_queryi(idx, tid, gl->start, gl->end);
         // debug_print("Gene : %s", dict_name(G->gene_name, gl->gene_name));
@@ -429,7 +432,6 @@ int gene_cov(int argc, char **argv)
             int l = 0;
             int start = b->core.pos+1;
             // int ret;
-            char *gene = dict_name(G->gene_name, gl->gene_name);
             ret = dict_query(gcov->genes, gene);
             if (ret == -1) {
                 ret = dict_push(gcov->genes, gene);
@@ -475,8 +477,10 @@ int gene_cov(int argc, char **argv)
 
         struct cov *gene_bed = gl2bed(gl);
         // count coverage of this block and reset buffer
-        int gid = dict_query(gcov->genes, dict_name(G->gene_name,gl->gene_name));
-        assert(gid>=0);
+        int gid = dict_query(gcov->genes, gene);
+        //assert(gid>=0);
+        if (gid == -1) continue; // not covered
+        
         if (gid != dict_size(gcov->genes)-1)
             warnings("Duplicated gene ? %s",dict_name(G->gene_name,gl->gene_name));
         else {
@@ -490,8 +494,9 @@ int gene_cov(int argc, char **argv)
                 if (lcov == 0) continue;
                 int sum = cov_sum2(gene_bed, cov);
                 float f = (float)(lgen + lcov - sum)/lgen;
-                gcov->covs[gid][k] = (uint8_t)(f*100);        
-            }
+                gcov->covs[gid][k] = (uint8_t)(f*100);
+             }
+
             for (k = 0; k < dict_size(gcov->bcodes); ++k) gcov->temp_cov[k].n = 0;
         }
         // calc_buf_gene_cov(gcov, G, gl);
@@ -507,7 +512,6 @@ int gene_cov(int argc, char **argv)
         int lcov = cov_sum(acc_cov);
         int sum  = cov_sum2(gene_bed, acc_cov);
         if (lcov == 0) continue;
-        // debug_print("%d\t%d\t%d", lgen, lcov, sum);
         assert(lgen+lcov-sum <= lgen);
         acc_gene_cov[n_gen++] = (uint8_t)(((float)(lgen+lcov-sum)/lgen)*100);
     }
