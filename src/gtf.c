@@ -215,7 +215,10 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
     char *feature = str->s + s[2];
 
     int qry = dict_query(G->features, feature);
-    if (qry == -1) return 1;
+    if (qry == -1) {
+        free(s);
+        return 1;
+    }
     
     if (filter)
         if (qry != feature_gene && qry != feature_exon && qry != feature_transcript) return 0;
