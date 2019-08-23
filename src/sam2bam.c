@@ -383,7 +383,7 @@ static void *sam_name_parse(void *_p, int idx)
         int i;
         for (i = 0; i < p->n; ++i) {
             parse_name_str(p->str[i]);
-            if (sam_parse1(p->str[i], h, p->bam[i])) error("Failed to parse SAM.");
+            if (sam_parse1(p->str[i], h, p->bam[i])) error("Failed to parse SAM., %s", bam_get_qname(p->bam[i]));
             sam_stat_reads(p->bam[i], summary, &p->flag[i], opts);
         }
     }
