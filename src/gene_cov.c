@@ -16,6 +16,7 @@ static int usage()
     fprintf(stderr, "  -gene        Gene white list.\n");
     fprintf(stderr, "  -trans       Transcript white list.\n");
     fprintf(stderr, "  -summary     Summary output.\n");
+    fprintf(stderr, "  -bulk        Bulk coverage table.\n");
     fprintf(stderr, "  -o           Cell barcode X Gene coverage matrix.\n");
     fprintf(stderr, "  -@           Thread to unpack BAM.\n");
     return 1;
@@ -35,7 +36,7 @@ static struct args {
     const char *transcript_list;
     const char *summary_fname;
     const char *output_fname;
-
+    const char *bulk_fname;
     const char *tag;
     int file_th;
 } args = {
@@ -46,6 +47,7 @@ static struct args {
     .transcript_list = NULL,
     .summary_fname   = NULL,
     .output_fname    = NULL,
+    .bulk_fname      = NULL,
     .file_th         = 4,
     .tag             = NULL,
 };
@@ -67,6 +69,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-gene") == 0) var = &args.gene_list;
         else if (strcmp(a, "-summary") == 0) var = &args.summary_fname;
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
+        else if (strcmp(a, "-bulk") == 0) var = &args.bulk_fname;
         if (var != 0) {
             *var = argv[i++];
             continue;
@@ -375,6 +378,9 @@ int gene_cov(int argc, char **argv)
 
     hts_set_threads(fp, args.file_th);
 
+    FILE *fp_bulk = args.bulk_fname == NULL ? stdout : fopen(args.bulk_fname, "w");
+    if (fp_bulk == NULL) error("%s : %s.", args.bulk_fname, strerror(errno));
+    
     struct gtf_spec *G = gtf_read(args.gtf_fname, 1);
     if (G == NULL) error("GTF is empty.");
 
@@ -391,7 +397,7 @@ int gene_cov(int argc, char **argv)
         if (dict_read(gene_dict, args.gene_list))
             error("Failed to load gene list.");
     }
-    
+
     // accumulation of gene coverage
     uint8_t *acc_gene_cov = NULL;
     int n_gen = 0, m_gen = 0;
@@ -518,7 +524,11 @@ int gene_cov(int argc, char **argv)
         int sum  = cov_sum2(gene_bed, acc_cov);
         if (lcov == 0) continue;
         assert(lgen+lcov-sum <= lgen);
-        acc_gene_cov[n_gen++] = (uint8_t)(((float)(lgen+lcov-sum)/lgen)*100);
+        acc_gene_cov[n_gen] = (uint8_t)(((float)(lgen+lcov-sum)/lgen)*100);
+
+        fprintf(fp_bulk, "%s\t%d\t%d\n", gene, lgen, acc_gene_cov[n_gen]);
+        n_gen++;
+        
         free(gene_bed->bed);
         free(gene_bed);
         free(acc_cov->bed);
@@ -532,6 +542,7 @@ int gene_cov(int argc, char **argv)
     if (n_gen) free(acc_gene_cov);
     gcov_destory(gcov);
 
+    fclose(fp_bulk);
     if (gene_dict) dict_destroy(gene_dict);
     hts_idx_destroy(idx);
     bam_hdr_destroy(hdr);
