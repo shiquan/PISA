@@ -207,7 +207,7 @@ int bam2frag(int argc, char **argv)
 
     const tbx_conf_t tbx_conf_bed = { TBX_UCSC, 1, 2, 3, '#', 0 };
     
-    if (tbx_index_build(args.output_fname, 14, &tbx_conf_bed))
+    if (tbx_index_build(args.output_fname, 0, &tbx_conf_bed))
         warnings("Failed to build index file of %s.", args.output_fname);
     
     return 0;
