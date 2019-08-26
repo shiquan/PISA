@@ -179,8 +179,9 @@ int bam2frag(int argc, char **argv)
             if (args.isize && b->core.isize > args.isize) continue;
             if (b->core.isize < 0) continue;
         }
-        // output buffered records
-        if (last_id != -1 && last_id != b->core.tid) {
+        if (last_id == -1) last_id = b->core.tid;
+        // output buffered Records
+        if (last_id != b->core.tid) {
             frag_pool_print(fp_out, p, hdr);
             last_id = b->core.tid;
         }
