@@ -51,7 +51,8 @@ AOBJ = src/bam_anno.o \
 	src/bam_corr_umi.o \
 	src/bam2fq.o \
 	src/gene_cov.o \
-	src/bam_extract_tags.o
+	src/bam_extract_tags.o \
+	src/fragment.o
 
 ASSM_LIB_OBJ =	fermi-lite/bfc.o fermi-lite/bseq.o fermi-lite/bubble.o fermi-lite/htab.o fermi-lite/ksw.o fermi-lite/kthread.o fermi-lite/mag.o fermi-lite/misc.o \
 	fermi-lite/mrope.o fermi-lite/rld0.o fermi-lite/rle.o fermi-lite/rope.o fermi-lite/unitig.o
@@ -73,6 +74,7 @@ test: $(HTSLIB) version.h
 SingleCellTools: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h libfml.a libz
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) fermi-lite/libfml.a  src/liba.a $(HTSLIB) zlib-1.2.11/libz.a $(LIBS)
 
+src/fragment.o: src/fragment.c
 src/gene_cov.o: src/gene_cov.c
 src/bam2fq.o: src/bam2fq.c
 src/seq_merge.o: src/seq_merge.c

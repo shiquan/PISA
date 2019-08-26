@@ -11,6 +11,7 @@ static int usage()
     fprintf(stderr, "* Stat reads coverage over gene body for each cell.\n");
     fprintf(stderr, "gene_cov [options] in.bam\n");
     fprintf(stderr, "  -gtf         GTF file.\n");
+    fprintf(stderr, "  -unit        Stat unit, default gene.[gene|transcript|exon|cds]\n");
     fprintf(stderr, "  -tag         Cell barcode tag.\n");
     fprintf(stderr, "  -list        Cell barcode white list.\n");
     fprintf(stderr, "  -gene        Gene white list.\n");
@@ -356,7 +357,17 @@ int write_summary(const char *fname, struct gcov *g, int n_gen, uint8_t *acc_gen
     fclose(fp);
     return 0;
 }
-
+/*
+int transcript_cov()
+{
+}
+int exon_cov()
+{
+}
+int cds_cov()
+{
+}
+*/
 int gene_cov(int argc, char **argv)
 {
     if (parse_args(argc, argv)) return usage();
