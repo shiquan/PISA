@@ -429,10 +429,12 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
     for (k = 0; k < dict_size(gcov->bcodes); ++k) {
         struct cov *cov = &gcov->temp_cov[k];        
         int lcov = cov_sum(cov);
-        if (lcov == 0) continue;
-        int sum = cov_sum2(gene_bed, cov);
-        float f = (float)(lgen + lcov - sum)/lgen;
-        uint8_t r = (uint8_t)(f*100);
+        uint8_t r = 0;
+        if (lcov == 0) {
+            int sum = cov_sum2(gene_bed, cov);
+            float f = (float)(lgen + lcov - sum)/lgen;
+            r = (uint8_t)(f*100);
+        }
         gcov->cov[k][r]++;
         kputc('\t', &str);
         kputw(r, &str);
