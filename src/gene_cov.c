@@ -11,7 +11,7 @@ static int usage()
     fprintf(stderr, "* Stat reads coverage over gene body for each cell.\n");
     fprintf(stderr, "gene_cov [options] in.bam\n");
     fprintf(stderr, "  -gtf         GTF file.\n");
-    fprintf(stderr, "  -unit        Stat unit, default gene.[gene|transcript|exon|cds]\n");
+    fprintf(stderr, "  -unit        Stat unit, default is gene. [gene|transcript|exon|cds]\n");
     fprintf(stderr, "  -tag         Cell barcode tag.\n");
     fprintf(stderr, "  -list        Cell barcode white list.\n");
     fprintf(stderr, "  -gene        Gene white list.\n");
@@ -40,6 +40,14 @@ static struct args {
     const char *bulk_fname;
     const char *tag;
     int file_th;
+
+    htsFile    *fp;
+    hts_idx_t  *idx;
+    bam_hdr_t  *hdr;
+    FILE       *fp_bulk;
+    FILE       *fp_mtx;
+    FILE       *fp_summary;
+    struct gtf_spec *G;
 } args = {
     .input_fname     = NULL,
     .gtf_fname       = NULL,
@@ -51,7 +59,23 @@ static struct args {
     .bulk_fname      = NULL,
     .file_th         = 4,
     .tag             = NULL,
+    .fp              = NULL,
+    .idx             = NULL,
+    .hdr             = NULL,
+    .fp_bulk         = NULL,
+    .fp_mtx          = NULL,
+    .fp_summary      = NULL,
+    .G               = NULL,
 };
+
+enum stat_unit {
+    unit_gene,
+    unit_transcript,
+    unit_exon,
+    unit_cds,
+};
+
+static enum stat_unit stat_unit = unit_gene;
 
 static int parse_args(int argc, char **argv)
 {
@@ -59,7 +83,7 @@ static int parse_args(int argc, char **argv)
 
     int i;
     const char *file_th = NULL;
-
+    const char *unit = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -71,6 +95,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-summary") == 0) var = &args.summary_fname;
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
         else if (strcmp(a, "-bulk") == 0) var = &args.bulk_fname;
+        else if (strcmp(a, "-unit") == 0) var = &unit;
         if (var != 0) {
             *var = argv[i++];
             continue;
@@ -90,8 +115,60 @@ static int parse_args(int argc, char **argv)
     if (args.cell_list == NULL) error("Cell barcode list should be set with -list.");
 
     if (file_th) args.file_th = str2int(file_th);
+
+    if (unit) {
+        if (strcmp(unit, "gene") == 0) stat_unit = unit_gene;
+        else if (strcmp(unit, "transcript") == 0) stat_unit = unit_transcript;
+        else if (strcmp(unit, "exon") == 0) stat_unit = unit_exon;
+        else if (strcmp(unit, "cds") == 0) stat_unit = unit_cds;
+        else error("Unknown stat unit, should be [gene|transcript|exon|cds]. %s", unit);
+    }
+
     
+    args.fp  = hts_open(args.input_fname, "r");
+    if (args.fp == NULL)
+        error("%s : %s.", args.input_fname, strerror(errno));
+    
+    htsFormat type = *hts_get_format(args.fp);
+    if (type.format != bam && type.format != sam)
+        error("Unsupported input format, only support BAM/SAM/CRAM format.");
+
+    args.idx = sam_index_load(args.fp, args.input_fname);
+    if (args.idx == NULL)
+        error("BAM file need be indexed.");
+
+    args.hdr = sam_hdr_read(args.fp);
+    CHECK_EMPTY(args.hdr, "Failed to open header.");
+
+    hts_set_threads(args.fp, args.file_th);
+
+    args.fp_bulk = args.bulk_fname == NULL ? stdout : fopen(args.bulk_fname, "w");
+    if (args.fp_bulk == NULL) error("%s : %s.", args.bulk_fname, strerror(errno));
+    
+    args.G = gtf_read(args.gtf_fname, 1);
+    if (args.G == NULL) error("GTF is empty.");
+
+    if (args.output_fname) {
+        args.fp_mtx = fopen(args.output_fname, "w");
+        if (args.fp_mtx == NULL) error("%s : %s.", args.output_fname, strerror(errno));
+    }
+
+    if (args.summary_fname) {
+        args.fp_summary = fopen(args.summary_fname, "w");
+        if (args.fp_summary == NULL) error("%s : %s.", args.summary_fname, strerror(errno));
+    }
     return 0;
+}
+
+static void memory_release()
+{
+    fclose(args.fp_bulk);
+    if (args.fp_mtx) fclose(args.fp_mtx);
+    if (args.fp_summary) fclose(args.fp_summary);
+    hts_idx_destroy(args.idx);
+    bam_hdr_destroy(args.hdr);
+    gtf_destory(args.G);
+    hts_close(args.fp);
 }
 
 struct bed {
@@ -104,11 +181,12 @@ struct cov {
 };
 
 struct gcov {
-    struct dict *genes;
+    struct dict *names;
     struct dict *bcodes; // load from barcode list    
     struct cov *temp_cov; // temp coverage record for last gene
-    int n, m;
-    uint8_t **covs;
+    uint8_t **cov;
+    // int n, m;
+    // uint8_t **covs;
 };
 
 static int cmpfunc(const void *_a, const void *_b)
@@ -116,7 +194,7 @@ static int cmpfunc(const void *_a, const void *_b)
     struct bed *a = (struct bed *)_a;
     struct bed *b = (struct bed *)_b;
     
-    return a->start - b->start == 0 ? a->end - b->end : a->start - b->start;
+   return a->start - b->start == 0 ? a->end - b->end : a->start - b->start;
 }
 static void cov_merge1(struct cov *cov)
 {
@@ -180,22 +258,34 @@ int cov_sum2(struct cov *cov1, struct cov *cov2)
     return sum;
 }
 
-struct gcov *gcov_init()
+struct gcov *gcov_init(const char *fn)
 {
     struct gcov *g = malloc(sizeof(*g));
     memset(g, 0, sizeof(*g));
-    g->genes = dict_init();
+    g->names = dict_init();
     g->bcodes = dict_init();
+    if (dict_read(g->bcodes, fn))
+        error("Failed to load cell barcode.");
+
+    g->temp_cov = malloc(dict_size(g->bcodes)*sizeof(struct cov));
+    memset(g->temp_cov, 0, dict_size(g->bcodes)*sizeof(struct cov));
+    
+    g->cov = malloc(dict_size(g->bcodes)*sizeof(void*));
+    int i;
+    for (i = 0; i < dict_size(g->bcodes); ++i) {
+        g->cov[i] = malloc(101);
+        memset(g->cov[i], 0, 101);
+    }
     return g;
 }
 void gcov_destory(struct gcov *g)
 {
     int i;
-    for (i = 0; i < dict_size(g->genes); ++i) free(g->covs[i]);
+    // for (i = 0; i < dict_size(g->names); ++i) free(g->covs[i]);
     for (i = 0; i < dict_size(g->bcodes); ++i) free(g->temp_cov[i].bed);
     free(g->temp_cov);
-    free(g->covs);
-    dict_destroy(g->genes);
+    // free(g->covs);
+    dict_destroy(g->names);
     dict_destroy(g->bcodes);
     free(g);
 }
@@ -210,198 +300,179 @@ static void cov_push(struct cov *cov, int start, int end)
     cov->bed[cov->n].end = end;
     cov->n++;    
 }
-/*
-static int push_gene_cov(struct gcov *g, char *gene, char *CB, bam1_t *b)
+
+static void gl2bed(struct cov *cov, struct gtf_lite *gl)
 {
-    int ret;
-    ret = dict_query(g->genes, gene);
-    if (ret == -1) {
-        ret = dict_push(g->genes, gene);
-        if (g->n == g->m) {
-            g->m = g->m == 0 ? 1024 : g->m<<1;
-            g->covs = realloc(g->covs, g->m*sizeof(void*));
-        }
-
-        if (g->n < dict_size(g->genes)) {
-            int i;
-            for (i = g->n; i < dict_size(g->genes); ++i) {
-                g->covs[i] = malloc(dict_size(g->bcodes)*1);
-                memset(g->covs[i], 0, dict_size(g->bcodes));
-            }
-            g->n = dict_size(g->genes);
+    if (gl->n_son > 0) {
+        int i;
+        for (i = 0; i < gl->n_son; ++i) {
+            struct gtf_lite *g1 = &gl->son[i];
+            gl2bed(cov,g1);
         }
     }
-
-
-    int id = dict_query(g->bcodes, CB);
-    struct cov *cov = &g->temp_cov[id];
-
-    int k;
-    int l = 0;
-    int start = b->core.pos+1;
-    for (k = 0; k < b->core.n_cigar; ++k) {
-        int cig = bam_cigar_op(bam_get_cigar(b)[k]);
-        int ncig = bam_cigar_oplen(bam_get_cigar(b)[k]);
-        if (cig == BAM_CMATCH || cig == BAM_CEQUAL || cig == BAM_CDIFF) {
-            l += ncig;
-        }
-        else if (cig == BAM_CDEL) {
-            l += ncig;
-        }
-        else if (cig == BAM_CREF_SKIP) {
-            cov_push(cov, start, start+l-1);
-            // reset block
-            start = start + l + ncig;
-            l = 0;
-        }
+    else {
+        cov_push(cov, gl->start, gl->end);
+    }    
+}
+/*
+int write_cov_mtx(struct gcov *g)
+{
+    if (args.fp_mtx == NULL) return 1;
+    int i;
+    fputs("Name", args.fp_mtx);
+    for (i = 0; i < dict_size(g->bcodes); ++i) {
+        fputc('\t',args.fp_mtx);
+        fputs(dict_name(g->bcodes, i), args.fp_mtx);
     }
-    if (l != 0) cov_push(cov, start, start+l-1);
-    //int endpos = bam_endpos(b);
-    //cov_push(cov, b->core.pos+1, endpos);
+    fputc('\n', args.fp_mtx);
 
+    int j;
+    for (j = 0; j < dict_size(g->names); ++j) {
+        fputs(dict_name(g->names, j), args.fp_mtx);
+        for (i = 0; i < dict_size(g->bcodes); ++i)
+            fprintf(args.fp_mtx,"\t%d", g->covs[j][i]);
+
+        fputc('\n', args.fp_mtx);
+    }
     return 0;
 }
 */
-static struct cov *gl2bed(struct gtf_lite *gl)
+struct acc_gene_cov {
+    int n, m;
+    uint8_t *cov;
+};
+int write_summary(struct gcov *g,struct acc_gene_cov *acc_gene_cov)
 {
-    struct cov *cov = malloc(sizeof(struct cov));
-    memset(cov, 0, sizeof(struct cov));
-    int i;
-    for (i = 0; i < gl->n_son; ++i) {
-        struct gtf_lite *g1 = &gl->son[i];
-        assert(g1->type == feature_transcript);
-        int j;
-        for (j = 0; j < g1->n_son; ++j) {
-            struct gtf_lite *g2 = &g1->son[j];
-            cov_push(cov, g2->start, g2->end);
-        }
-    }
-    return cov;
-}
-/*
-int calc_buf_gene_cov(struct gcov *g, struct gtf_spec *G, struct gtf_lite *gl)
-{
-    int gid = dict_query(g->genes, dict_name(G->gene_name,gl->gene_name));
-    assert(gid>=0);
-    if (gid != dict_size(g->genes)-1)
-        warnings("Duplicated gene ? %s",dict_name(G->gene_name,gl->gene_name));
+    if (args.fp_summary == NULL) return 1;
+    if (acc_gene_cov->n == 0) return 1;
     
-    struct cov *gene_bed = gl2bed(gl);    
     int i;
-    int lgen = cov_sum(gene_bed);
+    int count[101];
+    memset(count, 0, 101*sizeof(int));
+    for (i = 0; i < acc_gene_cov->n; ++i) count[acc_gene_cov->cov[i]]++;
+    for (i = 0; i < 101; ++i)  
+        fprintf(args.fp_summary,"Accumulation\t%d\t%d\n", i, count[i]);
+        
     for (i = 0; i < dict_size(g->bcodes); ++i) {
-        // g->covs[gid][i] = 0;
-        struct cov *cov = &g->temp_cov[i];        
+        int j;
+        for (j = 0; j < 101; ++j)
+            fprintf(args.fp_summary,"%s\t%d\t%d\n", dict_name(g->bcodes, i), j, g->cov[i][j]);
+    }
+
+    return 0;
+}
+int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_lite *gl, struct gcov *gcov, struct acc_gene_cov *acc_gene_cov)
+{
+    bam1_t *b = bam_init1();
+    int r;
+    hts_itr_t *itr = sam_itr_queryi(idx, tid, gl->start, gl->end);
+
+    struct cov *acc_cov = malloc(sizeof(struct cov));
+    memset(acc_cov, 0, sizeof(struct cov));
+
+    // each block come from exactly one gene
+    while ((r = sam_itr_next(fp, itr, b)) >= 0) {
+        uint8_t *tag = bam_aux_get(b, args.tag);
+        if (!tag) continue;
+        char *cb = (char*)(tag+1);
+        int id;
+        id = dict_query(gcov->bcodes, cb);
+        if (id == -1) continue;
+
+        // for counting accumulation coverage
+        int l = 0;
+        int start = b->core.pos+1;        
+        dict_push(gcov->names, name);
+
+        struct cov *cov = &gcov->temp_cov[id];
+        int k;
+        for (k = 0; k < b->core.n_cigar; ++k) {
+            int cig = bam_cigar_op(bam_get_cigar(b)[k]);
+            int ncig = bam_cigar_oplen(bam_get_cigar(b)[k]);
+            if (cig == BAM_CMATCH || cig == BAM_CEQUAL || cig == BAM_CDIFF) {
+                l += ncig;
+            }
+            else if (cig == BAM_CDEL) {
+                l += ncig;
+            }
+            else if (cig == BAM_CREF_SKIP) {
+                cov_push(cov, start, start+l-1);
+                cov_push(acc_cov, start, start+l-1);
+                // reset block
+                start = start + l + ncig;
+                l = 0;
+            }
+        }
+        if (l != 0) {
+            cov_push(cov, start, start+l-1);
+            cov_push(acc_cov, start, start+l-1);
+        }
+    }    
+    hts_itr_destroy(itr);
+    int lcov = cov_sum(acc_cov);
+    if (lcov == 0) goto not_update_cov;
+    
+    // count coverage of this block and reset buffer
+    int gid = dict_query(gcov->names, name);
+    if (gid == -1) goto not_update_cov;
+    if (gid != dict_size(gcov->names)-1) goto not_update_cov;
+        
+    struct cov *gene_bed = malloc(sizeof(struct cov));
+    memset(gene_bed, 0, sizeof(struct cov));
+    gl2bed(gene_bed, gl);
+        
+    int k;
+    int lgen = cov_sum(gene_bed);
+
+    kstring_t str = {0,0,0};
+    kputs(name, &str);    
+    for (k = 0; k < dict_size(gcov->bcodes); ++k) {
+        struct cov *cov = &gcov->temp_cov[k];        
         int lcov = cov_sum(cov);
         if (lcov == 0) continue;
         int sum = cov_sum2(gene_bed, cov);
         float f = (float)(lgen + lcov - sum)/lgen;
-        g->covs[gid][i] = (uint8_t)(f*100);        
+        uint8_t r = (uint8_t)(f*100);
+        gcov->cov[k][r]++;
+        kputc('\t', &str);
+        kputw(r, &str);
     }
-    for (i = 0; i < dict_size(g->bcodes); ++i) g->temp_cov[i].n = 0;
-    return 0;
-}
-*/
-int write_cov_mtx(const char *fname, struct gcov *g)
-{
-    if (fname == NULL) return 1;
-    FILE *fp = fopen(fname, "w");
-    if (fp == NULL)
-        error("%s : %s.", fname, strerror(errno));
+    for (k = 0; k < dict_size(gcov->bcodes); ++k) gcov->temp_cov[k].n = 0;
 
-    int i;
-    fputs("Gene", fp);
-    for (i = 0; i < dict_size(g->bcodes); ++i) {
-        fputc('\t', fp);
-        fputs(dict_name(g->bcodes, i), fp);
+    if (acc_gene_cov->n == acc_gene_cov->m) {
+        acc_gene_cov->m = acc_gene_cov->m == 0 ? 1024 : acc_gene_cov->m << 1;
+        acc_gene_cov->cov = realloc(acc_gene_cov->cov, acc_gene_cov->m);            
     }
-    fputc('\n', fp);
-
-    int j;
-    for (j = 0; j < dict_size(g->genes); ++j) {
-        fputs(dict_name(g->genes, j), fp);
-        for (i = 0; i < dict_size(g->bcodes); ++i)
-            fprintf(fp,"\t%d", g->covs[j][i]);
-
-        fputc('\n', fp);
-    }
-    fclose(fp);
-    return 0;
-}
-int write_summary(const char *fname, struct gcov *g, int n_gen, uint8_t *acc_gene_cov)
-{
-    if (fname == NULL) return 1;
-    FILE *fp = fopen(fname, "w");
-    if (fp == NULL)
-        error("%s : %s.", fname, strerror(errno));
     
-    int i;
-    if (n_gen && acc_gene_cov) {
-        int count[101];
-        memset(count, 0, 101*sizeof(int));
-        for (i = 0; i < n_gen; ++i) count[acc_gene_cov[i]]++;
-        for (i = 0; i < 101; ++i)  
-            fprintf(fp,"Accumulation\t%d\t%d\n", i, count[i]);
-    }
-        
-    for (i = 0; i < dict_size(g->bcodes); ++i) {
-        int count[101];
-        memset(count, 0, 101*sizeof(int));
-        int j;
-        for (j = 0; j < dict_size(g->genes); ++j)
-            count[g->covs[j][i]]++;
-        for (j = 0; j < 101; ++j)
-            fprintf(fp,"%s\t%d\t%d\n", dict_name(g->bcodes, i), j, count[j]);
-    }
+    int sum  = cov_sum2(gene_bed, acc_cov);
+    assert(lgen+lcov-sum <= lgen);
+    acc_gene_cov->cov[acc_gene_cov->n] = (uint8_t)(((float)(lgen+lcov-sum)/lgen)*100);
+    
+    fprintf(args.fp_bulk, "%s\t%d\t%d\n", name, lgen, acc_gene_cov->cov[acc_gene_cov->n]);
+    acc_gene_cov->n++;
 
-    fclose(fp);
+    kputc('\n', &str);
+    if (args.fp_mtx) fputs(str.s, args.fp_mtx);
+    free(str.s);    
+    free(acc_cov->bed);
+    free(acc_cov);
+    free(gene_bed->bed);
+    free(gene_bed);
+    bam_destroy1(b);
     return 0;
+
+  not_update_cov:
+    bam_destroy1(b);
+    free(acc_cov->bed);
+    free(acc_cov);
+    return 1;
 }
-/*
-int transcript_cov()
-{
-}
-int exon_cov()
-{
-}
-int cds_cov()
-{
-}
-*/
 int gene_cov(int argc, char **argv)
 {
     if (parse_args(argc, argv)) return usage();
 
-    htsFile *fp  = hts_open(args.input_fname, "r");
-    if (fp == NULL)
-        error("%s : %s.", args.input_fname, strerror(errno));
-    
-    htsFormat type = *hts_get_format(fp);
-    if (type.format != bam && type.format != sam)
-        error("Unsupported input format, only support BAM/SAM/CRAM format.");
+    struct gcov *gcov = gcov_init(args.cell_list);
 
-    hts_idx_t *idx = sam_index_load(fp, args.input_fname);
-    if (idx == NULL)
-        error("BAM file need be indexed.");
-
-    bam_hdr_t *hdr = sam_hdr_read(fp);
-    CHECK_EMPTY(hdr, "Failed to open header.");
-
-    hts_set_threads(fp, args.file_th);
-
-    FILE *fp_bulk = args.bulk_fname == NULL ? stdout : fopen(args.bulk_fname, "w");
-    if (fp_bulk == NULL) error("%s : %s.", args.bulk_fname, strerror(errno));
-    
-    struct gtf_spec *G = gtf_read(args.gtf_fname, 1);
-    if (G == NULL) error("GTF is empty.");
-
-    struct gcov *gcov = gcov_init();
-    // struct dict *CB_dict = dict_init();
-    if (dict_read(gcov->bcodes, args.cell_list))
-        error("Failed to load cell barcode.");
-
-    gcov->temp_cov = malloc(dict_size(gcov->bcodes)*sizeof(struct cov));
-    memset(gcov->temp_cov, 0, dict_size(gcov->bcodes)*sizeof(struct cov));
     struct dict *gene_dict = NULL;
     if (args.gene_list) {
         gene_dict = dict_init();
@@ -409,13 +480,28 @@ int gene_cov(int argc, char **argv)
             error("Failed to load gene list.");
     }
 
-    // accumulation of gene coverage
-    uint8_t *acc_gene_cov = NULL;
-    int n_gen = 0, m_gen = 0;
+    struct acc_gene_cov *acc_gene_cov;
+    acc_gene_cov = malloc(sizeof(struct acc_gene_cov));
+    memset(acc_gene_cov, 0, sizeof(struct acc_gene_cov));
+
+    struct gtf_spec *G = args.G;
+
+    int i;
+    kstring_t str = {0,0,0};
+    kputs("Name", &str);
+    for (i = 0; i < dict_size(gcov->bcodes); ++i) {
+        kputc('\t', &str);
+        kputs(dict_name(gcov->bcodes, i), &str);
+    }
+
+    if (args.fp_mtx) {
+        fputs(str.s, args.fp_mtx);
+        fputc('\n', args.fp_mtx);
+    }
+
+    free(str.s);
     
     // iter from whole gtf
-    int i;
-    bam1_t *b = bam_init1();
     for (i = 0; i < G->n_gtf; ++i) {
         struct gtf_lite *gl = &G->gtf[i];
         if (gene_dict) {
@@ -424,141 +510,73 @@ int gene_cov(int argc, char **argv)
         }
         
         int tid;       
-        tid = bam_name2id(hdr,dict_name(G->name, gl->seqname));
+        tid = bam_name2id(args.hdr,dict_name(G->name, gl->seqname));
         if (tid == -1) continue;
 
-        struct cov *acc_cov = malloc(sizeof(struct cov));
-        memset(acc_cov, 0, sizeof(struct cov));
+        char *gene = dict_name(G->gene_name, gl->gene_name);        
 
-        char *gene = dict_name(G->gene_name, gl->gene_name);
-        
-        int r;
-        hts_itr_t *itr = sam_itr_queryi(idx, tid, gl->start, gl->end);
-        // debug_print("Gene : %s", dict_name(G->gene_name, gl->gene_name));
-        // each block come from exactly one gene        
-        while ((r = sam_itr_next(fp, itr, b)) >= 0) {
-            uint8_t *tag = bam_aux_get(b, args.tag);
-            if (!tag) continue;
-            char *cb = (char*)(tag+1);
-            int ret;
-            ret = dict_query(gcov->bcodes, cb);
-            if (ret == -1) continue;
-            // push_gene_cov(gcov, dict_name(G->gene_name, gl->gene_name), cb, b);
-            // for counting accumulation coverage
-            int k;
-            int l = 0;
-            int start = b->core.pos+1;
-            // int ret;
-            ret = dict_query(gcov->genes, gene);
-            if (ret == -1) {
-                ret = dict_push(gcov->genes, gene);
-                if (gcov->n == gcov->m) {
-                    gcov->m = gcov->m == 0 ? 1024 : gcov->m<<1;
-                    gcov->covs = realloc(gcov->covs, gcov->m*sizeof(void*));
-                }
-                // reset new allocated buffer
-                if (gcov->n < dict_size(gcov->genes)) {
-                    int k;
-                    for (k = gcov->n; k < dict_size(gcov->genes); ++k) {
-                        gcov->covs[k] = malloc(dict_size(gcov->bcodes)*1);
-                        memset(gcov->covs[k], 0, dict_size(gcov->bcodes));
-                    }
-                    gcov->n = dict_size(gcov->genes);
-                }
-            }
-            int id = dict_query(gcov->bcodes, cb);
-            struct cov *cov = &gcov->temp_cov[id];
-            
-            for (k = 0; k < b->core.n_cigar; ++k) {
-                int cig = bam_cigar_op(bam_get_cigar(b)[k]);
-                int ncig = bam_cigar_oplen(bam_get_cigar(b)[k]);
-                if (cig == BAM_CMATCH || cig == BAM_CEQUAL || cig == BAM_CDIFF) {
-                    l += ncig;
-                }
-                else if (cig == BAM_CDEL) {
-                    l += ncig;
-                }
-                else if (cig == BAM_CREF_SKIP) {
-                    cov_push(cov, start, start+l-1);
-                    cov_push(acc_cov, start, start+l-1);
-                    // reset block
-                    start = start + l + ncig;
-                    l = 0;
-                }
-            }
-            if (l != 0) {
-                cov_push(cov, start, start+l-1);
-                cov_push(acc_cov, start, start+l-1);
+        if (stat_unit == unit_gene) {
+            gene_cov_core(args.fp, args.idx, gene, tid, gl, gcov, acc_gene_cov);
+        }
+        else if (stat_unit == unit_transcript) {
+            int j;
+            for (j = 0; j < gl->n_son; ++j) {
+                struct gtf_lite *g1 = &gl->son[j];
+                if (g1->type != feature_transcript) continue;
+                char *name = dict_name(G->transcript_id, g1->transcript_id);
+                assert (name != NULL);
+                gene_cov_core(args.fp, args.idx, name, tid, g1, gcov, acc_gene_cov);
             }
         }
-        hts_itr_destroy(itr);
-        // count coverage of this block and reset buffer
-        int gid = dict_query(gcov->genes, gene);
-        //assert(gid>=0);
-        if (gid == -1) {
-            free(acc_cov->bed);
-            free(acc_cov);
-            continue; // not covered
+        else if (stat_unit == unit_exon) {
+            int j;
+            for (j = 0; j < gl->n_son; ++j) {
+                struct gtf_lite *g1 = &gl->son[j];
+                if (g1->type != feature_transcript) continue;
+                int k;
+                for (k = 0; k < g1->n_son; ++k) {
+                    struct gtf_lite *g2 = &g1->son[k];
+                    if (g2->type != feature_exon) continue;
+                    kstring_t str = {0,0,0};
+                    kputs(dict_name(G->name,g2->seqname), &str);
+                    kputc(':', &str);
+                    kputw(g2->start, &str);
+                    kputc('-', &str);
+                    kputw(g2->end, &str);
+                    gene_cov_core(args.fp, args.idx, str.s, tid, g2, gcov, acc_gene_cov);
+                    free(str.s);
+                }
+            }
         }
-        
-        if (gid != dict_size(gcov->genes)-1) {
-            warnings("Duplicated gene ? %s",dict_name(G->gene_name,gl->gene_name));
-            free(acc_cov->bed);
-            free(acc_cov);
-            continue; // not covered
+        else if (stat_unit == unit_cds) {
+            int j;
+            for (j = 0; j < gl->n_son; ++j) {
+                struct gtf_lite *g1 = &gl->son[j];
+                if (g1->type != feature_transcript) continue;
+                int k;
+                for (k = 0; k < g1->n_son; ++k) {
+                    struct gtf_lite *g2 = &g1->son[k];
+                    if (g2->type != feature_CDS) continue;
+                    kstring_t str = {0,0,0};
+                    kputs(dict_name(G->name,g2->seqname), &str);
+                    kputc(':', &str);
+                    kputw(g2->start, &str);
+                    kputc('-', &str);
+                    kputw(g2->end, &str);
+                    gene_cov_core(args.fp, args.idx, str.s, tid, g2, gcov, acc_gene_cov);
+                    free(str.s);
+                }
+            }            
         }
-
-        struct cov *gene_bed = gl2bed(gl);
-        int k;
-        int lgen = cov_sum(gene_bed);
-        
-        for (k = 0; k < dict_size(gcov->bcodes); ++k) {
-            struct cov *cov = &gcov->temp_cov[k];        
-            int lcov = cov_sum(cov);
-            if (lcov == 0) continue;
-            int sum = cov_sum2(gene_bed, cov);
-            float f = (float)(lgen + lcov - sum)/lgen;
-            gcov->covs[gid][k] = (uint8_t)(f*100);
-        }
-
-        for (k = 0; k < dict_size(gcov->bcodes); ++k) gcov->temp_cov[k].n = 0;
-        // calc_buf_gene_cov(gcov, G, gl);
-
-        //
-        if (n_gen == m_gen) {
-            m_gen = m_gen == 0 ? 1024 : m_gen<<1;
-            kroundup32(m_gen);
-            acc_gene_cov = realloc(acc_gene_cov, m_gen);            
-        }
-        
-        int lcov = cov_sum(acc_cov);
-        int sum  = cov_sum2(gene_bed, acc_cov);
-        if (lcov == 0) continue;
-        assert(lgen+lcov-sum <= lgen);
-        acc_gene_cov[n_gen] = (uint8_t)(((float)(lgen+lcov-sum)/lgen)*100);
-
-        fprintf(fp_bulk, "%s\t%d\t%d\n", gene, lgen, acc_gene_cov[n_gen]);
-        n_gen++;
-        
-        free(gene_bed->bed);
-        free(gene_bed);
-        free(acc_cov->bed);
-        free(acc_cov);
     }
 
-    bam_destroy1(b);
-    write_cov_mtx(args.output_fname, gcov);
-    write_summary(args.summary_fname, gcov, n_gen, acc_gene_cov);
+    // write_cov_mtx(args.output_fname, gcov);
+    write_summary(gcov, acc_gene_cov);
 
-    if (n_gen) free(acc_gene_cov);
+    if (acc_gene_cov->m) free(acc_gene_cov->cov);
+    free(acc_gene_cov);
     gcov_destory(gcov);
-
-    fclose(fp_bulk);
     if (gene_dict) dict_destroy(gene_dict);
-    hts_idx_destroy(idx);
-    bam_hdr_destroy(hdr);
-    gtf_destory(G);
-    hts_close(fp);
-    
+    memory_release();
     return 0;
 }

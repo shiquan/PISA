@@ -220,7 +220,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
         return 1;
     }
     
-    if (filter && qry != feature_gene && qry != feature_exon && qry != feature_transcript) {
+    if (filter && qry != feature_gene && qry != feature_exon && qry != feature_transcript && qry != feature_CDS) {
         free(s);
         return 0;
     }
