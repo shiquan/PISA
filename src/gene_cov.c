@@ -437,6 +437,11 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
         kputc('\t', &str);
         kputw(r, &str);
     }
+
+    kputc('\n', &str);
+    if (args.fp_mtx) fputs(str.s, args.fp_mtx);
+    free(str.s);
+    
     for (k = 0; k < dict_size(gcov->bcodes); ++k) gcov->temp_cov[k].n = 0;
 
     if (acc_gene_cov->n == acc_gene_cov->m) {
@@ -451,9 +456,6 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
     fprintf(args.fp_bulk, "%s\t%d\t%d\n", name, lgen, acc_gene_cov->cov[acc_gene_cov->n]);
     acc_gene_cov->n++;
 
-    kputc('\n', &str);
-    if (args.fp_mtx) fputs(str.s, args.fp_mtx);
-    free(str.s);    
     free(acc_cov->bed);
     free(acc_cov);
     free(gene_bed->bed);

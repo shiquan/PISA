@@ -100,7 +100,7 @@ static int parse_args(int argc, char **argv)
         error("Unknown argument, %s", a);
     }
     if (args.input_fname == 0) error("No input bam.");
-    if (args.output_fname == 0) error("No output file specified.");
+    // if (args.output_fname == 0) error("No output file specified.");
     if (args.tag == 0) error("No cell barcode specified.");
     if (args.anno_tag == 0) error("No anno tag specified.");
     // if (args.whitelist_fname == 0) error("No barcode list specified.");
@@ -270,8 +270,11 @@ int count_matrix(int argc, char **argv)
     bam_hdr_t *hdr = sam_hdr_read(fp);
     CHECK_EMPTY(hdr, "Failed to open header.");
    
-    FILE *out = fopen(args.output_fname, "w");
-    CHECK_EMPTY(out, "%s : %s.", args.output_fname, strerror(errno));
+    FILE *out = NULL;
+    if (args.output_fname) {
+        out = fopen(args.output_fname, "w");
+        CHECK_EMPTY(out, "%s : %s.", args.output_fname, strerror(errno));
+    }
 
     kh_name_t *hash = kh_init(name); 
     int n=0, m=100;
@@ -441,16 +444,18 @@ int count_matrix(int argc, char **argv)
 
     // header
     int i, j;
-    fputs("ID", out);
-    for (j = 0; j < lb->n; ++j) 
-        fprintf(out, "\t%s",lb->b[j].s);
-    fputc('\n', out);
-    for (i = 0; i < n; ++i) {
-        fprintf(out, "%s", reg[i]);
-        for (j = 0; j < lb->n; ++j)   fprintf(out, "\t%d", v[i].n <= j || v[i].v[j] == NULL ? 0 : v[i].v[j]->c);
+    if (out) {
+        fputs("ID", out);
+        for (j = 0; j < lb->n; ++j) 
+            fprintf(out, "\t%s",lb->b[j].s);
         fputc('\n', out);
+        for (i = 0; i < n; ++i) {
+            fprintf(out, "%s", reg[i]);
+            for (j = 0; j < lb->n; ++j)   fprintf(out, "\t%d", v[i].n <= j || v[i].v[j] == NULL ? 0 : v[i].v[j]->c);
+            fputc('\n', out);
+        }
+        fclose(out);
     }
-    fclose(out);
 
     kh_destroy(name,hash);
     for (i = 0; i < n; ++i) {
