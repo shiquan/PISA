@@ -281,10 +281,10 @@ struct gcov *gcov_init(const char *fn)
 void gcov_destory(struct gcov *g)
 {
     int i;
-    // for (i = 0; i < dict_size(g->names); ++i) free(g->covs[i]);
+    for (i = 0; i < dict_size(g->bcodes); ++i) free(g->cov[i]);
     for (i = 0; i < dict_size(g->bcodes); ++i) free(g->temp_cov[i].bed);
     free(g->temp_cov);
-    // free(g->covs);
+    free(g->cov);
     dict_destroy(g->names);
     dict_destroy(g->bcodes);
     free(g);
@@ -430,7 +430,7 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
         struct cov *cov = &gcov->temp_cov[k];        
         int lcov = cov_sum(cov);
         uint8_t r = 0;
-        if (lcov == 0) {
+        if (lcov != 0) {
             int sum = cov_sum2(gene_bed, cov);
             float f = (float)(lgen + lcov - sum)/lgen;
             r = (uint8_t)(f*100);
