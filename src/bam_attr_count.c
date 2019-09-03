@@ -20,6 +20,7 @@ static int usage()
     fprintf(stderr, "    -o           Output count table.\n");
     fprintf(stderr, "    -q           Map Quality to filter bam.\n");
     fprintf(stderr, "    -no-header   Ignore header in the output.\n");
+    fprintf(stderr, "    -@           Thread to unpack bam.\n");
     return 1;
 }
 
@@ -36,6 +37,7 @@ static struct args {
     int qual_thres;
     int ignore_header;
     int is_dyn_alloc;
+    int file_th;
 } args = {
     .input_fname   = NULL,
     .output_fname  = NULL,
@@ -48,6 +50,7 @@ static struct args {
     .qual_thres    = 0,
     .ignore_header = 0,
     .is_dyn_alloc  = 1,
+    .file_th       = 4,
 };
 
 static int parse_args(int argc, char **argv)
@@ -55,6 +58,7 @@ static int parse_args(int argc, char **argv)
     int i;
     const char *tag  = NULL;
     const char *qual = NULL;
+    const char *file_th = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -69,6 +73,8 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-group") == 0) var = &args.group_tag;
         else if (strcmp(a, "-list") == 0) var = &args.list_fname;
         else if (strcmp(a, "-q") == 0) var = &qual;
+        else if (strcmp(a, "-@") == 0) var = &file_th;
+        
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -102,7 +108,8 @@ static int parse_args(int argc, char **argv)
     
     if (qual) args.qual_thres = str2int((char*)qual);
     if (args.qual_thres) args.qual_thres = 0;
-    
+    if (file_th) args.file_th = str2int(file_th);
+    assert (args.file_th > 0);
     return 0;
 }
 struct counts_per_bcode {
@@ -137,9 +144,6 @@ int counts_push(struct counts *cnt, bam1_t *b)
 
     char *name = (char*)(tag+1);
     int id = -1; // individual index
-    
-    bam1_core_t *c;
-    c = &b->core;
     
     if (args.is_dyn_alloc == 0) {
         id = dict_query(cnt->bc_dict, name);
@@ -262,7 +266,8 @@ int bam_count_attr(int argc, char *argv[])
     bam_hdr_t *hdr = sam_hdr_read(fp);
     CHECK_EMPTY(hdr, "Failed to open header.");
 
-
+    hts_set_threads(fp, args.file_th);
+    
     struct counts *cnt = malloc(sizeof(*cnt));
     memset(cnt, 0, sizeof(*cnt));
     cnt->bc_dict = dict_init();
