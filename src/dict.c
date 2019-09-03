@@ -73,6 +73,7 @@ int dict_push(struct dict *D, char *key)
     if (D->n == D->m) {
         D->m = D->m == 0 ? 1024 : D->m<<1;
         D->count = realloc(D->count, sizeof(uint32_t)*D->m);
+        assert(D->count);
         int i;
         for (i = D->n; i < D->m; ++i) D->count[i] = 0;
         D->name = realloc(D->name, sizeof(char*)*D->m);
@@ -82,7 +83,7 @@ int dict_push(struct dict *D, char *key)
     khint_t k;
     k = kh_put(name, D->dict, D->name[D->n], &ret);
     kh_val(D->dict, k) = D->n;
-    return D->n++;    
+    return D->n++;
 }
 
 int dict_read(struct dict *D, const char *fname)

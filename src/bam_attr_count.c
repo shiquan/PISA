@@ -10,7 +10,7 @@
 
 static int usage()
 {
-    fprintf(stderr, "BamCount in.bam\n");
+    fprintf(stderr, "AttrCount in.bam\n");
     fprintf(stderr, "Options :\n");
     fprintf(stderr, "    -cb          Cell Barcode, or other tag used for each individual.\n");
     fprintf(stderr, "    -list        Cell barcode white list.\n");
@@ -35,6 +35,7 @@ static struct args {
     int dedup;
     int qual_thres;
     int ignore_header;
+    int is_dyn_alloc;
 } args = {
     .input_fname   = NULL,
     .output_fname  = NULL,
@@ -46,6 +47,7 @@ static struct args {
     .dedup         = 0,
     .qual_thres    = 0,
     .ignore_header = 0,
+    .is_dyn_alloc  = 1,
 };
 
 static int parse_args(int argc, char **argv)
@@ -103,26 +105,148 @@ static int parse_args(int argc, char **argv)
     
     return 0;
 }
-struct counts {
-    int n_group; // group inited of this individual
-    struct dict ***counts_per_group; // [n_tag][n_group] point struct dict
+struct counts_per_bcode {
+    int n, m; // init equal n_tag, if set group, m == n_tag*n_group
+    struct dict **counts; 
 };
 
-static void counts_destroy(struct counts *c)
+struct counts {
+    struct dict *bc_dict;
+    struct dict *group_dict;
+    int n, m;
+    struct counts_per_bcode *counts;    // n_barcodes
+};
+void counts_destroy(struct counts *cnt)
 {
     int i;
-    for (i = 0; i < args.n_tag; ++i) {
-        struct dict **c1 = c->counts_per_group[i];
+    for (i = 0; i < dict_size(cnt->bc_dict); ++i) {
+        struct counts_per_bcode *c = &cnt->counts[i];
         int j;
-        for (j = 0; j < c->n_group; ++j) {
-            if (c1[j] == NULL) continue;
-            dict_destroy(c1[j]);
-        }
-        free(c1);
+        for (j = 0; j < c->n; ++j)
+            if (c->counts[j]) dict_destroy(c->counts[j]);
+        free(c->counts);
     }
-    free(c->counts_per_group);
+    free(cnt->counts);
+    dict_destroy(cnt->bc_dict);
+    if (cnt->group_dict) dict_destroy(cnt->group_dict);
 }
+int counts_push(struct counts *cnt, bam1_t *b)
+{
+    uint8_t *tag = bam_aux_get(b, args.cb_tag);
+    if (!tag) return 1; // skip records without cell Barcodes
+
+    char *name = (char*)(tag+1);
+    int id = -1; // individual index
     
+    bam1_core_t *c;
+    c = &b->core;
+    
+    if (args.is_dyn_alloc == 0) {
+        id = dict_query(cnt->bc_dict, name);
+        if (id == -1) return 1;
+    }
+    else {
+        id = dict_push(cnt->bc_dict, name);
+        if (dict_size(cnt->bc_dict) >= cnt->m) {
+            cnt->m = cnt->m == 0 ? 1024 : cnt->m<<1;
+            cnt->counts = realloc(cnt->counts, cnt->m*sizeof(struct counts_per_bcode));
+            // init new allocated records
+            int i;
+            for (i = cnt->n; i < cnt->m; ++i) {
+                struct counts_per_bcode *bc = &cnt->counts[i];
+                memset(bc, 0, sizeof(*bc));
+            }
+            cnt->n = cnt->m;
+        }
+    }
+    struct counts_per_bcode *bc = &cnt->counts[id];
+    
+    // dynamic allocate group tag
+    int grp_id = 0; // group index
+    
+    if (args.group_tag) {
+        uint8_t *tag = bam_aux_get(b, args.group_tag);
+        if (!tag) return 1;
+        grp_id = dict_push(cnt->group_dict, (char*)(tag+1));
+    }
+    int alloc_group = grp_id+1;
+
+    if (bc->m < alloc_group*args.n_tag) {
+        bc->m = alloc_group*args.n_tag;
+        bc->counts = realloc(bc->counts, bc->m*sizeof(void*));
+        int i;
+        for (i = bc->n; i < bc->m; ++i) bc->counts[i] = NULL;
+        bc->n = bc->m;
+    }
+    int i;
+    for (i = 0; i < args.n_tag; ++i) {
+        uint8_t *va = bam_aux_get(b, args.tags[i]);
+        if (!va) continue;
+        int idx = grp_id*args.n_tag+i;
+        struct dict *d = bc->counts[idx];
+        if (d == NULL) d = dict_init();
+        dict_push(d, (char*)(va+1));
+        bc->counts[idx] = d;
+    }
+    
+    return 0;
+}
+
+int generat_outputs(struct counts *cnt)
+{
+    FILE *out = args.output_fname == NULL ? stdout : fopen(args.output_fname, "w");
+    if (out == NULL) {
+        warnings("%s : %s.", args.output_fname, strerror(errno));
+        return 1;
+    }
+
+    // header
+    if (args.ignore_header == 0) {
+        fputs("BARCODE\tRaw", out);
+        if (args.group_tag) {
+            int i;
+            for (i = 0; i < dict_size(cnt->group_dict); ++i) {
+                int j;
+                for (j = 0; j < args.n_tag; ++j) {
+                    fputc('\t', out);
+                    fputs(dict_name(cnt->group_dict,i), out);
+                    fputc('_', out);
+                    fputs(args.tags[j], out);
+                }         
+            }
+        }
+        else {
+            int i;
+            for (i = 0; i < args.n_tag; ++i) {
+                fputc('\t', out);
+                fputs(args.tags[i], out);
+            }
+        }
+        fputc('\n', out);
+    }
+
+    int i;
+    int w = args.group_tag == NULL ? args.n_tag : args.n_tag*dict_size(cnt->group_dict);
+    
+    for (i = 0; i < dict_size(cnt->bc_dict); ++i) {
+        struct counts_per_bcode *bcode = &cnt->counts[i];
+        fprintf(out, "%s\t%u", dict_name(cnt->bc_dict, i), dict_count(cnt->bc_dict, i) );
+
+        int j;
+        for (j = 0; j < w; ++j) {
+            if ( j >= bcode->n) fputs("\t0", out);
+            else {
+                fprintf(out, "\t%u", bcode->counts[j] == NULL ? 0:
+                        args.dedup == 1 ? dict_size(bcode->counts[j]) : dict_count_sum(bcode->counts[j]));
+            }
+        }
+        fputc('\n', out);
+    }
+
+    fclose(out);
+    return 0;
+}
+
 int bam_count_attr(int argc, char *argv[])
 {
     double t_real;
@@ -137,95 +261,34 @@ int bam_count_attr(int argc, char *argv[])
         error("Unsupported input format, only support BAM/SAM/CRAM format.");
     bam_hdr_t *hdr = sam_hdr_read(fp);
     CHECK_EMPTY(hdr, "Failed to open header.");
-    FILE *out = args.output_fname == NULL ? stdout : fopen(args.output_fname, "w");
-    CHECK_EMPTY(out, "%s : %s.", args.output_fname, strerror(errno));
 
-    int is_dyn_alloc = 1;
 
-    struct dict *bc_dict = dict_init();
-    struct dict *group_dict = NULL;
-    if (args.group_tag) group_dict = dict_init();
+    struct counts *cnt = malloc(sizeof(*cnt));
+    memset(cnt, 0, sizeof(*cnt));
+    cnt->bc_dict = dict_init();
+    if (args.group_tag) cnt->group_dict = dict_init();
     
-    int n_alloc = 0;
-    int m_alloc = 0;
-    struct counts *counts = NULL;
-
     if (args.barcode_fname) {
-        dict_read(bc_dict, args.barcode_fname);
-        counts = malloc( dict_size(bc_dict) * sizeof(struct counts));
+        dict_read(cnt->bc_dict, args.barcode_fname);
+        cnt->m = dict_size(cnt->bc_dict);
+        cnt->n = cnt->m;
+        cnt->counts = malloc( cnt->m *sizeof(struct counts_per_bcode));
         int i;
-        for (i = 0; i < dict_size(bc_dict); ++i) {
-            counts[i].n_group = 0;
-            counts[i].counts_per_group = calloc(args.n_tag, sizeof(void*));
+        for (i = 0; i < cnt->n; ++i) {
+            struct counts_per_bcode *bcode = &cnt->counts[i];
+            memset(bcode, 0, sizeof(struct counts_per_bcode));
         }
-        is_dyn_alloc = 0;
+        args.is_dyn_alloc = 0;
     }
     
     bam1_t *b;
-    bam1_core_t *c;
     int ret;
     b = bam_init1();
-    c = &b->core;
-    
-    while ((ret = sam_read1(fp, hdr, b)) >= 0) {
 
+    while ((ret = sam_read1(fp, hdr, b)) >= 0) {
+        if (b->core.tid < 0) continue;
         if (b->core.qual < args.qual_thres) continue;
-        
-        uint8_t *tag = bam_aux_get(b, args.cb_tag);
-        if (!tag) continue; // skip records without cell Barcodes
-        
-        char *name = (char*)(tag+1);
-        
-        int id = -1; // individual index
-        
-        if (is_dyn_alloc == 0) {
-            id = dict_query(bc_dict, name);
-            if (id == -1) continue;
-        }
-        else {
-            id = dict_push(bc_dict, name);
-            if (id == n_alloc) {
-                if (n_alloc == m_alloc) {
-                    m_alloc = m_alloc == 0 ? 1024 : m_alloc<<1;
-                    counts = realloc(counts, sizeof(struct counts)*m_alloc);
-                }
-                memset(&counts[id], 0, sizeof(struct counts));
-                counts[id].counts_per_group = calloc(args.n_tag, sizeof(void*));
-                n_alloc++;
-            }
-        }
-        
-        struct counts *cnt = &counts[id];
-        
-        // dynamic allocate group tag
-        int grp_id = 0; // group index
-        
-        if (args.group_tag) {
-            uint8_t *tag = bam_aux_get(b, args.group_tag);
-            if (!tag) continue;                
-            grp_id = dict_push(group_dict, (char*)(tag+1));
-        }
-        int new_group = grp_id+1;
-        if (cnt->n_group < new_group) {
-            int i;
-            for (i = 0; i < args.n_tag; ++i) {
-                cnt->counts_per_group[i] = realloc(cnt->counts_per_group[i], new_group*sizeof(void *));
-                int j;
-                for (j = cnt->n_group; j < new_group; ++j)
-                    cnt->counts_per_group[i][j] = NULL;
-            }
-            cnt->n_group = new_group;
-        }
-        
-        int i;
-        for (i = 0; i < args.n_tag; ++i) {
-            uint8_t *va = bam_aux_get(b, args.tags[i]);
-            if (!va) continue;
-            struct dict *d = cnt->counts_per_group[i][grp_id];
-            if (d == NULL) d = dict_init();
-            dict_push(d, (char*)(va+1));
-            cnt->counts_per_group[i][grp_id] = d;
-        }
+        counts_push(cnt, b);
     }
 
     bam_destroy1(b);
@@ -234,63 +297,10 @@ int bam_count_attr(int argc, char *argv[])
 
     if (ret != -1) warnings("Truncated file?");
 
-    // header
-    if (args.ignore_header == 0) {
-        fputs("BARCODE\tRaw", out);
-        if (args.group_tag) {
-            int i;
-            for (i = 0; i < dict_size(group_dict); ++i) {
-                int j;
-                for (j = 0; j < args.n_tag; ++j) {
-                    fputc('\t', out);
-                    fputs(dict_name(group_dict,i), out);
-                    fputc('_', out);
-                    fputs(args.tags[j], out);
-                }            
-            }
-        }
-        else {
-            int i;
-            for (i = 0; i < args.n_tag; ++i) {
-                fputc('\t', out);
-                fputs(args.tags[i], out);
-            }
-        }
-        fputc('\n', out);
-    }
-
-    int i;
-    for (i = 0; i < dict_size(bc_dict); ++i) {
-        struct counts *cnt = &counts[i];
-        fprintf(out, "%s\t%u", dict_name(bc_dict, i), dict_count(bc_dict, i) );
-        if (args.group_tag) {
-            int j;
-            for (j = 0; j < dict_size(group_dict); ++j) {
-                int k;
-                for (k = 0; k < args.n_tag; ++k)
-                    fprintf(out, "\t%u",
-                            cnt->counts_per_group[j][k] == NULL ? 0 :
-                            args.dedup == 1 ? dict_size(cnt->counts_per_group[j][k]) :
-                            dict_count_sum(cnt->counts_per_group[j][k]));
-            }
-        }
-        else {
-            int j;
-            for (j = 0; j < args.n_tag; ++j)
-                fprintf(out, "\t%u",
-                        cnt->counts_per_group[0][j] == NULL ? 0 :
-                        args.dedup == 1 ? dict_size(cnt->counts_per_group[0][j]) :
-                        dict_count_sum(cnt->counts_per_group[0][j]));
-            
-        }
-        fputc('\n', out);
-        counts_destroy(cnt);
-    }
-    free(counts);
+    generat_outputs(cnt);
     
-    fclose(out);
-    dict_destroy(bc_dict);
-    if (args.group_tag) dict_destroy(group_dict);
+    counts_destroy(cnt);
+
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;    
 }
