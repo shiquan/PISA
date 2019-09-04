@@ -145,8 +145,10 @@ KHASH_MAP_INIT_STR(name, struct fastq_idx)
 
 struct fastq_stream {
     int n, m;
-    char **names;
-    kh_name_t *dict;
+    struct fastq_idx *idx;
+    struct dict *dict;
+    // char **names;
+    // kh_name_t *dict;
     size_t l_buf;
     uint8_t *buf;
     char *out_fn;
@@ -159,13 +161,16 @@ void fastq_stream_destroy(struct fastq_stream *d)
 {
     int i;
     for (i = 0; i < d->n; ++i) {
-        khint_t k;
-        k = kh_get(name, d->dict, d->names[i]);
-        free(kh_val(d->dict, k).idx);
-        free(d->names[i]);
+        // khint_t k;
+        // k = kh_get(name, d->dict, d->names[i]);
+        // if (kh_val(d->dict, k).m) free(kh_val(d->dict, k).idx);
+        // free(d->names[i]);
+        if (d->idx[i].m) free(d->idx[i].idx);
     }
-    free(d->names);
-    kh_destroy(name, d->dict);
+    free(d->idx);
+    dict_destroy(d->dict);
+    // free(d->names);
+    // kh_destroy(name, d->dict);
     free(d->buf);
     free(d);
 }
@@ -297,7 +302,12 @@ struct fastq_stream *fastq_stream_read_block(struct fastq_stream_handler *fastq)
 
 static char *query_tags(uint8_t *p, struct dict *dict, int *e)
 {
-    if (p == NULL) { *e = 1; return NULL; }
+    uint8_t *pp = p;
+    for ( ; *pp != '\0' && *pp != '\n'; pp++) {}
+    if (*pp == '\0') { 
+        *e = 1;
+        return NULL;
+    }
     char **val = calloc(dict_size(dict),sizeof(char*));
     int i;
     *e = 0;
@@ -367,7 +377,8 @@ static char *get_rname(uint8_t *p)
 }
 static void sort_block(struct fastq_stream *buf)
 {
-    buf->dict = kh_init(name);
+    // buf->dict = kh_init(name);
+    buf->dict = dict_init();
     uint8_t *p = buf->buf;
     uint8_t *e = buf->buf + buf->l_buf;
     int offset = 0;
@@ -378,7 +389,16 @@ static void sort_block(struct fastq_stream *buf)
         if (name == NULL) {
             error("No tag found at %s", rname);
         }
-        
+        int ret = dict_push(buf->dict, name);
+        if (ret >=  buf->m) {
+            buf->m = buf->m == 0 ? 1024 : buf->m <<1;
+            buf->idx = realloc(buf->idx, buf->m *sizeof(struct fastq_idx));
+            int i;
+            for (i = buf->n; i < buf->m; ++i)
+                memset(&buf->idx[i], 0, sizeof(struct fastq_idx));
+        }
+
+        /*
         if (buf->n == buf->m) {
             buf->m = buf->m == 0 ? 1024 : buf->m<<1;
             buf->names = realloc(buf->names, buf->m*sizeof(void*));
@@ -399,6 +419,12 @@ static void sort_block(struct fastq_stream *buf)
         if (idx->n == idx->m) {
             idx->m = idx->m == 0 ? 10 : idx->m<<1;
             idx->idx = realloc(idx->idx, 4*idx->m);
+        }
+        */
+        struct fastq_idx *idx = &buf->idx[ret];
+        if (idx->n == idx->m) {
+            idx->m = idx->m == 0 ? 32 : idx->m<<1;
+            idx->idx = realloc(idx->idx, sizeof(uint32_t)*idx->m);
         }
         idx->idx[idx->n] = offset;
         idx->n++;
@@ -443,7 +469,8 @@ static void sort_block(struct fastq_stream *buf)
         p = buf->buf + offset;
     }
 
-    qsort(buf->names, buf->n, sizeof(char*), name_cmp);
+    char **names = dict_names(buf->dict);
+    qsort(names, dict_size(buf->dict), sizeof(char*), name_cmp);
 
     // todo: dedup
 }
@@ -454,11 +481,15 @@ int write_file(struct fastq_stream *buf)
     if (out == NULL) error("%s : %s.", buf->out_fn, strerror(errno));
     
     int i;
-    for (i = 0; i < buf->n; ++i) {
-        khint_t k;
-        k = kh_get(name, buf->dict, buf->names[i]);
-        assert(k != kh_end(buf->dict));
-        struct fastq_idx *idx = &kh_val(buf->dict, k);
+    for (i = 0; i < dict_size(buf->dict); ++i) {
+        // assert(buf->names[i]);
+        // khint_t k;
+        //k = kh_get(name, buf->dict, buf->names[i]);
+        // assert(k != kh_end(buf->dict));
+        // struct fastq_idx *idx = &kh_val(buf->dict, k);
+        char *name = dict_name(buf->dict, i);
+        int old_idx = dict_query(buf->dict, name);
+        struct fastq_idx *idx = &buf->idx[old_idx];
         int j;
         for (j = 0; j < idx->n; ++j) {
             fputs((char*)(buf->buf+idx->idx[j]), out);
@@ -523,8 +554,10 @@ uint8_t *read_next_read(struct fastq_stream_reader *r, uint8_t *p, int *n, int *
         *n = i;
         return p+i;
     }
+    if (p[i] == '\0') goto truncated_buf;
+        
     if (p[i] != '+') {
-        error("Bad format.");
+        error("Bad format. %s", p);
     }
     
     for ( ; p[i] != '\n' && p[i] != '\0'; ++i); // +\n
@@ -613,7 +646,7 @@ int fastq_stream_reader_sync(struct fastq_stream_reader *r)
         char *name = query_tags(p, args.tags, &end);        
         if (end) goto load_buffer;
         if (name == NULL) {
-            debug_print("%s",r->name);
+            debug_print("%s\t%s",r->name, p);
         }
         if (strcmp(r->name, name) != 0) {
             r->buf[r->blength-1] = '\0';

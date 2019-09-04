@@ -109,3 +109,8 @@ int dict_read(struct dict *D, const char *fname)
     gzclose(fp);
     return 0;
 }
+
+char **dict_names(struct dict *D)
+{
+    return D->name;
+}

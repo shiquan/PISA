@@ -23,4 +23,5 @@ uint32_t dict_count_sum(struct dict *D);
 
 uint32_t dict_count(struct dict *D, int idx);
 
+char **dict_names(struct dict *D);
 #endif

@@ -30,7 +30,6 @@ static struct args {
     const char *barcode_fname;
     const char *cb_tag; // attribute in BAM
     const char *group_tag;
-    const char *list_fname;
     int n_tag;
     char **tags;
     int dedup;
@@ -71,7 +70,7 @@ static int parse_args(int argc, char **argv)
             continue;
         }
         else if (strcmp(a, "-group") == 0) var = &args.group_tag;
-        else if (strcmp(a, "-list") == 0) var = &args.list_fname;
+        else if (strcmp(a, "-list") == 0) var = &args.barcode_fname;
         else if (strcmp(a, "-q") == 0) var = &qual;
         else if (strcmp(a, "-@") == 0) var = &file_th;
         
@@ -148,6 +147,7 @@ int counts_push(struct counts *cnt, bam1_t *b)
     if (args.is_dyn_alloc == 0) {
         id = dict_query(cnt->bc_dict, name);
         if (id == -1) return 1;
+        dict_push(cnt->bc_dict, name); // increase count
     }
     else {
         id = dict_push(cnt->bc_dict, name);
