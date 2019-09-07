@@ -1033,7 +1033,7 @@ void cell_barcode_count_pair_write()
         free(args.names);
         fclose(args.cbdis_fp);
     }
-    kh_destroy(str,args.cbhash);
+    if (args.cbhash) kh_destroy(str,args.cbhash);
 }
 void report_write()
 {
@@ -1188,7 +1188,9 @@ static int parse_args(int argc, char **argv)
 
     if (args.cbdis_fname) {
         args.cbdis_fp = fopen(args.cbdis_fname, "w");
-        if (args.cbdis_fp == NULL) error("%s : %s.", args.cbdis_fname, strerror(errno));        
+        if (args.cbdis_fp == NULL) error("%s : %s.", args.cbdis_fname, strerror(errno));
+        args.cbhash = kh_init(str);
+        args.bghash = kh_init(str);
     } 
         
     // if (args.run_code == NULL) args.run_code = strdup("1");
@@ -1199,10 +1201,7 @@ static int parse_args(int argc, char **argv)
     }
     else {
         args.barcode_dis_fp = stderr;
-    }
-    
-    args.cbhash = kh_init(str);
-    args.bghash = kh_init(str);
+    }       
     
     return 0;
 }
