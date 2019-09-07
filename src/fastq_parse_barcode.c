@@ -95,7 +95,21 @@ struct BarcodeRegion {
     // int bases;
     // int exact_match;
 };
-
+void BarcodeRegion_clean(struct BarcodeRegion *br)
+{
+    
+    if (br->n_wl) {
+        int k;
+        for (k = 0; k < br->n_wl; ++k) free(br->white_list[k]);
+        free(br->white_list);
+        kh_destroy(str,br->wlhash);
+    }
+}
+void BarcodeRegion_destory(struct BarcodeRegion *br)
+{
+    BarcodeRegion_clean(br);
+    free(br);
+}
 struct BRstat {
     int q30_bases;
     int bases;
@@ -251,21 +265,21 @@ static struct config {
     // const char *platform;
     // const char *version;
     // consistant with white list if set
-    const char *cell_barcode_tag; 
-    const char *sample_barcode_tag;
+    char *cell_barcode_tag; 
+    char *sample_barcode_tag;
 
-    const char *raw_cell_barcode_tag;
-    const char *raw_cell_barcode_qual_tag;
+    char *raw_cell_barcode_tag;
+    char *raw_cell_barcode_qual_tag;
     int n_cell_barcode;
     struct BarcodeRegion *cell_barcodes;
 
-    const char *raw_sample_barcode_tag;
-    const char *raw_sample_barcode_qual_tag;
+    char *raw_sample_barcode_tag;
+    char *raw_sample_barcode_qual_tag;
     int n_sample_barcode; // usually == 1, sometimes == 2,
     struct BarcodeRegion *sample_barcodes;
 
-    const char *umi_tag;
-    const char *umi_qual_tag;
+    char *umi_tag;
+    char *umi_qual_tag;
     // UMI, usually random generated and located at one region
     struct BarcodeRegion *UMI;
 
@@ -291,7 +305,28 @@ static struct config {
     .read_1 = NULL,
     .read_2 = NULL,
 };
-
+void config_destory()
+{
+    if (config.cell_barcode_tag) free(config.cell_barcode_tag);
+    if (config.sample_barcode_tag) free(config.sample_barcode_tag);
+    if (config.raw_cell_barcode_tag) free(config.raw_cell_barcode_tag);
+    if (config.raw_cell_barcode_qual_tag) free(config.raw_cell_barcode_qual_tag);
+    int i;
+    for (i = 0; i < config.n_cell_barcode; ++i) {
+        struct BarcodeRegion *br = &config.cell_barcodes[i];
+        BarcodeRegion_clean(br);
+    }
+    free(config.cell_barcodes);
+    if (config.sample_barcodes) BarcodeRegion_destory(config.sample_barcodes);
+    if (config.UMI) BarcodeRegion_destory(config.UMI);
+    if (config.read_1) BarcodeRegion_destory(config.read_1);
+    if (config.read_2) BarcodeRegion_destory(config.read_2);
+    if (config.raw_sample_barcode_tag) free(config.raw_sample_barcode_tag);
+    if (config.raw_sample_barcode_qual_tag) free(config.raw_sample_barcode_qual_tag);
+    if (config.umi_tag) free(config.umi_tag);
+    if (config.umi_qual_tag) free(config.umi_qual_tag);
+                            
+}
 static void config_init(const char *fn)
 {
     char *config_str = json_config_open(fn);
@@ -1043,18 +1078,20 @@ void cell_barcode_count_pair_write()
 }
 void report_write()
 {
-    fprintf(args.report_fp, "Number of Fragments : %"PRIu64"\n", args.raw_reads);
-    fprintf(args.report_fp, "Fragments pass QC: %"PRIu64"\n", args.reads_pass_qc);
-    fprintf(args.report_fp, "Fragments with Exactly Matched Barcodes : %"PRIu64"\n", args.barcode_exactly_matched);
-    fprintf(args.report_fp, "Fragments with Failed Barcodes : %"PRIu64"\n", args.filtered_by_barcode);
-    fprintf(args.report_fp, "Fragments Filtered on Low Qulity : %"PRIu64"\n", args.filtered_by_lowqual);
-    fprintf(args.report_fp, "Fragments Filtered on Unknown Sample Barcodes : %"PRIu64"\n", args.filtered_by_sample);
-    fprintf(args.report_fp, "Q30 bases in Cell Barcode : %.1f%%\n",args.bases_cell_barcode == 0 ? 0 : (float)args.q30_bases_cell_barcode/(args.bases_cell_barcode+1)*100);
-    fprintf(args.report_fp, "Q30 bases in Sample Barcode : %.1f%%\n", args.bases_sample_barcode == 0 ? 0 : (float)args.q30_bases_sample_barcode/(args.bases_sample_barcode+1)*100);
-    fprintf(args.report_fp, "Q30 bases in UMI : %.1f%%\n", args.bases_umi == 0 ? 0 : (float)args.q30_bases_umi/(args.bases_umi+1)*100);
-    fprintf(args.report_fp, "Q30 bases in Reads : %.1f%%\n", (float)args.q30_bases_reads/(args.bases_reads+1)*100);
-
-    if (args.report_fname) fclose(args.report_fp);
+    if (args.report_fp) {
+        fprintf(args.report_fp, "Number of Fragments : %"PRIu64"\n", args.raw_reads);
+        fprintf(args.report_fp, "Fragments pass QC: %"PRIu64"\n", args.reads_pass_qc);
+        fprintf(args.report_fp, "Fragments with Exactly Matched Barcodes : %"PRIu64"\n", args.barcode_exactly_matched);
+        fprintf(args.report_fp, "Fragments with Failed Barcodes : %"PRIu64"\n", args.filtered_by_barcode);
+        fprintf(args.report_fp, "Fragments Filtered on Low Qulity : %"PRIu64"\n", args.filtered_by_lowqual);
+        fprintf(args.report_fp, "Fragments Filtered on Unknown Sample Barcodes : %"PRIu64"\n", args.filtered_by_sample);
+        fprintf(args.report_fp, "Q30 bases in Cell Barcode : %.1f%%\n",args.bases_cell_barcode == 0 ? 0 : (float)args.q30_bases_cell_barcode/(args.bases_cell_barcode+1)*100);
+        fprintf(args.report_fp, "Q30 bases in Sample Barcode : %.1f%%\n", args.bases_sample_barcode == 0 ? 0 : (float)args.q30_bases_sample_barcode/(args.bases_sample_barcode+1)*100);
+        fprintf(args.report_fp, "Q30 bases in UMI : %.1f%%\n", args.bases_umi == 0 ? 0 : (float)args.q30_bases_umi/(args.bases_umi+1)*100);
+        fprintf(args.report_fp, "Q30 bases in Reads : %.1f%%\n", (float)args.q30_bases_reads/(args.bases_reads+1)*100);
+        
+        fclose(args.report_fp);
+    }
 }
 void full_details()
 {
@@ -1178,7 +1215,7 @@ static int parse_args(int argc, char **argv)
         args.report_fp = fopen(args.report_fname, "w");
         CHECK_EMPTY(args.report_fp, "%s : %s.", args.report_fname, strerror(errno));
     }
-    else args.report_fp=stderr; //error("-report must be set.");
+    else args.report_fp=NULL;
 
     if (args.out1_fname) {
         args.out1_fp = fopen(args.out1_fname, "w");
