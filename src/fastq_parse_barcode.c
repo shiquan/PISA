@@ -1215,7 +1215,6 @@ static int parse_args(int argc, char **argv)
         args.report_fp = fopen(args.report_fname, "w");
         CHECK_EMPTY(args.report_fp, "%s : %s.", args.report_fname, strerror(errno));
     }
-    else args.report_fp=NULL;
 
     if (args.out1_fname) {
         args.out1_fp = fopen(args.out1_fname, "w");
@@ -1295,6 +1294,7 @@ int fastq_prase_barcodes(int argc, char **argv)
     
     memory_release();
 
+    config_destory();
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());    
     return 0;
 }
