@@ -858,6 +858,7 @@ static void *run_it(void *_p, int idx)
             struct BRstat *read_stat = extract_reads(b, config.read_1, config.read_2);
             data->q30_bases_reads = read_stat->q30_bases;
             data->bases_reads = read_stat->bases;
+            free(read_stat);
             if (b->flag != FQ_FLAG_PASS) continue;
             
             if (opts->bgiseq_filter) {
