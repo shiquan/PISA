@@ -839,11 +839,16 @@ static void *run_it(void *_p, int idx)
                 hold
                 );
             
-            if (cell_stat == NULL || cell_stat->filter == 1) {
+            if (cell_stat == NULL) {
                 b->flag = FQ_FLAG_BC_FAILURE;
                 continue;
             }
-            
+
+            if (cell_stat->filter == 1) {
+                free(cell_stat);
+                b->flag = FQ_FLAG_BC_FAILURE;
+                continue;
+            }
             data->q30_bases_cell_barcode = cell_stat->q30_bases;
             data->bases_cell_barcode = cell_stat->bases;
             data->cr_exact_match = cell_stat->exact_match;
