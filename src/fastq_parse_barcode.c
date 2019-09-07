@@ -97,7 +97,6 @@ struct BarcodeRegion {
 };
 void BarcodeRegion_clean(struct BarcodeRegion *br)
 {
-    
     if (br->n_wl) {
         int k;
         for (k = 0; k < br->n_wl; ++k) free(br->white_list[k]);
@@ -373,7 +372,7 @@ static void config_init(const char *fn)
                 if (n1->type != KSON_TYPE_BRACE) error("Format error. \"cell barcode\":[{},{}]");
                 if (n1->n == 0) continue; // empty record
                 struct BarcodeRegion *br = &config.cell_barcodes[j];
-                
+                memset(br, 0, sizeof(struct BarcodeRegion));
                 int k;
                 for (k = 0; k < n1->n; ++k) {
                     const kson_node_t *n2 = kson_by_index(n1, k);
@@ -429,6 +428,7 @@ static void config_init(const char *fn)
             if (node->type != KSON_TYPE_BRACE) error("Format error. \"read 1\":{}");
             config.read_1 = malloc(sizeof(struct BarcodeRegion));
             struct BarcodeRegion *br = config.read_1;
+            memset(br, 0, sizeof(struct BarcodeRegion));
             const kson_node_t *n1 = kson_by_index(node, 0);
             if (n1 == NULL) error("read 1 location at config is empty.");
             if (strcmp(n1->key, "location") == 0) {
@@ -460,6 +460,7 @@ static void config_init(const char *fn)
             if (node->type != KSON_TYPE_BRACE) error("Format error. \"read 1\":{}");
             config.read_2 = malloc(sizeof(struct BarcodeRegion));
             struct BarcodeRegion *br = config.read_2;
+            memset(br, 0, sizeof(struct BarcodeRegion));
             const kson_node_t *n1 = kson_by_index(node, 0);
             if (n1 == NULL) error("read 2 location at config is empty.");
             if (strcmp(n1->key, "location") == 0) {
@@ -497,6 +498,7 @@ static void config_init(const char *fn)
             if (node->type != KSON_TYPE_BRACE) error("Format error. \"UMI\":{}");
             config.UMI = malloc(sizeof(struct BarcodeRegion));
             struct BarcodeRegion *br = config.UMI;
+            memset(br, 0, sizeof(*br));
             const kson_node_t *n1 = kson_by_index(node, 0);
             if (n1 == NULL) error("UMI location at config is empty.");
             if (strcmp(n1->key, "location") == 0) {
@@ -1095,25 +1097,27 @@ void report_write()
 }
 void full_details()
 {
-    LOG_print("Cell barcodes summary.");
-    int i, j, k;
-    for (i = 1; i < args.n_thread; ++i) {
-        for (j = 0; j < args.hold[i]->n; ++j) {
-            struct segment *s0 = args.hold[0]->seg[j];
-            struct segment *s1 = args.hold[i]->seg[j];
-            for (k = 0; k < s1->n; ++k) {
-                s0->counts[k].matched += s1->counts[k].matched;
-                s0->counts[k].corrected += s1->counts[k].corrected;
+    if (args.barcode_dis_fp) {
+        LOG_print("Cell barcodes summary.");
+        int i, j, k;
+        for (i = 1; i < args.n_thread; ++i) {
+            for (j = 0; j < args.hold[i]->n; ++j) {
+                struct segment *s0 = args.hold[0]->seg[j];
+                struct segment *s1 = args.hold[i]->seg[j];
+                for (k = 0; k < s1->n; ++k) {
+                    s0->counts[k].matched += s1->counts[k].matched;
+                    s0->counts[k].corrected += s1->counts[k].corrected;
+                }
             }
         }
+        for (i = 0; i < config.n_cell_barcode; ++i) {
+            struct BarcodeRegion *br = &config.cell_barcodes[i];
+            struct segment *s0 = args.hold[0]->seg[i];
+            fprintf(args.barcode_dis_fp, "# Read %d, %d-%d\n", br->rd, br->start, br->end);
+            for (j = 0; j < br->n_wl; ++j)
+                fprintf(args.barcode_dis_fp, "%s\t%"PRIu64"\t%"PRIu64"\n", br->white_list[j], s0->counts[j].matched, s0->counts[j].corrected);
+        }
     }
-    for (i = 0; i < config.n_cell_barcode; ++i) {
-        struct BarcodeRegion *br = &config.cell_barcodes[i];
-        struct segment *s0 = args.hold[0]->seg[i];
-        fprintf(args.barcode_dis_fp, "# Read %d, %d-%d\n", br->rd, br->start, br->end);
-        for (j = 0; j < br->n_wl; ++j)
-            fprintf(args.barcode_dis_fp, "%s\t%"PRIu64"\t%"PRIu64"\n", br->white_list[j], s0->counts[j].matched, s0->counts[j].corrected);
-    }    
 }
 static void memory_release()
 {
@@ -1241,9 +1245,6 @@ static int parse_args(int argc, char **argv)
         args.barcode_dis_fp = fopen(args.dis_fname, "w");
         CHECK_EMPTY(args.barcode_dis_fp, "%s : %s.", args.dis_fname, strerror(errno));
     }
-    else {
-        args.barcode_dis_fp = stderr;
-    }       
     
     return 0;
 }
