@@ -16,7 +16,7 @@ static int usage()
     fprintf(stderr, "Usage :\n  CountMatrix [options] aln.bam\n");
     fprintf(stderr, "Mandatory options :\n");
     fprintf(stderr, "    -tag        [CB]    Specify cell barcode tag.\n");
-    fprintf(stderr, "    -anno_tag   [GN]    Annotation attribute.\n");
+    fprintf(stderr, "    -anno-tag   [GN]    Annotation attribute.\n");
     fprintf(stderr, "    -list       [FILE]  Barcode list, white list, used as column names at matrix. If not set all barcodes will be count.\n");
     fprintf(stderr, "    -o          [FILE]  Output matrix.\n");
     fprintf(stderr, "    -umi        [UY]    UMI tag. Count once if more than one record has same UMI which overlapped with a region.\n");
@@ -75,7 +75,7 @@ static int parse_args(int argc, char **argv)
         const char **var = 0;
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         if (strcmp(a, "-tag") == 0) var = &args.tag;
-        else if (strcmp(a, "-anno_tag") == 0) var = &args.anno_tag;
+        else if (strcmp(a, "-anno-tag") == 0 || strcmp(a, "-anno_tag") == 0) var = &args.anno_tag;
         else if (strcmp(a, "-list") == 0) var = &args.whitelist_fname;
         else if (strcmp(a, "-umi") == 0) var = &args.umi_tag;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
