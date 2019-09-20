@@ -5,16 +5,20 @@
 
 int usage()
 {
-    fprintf(stderr, "\nSingleCellTools - Collection of tools to process single cell omics data.\n");
+    fprintf(stderr, "\nLISA - Collection of tools to process single cell omics data.\n");
     fprintf(stderr, "Version : %s + htslib : %s\n", SINGLECELL_VERSION, HTS_VERSION);
     fprintf(stderr, "\nCommands :\n");
     fprintf(stderr, "\n--- Processing FASTQ\n");
-    fprintf(stderr, "    parse      Parse cell barcode, sample barcode and UMI from fastq reads to read name.\n");
-    fprintf(stderr, "    trim       Trim TN5 mosic ends or polyAs.\n");
+    fprintf(stderr, "    parse      Parse barcodes and UMIs from fastq reads.\n");
+    // fprintf(stderr, "    trim       Trim TN5 mosic ends or polyAs.\n");
     fprintf(stderr, "    fsort      Sort fastq records by tags.\n");
+    fprintf(stderr, "    unitig     Construct unitigs by tags.\n");
+    fprintf(stderr, "    segment    Trim predefined segments from untigs.\n");
+
+    
     fprintf(stderr, "\n--- Processing BAM\n");
-    fprintf(stderr, "    sam2bam    Convert SAM format to BAM, and parse cell barcodes at read name.\n");
-    fprintf(stderr, "    rmdup      Remove PCR duplicates, consider cell barcodes and UMI tag.\n");
+    fprintf(stderr, "    sam2bam    Convert SAM to BAM, and transform tags from read name to standard SAM tags.\n");
+    fprintf(stderr, "    rmdup      Remove PCR duplicates, consider cell barcodes and UMI tags.\n");
     fprintf(stderr, "    pick       Pick alignments of specific cells.\n");
     fprintf(stderr, "    anno       Annotate peak or gene names into BAM attributions.\n");
     fprintf(stderr, "    corr       Correct low frequency UMI to close one, 1 mismatch considered.\n");
@@ -24,16 +28,16 @@ int usage()
     fprintf(stderr, "    bam2fq     Convert bam to fastq file. Select tags will be export at read name.\n");
     fprintf(stderr, "    genecov    Calculate reads coverage over gene body.\n");
     fprintf(stderr, "    bam2frag   Convert bam to bgzipped fragment file.\n");
-    fprintf(stderr, "\n--- Processing scLFR reads. *experimental*\n");
-    fprintf(stderr, "    assem      Assem reads per fastq block (specified with -tag, fastq need be sorted)\n");
-    fprintf(stderr, "    segment    Check predefined segments from reads.\n");
-    fprintf(stderr, "    segment2   Trim predefined segments from untigs.\n");
-    fprintf(stderr, "    unitig     Construct unitigs from LFR sorted blocks.\n");
-    fprintf(stderr, "    cleanup    Clean up reads before assembly.\n");
     fprintf(stderr, "    impute     Impute tags in BAM.\n");
+
+    
+    // fprintf(stderr, "\n--- Processing scLFR reads. *experimental*\n");
+    // fprintf(stderr, "    assem      Assem reads per fastq block (specified with -tag, fastq need be sorted)\n");
+    // fprintf(stderr, "    segment    Check predefined segments from reads.\n");
+    //fprintf(stderr, "    cleanup    Clean up reads before assembly.\n");   
     fprintf(stderr, "\n");
-    fprintf(stderr, "Author : Shi Quan [shiquan(AT)genomics.cn]\n");
-    fprintf(stderr, "Homepage : https://github.com/shiquan/SingleCellTools\n");
+    // fprintf(stderr, "Author : Shi Quan [shiquan(AT)genomics.cn]\n");
+    // fprintf(stderr, "Homepage : https://github.com/shiquan/SingleCellTools\n");
     return 1;
 }
 int main(int argc, char *argv[])
@@ -78,8 +82,8 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "bam2frag") == 0) return bam2frag(argc-1, argv+1);
     else if (strcmp(argv[1], "count") == 0) return count_matrix(argc-1, argv+1);
     else if (strcmp(argv[1], "assem") == 0)  return assem(argc-1, argv+1);
-    else if (strcmp(argv[1], "segment") == 0) return check_segment(argc-1, argv+1);
-    else if (strcmp(argv[1], "segment2") == 0) return check_segment2(argc-1, argv+1);
+    else if (strcmp(argv[1], "segment") == 0) return check_segment2(argc-1, argv+1);
+    // else if (strcmp(argv[1], "segment2") == 0) return check_segment2(argc-1, argv+1);
     else if (strcmp(argv[1], "cleanup") == 0) return LFR_cleanup(argc-1, argv+1);
     else if (strcmp(argv[1], "unitig") == 0) return LFR_unitig(argc-1, argv+1);
     else if (strcmp(argv[1], "impute") == 0) return LFR_impute(argc-1, argv+1);                    
