@@ -500,11 +500,12 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
     struct gtf_spec const *G = args.G;
     int i;
     for (i = 0; i < p->n; ++i) {
+        stat->reads_input++;
         bam1_t *b = &p->bam[i];
         bam1_core_t *c;
         c = &b->core;
         if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) continue;
-        
+        stat->reads_pass_qc++;
         char *name = h->target_name[c->tid];
         int endpos = bam_endpos(b);
 
@@ -531,7 +532,6 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
         
         // exon > intron > antisense
         struct gtf_lite const *g = &G->gtf[itr->st];
-        // debug_print("%s",args.G->gene_name->name[g->gene_name]);
         
         for (l = 0; l < itr->n; ++l) {            
             struct gtf_lite const *g0 = &g[l];
@@ -563,9 +563,7 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
             for (i = 0; i < g->n_son; ++i) {
                 struct gtf_lite const *g1 = &g0->son[i];
                 if (g1->type != feature_transcript) continue;
-                // debug_print("%s",args.G->transcript_id->name[g1->transcript_id]);
                 int ret = match_isoform(S, g1);
-                // debug_print("%d", ret);
                 if (ret == -2) continue;
                 if (ret == 2 || ret == 3) {
                     trans_novo = 1;
@@ -683,13 +681,13 @@ static void write_out(void *_d)
 void write_report()
 {
     if (args.B)
-        fprintf(args.fp_report, "Reads Mapped Confidently to Peaks : %.1f%%\n", (float)args.reads_in_peak/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Reads Mapped Confidently to Peaks,%.1f%%\n", (float)args.reads_in_peak/args.reads_pass_qc*100);
     else {
-        fprintf(args.fp_report, "Reads Mapped Confidently to Genome : %.1f%%\n", (float)args.reads_pass_qc/args.reads_input*100);
-        fprintf(args.fp_report, "Reads Mapped Confidently to Gene : %.1f%%\n", (float)args.reads_in_gene/args.reads_pass_qc*100);
-        fprintf(args.fp_report, "Reads Mapped Confidently to Exonic Regions: %.1f%%\n", (float)args.reads_in_exon/args.reads_pass_qc*100);
-        fprintf(args.fp_report, "Reads Mapped Confidently to Intronic Regions : %.1f%%\n", (float)args.reads_in_intron/args.reads_pass_qc*100);
-        fprintf(args.fp_report, "Reads Mapped Antisense to Gene : %.1f%%\n", (float)args.reads_antisense/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Reads Mapped Confidently to Genome,%.1f%%\n", (float)args.reads_pass_qc/args.reads_input*100);
+        fprintf(args.fp_report, "Reads Mapped Confidently to Gene,%.1f%%\n", (float)args.reads_in_gene/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Reads Mapped Confidently to Exonic Regions,%.1f%%\n", (float)args.reads_in_exon/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Reads Mapped Confidently to Intronic Regions,%.1f%%\n", (float)args.reads_in_intron/args.reads_pass_qc*100);
+        fprintf(args.fp_report, "Reads Mapped Antisense to Gene,%.1f%%\n", (float)args.reads_antisense/args.reads_pass_qc*100);
     }
 }
 static void memory_release()

@@ -22,18 +22,18 @@ static int usage()
     fprintf(stderr, " parse_barcode [options] lane1_1.fq.gz,lane02_1.fq.gz  lane1_2.fq.gz,lane2_2.fq.gz\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -1      [fastq]    Read 1 output.\n");
-    fprintf(stderr, "  -2      [fastq]    Read 2 output.\n");
-    fprintf(stderr, "  -config [txt]      Configure file in JSON format. Required.\n");
-    fprintf(stderr, "  -run    [string]   Run code, used for different library.\n");
-    fprintf(stderr, "  -cbdis  [txt]      Cell barcode sequence and count pairs.\n");
-    fprintf(stderr, "  -t      [INT]      Thread.\n");
-    fprintf(stderr, "  -r      [INT]      Records per chunk. [10000]\n");
-    fprintf(stderr, "  -report [txt]      Summary report.\n");
-    fprintf(stderr, "  -dis    [txt]      Barcode distribution count.\n");
-    fprintf(stderr, "  -f                 Filter reads based on BGISEQ standard (2 bases < q10 at first 15 bases).\n");
-    fprintf(stderr, "  -q      [INT]      Drop this read if average sequencing quality below this value.\n");
-    fprintf(stderr, "  -dropN             Drop the reads if N base in reads or UMI.\n");
+    fprintf(stderr, "  -1        Read 1 output.\n");
+    fprintf(stderr, "  -2        Read 2 output.\n");
+    fprintf(stderr, "  -config   Configure file in JSON format. Required.\n");
+    fprintf(stderr, "  -run      Run code, used for different library.\n");
+    fprintf(stderr, "  -cbdis    Cell barcode sequence and count pairs.\n");
+    fprintf(stderr, "  -t        Thread.\n");
+    fprintf(stderr, "  -r        Records per chunk. [10000]\n");
+    fprintf(stderr, "  -report   Summary report.\n");
+    fprintf(stderr, "  -dis      Barcode distribution count.\n");
+    fprintf(stderr, "  -f        Filter reads based on MGISEQ standard (2 bases < q10 at first 15 bases).\n");
+    fprintf(stderr, "  -q        Drop this read if average sequencing quality below this value.\n");
+    fprintf(stderr, "  -dropN    Drop the reads if N base in reads or UMI.\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -1081,16 +1081,16 @@ void cell_barcode_count_pair_write()
 void report_write()
 {
     if (args.report_fp) {
-        fprintf(args.report_fp, "Number of Fragments : %"PRIu64"\n", args.raw_reads);
-        fprintf(args.report_fp, "Fragments pass QC: %"PRIu64"\n", args.reads_pass_qc);
-        fprintf(args.report_fp, "Fragments with Exactly Matched Barcodes : %"PRIu64"\n", args.barcode_exactly_matched);
-        fprintf(args.report_fp, "Fragments with Failed Barcodes : %"PRIu64"\n", args.filtered_by_barcode);
-        fprintf(args.report_fp, "Fragments Filtered on Low Qulity : %"PRIu64"\n", args.filtered_by_lowqual);
-        fprintf(args.report_fp, "Fragments Filtered on Unknown Sample Barcodes : %"PRIu64"\n", args.filtered_by_sample);
-        fprintf(args.report_fp, "Q30 bases in Cell Barcode : %.1f%%\n",args.bases_cell_barcode == 0 ? 0 : (float)args.q30_bases_cell_barcode/(args.bases_cell_barcode+1)*100);
-        fprintf(args.report_fp, "Q30 bases in Sample Barcode : %.1f%%\n", args.bases_sample_barcode == 0 ? 0 : (float)args.q30_bases_sample_barcode/(args.bases_sample_barcode+1)*100);
-        fprintf(args.report_fp, "Q30 bases in UMI : %.1f%%\n", args.bases_umi == 0 ? 0 : (float)args.q30_bases_umi/(args.bases_umi+1)*100);
-        fprintf(args.report_fp, "Q30 bases in Reads : %.1f%%\n", (float)args.q30_bases_reads/(args.bases_reads+1)*100);
+        fprintf(args.report_fp, "Number of Fragments,%"PRIu64"\n", args.raw_reads);
+        fprintf(args.report_fp, "Fragments pass QC,%"PRIu64"\n", args.reads_pass_qc);
+        fprintf(args.report_fp, "Fragments with Exactly Matched Barcodes,%"PRIu64"\n", args.barcode_exactly_matched);
+        fprintf(args.report_fp, "Fragments with Failed Barcodes,%"PRIu64"\n", args.filtered_by_barcode);
+        fprintf(args.report_fp, "Fragments Filtered on Low Qulity,%"PRIu64"\n", args.filtered_by_lowqual);
+        fprintf(args.report_fp, "Fragments Filtered on Unknown Sample Barcodes,%"PRIu64"\n", args.filtered_by_sample);
+        fprintf(args.report_fp, "Q30 bases in Cell Barcode,%.1f%%\n",args.bases_cell_barcode == 0 ? 0 : (float)args.q30_bases_cell_barcode/(args.bases_cell_barcode+1)*100);
+        fprintf(args.report_fp, "Q30 bases in Sample Barcode,%.1f%%\n", args.bases_sample_barcode == 0 ? 0 : (float)args.q30_bases_sample_barcode/(args.bases_sample_barcode+1)*100);
+        fprintf(args.report_fp, "Q30 bases in UMI,%.1f%%\n", args.bases_umi == 0 ? 0 : (float)args.q30_bases_umi/(args.bases_umi+1)*100);
+        fprintf(args.report_fp, "Q30 bases in Reads,%.1f%%\n", (float)args.q30_bases_reads/(args.bases_reads+1)*100);
         
         fclose(args.report_fp);
     }
