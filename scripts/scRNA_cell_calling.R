@@ -34,7 +34,7 @@ if (is.null(opt$output)) {
 
 bc <- fread(opt$input,header=TRUE)
 bc <- as.data.frame(bc)
-bc <- subset(bc, bc$nUMI>0)
+bc <- subset(bc, bc$nUM>0)
 bc <- bc[order(bc$nUMI, decreasing=T),]
 len <- nrow(bc)
                                         #sor = sort(bc$nUMI, decreasing=T)

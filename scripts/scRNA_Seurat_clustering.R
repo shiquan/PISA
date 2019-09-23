@@ -23,18 +23,14 @@ if( !is.null(opt$help) || is.null(opt$input) || is.null(opt$expect)  ){
 ifelse(is.null(opt$output),opt$output<-getwd(),"")
 
 suppressMessages({
-cell <- fread(opt$input, header = T)
-cell <- as.data.frame(cell)
-names <- as.array(as.matrix(cell[1]))
-names = gsub("_", "-", names)
-rownames(cell) = names
-cell = cell[-1]
-names = gsub("-", "_", colnames(cell))
-colnames(cell) = names
+mtx <- as.data.frame(fread(paste("gzip -dc ",opt$input, sep=""),header=T))
+rownames(mtx) = mtx$ID
+mtx = mtx[,-1]
 
-z <- CreateSeuratObject(counts= cell, min.cells = 3, min.features = 200)
+z <- CreateSeuratObject(counts= mtx, min.cells = 3, min.features = 200)
+rm(mtx)
 z[["percent.mt"]] <- PercentageFeatureSet(z, pattern = "^mt-")
-z <- subset(z, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 3)
+z <- subset(z, subset = nFeature_RNA > 500 & percent.mt < 10)
 z <- NormalizeData(z)
 z <-FindVariableFeatures(z, selection.method = "vst", nfeatures = 2000)
 })
@@ -46,15 +42,6 @@ dev.off()
 suppressMessages({
 z <- NormalizeData(z)
 z <-FindVariableFeatures(z, selection.method = "vst", nfeatures = 2000)
-plot1 <- VariableFeaturePlot(z)
-top10 <- head(VariableFeatures(z), 10)
-plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
-})
-pdf(paste(opts$output,"/top10.pdf",sep=""))
-plot2
-dev.off()
-
-suppressMessages({
 all.genes <- rownames(z)
 z <- ScaleData(z, features = all.genes)
 z <- RunPCA(z, features = VariableFeatures(object = z))
@@ -62,6 +49,11 @@ z <- FindNeighbors(z, dims = 1:10)
 z <- FindClusters(z, resolution = 0.5)
 z <- RunUMAP(z, dims = 1:10)
 })
-pdf(paste(opts$output,"/RNA_clustering.pdf",sep=""))
-DimPlot(z, reduction = "umap")
-dev.off()
+
+cluster_ID=as.data.frame(Idents(object = z))
+cluster_cor= as.data.frame(Embeddings(object = z,reduction = "umap"))
+
+coor=cbind(cluster_ID,cluster_cor,z[['percent.mt']],z[['nCount_RNA']],z[['nFeature_RNA']])
+colnames(coor) = c("Cluster","UMAP_1","UMAP_2","percent.mt","nUMI","nGene")
+
+write.table(coor, file=paste(opt$output,"/cluster.csv",sep=""), sep=",",col.names=T)
