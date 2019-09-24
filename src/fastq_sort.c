@@ -16,7 +16,8 @@ static int usage()
     fprintf(stderr, "General options:\n");
     fprintf(stderr, " -tag         Tags, such as CB,UR. Order of these tags is sensitive.\n");
     fprintf(stderr, " -dedup       Remove dna copies with same tags. Only keep reads have the best quality.\n");
-    fprintf(stderr, " -list        White list for first tag, usually for cell barcodes.\n");
+    fprintf(stderr, " -report      Report reads counts and non-duplicates.\n");
+    // fprintf(stderr, " -list        White list for first tag, usually for cell barcodes.\n");
     fprintf(stderr, " -t           Threads.\n");
     fprintf(stderr, " -o           Output fastq.\n");
     fprintf(stderr, " -m           Memory per thread. [1G]\n");
@@ -34,6 +35,7 @@ static struct args {
     const char *list_fname;
     const char *output_fname;
     const char *prefix;
+    const char *report_fname;
     int dropN;    
     int n_thread;
     int dedup;
@@ -50,6 +52,7 @@ static struct args {
     .input_fname = NULL,
     .list_fname = NULL,
     .output_fname = NULL,
+    .report_fname = NULL,
     .prefix = NULL,
     .dropN = 0,
     .paired = 0,
@@ -82,6 +85,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-prefix") == 0) var = &args.prefix;
         else if (strcmp(a, "-m") == 0) var = &memory;
+        else if (strcmp(a, "-report") == 0) var = &args.report_fname;
         else if (strcmp(a, "-dropN") == 0) {
             args.dropN = 1;
             continue;
@@ -809,6 +813,13 @@ int fsort(int argc, char **argv)
         free(name);
         fclose(fp);
         fclose(out);
+        if (args.report_fname) {
+            FILE *re = fopen(args.report_fname, "w");
+            fprintf(re, "All reads,%d", args.read_counts);
+            fprintf(re, "Deduplicated reads,%d", args.nondup);
+            fclose(re);
+        }
+        
         LOG_print("All reads : %d", args.read_counts);
         LOG_print("Deduplicated reads : %d", args.nondup);
         fastq_idx_destroy(idx);
