@@ -318,6 +318,7 @@ void read_block_sort_by_name(struct read_block *r, struct dict *tag)
         char *name = query_tags(r->data+i, tag);
         if (name == NULL) error("Failed to parse names.");
         int id = dict_push(r->dict, name);
+        free(name);
         if (id >= r->m) {
             r->m = id+1;
             r->idx = realloc(r->idx, sizeof(struct record_offset)*r->m);
@@ -493,10 +494,56 @@ static void *run_it(void *d)
     struct fastq_node *n = fastq->n;
     read_block_sort_by_name(r, args.tags);
     n->idx = write_block_with_idx(n->fn, r);
-
+    read_block_destroy(r);
     return fastq;
 }
+struct read_info {
+    int offset;
+    int qual;
+};
+struct read_pool {
+    int n, m;
+    struct read_info *inf;
+};
+struct fastq_dedup_pool {
+    struct dict *dict;
+    int n, m;
+    struct read_pool *reads;
+    int paired;
+    int read_counts;
+    int duplicates;
+    int l_buf;
+    char *buf;    
+};
+/*
+static void *dedup_it(void *d)
+{
+    struct fastq_dedup_pool *p = (struct fastq_dedup_pool*)d;
+    int i;
+    char x[10];
+    int start;
+    for (i = 0; i < p->l_buf;) {
+        start = i;
+        int qual = 0;
+        if (p->buf[i] != '@')
+            error("Can only use -dedup with fastq file.");
 
+        for (;p->buf[i] != '\n') { i++;} // read name
+        i++;
+        memcpy(x, p->buf+i, 10);
+        int id;
+        id = dict_push(p->dict, x);
+
+        // push 
+        if (id >= p->m) {
+            p->reads = realloc(p->reads, sizeof(struct read_pool)*p->m);
+            for (p->n; p->n < p->m; ++p->n)
+                memset(&p->reads[p->n], 0, sizeof(struct read_pool));
+        }
+        
+    }
+}
+*/
 static const int max_file_open = 100;
 
 int fsort(int argc, char **argv)
@@ -579,7 +626,7 @@ int fsort(int argc, char **argv)
     char *name = strdup(args.output_fname);
     struct fastq_idx *idx = merge_files(fastqs, n_file, name);
     fastq_idx_destroy(idx);    
-    
+    free(name);
     // dedup
     
     free(fastqs);
