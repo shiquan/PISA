@@ -21,7 +21,7 @@ static int usage()
     fprintf(stderr, " -o           Output fastq.\n");
     fprintf(stderr, " -m           Memory per thread. [1G]\n");
     fprintf(stderr, " -p           Input fastq is smart pairing.\n");
-    fprintf(stderr, " -T PREFIX    Write temporary files to PREFIX.nnnn.fq\n");
+    fprintf(stderr, " -T PREFIX    Write temporary files to PREFIX.nnnn.tmp\n");
     // fprintf(stderr, " -dropN       Drop if N found in tags.\n");
     fprintf(stderr, "\n");
     return 1;
@@ -44,6 +44,8 @@ static struct args {
     FILE *out;
     FILE *fp_in;
     struct dict *bcodes;
+    int read_counts;
+    int nondup;
 } args = {
     .input_fname = NULL,
     .list_fname = NULL,
@@ -58,6 +60,8 @@ static struct args {
     .out = NULL,
     .fp_in = NULL,
     .bcodes = NULL,
+    .read_counts = 0,
+    .nondup = 0,
 };
 
 static int parse_args(int argc, char **argv)
@@ -391,11 +395,13 @@ int fastq_merge_core(struct fastq_node **node, int n_node, FILE *fp)
 {
     int n = n_node;
     char *name = node[0]->name;
+    if (name == NULL) return 0;
+    
     int i;
     for (i = 0; i < n; ++i) {
         struct fastq_node *d = node[i];
 
-        if (d == NULL || d->name == NULL) {
+        if (d->name == NULL) {
             n=i; // emit all empty handler
             break;
         }
@@ -500,52 +506,181 @@ static void *run_it(void *d)
 struct read_info {
     int offset;
     int qual;
+    int skip;
 };
-struct read_pool {
+struct read_info_pool {
     int n, m;
     struct read_info *inf;
+    int offset; // best record in this pool
+    int qual;
+    int skip;
 };
 struct fastq_dedup_pool {
     struct dict *dict;
     int n, m;
-    struct read_pool *reads;
+    struct read_info_pool *reads;
     int paired;
     int read_counts;
-    int duplicates;
+    int nondup;
     int l_buf;
     char *buf;    
 };
-/*
-static void *dedup_it(void *d)
+
+void fastq_dedup_pool_destroy(struct fastq_dedup_pool *p)
 {
-    struct fastq_dedup_pool *p = (struct fastq_dedup_pool*)d;
+    dict_destroy(p->dict);
     int i;
-    char x[10];
+    for (i = 0; i < p->n; ++i) free(p->reads[i].inf);
+    free(p->reads);
+    free(p->buf);
+    free(p);
+}
+static int check_similar_sequences(char *s1, char *s2, int m)
+{
+    int l1 = strlen(s1);
+    int l2 = strlen(s2);
+    if (l1 != l2) error("Inconsitant read length");
+    int i;
+    int e = 0;
+    for (i = 0; i < l1; ++i) {
+        if (s1[i] != s2[i])  e++;
+        if (e > m) return 1;
+    }
+    return 0;
+}
+static struct fastq_dedup_pool *dedup_it(struct fastq_dedup_pool *p)
+{
+    // struct fastq_dedup_pool *p = (struct fastq_dedup_pool*)d;
+    int i;
+    kstring_t str = {0,0,0};
     int start;
+    
     for (i = 0; i < p->l_buf;) {
         start = i;
-        int qual = 0;
-        if (p->buf[i] != '@')
-            error("Can only use -dedup with fastq file.");
+        str.l = 0;
 
-        for (;p->buf[i] != '\n') { i++;} // read name
+        if (p->buf[i] != '@')
+            error("Can only use -dedup with fastq file. %s", p->buf+i);
+
+        for (; p->buf[i] != '\n'; i++) { } // read name
         i++;
-        memcpy(x, p->buf+i, 10);
+        int j = i;
+        for (; p->buf[i] != '\n'; i++) { } // sequence
+        kputsn(p->buf+j, i-j, &str);
+        kputs("", &str);
+        i++;
+        
+        if (p->buf[i] != '+') error("Error format, %s, %s", p->buf, str.s);
+        for (; p->buf[i] != '\n'; i++) { } // qual name
+        i++;
+        
+        int qual = 0;
+        for (;p->buf[i] != '\n'; i++) {
+            qual += p->buf[i] -33;
+        }
+        // end of this record
+        p->buf[i] = '\0';
+        i++; // now point to next record
+
         int id;
-        id = dict_push(p->dict, x);
+        id = dict_push(p->dict, str.s);
 
         // push 
         if (id >= p->m) {
-            p->reads = realloc(p->reads, sizeof(struct read_pool)*p->m);
-            for (p->n; p->n < p->m; ++p->n)
-                memset(&p->reads[p->n], 0, sizeof(struct read_pool));
+            p->m = id+1;
+            p->reads = realloc(p->reads, sizeof(struct read_info_pool)*p->m);
+            for (; p->n < p->m; ++p->n)
+                memset(&p->reads[p->n], 0, sizeof(struct read_info_pool));
         }
-        
+
+        struct read_info_pool *r = &p->reads[id];
+        if (r->n == r->m) {
+            r->m = r->m == 0 ? 4 : r->m*2;
+            r->inf = realloc(r->inf,r->m*sizeof(struct read_info));
+        }
+        struct read_info *inf = &r->inf[r->n];
+        memset(inf, 0, sizeof(struct read_info));
+        inf->offset = start;
+        inf->qual = qual;
+        r->n++;
     }
+
+    for (i = 0; i < p->n; ++i) { // update best record in each pool
+        struct read_info_pool *r = &p->reads[i];
+        int j;
+        for (j = 0; j < r->n; ++j) {
+            if (r->qual < r->inf[j].qual) {
+                r->qual = r->inf[j].qual;
+                r->offset = r->inf[j].offset;
+            }            
+        }
+    }
+    char **names = dict_names(p->dict);
+    for (i = 0; i < p->n; ++i) {
+        struct read_info_pool *r1 = &p->reads[i];
+        if (r1->skip == 1) continue;
+        char *rd1 = names[i];
+        int j;
+        for (j = i +1; j < p->n; ++j) {
+            struct read_info_pool *r2 = &p->reads[j];
+            if (r2->skip ==1) continue;
+            char *rd2 = names[j];
+            if (check_similar_sequences(rd1, rd2, 3) == 0) {
+                if (r1->n > r2->n) {
+                    r2->skip = 1;
+                }
+                else if (r1->n == r2->n) {
+                    if (r1->qual > r2->qual) r2->skip = 1;
+                    else r1->skip = 1;
+                }
+                else {
+                    r1->skip =1;
+                }
+            }
+
+            if (r1->skip) break;
+        }
+    }
+    
+    // kstring_t str={0,0,0};
+    str.l = 0;
+    for (i = 0; i < p->n; ++i) {
+        struct read_info_pool *r = &p->reads[i];
+        p->read_counts += r->n;
+        if (r->skip == 1) continue;
+        p->nondup++;
+        kputs(p->buf+r->offset, &str);
+        kputc('\n', &str);
+    }
+
+    char *temp = p->buf;
+    p->buf = str.s;
+    p->l_buf = str.l;
+    free(temp);
+
+    return p;
 }
-*/
+
+void *dedup_str(void *_s)
+{
+    char *s = (char *)_s;
+    struct fastq_dedup_pool *p = malloc(sizeof(*p));
+    memset(p, 0, sizeof(*p));
+    p->dict = dict_init();
+    p->buf = s;
+    p->l_buf = strlen(s);
+    return dedup_it(p);
+}
+
 static const int max_file_open = 100;
 
+void dedup_write(struct fastq_dedup_pool *dp, FILE *out)
+{
+    fputs(dp->buf, out);
+    args.read_counts += dp->read_counts;
+    args.nondup += dp->nondup;
+    fastq_dedup_pool_destroy(dp);
+}
 int fsort(int argc, char **argv)
 {
     double t_real;
@@ -569,7 +704,7 @@ int fsort(int argc, char **argv)
 
         if (n_file >= 100) {
             char *name = calloc(strlen(args.prefix)+20,1);
-            sprintf(name, "%s.%.4d.fq", args.prefix, i_name);
+            sprintf(name, "%s.%.4d.tmp", args.prefix, i_name);
             i_name++;
 
             // finished all files
@@ -593,7 +728,7 @@ int fsort(int argc, char **argv)
         n_file++;
 
         char *name = calloc(strlen(args.prefix)+20,1);
-        sprintf(name, "%s.%.4d.fq", args.prefix, i_name);
+        sprintf(name, "%s.%.4d.tmp", args.prefix, i_name);
         i_name++;
 
         stream->r = b;
@@ -623,15 +758,69 @@ int fsort(int argc, char **argv)
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(pool);
 
-    char *name = strdup(args.output_fname);
-    struct fastq_idx *idx = merge_files(fastqs, n_file, name);
-    fastq_idx_destroy(idx);    
-    free(name);
-    // dedup
     
+    if (args.dedup) {
+        char *name = calloc(strlen(args.prefix)+20,1);
+        sprintf(name, "%s.all.tmp", args.prefix);
+        struct fastq_idx *idx = merge_files(fastqs, n_file, name);
+        
+        FILE *fp = fopen(name, "r");
+        if (fp == NULL)
+            error("%s : %s.", args.output_fname, strerror(errno));
+        FILE *out = fopen(args.output_fname, "w");
+        if (out == NULL) error("%s : %s.", args.output_fname, strerror(errno));
+
+        hts_tpool *pool = hts_tpool_init(args.n_thread);
+        hts_tpool_process *q = hts_tpool_process_init(pool, args.n_thread*2, 0);
+        hts_tpool_result *r;
+
+        int i;
+        long int offset = 0;
+        for (i = 0; i < idx->n; ++i) {
+            int l = idx->offset[i] - offset;
+            offset = idx->offset[i];
+            char *buf = malloc(l+1);
+            fread(buf, 1, l, fp);
+            buf[l] = '\0';
+
+            int block;
+            do {
+                block = hts_tpool_dispatch2(pool, q, dedup_str, buf, 1);
+                if ((r = hts_tpool_next_result(q))) {
+                    struct fastq_dedup_pool *dp = (struct fastq_dedup_pool*)hts_tpool_result_data(r);
+                    dedup_write(dp, out);
+                    hts_tpool_delete_result(r, 0);
+                }
+            }
+            while (block == -1);
+        }
+        
+        hts_tpool_process_flush(q);
+        
+        while ((r = hts_tpool_next_result(q))) {
+            struct fastq_dedup_pool *dp = (struct fastq_dedup_pool*)hts_tpool_result_data(r);
+            dedup_write(dp, out);
+            hts_tpool_delete_result(r, 0);
+        }
+        hts_tpool_process_destroy(q);
+        hts_tpool_destroy(pool);
+        
+        unlink(name);
+        free(name);
+        fclose(fp);
+        fclose(out);
+        LOG_print("All reads : %d", args.read_counts);
+        LOG_print("Deduplicated reads : %d", args.nondup);
+        fastq_idx_destroy(idx);
+    }
+    else {
+        char *name = strdup(args.output_fname);
+        struct fastq_idx *idx = merge_files(fastqs, n_file, name);
+        free(name);
+        fastq_idx_destroy(idx);
+    }
+
     free(fastqs);
-
-
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
 
     return 0;
