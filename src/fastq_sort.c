@@ -523,7 +523,7 @@ struct fastq_dedup_pool {
     struct dict *dict;
     int n, m;
     struct read_info_pool *reads;
-    int paired;
+    // int paired;
     int read_counts;
     int nondup;
     int l_buf;
@@ -581,6 +581,27 @@ static struct fastq_dedup_pool *dedup_it(struct fastq_dedup_pool *p)
         int qual = 0;
         for (;p->buf[i] != '\n'; i++) {
             qual += p->buf[i] -33;
+        }
+
+        if (args.paired) {
+            i++;
+            if (p->buf[i] != '@')
+                error("Do not looks like a paired reads. %s", p->buf+i);
+            for (; p->buf[i] != '\n'; i++) { } // read name
+            i++;
+            int j = i;
+            for (; p->buf[i] != '\n'; i++) { } // sequence
+            kputsn(p->buf+j, i-j, &str);
+            kputs("", &str);
+            i++;
+            
+            if (p->buf[i] != '+') error("Error format, %s, %s", p->buf, str.s);
+            for (; p->buf[i] != '\n'; i++) { } // qual name
+            i++;
+            
+            for (;p->buf[i] != '\n'; i++) {
+                qual += p->buf[i] -33;
+            }
         }
         // end of this record
         p->buf[i] = '\0';
