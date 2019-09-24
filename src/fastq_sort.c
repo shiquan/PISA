@@ -193,8 +193,6 @@ void fastq_node_clean(struct fastq_node *n)
     fastq_idx_destroy(n->idx);
     if (n->m) free(n->buf);
     memset(n, 0, sizeof(*n));
-    //free(n);
-    // n = NULL;
 }
 
 struct fastq_stream {
@@ -398,8 +396,8 @@ static int merge_cmp(const void *a, const void *b)
 int fastq_merge_core(struct fastq_node **node, int n_node, FILE *fp)
 {
     int n = n_node;
-    char *name = node[0]->name;
-    if (name == NULL) return 0;
+    if (node[0]->name == NULL) return 0;
+    char *name = strdup(node[0]->name);
     
     int i;
     for (i = 0; i < n; ++i) {
@@ -409,7 +407,7 @@ int fastq_merge_core(struct fastq_node **node, int n_node, FILE *fp)
             n=i; // emit all empty handler
             break;
         }
-            
+
         if (strcmp(name, d->name) == 0) {
             d->buf[d->n] = '\0';
             fputs(d->buf, fp);
@@ -419,7 +417,6 @@ int fastq_merge_core(struct fastq_node **node, int n_node, FILE *fp)
                 unlink(d->fn);
                 LOG_print("Unlink %s", d->fn);
                 fastq_node_clean(d);
-                // debug_print("%p", d);
             }
             else {
                 int l;
@@ -438,6 +435,7 @@ int fastq_merge_core(struct fastq_node **node, int n_node, FILE *fp)
         }
         else break;
     }
+    free(name);
     return n;
 }
 struct fastq_idx *fastq_merge(struct fastq_node **node, int n_node, const char *fn)
@@ -586,7 +584,7 @@ static struct fastq_dedup_pool *dedup_it(struct fastq_dedup_pool *p)
         if (args.paired) {
             i++;
             if (p->buf[i] != '@')
-                error("Do not looks like a paired reads. %s", p->buf+i);
+                error("You sure it is a paired read ? %s", p->buf+i);
             for (; p->buf[i] != '\n'; i++) { } // read name
             i++;
             int j = i;

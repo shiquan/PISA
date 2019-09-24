@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "assem") == 0)  return assem(argc-1, argv+1);
     else if (strcmp(argv[1], "segment") == 0) return check_segment2(argc-1, argv+1);
     // else if (strcmp(argv[1], "segment2") == 0) return check_segment2(argc-1, argv+1);
-    else if (strcmp(argv[1], "cleanup") == 0) return LFR_cleanup(argc-1, argv+1);
+    //else if (strcmp(argv[1], "cleanup") == 0) return LFR_cleanup(argc-1, argv+1);
     else if (strcmp(argv[1], "unitig") == 0) return LFR_unitig(argc-1, argv+1);
     else if (strcmp(argv[1], "impute") == 0) return LFR_impute(argc-1, argv+1);                    
     else return usage();
