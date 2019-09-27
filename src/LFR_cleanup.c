@@ -198,9 +198,9 @@ int LFR_cleanup(int argc, char **argv)
     return 0;
 }
 
-/*
+
 int main(int argc, char **argv)
 {
     return LFR_cleanup(argc, argv);
 }
-*/
+

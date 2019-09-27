@@ -28,7 +28,7 @@ static int usage()
     return 1;
 }
 
-#define MIN_MEM_PER_THREAD  100 // 10M
+#define MIN_MEM_PER_THREAD  10000000 // 10M
 
 static struct args {
     const char *input_fname;
