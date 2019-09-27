@@ -82,6 +82,7 @@ static int parse_args(int argc, char **argv)
         if (args.out == NULL) error("%s : %s.", args.output_fname, strerror(errno));
     }
     else args.out = stdout;
+    
     const char *ME = "CTGTCTCTTATACACATCT";
     args.me_enc = nt4_enc(ME,19);
     args.rev_enc = rev_enc(args.me_enc, 19);
@@ -109,8 +110,9 @@ char *trim_ends(struct bseq_pool *p)
         l = check_overlap(b->l1, 19, b->s1, args.rev_enc);
         if (l != -1) continue;
         
-        l = check_overlap(b->l0, 19, b->s0, args.me_enc);        
-        if (l == -1) {
+        int l1 = check_overlap(b->l0, 19, b->s0, args.me_enc);
+        int l2 = check_overlap(b->l1, 19, b->s1, args.me_enc);
+        if (l1 == -1 && l2 == -1) {
             char *s, *q;
             if (merge_paired(b->l0, b->l1, b->s0, b->s1, b->q0, b->q1, &s, &q) == 0) {
                 kputc('@', &str);
@@ -131,6 +133,7 @@ char *trim_ends(struct bseq_pool *p)
             }
         }
         else {
+            l = l1 < l2 ? l1 : l2;
             if (l < 40) continue; // to short;
             //char *s0 = b->s0;
             // char *s1 = b->s1 + (b->l1 - l);
