@@ -1,4 +1,4 @@
-PROG= LISA
+PROG= PISA
 
 all: $(PROG)
 
@@ -70,7 +70,7 @@ libfml.a: $(ASSM_LIB_OBJ)
 
 test: $(HTSLIB) version.h
 
-LISA: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h libfml.a libz
+PISA: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h libfml.a libz
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) fermi-lite/libfml.a  src/liba.a $(HTSLIB) zlib-1.2.11/libz.a $(LIBS)
 
 src/fragment.o: src/fragment.c
