@@ -406,48 +406,38 @@ int levenshtein(char *a, char *b, int l) {
     free(cache);    
     return result;
 }
-char **fastq_name_pick_tags(char *name, int n, char **tags)
+char **fastq_name_pick_tags(char *p, struct dict *dict)
 {
     int l;
-    l = strlen(name);
-    int i = 0, j = 0, k;
-    char key[2];
-    char **vals = malloc(n*sizeof(char*));
-    memset(vals, 0, n*sizeof(char*));
-    for (;;) {
-        while (i < l-3 && name[i++] != '|');
-        if (i >= l-3) break;
-        if (name[i] == '|' && name[i+1] == '|') {
-            i+= 2;
-            key[0] = name[i++];
-            key[1] = name[i++];
-            for (k = 0; k < n; ++k) {
-                if (key[0] == tags[k][0] && key[1] == tags[k][1]) break;
-            }
-            i+=3; // skip '|||'
+    l = strlen(p);
+    char key[3];
+    char **vals = malloc(dict_size(dict)*sizeof(char*));
+    memset(vals, 0, dict_size(dict)*sizeof(char*));
+    int i;
+    for (i = 0; i < l-7; ) {
+        if (p[i] == '|' && p[i+1] == '|' && p[i+2] == '|') {
+            i += 3;
+            key[0] = p[i++];
+            key[1] = p[i++];
+            key[2] = '\0';
+            if (p[i++] != ':') continue;
 
-            // skip this key|||value tag
-            if (k == n) continue;
-            int m =0;
-            kstring_t str = {0,0,0};
-            char *p = name+i;
-            while (i < l && name[i++] != '|') m++;
-            kputsn(p, m, &str); kputs("", &str);
-            vals[k] = str.s;
-            j++;
-            i--; // 1 pos ahead
+            int id = dict_query(dict, key);
+            if (id == -1) continue;
+            // todo: check type
+            i++; // skip flag
+            if (i >= l) break;
+            if (p[i++] != ':') continue;
+            int j = i;
+            for (;i<l && p[i] != '|';) ++i;
+            kstring_t val ={0,0,0};
+            kputsn(p+j, i-j, &val);
+            kputs("", &val);
+            vals[id] = val.s;
         }
-        if (j == n) break;
     }
-    if (j < n) { // not all tags found, return NULL
-        for (i = 0; i < n; ++i) {
-            if (vals[i]) free(vals[i]);
-        }
-        free(vals);
-        return NULL;
-    }
-    return vals;
-    
+
+    return vals;    
 }
 
 static char *reverse_seq(char *s, int l)

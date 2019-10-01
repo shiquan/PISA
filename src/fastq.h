@@ -2,6 +2,7 @@
 #define FASTQ_H
 
 #include "utils.h"
+#include "dict.h"
 #include<zlib.h>
 
 struct qc_report {
@@ -72,5 +73,5 @@ extern void fastq_handler_destory(struct fastq_handler *h);
 extern void bseq_pool_push(struct bseq *b, struct bseq_pool *p);
 extern int levenshtein(char *a, char *b, int l);
 extern int bseq_pool_dedup(struct bseq_pool *p);
-extern char **fastq_name_pick_tags(char *name, int n, char **tags);
+extern char **fastq_name_pick_tags(char *name, struct dict *dict);
 #endif

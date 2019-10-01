@@ -64,8 +64,7 @@ static void assem_opt_init(fml_opt_t *opt)
 static struct args {
     const char *input_fname;
     const char *output_fname;
-    int n_tag;
-    char **tags;    
+    struct dict *tag_dict;
     int pair;
     int min_ovlp;
     int n_thread;
@@ -84,8 +83,8 @@ static struct args {
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
-    .n_tag = 0,
-    .tags = NULL,
+    .tag_dict = NULL,
+
     .pair = 0,
     .min_ovlp = 10,
     .n_thread = 1,
@@ -164,9 +163,11 @@ static int parse_args(int argc, char **argv)
     kputs(tags, &str);
     int n;
     int *s = ksplit(&str, ',', &n);
-    args.n_tag = n;
-    args.tags = malloc(n*sizeof(char*));
-    for (i = 0; i <n; ++i) args.tags[i] = strdup(str.s+s[i]);
+    args.tag_dict = dict_init();
+    
+    //args.n_tag = n;
+    //args.tags = malloc(n*sizeof(char*));
+    for (i = 0; i <n; ++i) dict_push(args.tag_dict,str.s+s[i]);
     free(s); free(str.s);
 
     if (thread) args.n_thread = str2int((char*)thread);
@@ -205,12 +206,9 @@ static char *generate_names(char **names)
 {
     kstring_t str = {0,0,0};
     int i;
-    for (i = 0; i < args.n_tag; ++i) kputs(names[i], &str);
-    for (i = 0; i < args.n_tag; ++i) {
-        kputs("|||", &str);
-        kputs(args.tags[i], &str);
-        kputs("|||", &str);
-        kputs(names[i], &str);
+    for (i = 0; i < dict_size(args.tag_dict); ++i) {
+        if (names[i] == NULL) continue;
+        kputs(names[i],&str);
     }
     return str.s;
 }
@@ -241,10 +239,12 @@ static struct read_block *read_block()
             b->b = realloc(b->b, sizeof(bseq1_t)*b->m);
         }
 
-        char **name = fastq_name_pick_tags(args.ks->name.s, args.n_tag, args.tags);
+        char **name = fastq_name_pick_tags(args.ks->name.s, args.tag_dict);
         char *n = generate_names(name);
         int i;
-        for (i = 0; i <args.n_tag; ++i) free(name[i]);
+        for (i = 0; i <dict_size(args.tag_dict); ++i) {
+            if (name[i]) free(name[i]);
+        }
         free(name);
         if (b->name == NULL) b->name = strdup(n);
         // if (args.last_name == NULL) args.last_name = strdup(n); // first line
@@ -440,7 +440,7 @@ int64_t bwt_retrieve(const rld_t *e, uint64_t x, kstring_t *s)
 struct rld_t *fmi_gen2(struct base_v *v)
 {
     mrope_t *mr;
-    kstring_t str = {0,0,0};
+    //kstring_t str = {0,0,0};
     mritr_t itr;
     rlditr_t di;
     const uint8_t *block;
@@ -499,9 +499,9 @@ static void *run_it(void *_d)
         uint64_t n;
         uint64_t st = 0, ed = 0;
         n = bwt_backward_search(e, args.l_seed, args.seed, &st, &ed);
-        if (n != 0) has_seed = 1;
-        if (check_polyTs(e, 10) == 0) has_poly = 1;
-        if (has_seed == 0 && has_poly == 0) goto empty_block;
+        // if (n != 0) has_seed = 1;
+        // if (check_polyTs(e, 10) == 0) has_poly = 1;
+        if (n == 0) goto empty_block;
     }
 
     struct ret_block *r = ret_block_build();

@@ -16,6 +16,7 @@ static int usage()
     fprintf(stderr, "General options:\n");
     fprintf(stderr, " -tag         Tags, such as CB,UR. Order of these tags is sensitive.\n");
     fprintf(stderr, " -dedup       Remove dna copies with same tags. Only keep reads have the best quality.\n");
+    fprintf(stderr, " -dup-tag     If -dedup set, duplicated number will be record with this tag name.[DU]\n");
     fprintf(stderr, " -report      Report reads counts and non-duplicates.\n");
     // fprintf(stderr, " -list        White list for first tag, usually for cell barcodes.\n");
     fprintf(stderr, " -t           Threads.\n");
@@ -39,6 +40,7 @@ static struct args {
     int dropN;    
     int n_thread;
     int dedup;
+    const char *dup_tag;
     int paired;
     int check_list;
     int mem_per_thread;
@@ -57,6 +59,7 @@ static struct args {
     .dropN = 0,
     .paired = 0,
     .dedup = 0,
+    .dup_tag = "DU",
     .mem_per_thread = 1000000000, // 1G
     .tags = NULL,
     .check_list = 0,
@@ -94,6 +97,7 @@ static int parse_args(int argc, char **argv)
             args.dedup = 1;
             continue;
         }
+        else if (strcmp(a, "-dup-tag") == 0) var = &args.dup_tag;
         else if (strcmp(a, "-p") == 0) {
             args.paired = 1;
             continue;
@@ -322,7 +326,7 @@ void read_block_sort_by_name(struct read_block *r, struct dict *tag)
     int i;
     for (i = 0; i < r->max; ) {
         char *name = query_tags(r->data+i, tag);
-        if (name == NULL) error("Failed to parse names.");
+        if (name == NULL) error("No tag found at %s", r->data+i);
         int id = dict_push(r->dict, name);
         free(name);
         if (id >= r->m) {
@@ -515,7 +519,7 @@ struct read_info_pool {
     struct read_info *inf;
     int offset; // best record in this pool
     int qual;
-    int skip;
+    int dup; // -1 for skip, otherwise for duplicated records
 };
 struct fastq_dedup_pool {
     struct dict *dict;
@@ -635,33 +639,42 @@ static struct fastq_dedup_pool *dedup_it(struct fastq_dedup_pool *p)
             if (r->qual < r->inf[j].qual) {
                 r->qual = r->inf[j].qual;
                 r->offset = r->inf[j].offset;
+                r->dup = 1;
             }            
         }
     }
     char **names = dict_names(p->dict);
     for (i = 0; i < p->n; ++i) {
         struct read_info_pool *r1 = &p->reads[i];
-        if (r1->skip == 1) continue;
+        if (r1->dup == -1) continue;
         char *rd1 = names[i];
         int j;
         for (j = i +1; j < p->n; ++j) {
             struct read_info_pool *r2 = &p->reads[j];
-            if (r2->skip ==1) continue;
+            if (r2->dup ==-1) continue;
             char *rd2 = names[j];
             if (check_similar_sequences(rd1, rd2, 3) == 0) {
                 if (r1->n > r2->n) {
-                    r2->skip = 1;
+                    r1->dup += r2->dup;
+                    r2->dup = -1;
                 }
                 else if (r1->n == r2->n) {
-                    if (r1->qual > r2->qual) r2->skip = 1;
-                    else r1->skip = 1;
+                    if (r1->qual > r2->qual) {
+                        r1->dup += r2->dup;
+                        r2->dup = -1;
+                    }
+                    else {
+                        r2->dup += r1->dup;
+                        r1->dup = -1;
+                    }
                 }
                 else {
-                    r1->skip =1;
+                    r2->dup += r1->dup;
+                    r1->dup =-1;
                 }
             }
 
-            if (r1->skip) break;
+            if (r1->dup == -1) break;
         }
     }
     
@@ -670,10 +683,16 @@ static struct fastq_dedup_pool *dedup_it(struct fastq_dedup_pool *p)
     for (i = 0; i < p->n; ++i) {
         struct read_info_pool *r = &p->reads[i];
         p->read_counts += r->n;
-        if (r->skip == 1) continue;
+        if (r->dup == -1) continue;
         p->nondup++;
-        kputs(p->buf+r->offset, &str);
+        int k;
+        for (k = r->offset; p->buf[k] != '\n'; ++k) kputc(p->buf[k], &str);
+        kstring_t temp = {0,0,0};
+        ksprintf(&temp,"|||%s:i:%d",args.dup_tag, r->dup);
+        kputs(temp.s, &str);
+        kputs(p->buf+k, &str);
         kputc('\n', &str);
+        free(temp.s);
     }
 
     char *temp = p->buf;
