@@ -97,19 +97,43 @@ static void write_out(void *_data)
         free(s);
     }
 }
+int is_low_qual(char *s, int l)
+{
+    int i;
+    for (i = 0; i < l; ++i)
+        if (s[i] == 'N') return 0;
+
+    return 1;
+}
+int is_simply_seq(char *s, int l)
+{
+    // int l;
+    // l = strlen(s);
+    // assert(l>0);
+    char a = s[0];
+    int i;
+    for (i = 1; i < l; ++i)
+        if (a != s[i]) return 1;
+    return 0;
+}
 char *trim_ends(struct bseq_pool *p)
 {
     kstring_t str = {0,0,0};
     int i;
     for (i = 0; i < p->n; ++i) {
         struct bseq *b = &p->s[i];
+        if (is_simply_seq(b->s0, b->l0) == 0) continue;
+        if (is_simply_seq(b->s1, b->l1) == 0) continue;
+        if (is_low_qual(b->s0, b->l0) == 0) continue;
+        if (is_low_qual(b->s1, b->l1) == 0) continue;
         int l;
         // all reverse ME sequence should not be detected
         l = check_overlap(b->l0, 19, b->s0, args.rev_enc);
         if (l != -1) continue;
         l = check_overlap(b->l1, 19, b->s1, args.rev_enc);
         if (l != -1) continue;
-        
+
+
         int l1 = check_overlap(b->l0, 19, b->s0, args.me_enc);
         int l2 = check_overlap(b->l1, 19, b->s1, args.me_enc);
         if (l1 == -1 && l2 == -1) {

@@ -375,23 +375,26 @@ static int check_polyTs(const rld_t *e, int len)
     if ( k >= l ) return 1;
     return 0;
 }
-static uint64_t bwt_backward_search(const rld_t *e, int len, const uint8_t *str, uint64_t *sa_beg, uint64_t *sa_end)
+static int bwt_backward_search(const rld_t *e, int len, const uint8_t *str, uint64_t *sa_beg, uint64_t *sa_end)
 {
 	uint64_t k, l, ok, ol;
 	int i, c;
-	c = str[len - 1];
+        //c = str[len - 1];
+        c = str[0];
 	k = e->cnt[c];
         l = e->cnt[c + 1]-1;
-	for (i = len - 2; i >= 0; --i) {
+	//for (i = len - 2; i >= 0; --i) {
+        for (i = 1; i < len; ++i) {
             c = str[i];
-            //putchar("$ACGTN"[c]);
+            // putchar("$ACGTN"[c]);
             rld_rank21(e, k, l, c, &ok, &ol);
             k = e->cnt[c] + ok;
             l = e->cnt[c] + ol;
             // debug_print("%d\t%c\t%d\t%d",i,"$ACGTN"[c], k, l);
             if (k == l) break;
 	}
-	if (k == l) return 0;
+        // if (i < len) return -1;
+	// if (k == l) return 0;
 	*sa_beg = k; *sa_end = l;
 	return l - k;
 }
@@ -500,11 +503,12 @@ static void *run_it(void *_d)
     //int has_seed = 0;
     //int has_poly = 0;
     if (args.l_seed) {        
-        uint64_t n;
+        int n;
         uint64_t st = 0, ed = 0;
         n = bwt_backward_search(e, args.l_seed, args.seed, &st, &ed);
         // if (n != 0) has_seed = 1;
         // if (check_polyTs(e, 10) == 0) has_poly = 1;
+        debug_print("n : %d",n);
         if (n == 0) goto empty_block;
     }
 
