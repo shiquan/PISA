@@ -508,7 +508,7 @@ static void *run_it(void *_d)
         n = bwt_backward_search(e, args.l_seed, args.seed, &st, &ed);
         // if (n != 0) has_seed = 1;
         // if (check_polyTs(e, 10) == 0) has_poly = 1;
-        debug_print("n : %d",n);
+        // debug_print("n : %d",n);
         if (n == 0) goto empty_block;
     }
 
