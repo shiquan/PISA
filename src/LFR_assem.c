@@ -212,7 +212,10 @@ static char *generate_names(char **names)
     }
     for (i = 0; i < dict_size(args.tag_dict); ++i) {
         if (names[i] == NULL) continue;
-        ksprintf(&str,"|||%s:Z:%s",dict_name(args.tag_dict,i),names[i]);
+        kstring_t temp = {0,0,0};
+        ksprintf(&temp,"|||%s:Z:%s",dict_name(args.tag_dict,i),names[i]);
+        kputs(temp.s, &str);
+        free(temp.s);
     }
     
     return str.s;

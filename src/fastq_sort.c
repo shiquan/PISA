@@ -712,7 +712,7 @@ static struct fastq_dedup_pool *dedup_it(struct fastq_dedup_pool *p)
         kputc(p->buf[k++], &str); // push \n to buf
 
         // paired end fastq
-        for (k = r->offset; p->buf[k] != '\n'; ++k) kputc(p->buf[k], &str);
+        for (; p->buf[k] != '\n'; ++k) kputc(p->buf[k], &str);
         kputs(temp.s, &str); // push dup tag to read name        
         kputs(p->buf+k, &str);
         kputc('\n', &str);
