@@ -80,7 +80,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-anno-tag") == 0 || strcmp(a, "-anno_tag") == 0) var = &args.anno_tag;
         else if (strcmp(a, "-list") == 0) var = &args.whitelist_fname;
         else if (strcmp(a, "-umi") == 0) var = &args.umi_tag;
-        else if (strcmp(a, "-tab") == 0) args.mtx_fmt = 0;
+        else if (strcmp(a, "-tab") == 0) {
+            args.mtx_fmt = 0;
+            continue;
+        }
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-q") == 0) var = &mapq;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
