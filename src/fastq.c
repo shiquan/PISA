@@ -435,7 +435,9 @@ char **fastq_name_pick_tags(char *p, struct dict *dict)
             kputs("", &val);
             vals[id] = val.s;
         }
-        i++;
+        else {
+            i++;
+        }
     }
 
     return vals;    
