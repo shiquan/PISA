@@ -497,7 +497,7 @@ static void *run_it(void *_d)
     
     // Step 1: Pure clean up of ME sequences, merge short reads 
     struct base_v *v = rend_bseq(b);
-
+    if (v->l == 0) return NULL;
     // assert(v->v[v->l] == 0);
     // Step 2: build eBWT
     //rld_t *e = bwt_build(v);
