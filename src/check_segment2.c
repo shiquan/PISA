@@ -818,7 +818,7 @@ static char *pat2str(struct ref_pat *r, char **pat, int strand)
         int j;
         kputs("|||", &tmp);
         kputs(s->tag, &tmp);
-        kputs("|||", &tmp);
+        kputs(":Z:", &tmp);
 
         for (j = 0; j < s->n; ++j)  {
             char *a = pat[s->s[j].idx];

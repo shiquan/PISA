@@ -285,6 +285,9 @@ void push_str_base(struct base_v *v, char *s)
     if (s == NULL) return;
     int l;
     l = strlen(s);
+    int i;
+    for (i = 0; i < l; ++i)
+        if (seq_nt6_table[s[i]] == 5) return;
     v->v = realloc(v->v, v->l+(l+1)*2);
     uint8_t *e = enc_str(s, l);
     memcpy(v->v+v->l, e, l+1);
@@ -518,7 +521,7 @@ static void *run_it(void *_d)
     struct ret_block *r = ret_block_build();
     // if (has_seed && has_poly) r->full=1;
     // else if (has_seed || has_poly) r->part = 1;
-    
+    // debug_print("%s", b->name);
     // Step 4: construct unitigs
     mag_t *g = fml_fmi2mag(args.assem_opt, e);
     // mag_g_print(g);
