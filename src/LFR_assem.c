@@ -494,6 +494,22 @@ static void *run_it(void *_d)
 {
     struct read_block *b = (struct read_block*)_d;
     if (b->n == 0) return NULL;
+
+    if (b->n == 1) {
+        //return b->s;
+        kstring_t str = {0,0,0};
+        kputc('@', &str);
+        kputs(b->name, &str);
+        kputc('\n', &str);
+        kputs(b->b[0].seq, &str);
+        kputs("\n+\n", &str);
+        kputs(b->b[0].qual, &str);
+        kputc('\n', &str);
+        read_block_destory(b);
+        struct ret_block *r = ret_block_build();
+        r->s = str.s;
+        return r;
+    }
     
     // Step 1: Pure clean up of ME sequences, merge short reads 
     struct base_v *v = rend_bseq(b);

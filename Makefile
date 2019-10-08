@@ -44,7 +44,7 @@ AOBJ = src/bam_anno.o \
 	src/fastq_parse_barcode.o \
 	src/check_segment.o \
 	src/check_segment2.o \
-	src/LFR_assem.o \
+	src/fastq_unitig.o \
 	src/LFR_impute.o \
 	src/bam_corr_umi.o \
 	src/bam2fq.o \
@@ -99,7 +99,7 @@ src/bam_rmdup.o: src/bam_rmdup.c
 src/bam_attr_count.o: src/bam_attr_count.c
 src/check_segment.o: src/check_segment.c
 src/check_segment2.o: src/check_segment2.c
-src/LFR_assem.o: src/LFR_assem.c
+src/fastq_unitig.o: src/fastq_unitig.c
 src/ksa.o: src/ksa.c
 src/bam_pool.o: src/bam_pool.c
 src/LFR_impute.o: src/LFR_impute.c
