@@ -222,7 +222,7 @@ static char *generate_names(char **names)
     return str.s;
 }
 
-#define MEM_PER_BLK  512000000
+#define MEM_PER_BLK  10000000
 
 static char *name_buf = NULL;
 static char *seq_buf = NULL;
@@ -873,7 +873,6 @@ int fastq_unitig(int argc, char **argv)
     FILE *fp_in = fopen(args.input_fname, "r");
     if (fp_in == NULL) error("%s : %s.", args.input_fname, strerror(errno));
 
-    
     FILE *out = stdout;
     if (args.output_fname ) {
         out = fopen(args.output_fname, "w");
@@ -910,7 +909,8 @@ int fastq_unitig(int argc, char **argv)
     
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
-    fclose(out);
+    if (args.output_fname)
+        fclose(out);
     fprintf(stderr, "Assembled block,%"PRIu64"\n", args.assem_block);
 
     memory_release();
