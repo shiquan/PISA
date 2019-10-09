@@ -621,7 +621,8 @@ void kmer_idx_destroy(struct kmer_idx *idx)
 {
     int i;
     for (i = 0; i < idx->n; i++)
-        free(idx->idx[i].offset);
+        if (idx->idx[i].m)
+            free(idx->idx[i].offset);
     free(idx->idx);
     dict_destroy(idx->dict);
     for (i = 0; i < idx->n_z; ++i) free(idx->z[i]);
