@@ -886,37 +886,47 @@ int fastq_unitig(int argc, char **argv)
         out = fopen(args.output_fname, "w");
         if (out == NULL) error("%s : %s.", args.output_fname, strerror(errno));
     }
-    
-    hts_tpool *p = hts_tpool_init(args.n_thread);
-    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
-    hts_tpool_result *r;
-    
-    for (;;) {
-        struct thread_dat *dat = read_thread_dat(fp_in);
-        if (dat == NULL) break;
 
-        int block;
-        do {
-            block = hts_tpool_dispatch2(p, q, run_it, dat, 1);
-            if ((r = hts_tpool_next_result(q))) {
-                void *s = hts_tpool_result_data(r);
-                write_out(s, out);
-                hts_tpool_delete_result(r, 0);
-            }
+    if (args.n_thread == 1) {
+        for (;;) {
+            struct thread_dat *dat = read_thread_dat(fp_in);
+            if (dat == NULL) break;
+            void *data = run_it(dat);
+            write_out(data, out);            
         }
-        while (block == -1);
     }
-
-    hts_tpool_process_flush(q);
+    else {
+        hts_tpool *p = hts_tpool_init(args.n_thread);
+        hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+        hts_tpool_result *r;
     
-    while ((r = hts_tpool_next_result(q))) {
-        void *s = hts_tpool_result_data(r);
-        write_out(s, out);
-        hts_tpool_delete_result(r, 0);
+        for (;;) {
+            struct thread_dat *dat = read_thread_dat(fp_in);
+            if (dat == NULL) break;
+            
+            int block;
+            do {
+                block = hts_tpool_dispatch2(p, q, run_it, dat, 1);
+                if ((r = hts_tpool_next_result(q))) {
+                    void *s = hts_tpool_result_data(r);
+                    write_out(s, out);
+                    hts_tpool_delete_result(r, 0);
+                }
+            }
+            while (block == -1);
+        }
+        
+        hts_tpool_process_flush(q);
+    
+        while ((r = hts_tpool_next_result(q))) {
+            void *s = hts_tpool_result_data(r);
+            write_out(s, out);
+            hts_tpool_delete_result(r, 0);
+        }
+    
+        hts_tpool_process_destroy(q);
+        hts_tpool_destroy(p);
     }
-    
-    hts_tpool_process_destroy(q);
-    hts_tpool_destroy(p);
 
     fprintf(stderr, "Assembled block,%"PRIu64"\n", args.assem_block);
 
