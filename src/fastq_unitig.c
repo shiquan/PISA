@@ -906,7 +906,7 @@ int fastq_unitig(int argc, char **argv)
             
             int block;
             do {
-                block = hts_tpool_dispatch2(p, q, run_it, dat, 1);
+                block = hts_tpool_dispatch2(p, q, run_it, dat, 0);
                 if ((r = hts_tpool_next_result(q))) {
                     void *s = hts_tpool_result_data(r);
                     write_out(s, out);
