@@ -193,7 +193,10 @@ void thread_dat_destroy(struct thread_dat *td)
             if (read->s1) free(read->s1);
             if (read->q1) free(read->q1);
         }
+        free(rb->b);
     }
+    free(td->rb);
+    free(td);
 }
 static char *generate_names(char **names)
 {
