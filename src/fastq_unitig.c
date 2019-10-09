@@ -159,6 +159,7 @@ static int parse_args(int argc, char **argv)
 static void memory_release()
 {
     dict_destroy(args.tag_dict);
+    free(args.assem_opt);
 }
 struct read {
     char *name;
@@ -792,6 +793,7 @@ static char *remap_reads(struct read_block *rb, mag_t *g)
         kputsn(v->cov, v->len, &s);
         kputc('\n', &s);            
     }
+    free(v);
     return s.s;
 }
 
