@@ -137,7 +137,7 @@ static int parse_args(int argc, char **argv)
     if (seed) { //error("Seed sequence for scLFR must be set with -ss.");
         args.l_seed = strlen(seed);
         if (args.l_seed < 6) error("Seed is too short, need >= 6bp.");
-        args.seed = enc_str(seed, args.l_seed);
+        args.seed = enc_str((char*)seed, args.l_seed);
     }
     
     kstring_t str = {0,0,0};
@@ -173,12 +173,12 @@ struct read_block {
     char *name;
     struct read *b;
     int n, m;
+    int pair_mode;
 };
 
 struct thread_dat {
     int n, m;
     struct read_block *rb;
-    int pair_mode;
 };
 
 void thread_dat_destroy(struct thread_dat *td)
@@ -363,7 +363,7 @@ struct thread_dat *read_thread_dat(FILE *fp)
             read->q1 = qual.s == NULL ? NULL : strdup(qual.s);
             read->l1 = seq.l;
             last_name = NULL;
-            td->pair_mode =1; 
+            b->pair_mode =1; 
         }
     }
 
@@ -407,7 +407,7 @@ static void push_str_base(struct base_v *v, char *s)
     l = strlen(s);
     int i;
     for (i = 0; i < l; ++i)
-        if (nt6_tab[s[i]] == 5) return;
+        if (nt6_tab[(int)s[i]] == 5) return;
     uint8_t *e = enc_str(s, l);
     push_base(v, e, l);
     free(e);
@@ -827,7 +827,7 @@ static void *run_it(void *_d)
         mag_t *g = fml_fmi2mag(args.assem_opt, e);
 
         char *s = NULL;
-        if (dat->pair_mode)
+        if (rb->pair_mode)
             s = remap_reads_scaf(rb, g);
         else
             s = remap_reads(rb, g);
