@@ -156,7 +156,7 @@ static int parse_args(int argc, char **argv)
     assem_opt_init(args.assem_opt);
     return 0;
 }
-void memory_release()
+static void memory_release()
 {
     dict_destroy(args.tag_dict);
 }
