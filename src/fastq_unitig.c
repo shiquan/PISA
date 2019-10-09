@@ -205,7 +205,7 @@ void thread_dat_destroy(struct thread_dat *td)
 static char *generate_names(char **names)
 {
     kstring_t str = {0,0,0};
-    int i;
+    int i;/ TATCACATATGACATCAGTCAGTTGTTTGATTTCATCGATGATCTGG
     for (i = 0; i < dict_size(args.tag_dict); ++i) {
         if (names[i] == NULL) continue;
         kputs(names[i],&str);
@@ -222,7 +222,7 @@ static char *generate_names(char **names)
     return str.s;
 }
 
-#define MEM_PER_BLK  10000000
+#define MEM_PER_BLK  100000
 
 static char *name_buf = NULL;
 static char *seq_buf = NULL;
