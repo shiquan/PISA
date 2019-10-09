@@ -156,7 +156,10 @@ static int parse_args(int argc, char **argv)
     assem_opt_init(args.assem_opt);
     return 0;
 }
-
+void memory_release()
+{
+    dict_destroy(args.tag_dict);
+}
 struct read {
     char *name;
     int l0, l1;
@@ -862,7 +865,7 @@ int fastq_unitig(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
-
+    
     if (parse_args(argc, argv)) return usage();
 
     FILE *fp_in = fopen(args.input_fname, "r");
@@ -908,7 +911,10 @@ int fastq_unitig(int argc, char **argv)
     fclose(out);
     fprintf(stderr, "Assembled block,%"PRIu64"\n", args.assem_block);
 
-    // memory_release();
+    memory_release();
+
+    fclose(fp_in);
+    fclose(out);
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;
 }
