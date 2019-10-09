@@ -71,6 +71,7 @@ static struct args {
     int l_seed;
     uint8_t *seed;
     uint64_t assem_block;
+    int pair_mode;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
@@ -85,6 +86,7 @@ static struct args {
     .l_seed = 0,
     .seed = NULL,
     .assem_block = 0,
+    .pair_mode = 0,
 };
 
 static int usage()
@@ -213,7 +215,7 @@ static char *generate_names(char **names)
     return str.s;
 }
 
-#define MEM_PER_BLK  5120
+#define MEM_PER_BLK  512000000
 
 static char *name_buf = NULL;
 static char *seq_buf = NULL;
@@ -355,6 +357,7 @@ struct thread_dat *read_thread_dat(FILE *fp)
             read->q1 = qual.s == NULL ? NULL : strdup(qual.s);
             read->l1 = seq.l;
             last_name = NULL;
+            args.pair_mode =1; 
         }
     }
 
@@ -848,8 +851,11 @@ static void *run_it(void *_d)
 
         mag_t *g = fml_fmi2mag(args.assem_opt, e);
 
-        char *s = remap_reads_scaf(rb, g);
-        //char *s = remap_reads(rb, g);
+        char *s = NULL;
+        if (args.pair_mode)
+            s = remap_reads_scaf(rb, g);
+        else
+            s = remap_reads(rb, g);
 
         if (s) {
             kputs(s, &str);
@@ -873,8 +879,8 @@ static void write_out(void *s, FILE *out)
 {
     if (s == NULL) return;
     struct ret_block *r = (struct ret_block*)s;
-
     fputs(r->s, out);
+    args.assem_block += r->assem_block;
     free(r->s);
     free(r);
 }
