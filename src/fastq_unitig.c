@@ -917,14 +917,14 @@ int fastq_unitig(int argc, char **argv)
     
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
-    if (args.output_fname)
-        fclose(out);
+
     fprintf(stderr, "Assembled block,%"PRIu64"\n", args.assem_block);
 
     memory_release();
 
     fclose(fp_in);
-    fclose(out);
+    if (args.output_fname)
+        fclose(out);
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;
 }
