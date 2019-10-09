@@ -705,6 +705,8 @@ int kmer_query_id(struct kmer_idx *idx, char *s, int l)
         if (ret != -1) return -1; // too much hits
         ret = offset->idx/2;
     }
+
+    //debug_print("ret : %d",ret);
     return ret;
 }
 static char *remap_reads_scaf(struct read_block *rb, mag_t *g)
@@ -728,6 +730,8 @@ static char *remap_reads_scaf(struct read_block *rb, mag_t *g)
         if (rb->b[i].s1 == NULL) continue;
         int id1 = kmer_query_id(idx, rb->b[i].s0, rb->b[i].l0);
         int id2 = kmer_query_id(idx, rb->b[i].s1, rb->b[i].l1);
+        if (id1 == -1 || id2 == -1) continue;
+        
         if (bidx[id1] != 0 && bidx[id2] != 0) {
             if (bidx[id1] != bidx[id2]) {
                 int c = bidx[id2];
