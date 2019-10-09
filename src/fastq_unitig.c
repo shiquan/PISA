@@ -71,7 +71,6 @@ static struct args {
     int l_seed;
     uint8_t *seed;
     uint64_t assem_block;
-    int pair_mode;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
@@ -86,7 +85,7 @@ static struct args {
     .l_seed = 0,
     .seed = NULL,
     .assem_block = 0,
-    .pair_mode = 0,
+
 };
 
 static int usage()
@@ -175,7 +174,8 @@ struct read_block {
 
 struct thread_dat {
     int n, m;
-    struct read_block *rb;    
+    struct read_block *rb;
+    int pair_mode;
 };
 
 void thread_dat_destroy(struct thread_dat *td)
@@ -357,7 +357,7 @@ struct thread_dat *read_thread_dat(FILE *fp)
             read->q1 = qual.s == NULL ? NULL : strdup(qual.s);
             read->l1 = seq.l;
             last_name = NULL;
-            args.pair_mode =1; 
+            td->pair_mode =1; 
         }
     }
 
@@ -659,6 +659,7 @@ void kmer_idx_add(struct kmer_idx *idx, char *s, int l)
         int i;
         for (i = 0; i < l - SEED_LEN; ++i) {        
             memcpy(seed, z+i, SEED_LEN);
+
             int id = dict_query(idx->dict, seed);
             if (id == -1) {
                 id = dict_push(idx->dict, seed);
@@ -766,47 +767,7 @@ static char *remap_reads_scaf(struct read_block *rb, mag_t *g)
     free(bidx);
     return str.s;
 }
-/*
-static char *remap_reads_scaf(struct read_block *rb, mag_t *g)
-{    
-    struct base_v *v = malloc(sizeof(*v));
-    memset(v, 0, sizeof(*v));
 
-    int *idx = malloc(g->v.n *sizeof(int));
-    int i;
-    for (i = 0; i < g->v.n; ++i) {
-        magv_t *gv = &g->v.a[i];
-        if (gv->len < 0) continue;
-        push_base(v, (uint8_t*)gv->seq, gv->len);
-        idx[i] = 0;
-    }
-
-    rld_t *e = fmi_gen2(v);
-    int max_idx = 0;
-    for (i = 0; i < rb->n; ++i) {
-        if (rb->b[i].s1 == NULL) continue;
-        int id1 = bwt_search_id(e, rb->b[i].s0, rb->b[i].l0);
-        int id2 = bwt_search_id(e, rb->b[i].s1, rb->b[i].l1);
-        debug_print("id: %d, r1: %d, r2: %d",i, id1, id2);
-    }
-
-    rld_destroy(e);
-    kstring_t s = {0,0,0};
-
-    for (i = 0; i < g->v.n; ++i) {
-        magv_t *v = &g->v.a[i];
-        if (v->len < 0) continue;
-        
-        ksprintf(&s, "@%d_%s|||SR:i:%d\n",i, rb->name,v->nsr);
-        int j;
-        for (j = 0; j < v->len; ++j) kputc("$ACGTN"[(int)v->seq[j]], &s);
-        kputs("\n+\n", &s);
-        kputsn(v->cov, v->len, &s);
-        kputc('\n', &s);            
-    }
-    return s.s;
-}
-*/
 static char *remap_reads(struct read_block *rb, mag_t *g)
 {
     kstring_t s = {0,0,0};
@@ -860,7 +821,7 @@ static void *run_it(void *_d)
         mag_t *g = fml_fmi2mag(args.assem_opt, e);
 
         char *s = NULL;
-        if (args.pair_mode)
+        if (dat->pair_mode)
             s = remap_reads_scaf(rb, g);
         else
             s = remap_reads(rb, g);
