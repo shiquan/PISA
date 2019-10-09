@@ -831,7 +831,10 @@ static char *remap_reads(struct read_block *rb, mag_t *g)
 static void *run_it(void *_d)
 {
     struct thread_dat *dat = (struct thread_dat*)_d;
-    if (dat->n == 0) return NULL;
+    if (dat->n == 0) {
+        thread_dat_destroy(dat);
+        return NULL;
+    }
 
     struct ret_block *r = ret_block_build();
     kstring_t str = {0,0,0};
@@ -864,6 +867,7 @@ static void *run_it(void *_d)
 
         if (s) {
             kputs(s, &str);
+            free(s);
             r->assem_block++;
         }
         
