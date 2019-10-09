@@ -637,24 +637,28 @@ void kmer_idx_destroy(struct kmer_idx *idx)
     free(idx);
 }
 #define SEED_LEN 30
-
+// CCAGATCATCGATGAAATCAAACAACTGACTGATGTCATATGTGATA
+// CCAGATCATCGATGAAATCAAACTTCTGACTGATGTCATATGTGATA
+//*CCAGATCATCGATGAAATCAAACAA
+// TATCACATATGACATCAGTCAGTTGTTTGATTTCATCGATGATCTGG
+// CCAGATCATC GATGAAATCA AACAACTGAC
 void kmer_idx_add(struct kmer_idx *idx, char *s, int l)
 {
     if (l < SEED_LEN) error("Read is too short. Require at least %d bases.", SEED_LEN);
 
-    char seed[SEED_LEN];
+    char seed[SEED_LEN+1];
+    seed[SEED_LEN] = '\0';
     int strand;
     for (strand = 0; strand < 2; ++strand) {
         char *z = strdup(s);
         if (strand == 1) {
             int i;
-            for (i = 0; i < l>>1; ++i) {
+            for (i = 0; i < l/2; ++i) {
                 char c = "$ACGTN"[5-nt6_tab[(int)z[i]]];
                 z[i] = "$ACGTN"[5-nt6_tab[(int)z[l-i-1]]];
                 z[l-i-1] = c;
             }
             if (l&1) {
-                i = l/2+1;
                 z[i] = "$ACGTN"[5-nt6_tab[(int)z[i]]];
             }
         }
@@ -694,10 +698,13 @@ void kmer_idx_add(struct kmer_idx *idx, char *s, int l)
 int kmer_query_id(struct kmer_idx *idx, char *s, int l)
 {
     if (l < SEED_LEN) error("Read is too short. Require at least %d bases.", SEED_LEN);
-    char seed[SEED_LEN];
+    char seed[SEED_LEN+1];
+    seed[SEED_LEN] = '\0';
     memcpy(seed, s, SEED_LEN);
     int off = dict_query(idx->dict, seed);
-    if (off == -1) return -1;
+    if (off == -1)
+        return -1;
+    
     int ret = -1;
     int i;
     for (i = 0; i < idx->idx[off].n; ++i) {
@@ -710,12 +717,16 @@ int kmer_query_id(struct kmer_idx *idx, char *s, int l)
             if (s[k] != z[k]) break;
 
         if (k < l - SEED_LEN) continue;
-        if (ret != -1) return -1; // too much hits
-        ret = offset->idx/2;
+        if (ret != -1) {
+            debug_print("hit : %d, %s", ret, idx->z[ret]);
+            debug_print("hit : %d, %s", offset->idx, idx->z[offset->idx]);
+            return -1; // too much hits
+        }
+        ret = offset->idx;
     }
 
     //debug_print("ret : %d",ret);
-    return ret;
+    return ret/2;
 }
 static char *remap_reads_scaf(struct read_block *rb, mag_t *g)
 {
@@ -738,7 +749,9 @@ static char *remap_reads_scaf(struct read_block *rb, mag_t *g)
         if (rb->b[i].s1 == NULL) continue;
         int id1 = kmer_query_id(idx, rb->b[i].s0, rb->b[i].l0);
         int id2 = kmer_query_id(idx, rb->b[i].s1, rb->b[i].l1);
-        if (id1 == -1 || id2 == -1) continue;
+
+        if (id1 == -1 || id2 == -1)
+            continue;
         
         if (bidx[id1] != 0 && bidx[id2] != 0) {
             if (bidx[id1] != bidx[id2]) {
