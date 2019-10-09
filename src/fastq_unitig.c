@@ -238,7 +238,7 @@ struct thread_dat *read_thread_dat(FILE *fp)
     memset(td, 0, sizeof(*td));
     
     if (name_buf != NULL) {
-        td->m = 10000;
+        td->m = 100;
         td->rb = malloc(td->m*sizeof(struct read_block));
         td->n++;
         struct read_block *rb = &td->rb[0];
@@ -324,7 +324,7 @@ struct thread_dat *read_thread_dat(FILE *fp)
                                         
             block_name = bn;
             if (td->n == td->m) {
-                td->m = td->m == 0? 10000 : td->m<<1;
+                td->m = td->m == 0? 100 : td->m<<1;
                 td->rb = realloc(td->rb, sizeof(struct read_block)*td->m);
             }
             b = &td->rb[td->n];
@@ -476,7 +476,6 @@ static int check_polyTs(const rld_t *e, int len)
 
 int bwt_search_id(const rld_t *e, const char *s, int len)
 {
-    debug_print("s: %s", s);
     uint64_t ok, ol, k, l;
     int c = nt6_tab[(int)s[len-1]];
     k = e->cnt[c];
@@ -637,11 +636,7 @@ void kmer_idx_destroy(struct kmer_idx *idx)
     free(idx);
 }
 #define SEED_LEN 30
-// CCAGATCATCGATGAAATCAAACAACTGACTGATGTCATATGTGATA
-// CCAGATCATCGATGAAATCAAACTTCTGACTGATGTCATATGTGATA
-//*CCAGATCATCGATGAAATCAAACAA
-// TATCACATATGACATCAGTCAGTTGTTTGATTTCATCGATGATCTGG
-// CCAGATCATC GATGAAATCA AACAACTGAC
+
 void kmer_idx_add(struct kmer_idx *idx, char *s, int l)
 {
     if (l < SEED_LEN) error("Read is too short. Require at least %d bases.", SEED_LEN);
@@ -828,7 +823,7 @@ static void *run_it(void *_d)
         struct base_v *v = rend_bseq(rb);
         
         if (v->l == 0) continue;
-        
+        debug_print("%s, %d",rb->name, rb->n);
         rld_t *e = fmi_gen2(v);
         free(v->v); free(v);
         
