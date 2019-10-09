@@ -205,7 +205,7 @@ void thread_dat_destroy(struct thread_dat *td)
 static char *generate_names(char **names)
 {
     kstring_t str = {0,0,0};
-    int i;/ TATCACATATGACATCAGTCAGTTGTTTGATTTCATCGATGATCTGG
+    int i;
     for (i = 0; i < dict_size(args.tag_dict); ++i) {
         if (names[i] == NULL) continue;
         kputs(names[i],&str);
