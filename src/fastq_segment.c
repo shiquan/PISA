@@ -1281,6 +1281,7 @@ int fastq_segment(int argc, char **argv)
             struct thread_dat *dat = read_thread_dat(fp_in, args.tag_dict);
             if (dat == NULL) break;
             char *ret = (char*)run_it(dat);
+            if (ret == NULL) continue;
             fputs(ret, fp_out);
             free(ret);
         }
@@ -1299,7 +1300,10 @@ int fastq_segment(int argc, char **argv)
                 block = hts_tpool_dispatch2(p, q, run_it, dat, 1);
                 if ((r = hts_tpool_next_result(q))) {
                     char *d = (char*) hts_tpool_result_data(r);
-                    fputs(d, fp_out);
+                    if (d) {
+                        fputs(d, fp_out);
+                        free(d);
+                    }
                     hts_tpool_delete_result(r, 0);
                 }
             } while(block == -1);
@@ -1308,7 +1312,10 @@ int fastq_segment(int argc, char **argv)
 
         while ((r = hts_tpool_next_result(q))) {
             char *d = (char*) hts_tpool_result_data(r);
-            fputs(d, fp_out);
+            if (d) {
+                fputs(d, fp_out);
+                free(d);
+            }
             hts_tpool_delete_result(r, 0);
         }
         hts_tpool_process_destroy(q);
