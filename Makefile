@@ -98,8 +98,6 @@ src/kson.o: src/kson.c
 src/bam_rmdup.o: src/bam_rmdup.c
 src/bam_attr_count.o: src/bam_attr_count.c
 src/fastq_segment.o: src/fastq_segment.c
-#src/check_segment.o: src/check_segment.c
-#src/check_segment2.o: src/check_segment2.c
 src/fastq_unitig.o: src/fastq_unitig.c
 src/read_thread.o: src/read_thread.c
 src/read_tags.o: src/read_tags.c
