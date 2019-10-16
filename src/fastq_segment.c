@@ -1243,8 +1243,9 @@ static void *run_it(void *_p)
                     if (b->s1) free(b->s1);
                     if (b->q1) free(b->q1);
                 }
+                free(phase_block[j].b);
             }
-
+            free(phase_block);
         }
         else {
             int j;
