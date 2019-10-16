@@ -3,6 +3,7 @@
 #include "htslib/kstring.h"
 #include "dict.h"
 #include "number.h"
+#include "read_tags.h"
 #include "htslib/thread_pool.h"
 #include <zlib.h>
 #include <ctype.h>
@@ -18,7 +19,7 @@ static int usage()
     fprintf(stderr, " -dedup       Remove dna copies with same tags. Only keep reads have the best quality.\n");
     fprintf(stderr, " -dup-tag     If -dedup set, duplicated number will be record with this tag name.[DU]\n");
     fprintf(stderr, " -report      Report reads counts and non-duplicates.\n");
-    // fprintf(stderr, " -list        White list for first tag, usually for cell barcodes.\n");
+    fprintf(stderr, " -list        White list for first tag, usually for cell barcodes.\n");
     fprintf(stderr, " -t           Threads.\n");
     fprintf(stderr, " -o           Output fastq.\n");
     fprintf(stderr, " -m           Memory per thread. [1G]\n");
@@ -44,7 +45,7 @@ static struct args {
     int paired;
     int check_list;
     int mem_per_thread;
-    struct dict *tags;
+    struct dict *tags;    
     FILE *out;
     FILE *fp_in;
     struct dict *bcodes;
@@ -325,6 +326,11 @@ void read_block_sort_by_name(struct read_block *r, struct dict *tag)
     
     int i;
     for (i = 0; i < r->max; ) {
+        if (args.check_list) {
+            char *val = read_name_pick_tag((char*)r->data+i, dict_name(tag,0));
+            int idx = dict_query(args.bcodes, val);
+            if (idx==-1) continue;
+        }
         char *name = query_tags(r->data+i, tag);
         if (name == NULL) error("No tag found at %s", r->data+i);
         int id = dict_push(r->dict, name);

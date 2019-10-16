@@ -63,7 +63,7 @@ void thread_dat_destroy(struct thread_dat *td)
     int i;
     for (i = 0; i < td->n; ++i) {
         struct read_block *rb = &td->rb[i];
-        read_block_clear(rb);
+        read_block_clear(rb)
     }
     free(td->rb);
     free(td);
@@ -190,6 +190,9 @@ struct thread_dat *read_thread_dat(FILE *fp, struct dict *tag_dict)
                 name_buf = strdup(name.s);
                 seq_buf = strdup(seq.s);
                 qual_buf = qual.s == NULL ? NULL : qual.s;
+                free(name.s);
+                free(seq.s);
+                if (qual.m) free(qual.s);
                 return td;
             }
                                         

@@ -18,7 +18,7 @@ char *read_name_pick_tag(char *p, const char *tag)
 {
     int i, l;
     l = strlen(p);
-    for (i = 0; i < l-7;) {
+    for (i = 0; i < l-7 && p[i] != '\n' && p[i] != '\0'; ) {
         if (p[i] == '|' && p[i+1] == '|' && p[i+2] == '|') {
             i += 3;
             if (p[i++] != tag[0]) continue;

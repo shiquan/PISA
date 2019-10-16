@@ -636,7 +636,7 @@ static int usage()
     fprintf(stderr, "-o      [fastq]         Trimed fastq.\n");
     fprintf(stderr, "-sl     [INT]           Seed length for mapping consensus sequence.\n");
     fprintf(stderr, "-t      [INT]           Threads.\n");
-    fprintf(stderr, "-tags   [CB,UMI]        Tags for each read block.\n");
+    fprintf(stderr, "-tag    [CB,UMI]        Tags for each read block.\n");
     fprintf(stderr, "-pb     [PB]            Phase block tag.\n");
     fprintf(stderr, "-k                      Keep all reads even no segments detected.\n");
     fprintf(stderr, "-sum    summary.csv     Summary report.\n");
@@ -999,7 +999,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-config") == 0) var = &args.config_fname;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-t") == 0) var = &thread;
-        else if (strcmp(a, "-tags") == 0) var = &tags;
+        else if (strcmp(a, "-tag") == 0) var = &tags;
         else if (strcmp(a, "-pb") == 0) var = &args.phase_tag;
         else if (strcmp(a, "-f") == 0) {
             args.filter_reads = 1;
@@ -1047,7 +1047,7 @@ static int parse_args(int argc, char **argv)
 }
 static void memory_release()
 {
-    dict_destroy(args.tag_dict);
+    if (args.tag_dict) dict_destroy(args.tag_dict);
     ref_destroy(args.r);    
     fclose(args.out);
 }
