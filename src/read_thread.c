@@ -63,7 +63,7 @@ void thread_dat_destroy(struct thread_dat *td)
     int i;
     for (i = 0; i < td->n; ++i) {
         struct read_block *rb = &td->rb[i];
-        read_block_clear(rb)
+        read_block_clear(rb);
     }
     free(td->rb);
     free(td);
