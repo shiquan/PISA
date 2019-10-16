@@ -189,7 +189,7 @@ struct thread_dat *read_thread_dat(FILE *fp, struct dict *tag_dict)
             if (size > MEM_PER_BLK) {
                 name_buf = strdup(name.s);
                 seq_buf = strdup(seq.s);
-                qual_buf = qual.s == NULL ? NULL : qual.s;
+                qual_buf = qual.s == NULL ? NULL : strdup(qual.s);
                 free(name.s);
                 free(seq.s);
                 if (qual.m) free(qual.s);
