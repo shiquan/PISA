@@ -1047,6 +1047,7 @@ static int parse_args(int argc, char **argv)
 }
 static void memory_release()
 {
+    dict_destroy(args.tag_dict);
     ref_destroy(args.r);    
     fclose(args.out);
 }
@@ -1135,6 +1136,7 @@ static char *find_segment(struct ref *ref, struct read *r, int n)
                     rd->rd[rd->n].seq = rs[k];
                     rd->n++;
                 }
+                free(rs);
                 goto next_read;
             }
         }
@@ -1176,6 +1178,7 @@ static char *find_segment(struct ref *ref, struct read *r, int n)
         free(rd->rd[ir].name);
         free(rd->rd[ir].seq);
     }
+    if (new_name) free(new_name);
     free(rd->rd);
     free(rd);
     tag_val_destroy(v);
@@ -1218,6 +1221,7 @@ struct read_block *build_phase_block(struct read_block *r, const char *tag, int 
             }
             read_block_push(&rb[id], b);
             if (n < id) n = id;
+            free(pv);
         }
     }
     *n_block = n;
