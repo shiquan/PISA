@@ -406,42 +406,6 @@ int levenshtein(char *a, char *b, int l) {
     free(cache);    
     return result;
 }
-char **fastq_name_pick_tags(char *p, struct dict *dict)
-{
-    int l;
-    l = strlen(p);
-    char key[3];
-    char **vals = malloc(dict_size(dict)*sizeof(char*));
-    memset(vals, 0, dict_size(dict)*sizeof(char*));
-    int i;
-    for (i = 0; i < l-7; ) {
-        if (p[i] == '|' && p[i+1] == '|' && p[i+2] == '|') {
-            i += 3;
-            key[0] = p[i++];
-            key[1] = p[i++];
-            key[2] = '\0';
-            if (p[i++] != ':') continue;
-
-            int id = dict_query(dict, key);
-            if (id == -1) continue;
-            // todo: check type
-            i++; // skip flag
-            if (i >= l) break;
-            if (p[i++] != ':') continue;
-            int j = i;
-            for (;i<l && p[i] != '|';) ++i;
-            kstring_t val ={0,0,0};
-            kputsn(p+j, i-j, &val);
-            kputs("", &val);
-            vals[id] = val.s;
-        }
-        else {
-            i++;
-        }
-    }
-
-    return vals;    
-}
 
 static char *reverse_seq(char *s, int l)
 {

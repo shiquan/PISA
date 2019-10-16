@@ -4,7 +4,8 @@
 #include "mrope.h"
 #include "htslib/kstring.h"
 #include "htslib/thread_pool.h"
-#include "fastq.h"
+#include "read_thread.h"
+#include "read_tags.h"
 #include "ksw.h"
 #include "fml.h"
 #include "number.h"
@@ -140,15 +141,8 @@ static int parse_args(int argc, char **argv)
         args.seed = enc_str((char*)seed, args.l_seed);
     }
     
-    kstring_t str = {0,0,0};
-    kputs(tags, &str);
-    int n;
-    int *s = ksplit(&str, ',', &n);
-    args.tag_dict = dict_init();
-
-    for (i = 0; i <n; ++i) dict_push(args.tag_dict,str.s+s[i]);
-    free(s); free(str.s);
-
+    args.tag_dict = str2tag(tags);
+    
     if (thread) args.n_thread = str2int((char*)thread);
     if (args.n_thread < 1) args.n_thread = 1;
 
@@ -160,223 +154,6 @@ static void memory_release()
 {
     dict_destroy(args.tag_dict);
     free(args.assem_opt);
-}
-struct read {
-    char *name;
-    int l0, l1;
-    char *s0;
-    char *q0;
-    char *s1;
-    char *q1;
-};
-
-struct read_block {
-    char *name;
-    struct read *b;
-    int n, m;
-    int pair_mode;
-};
-
-struct thread_dat {
-    int n, m;
-    struct read_block *rb;
-};
-
-void thread_dat_destroy(struct thread_dat *td)
-{
-    int i;
-    for (i = 0; i < td->n; ++i) {
-        struct read_block *rb = &td->rb[i];
-        free(rb->name);
-        int j;
-        for (j = 0; j < rb->n; ++j) {
-            struct read *read = &rb->b[j];
-            free(read->name);
-            free(read->s0);
-            if (read->q0) free(read->q0);
-            if (read->s1) free(read->s1);
-            if (read->q1) free(read->q1);
-        }
-        free(rb->b);
-    }
-    free(td->rb);
-    free(td);
-}
-static char *generate_names(char **names)
-{
-    kstring_t str = {0,0,0};
-    int i;
-    for (i = 0; i < dict_size(args.tag_dict); ++i) {
-        if (names[i] == NULL) continue;
-        kputs(names[i],&str);
-    }
-
-    for (i = 0; i < dict_size(args.tag_dict); ++i) {
-        if (names[i] == NULL) continue;
-        kstring_t temp = {0,0,0};
-        ksprintf(&temp,"|||%s:Z:%s",dict_name(args.tag_dict,i),names[i]);
-        kputs(temp.s, &str);
-        free(temp.s);
-    }
-
-    return str.s;
-}
-
-#define MEM_PER_BLK  100000
-
-static char *name_buf = NULL;
-static char *seq_buf = NULL;
-static char *qual_buf = NULL;
-
-struct thread_dat *read_thread_dat(FILE *fp)
-{
-    int size = 0;
-    char *block_name = NULL;
-    char *last_name = NULL;
-    int fasta;
-    struct thread_dat *td = malloc(sizeof(*td));
-    memset(td, 0, sizeof(*td));
-    
-    if (name_buf != NULL) {
-        td->m = 100;
-        td->rb = malloc(td->m*sizeof(struct read_block));
-        td->n++;
-        struct read_block *rb = &td->rb[0];
-        memset(rb, 0, sizeof(struct read_block));
-        rb->m = 2;
-        rb->n = 1;
-        rb->b = malloc(sizeof(struct read)*rb->m);
-        last_name = name_buf;
-        struct read *r = &rb->b[0];
-        memset(r, 0, sizeof(struct read));
-        r->name  = name_buf;
-        r->s0    = seq_buf;
-        r->q0    = qual_buf;
-        r->l0    = strlen(seq_buf);
-        char **tn = fastq_name_pick_tags(name_buf, args.tag_dict);
-        char *bn = generate_names(tn);
-
-        block_name = bn;
-        rb->name = block_name;
-        if (bn == NULL) error("No tag found at %s", name_buf);
-        int i;
-        for (i = 0; i < dict_size(args.tag_dict); ++i) free(tn[i]);
-        free(tn);
-        // reset buf
-        name_buf = NULL;
-        seq_buf  = NULL;
-        qual_buf = NULL;
-    }
-
-    kstring_t name = {0,0,0};
-    kstring_t seq  = {0,0,0};
-    kstring_t qual = {0,0,0};
-
-    for (;;) {
-        name.l = 0;
-        seq.l  = 0;
-        qual.l = 0;
-         
-        size++;
-        char c = fgetc(fp);        
-        if (c == '@') fasta = 0;
-        else if (c == '>') fasta = 1;
-        else if (c == EOF)  break;
-        else error("Unknown input format, only support uncompressed fastq file");
-
-        kputc(c, &name);
-#define READ_LINE(str) do {\
-            c = fgetc(fp); \
-            if (c == '\n') break; \
-            if (c == '\0') error("Truncated file ?");\
-            kputc(c, &str); \
-            size++;\
-        } while(1) \
-
-        READ_LINE(name);
-
-        READ_LINE(seq);
-
-
-        if (fasta == 0) {
-            c = fgetc(fp);
-            if (c != '+') error("Format error. Not fastq file ? '+' vs %c", c);
-            for (; c != '\n'; ) c = fgetc(fp); //  qual name line
-            READ_LINE(qual);
-        }
-
-        char **tn = fastq_name_pick_tags(name.s, args.tag_dict);
-        char *bn = generate_names(tn);
-        if (bn == NULL) error("No tag found at %s.", name.s);
-        
-        int i;
-        for (i = 0; i < dict_size(args.tag_dict); ++i) free(tn[i]);
-        free(tn);
-
-        struct read_block *b;
-        if (block_name == NULL || strcmp(block_name, bn) != 0) {
-            if (size > MEM_PER_BLK) {
-                name_buf = strdup(name.s);
-                seq_buf = strdup(seq.s);
-                qual_buf = qual.s == NULL ? NULL : qual.s;
-                return td;
-            }
-                                        
-            block_name = bn;
-            if (td->n == td->m) {
-                td->m = td->m == 0? 100 : td->m<<1;
-                td->rb = realloc(td->rb, sizeof(struct read_block)*td->m);
-            }
-            b = &td->rb[td->n];
-            memset(b, 0, sizeof(struct read_block));
-            b->name = bn;
-            td->n++;
-            last_name = NULL;
-        }
-        else {
-            b = &td->rb[td->n-1];
-            free(bn);
-        }
-
-        if (last_name == NULL || strcmp(last_name, name.s) != 0) {
-            if (b->n == b->m) {
-                if (b->m == 0) {
-                    b->m = 2;
-                    b->b = malloc(2*sizeof(struct read));
-                }
-                else {
-                    b->m = b->m<<1;
-                    b->b = realloc(b->b, b->m *sizeof(struct read));
-                }
-            }
-            struct read *read = &b->b[b->n];
-            memset(read, 0, sizeof(struct read));
-            read->name = strdup(name.s);
-            read->s0 = strdup(seq.s);
-            read->q0 = qual.s == NULL ? NULL : strdup(qual.s);
-            read->l0 = seq.l;
-            b->n++;
-            last_name = read->name;
-        }
-        else if (strcmp(last_name, name.s) == 0) {
-            struct read *read = &b->b[b->n-1];
-            read->s1 = strdup(seq.s);            
-            read->q1 = qual.s == NULL ? NULL : strdup(qual.s);
-            read->l1 = seq.l;
-            last_name = NULL;
-            b->pair_mode =1; 
-        }
-    }
-
-    free(name.s);
-    free(seq.s);
-    if (qual.m) free(qual.s);
-
-    if (td->n == 0) {
-        free(td);
-        return NULL;
-    }
-    return td;
 }
 
 struct base_v {
@@ -771,7 +548,7 @@ static char *remap_reads_scaf(struct read_block *rb, mag_t *g)
         
         ksprintf(&str, "@%d_%s|||SR:i:%d",i, rb->name,v->nsr);
 
-        if (bidx[i] != 0) ksprintf(&str, "|||RB:Z:%d", bidx[i]);
+        if (bidx[i] != 0) ksprintf(&str, "|||PB:Z:%d", bidx[i]);
         kputc('\n', &str);
         int j;
         for (j = 0; j < v->len; ++j) kputc("$ACGTN"[(int)v->seq[j]], &str);
@@ -889,7 +666,7 @@ int fastq_unitig(int argc, char **argv)
 
     if (args.n_thread == 1) {
         for (;;) {
-            struct thread_dat *dat = read_thread_dat(fp_in);
+            struct thread_dat *dat = read_thread_dat(fp_in, args.tag_dict);
             if (dat == NULL) break;
             void *data = run_it(dat);
             write_out(data, out);            
@@ -901,7 +678,7 @@ int fastq_unitig(int argc, char **argv)
         hts_tpool_result *r;
     
         for (;;) {
-            struct thread_dat *dat = read_thread_dat(fp_in);
+            struct thread_dat *dat = read_thread_dat(fp_in, args.tag_dict);
             if (dat == NULL) break;
             
             int block;

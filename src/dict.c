@@ -114,3 +114,44 @@ char **dict_names(struct dict *D)
 {
     return D->name;
 }
+static int check_similar(char *a, char *b, int mis)
+{
+    int l0, l1;
+    l0 = strlen(a);
+    l1 = strlen(b);
+    assert(l0 == l1);
+    int i;
+    int m = 0;
+    for (i = 0; i < l0; ++i) {
+        if (a[i] != b[i]) m++;
+        if (m >mis) return 1;
+    }
+    return 0;
+}
+// Consider errors during PCR and sequencing, sometime barcodes may contain one or more mismatches.
+// this function try to compare each value, allow 1 mismatch, and return the most likely key.
+char *dict_most_likely_key(struct dict *D)
+{
+    uint32_t count = 0;
+    char *key = NULL;
+    int i;
+    for (i = 0; i < D->n; ++i) {
+        if (key == NULL) {
+            key = D->name[i];
+            count = D->count[i];            
+        }
+        else {
+            if (check_similar(key, D->name[i], 1) == 0) {
+                if (count < D->count[i]) {
+                    count = D->count[i];
+                    key = D->name[i];
+                }
+            }
+            else {
+                return NULL;
+            }
+        }            
+    }
+
+    return key;
+}

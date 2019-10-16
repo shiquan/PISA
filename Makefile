@@ -31,7 +31,8 @@ force:
 .c.o:
 	$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@
 
-LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/dict.o src/seq_merge.o src/ksa.o src/bam_pool.o src/umi_corr.o src/dict.o
+LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/dict.o src/seq_merge.o src/ksa.o \
+	src/bam_pool.o src/umi_corr.o src/dict.o src/read_thread.o src/read_tags.o
 
 AOBJ = src/bam_anno.o \
 	src/bam_count.o \
@@ -42,8 +43,7 @@ AOBJ = src/bam_anno.o \
 	src/bam_attr_count.o \
 	src/fastq_sort.o \
 	src/fastq_parse_barcode.o \
-	src/check_segment.o \
-	src/check_segment2.o \
+	src/fastq_segment.o \
 	src/fastq_unitig.o \
 	src/LFR_impute.o \
 	src/bam_corr_umi.o \
@@ -97,9 +97,12 @@ src/json_config.o: src/json_config.c
 src/kson.o: src/kson.c
 src/bam_rmdup.o: src/bam_rmdup.c
 src/bam_attr_count.o: src/bam_attr_count.c
-src/check_segment.o: src/check_segment.c
-src/check_segment2.o: src/check_segment2.c
+src/fastq_segment.o: src/fastq_segment.c
+#src/check_segment.o: src/check_segment.c
+#src/check_segment2.o: src/check_segment2.c
 src/fastq_unitig.o: src/fastq_unitig.c
+src/read_thread.o: src/read_thread.c
+src/read_tags.o: src/read_tags.c
 src/ksa.o: src/ksa.c
 src/bam_pool.o: src/bam_pool.c
 src/LFR_impute.o: src/LFR_impute.c

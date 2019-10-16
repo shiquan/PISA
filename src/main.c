@@ -58,9 +58,10 @@ int main(int argc, char *argv[])
     extern int bam2frag(int argc, char **argv);
     // process scLFR
     //extern int assem(int argc, char **argv);
-    extern int check_segment(int argc, char **argv);
-    extern int check_segment2(int argc, char **argv);
-    extern int LFR_cleanup(int argc, char **argv);
+    //extern int check_segment(int argc, char **argv);
+    //extern int check_segment2(int argc, char **argv);
+    extern int fastq_segment(int argc, char **argv);
+    //extern int LFR_cleanup(int argc, char **argv);
     extern int fastq_unitig(int argc, char **argv);
     extern int LFR_impute(int argc, char **argv);
 
@@ -80,7 +81,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "bam2frag") == 0) return bam2frag(argc-1, argv+1);
     else if (strcmp(argv[1], "count") == 0) return count_matrix(argc-1, argv+1);
     //else if (strcmp(argv[1], "assem") == 0)  return assem(argc-1, argv+1);
-    else if (strcmp(argv[1], "segment") == 0) return check_segment2(argc-1, argv+1);
+    else if (strcmp(argv[1], "segment") == 0) return fastq_segment(argc-1, argv+1);
     // else if (strcmp(argv[1], "segment2") == 0) return check_segment2(argc-1, argv+1);
     //else if (strcmp(argv[1], "cleanup") == 0) return LFR_cleanup(argc-1, argv+1);
     else if (strcmp(argv[1], "unitig") == 0) return fastq_unitig(argc-1, argv+1);

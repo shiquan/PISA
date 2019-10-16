@@ -73,5 +73,5 @@ extern void fastq_handler_destory(struct fastq_handler *h);
 extern void bseq_pool_push(struct bseq *b, struct bseq_pool *p);
 extern int levenshtein(char *a, char *b, int l);
 extern int bseq_pool_dedup(struct bseq_pool *p);
-extern char **fastq_name_pick_tags(char *name, struct dict *dict);
+
 #endif
