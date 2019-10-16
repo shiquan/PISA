@@ -991,12 +991,12 @@ static int parse_args(int argc, char **argv)
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
         const char **var = 0;
-        if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return usage();
+        if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         else if (strcmp(a, "-sl") == 0) var = &seed;
         else if (strcmp(a, "-config") == 0) var = &args.config_fname;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-t") == 0) var = &thread;
-        else if (strcmp(a, "-tag") == 0) var = &tags;
+        else if (strcmp(a, "-tags") == 0) var = &tags;
         else if (strcmp(a, "-pb") == 0) var = &args.phase_tag;
         else if (strcmp(a, "-f") == 0) {
             args.filter_reads = 1;
@@ -1048,29 +1048,6 @@ static void memory_release()
     fclose(args.out);
 }
 
-/*
-struct thread_dat {
-    int n, m;
-    struct read_block {
-        int n, m;
-        struct frag_chunk {
-            int n, m;
-            struct read {
-                char *name;
-                char *seq;
-                char *qual;
-            } *read;
-        } *frag;
-    } *block;
-};
-
-struct thread_dat *read_block(FILE *fp)
-{
-}
-void thread_dat_destroy(struct thread_dat *d)
-{
-}
-*/
 static struct tag_val *tag_val_create(struct ref *ref)
 {
     struct ref_pat *r = ref->ref;
