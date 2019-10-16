@@ -916,6 +916,7 @@ static char **check_pattern(char *s, int start, struct ref *ref, struct hit *h, 
         *n_reads = 1;
         kstring_t str = {0,0,0};
         kputs(s+s2, &str);
+        *n_reads = 1;
         char **ret = malloc(sizeof(void*)*(*n_reads));
         ret[0] = str.s;
         return ret;
@@ -924,6 +925,7 @@ static char **check_pattern(char *s, int start, struct ref *ref, struct hit *h, 
         kstring_t str = {0,0,0};
         kputsn(s, s1, &str);
         kputs("", &str);
+        *n_reads = 1;
         char **ret = malloc(sizeof(void*)*(*n_reads));
         ret[0] = str.s;
         return ret;        
@@ -934,6 +936,7 @@ static char **check_pattern(char *s, int start, struct ref *ref, struct hit *h, 
             kputs(s+s2, &str);
             kputsn(s, s1, &str);
             kputs("", &str);
+            *n_reads = 1;
             char **ret = malloc(sizeof(void*)*(*n_reads));
             ret[0] = str.s;
             return ret;        
@@ -941,9 +944,9 @@ static char **check_pattern(char *s, int start, struct ref *ref, struct hit *h, 
         else {
             char **ret = NULL;          
             if (s2 < l) {
-                *n_reads = 1;
                 kstring_t str = {0,0,0};
                 kputs(s+s2, &str);
+                *n_reads = 1;
                 ret = malloc(sizeof(void*)*(*n_reads));
                 ret[0] = str.s;                
             }
@@ -1231,7 +1234,17 @@ static void *run_it(void *_p)
                     kputs(s, &str);
                     free(s);
                 }
+                int k;
+                for (k = 0; k > phase_block[j].n; ++k) {
+                    struct read *b = &phase_block[j].b[k];
+                    free(b->name);
+                    free(b->s0);
+                    if (b->q0) free(b->q0);
+                    if (b->s1) free(b->s1);
+                    if (b->q1) free(b->q1);
+                }
             }
+
         }
         else {
             int j;
