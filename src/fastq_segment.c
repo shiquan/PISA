@@ -1148,6 +1148,7 @@ static char *find_segment(struct ref *ref, struct read *r, int n)
         rd->n++;
         
       next_read:
+        free(s);
         free(str.s);
     }
 
@@ -1155,6 +1156,13 @@ static char *find_segment(struct ref *ref, struct read *r, int n)
     
     if (args.keep_all == 0 && new_name == NULL) {
         tag_val_destroy(v);
+        int ir;
+        for (ir = 0; ir < rd->n; ++ir) {
+            free(rd->rd[ir].name);
+            free(rd->rd[ir].seq);
+        }
+        free(rd->rd);
+        free(rd);
         return NULL;
     }
     kstring_t out = {0,0,0};
@@ -1234,17 +1242,9 @@ static void *run_it(void *_p)
                     kputs(s, &str);
                     free(s);
                 }
-                int k;
-                for (k = 0; k > phase_block[j].n; ++k) {
-                    struct read *b = &phase_block[j].b[k];
-                    free(b->name);
-                    free(b->s0);
-                    if (b->q0) free(b->q0);
-                    if (b->s1) free(b->s1);
-                    if (b->q1) free(b->q1);
-                }
-                free(phase_block[j].b);
+                read_block_clear(&phase_block[j]);
             }
+            
             free(phase_block);
         }
         else {

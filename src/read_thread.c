@@ -7,6 +7,20 @@ static char *copy_str(char *a)
     if (a == NULL) return NULL;
     return strdup(a);
 }
+void read_block_clear(struct read_block *b)
+{
+    int i;
+    for (i = 0; i < b->n; ++i) {
+        struct read *r = &b->b[i];
+        if (r->name) free(r->name);
+        if (r->s0) free(r->s0);
+        if (r->q0) free(r->q0);
+        if (r->s1) free(r->s1);
+        if (r->q1) free(r->q1);
+    }
+    free(b->b);
+    if (b->name) free(b->name);
+}
 struct read_block *read_block_copy(struct read_block *r)
 {
     struct read_block *b = malloc(sizeof(*b));
@@ -49,17 +63,7 @@ void thread_dat_destroy(struct thread_dat *td)
     int i;
     for (i = 0; i < td->n; ++i) {
         struct read_block *rb = &td->rb[i];
-        free(rb->name);
-        int j;
-        for (j = 0; j < rb->n; ++j) {
-            struct read *read = &rb->b[j];
-            free(read->name);
-            free(read->s0);
-            if (read->q0) free(read->q0);
-            if (read->s1) free(read->s1);
-            if (read->q1) free(read->q1);
-        }
-        free(rb->b);
+        read_block_clear(rb);
     }
     free(td->rb);
     free(td);

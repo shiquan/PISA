@@ -27,6 +27,7 @@ struct thread_dat {
 
 void read_block_push(struct read_block *b, struct read *r);
 struct read_block *read_block_copy(struct read_block *r);
+void read_block_clear(struct read_block *b);
 
 extern void thread_dat_destroy(struct thread_dat *td);
 extern struct thread_dat *read_thread_dat(FILE *fp, struct dict *dict);
