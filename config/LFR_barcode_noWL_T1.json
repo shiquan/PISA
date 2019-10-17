@@ -1,0 +1,17 @@
+{
+    "cell barcode tag":"LB",
+    "cell barcode":[
+        {
+            "location":"R2:101-130",
+        }
+    ],
+    "read 1":{
+        "location":"R1:1-100",
+    },
+    "read 2":{
+        "location":"R2:1-100",
+    }
+}
+
+
+        
