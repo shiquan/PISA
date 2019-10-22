@@ -1091,7 +1091,7 @@ struct ret_dat {
         char *seq;
     } *rd;
 };
-static char *find_segment(struct ref *ref, struct read *r, int n)
+static char *find_segment(struct ref *ref, struct read *r, int n, int *no_tag)
 {
     struct tag_val *v = tag_val_create(ref);
     struct ret_dat *rd = malloc(sizeof(*rd));
@@ -1154,7 +1154,9 @@ static char *find_segment(struct ref *ref, struct read *r, int n)
     }
 
     char *new_name = tagval2name(ref, v);
-    
+    if (new_name) *no_tag = 0;
+    else *no_tag = 1;
+/*    
     if (args.keep_all == 0 && new_name == NULL) {
         tag_val_destroy(v);
         int ir;
@@ -1166,6 +1168,7 @@ static char *find_segment(struct ref *ref, struct read *r, int n)
         free(rd);
         return NULL;
     }
+*/
     kstring_t out = {0,0,0};
     for (ir = 0; ir < rd->n; ++ir) {
         kputc('>', &out);
@@ -1227,34 +1230,52 @@ struct read_block *build_phase_block(struct read_block *r, const char *tag, int 
     dict_destroy(phase_dict);
     return rb;
 }
+struct ret_stream {
+    int all_block;
+    int ret_block;
+    char *out_stream;
+};
+
 static void *run_it(void *_p)
 {
     struct thread_dat *d = (struct thread_dat*)_p;
-    
+    struct ret_stream *ret = malloc(sizeof(struct ret_stream));
+    ret->all_block = d->n;
+    ret->ret_block = 0;
     kstring_t str = {0,0,0};
+    kstring_t temp = {0,0,0};
     int i; 
     for (i = 0; i < d->n; ++i) {
         struct read_block *rb = &d->rb[i];
         if (args.phase_tag) {
             int n;
+            int no_tag = 1;
+            int empty_block = 1;
+            temp.l = 0;
             struct read_block *phase_block = build_phase_block(rb, args.phase_tag, &n);
             int j;
             for (j = 0; j < n; ++j) {
-                char *s = find_segment(args.r, phase_block[j].b, phase_block[j].n);
+                char *s = find_segment(args.r, phase_block[j].b, phase_block[j].n, &no_tag);
+                if (no_tag == 0) empty_block = 0;
                 if (s) {
-                    kputs(s, &str);
+                    kputs(s, &temp);
                     free(s);
                 }
                 read_block_clear(&phase_block[j]);
             }
-            
             free(phase_block);
+            if (args.keep_all == 0 && empty_block == 1) continue; // if set -k, keep empty block
+            ret->ret_block++;
+            kputs(temp.s, &str);
         }
         else {
             int j;
             for (j = 0; j < rb->n; ++j) {
-                char *s = find_segment(args.r, &rb->b[j], 1);
+                int no_tag = 1;
+                char *s = find_segment(args.r, &rb->b[j], 1, &no_tag);
+                if (args.keep_all == 0 && no_tag == 1) continue;
                 if (s) {
+                    ret->ret_block++;
                     kputs(s, &str);
                     free(s);
                 }
@@ -1263,8 +1284,9 @@ static void *run_it(void *_p)
     }
 
     thread_dat_destroy(d);
-    if (str.l == 0) return NULL;
-    return str.s;
+    if (temp.m) free(temp.s);
+    ret->out_stream = str.s;
+    return ret;
 }
 /*
 static void write_out(void *_d)
@@ -1295,13 +1317,17 @@ int fastq_segment(int argc, char **argv)
     
     LOG_print("Build reference finished.");
 
+    int all_block = 0;
+    int ret_block = 0;
     if (args.n_thread == 1) {
         for (;;) {
             struct thread_dat *dat = read_thread_dat(fp_in, args.tag_dict);
             if (dat == NULL) break;
-            char *ret = (char*)run_it(dat);
-            if (ret == NULL) continue;
-            fputs(ret, fp_out);
+            struct ret_stream *ret = (struct ret_stream*)run_it(dat);
+            if (ret->out_stream != NULL) {
+                fputs(ret->out_stream, fp_out);
+                free(ret->out_stream);
+            }
             free(ret);
         }
     }
@@ -1318,9 +1344,14 @@ int fastq_segment(int argc, char **argv)
             do {
                 block = hts_tpool_dispatch2(p, q, run_it, dat, 1);
                 if ((r = hts_tpool_next_result(q))) {
-                    char *d = (char*) hts_tpool_result_data(r);
+                    struct ret_stream *d = (struct ret_stream*) hts_tpool_result_data(r);
                     if (d) {
-                        fputs(d, fp_out);
+                        all_block += d->all_block;
+                        ret_block += d->ret_block;
+                        if (d->out_stream) {
+                            fputs(d->out_stream, fp_out);
+                            free(d->out_stream);
+                        }
                         free(d);
                     }
                     hts_tpool_delete_result(r, 0);
@@ -1330,11 +1361,17 @@ int fastq_segment(int argc, char **argv)
         hts_tpool_process_flush(q);
 
         while ((r = hts_tpool_next_result(q))) {
-            char *d = (char*) hts_tpool_result_data(r);
+            struct ret_stream *d = (struct ret_stream*) hts_tpool_result_data(r);
             if (d) {
-                fputs(d, fp_out);
+                all_block += d->all_block;
+                ret_block += d->ret_block;
+                if (d->out_stream) {
+                    fputs(d->out_stream, fp_out);
+                    free(d->out_stream);
+                }
                 free(d);
             }
+
             hts_tpool_delete_result(r, 0);
         }
         hts_tpool_process_destroy(q);
@@ -1344,6 +1381,7 @@ int fastq_segment(int argc, char **argv)
     fclose(fp_in);
     fclose(fp_out);
     memory_release();
+    LOG_print("All blocks: %d, return blocks: %d", all_block, ret_block);
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;
 }
