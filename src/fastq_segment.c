@@ -840,20 +840,22 @@ static char * tagval2name(struct ref *ref, struct tag_val *v)
 {
     struct ref_pat *r = ref->ref;
     kstring_t str={0,0,0};
+    kstring_t ret={0,0,0};
     int i;
     for (i = 0; i < r->n; ++i) {
+        str.l = 0;
         struct segment *seg = &r->segs[i];
         ksprintf(&str, "|||%s:Z:", seg->tag);
         if (seg->n == 1) {
             int idx = dict_query(v->tag, seg->tag);
             assert(idx>=0);
-            if (v->dict[idx] == NULL) goto empty_bc;
+            if (v->dict[idx] == NULL) continue; //goto empty_bc;
             char *a;
             if (dict_size(v->dict[idx]) > 1) 
                 a =dict_most_likely_key(v->dict[idx]);
             else
                 a = dict_name(v->dict[idx], 0);
-            if (a == NULL) goto empty_bc;
+            if (a == NULL) continue; //goto empty_bc;
             kputs(a, &str);
         }
         else {
@@ -861,23 +863,22 @@ static char * tagval2name(struct ref *ref, struct tag_val *v)
             for (k = 0; k < seg->n; ++k) {
                 int idx = dict_query(v->tag, seg->s[k].tag);            
                 assert(idx>=0);
-                if (v->dict[idx] == NULL) goto empty_bc;
+                if (v->dict[idx] == NULL) break; // goto empty_bc;
                 char *a;
                 if (dict_size(v->dict[idx]) > 1)
                     a =dict_most_likely_key(v->dict[idx]);
                 else
                     a = dict_name(v->dict[idx], 0);
-                if (a==NULL) goto empty_bc;
+                if (a==NULL) break; //goto empty_bc;
                 kputs(a, &str);
             }
+            if (k != seg->n) continue;
         }
+        kputs(str.s, &ret);
     }
+    if (str.m) free(str.s);
 
-    return str.s;
-    
-  empty_bc:
-    if (str.m != 0) free(str.s);
-    return NULL;
+    return ret.s;
 }
 
 static char **check_pattern(char *s, int start, struct ref *ref, struct hit *h, int is_circle, struct tag_val *v, int *n_reads)
@@ -908,8 +909,6 @@ static char **check_pattern(char *s, int start, struct ref *ref, struct hit *h, 
     free(pat);
 
     *n_reads = 0;
-
-    int n = 0;
 
     if (s1 == 0) {
         if (s2 == l) return NULL;
@@ -1267,6 +1266,7 @@ static void *run_it(void *_p)
     if (str.l == 0) return NULL;
     return str.s;
 }
+/*
 static void write_out(void *_d)
 {
     char *s = (char*)_d;
@@ -1275,6 +1275,7 @@ static void write_out(void *_d)
         free(s);
     }
 }
+*/
 
 int fastq_segment(int argc, char **argv)
 {
