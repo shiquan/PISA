@@ -1041,7 +1041,9 @@ static int parse_args(int argc, char **argv)
 
     if (tags) 
         args.tag_dict = str2tag(tags);
-    
+
+    if (args.phase_tag)  LOG_print("Phase tag : %s", args.phase_tag);
+        
     return 0;
 }
 static void memory_release()
@@ -1091,12 +1093,12 @@ struct ret_dat {
         char *seq;
     } *rd;
 };
-static char *find_segment(struct ref *ref, struct read *r, int n, int *no_tag)
+static char *find_segment(struct ref *ref, struct read *r, int n, int *empty_block)
 {
     struct tag_val *v = tag_val_create(ref);
     struct ret_dat *rd = malloc(sizeof(*rd));
     memset(rd, 0, sizeof(struct ret_dat));
-              
+
     int ir;
     for (ir = 0; ir < n; ++ir) {
         struct read *seq = &r[ir];
@@ -1154,8 +1156,8 @@ static char *find_segment(struct ref *ref, struct read *r, int n, int *no_tag)
     }
 
     char *new_name = tagval2name(ref, v);
-    if (new_name) *no_tag = 0;
-    else *no_tag = 1;
+    if (new_name) *empty_block = 0;
+
 /*    
     if (args.keep_all == 0 && new_name == NULL) {
         tag_val_destroy(v);
@@ -1247,10 +1249,10 @@ static void *run_it(void *_p)
     int i; 
     for (i = 0; i < d->n; ++i) {
         struct read_block *rb = &d->rb[i];
+        int empty_block = 1;
         if (args.phase_tag) {
             int n;
             int no_tag = 1;
-            int empty_block = 1;
             temp.l = 0;
             struct read_block *phase_block = build_phase_block(rb, args.phase_tag, &n);
             int j;
@@ -1271,9 +1273,8 @@ static void *run_it(void *_p)
         else {
             int j;
             for (j = 0; j < rb->n; ++j) {
-                int no_tag = 1;
-                char *s = find_segment(args.r, &rb->b[j], 1, &no_tag);
-                if (args.keep_all == 0 && no_tag == 1) continue;
+                char *s = find_segment(args.r, &rb->b[j], 1, &empty_block);
+                if (args.keep_all == 0 && empty_block == 1) continue;
                 if (s) {
                     ret->ret_block++;
                     kputs(s, &str);
