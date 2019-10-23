@@ -883,8 +883,8 @@ int fsort(int argc, char **argv)
         fclose(out);
         if (args.report_fname) {
             FILE *re = fopen(args.report_fname, "w");
-            fprintf(re, "All reads,%d", args.read_counts);
-            fprintf(re, "Deduplicated reads,%d", args.nondup);
+            fprintf(re, "All reads,%d\n", args.read_counts);
+            fprintf(re, "Deduplicated reads,%d\n", args.nondup);
             fclose(re);
         }
         

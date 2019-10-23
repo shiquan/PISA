@@ -1325,7 +1325,9 @@ int fastq_segment(int argc, char **argv)
             struct thread_dat *dat = read_thread_dat(fp_in, args.tag_dict);
             if (dat == NULL) break;
             struct ret_stream *ret = (struct ret_stream*)run_it(dat);
-            if (ret->out_stream != NULL) {
+            all_block += d->all_block;
+            ret_block += d->ret_block;
+            if (ret->out_stream != NULL) {            
                 fputs(ret->out_stream, fp_out);
                 free(ret->out_stream);
             }
