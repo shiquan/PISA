@@ -34,7 +34,7 @@ static struct args {
     char **impute_tags;
     int n_block;
     char **block_tags;
-
+    int dist;
     htsFile *in;
     htsFile *out;
     bam_hdr_t *hdr;
@@ -49,21 +49,22 @@ static struct args {
     uint64_t imputed_records;
     
 } args = {
-    .input_fname = NULL,
+    .input_fname  = NULL,
     .output_fname = NULL,
-    .n_impute = 0,
-    .impute_tags = NULL,
-    .n_block = 0,
-    .block_tags = NULL,
-    .in = NULL,
-    .out = NULL,
-    .hdr = NULL,
-    .qual_thres = 20,
-    .keep_all = 0,
-    .index =NULL,
-    .file_th = 1,
-    .n_thread = 1,
-    .chunk_size = 1000000,
+    .n_impute     = 0,
+    .impute_tags  = NULL,
+    .n_block      = 0,
+    .block_tags   = NULL,
+    .dist         = 0,
+    .in           = NULL,
+    .out          = NULL,
+    .hdr          = NULL,
+    .qual_thres   = 20,
+    .keep_all     = 0,
+    .index        = NULL,
+    .file_th      = 1,
+    .n_thread     = 1,
+    .chunk_size   = 1000000,
     .imputed_records = 0,
 };
 static void impute_index_destory(struct impute_index *idx)
@@ -88,6 +89,7 @@ static int parse_args(int argc, char **argv)
     const char *impute_tags = NULL;
     const char *file_thread = NULL;
     const char *thread = NULL;
+    const char *dist = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -97,6 +99,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
+        else if (strcmp(a, "-dist") == 0) var = &dist;
         else if (strcmp(a, "-k") == 0) {
             args.keep_all = 1;
             continue;
@@ -140,7 +143,8 @@ static int parse_args(int argc, char **argv)
     }
     free(s0);
     free(str.s);
-        
+
+    if (dist) args.dist = str2int((char*)dist);
     if (file_thread) args.file_th = str2int((char*)file_thread);
     assert(args.file_th>0);
     if (thread) args.n_thread = str2int((char*)thread);
@@ -379,9 +383,10 @@ static void write_out(struct p_data *p)
 // this program used to impute missed tags for reads from same block.
 static int usage()
 {
-    fprintf(stderr, "LFR_impute in.bam\n");
-    fprintf(stderr, "  -impute         Tags to impute.\n");
+    fprintf(stderr, "bam_impute in.bam\n");
+    fprintf(stderr, "  -impute       Tags to impute.\n");
     fprintf(stderr, "  -block        Tags to identify each block.\n");
+    fprintf(stderr, "  -dist         Distance between reads from same block will be imputed.\n");
     fprintf(stderr, "  -k            Keep unclassified reads in the output.\n");
     fprintf(stderr, "  -@            Threads to pack and unpack bam file.\n");
     fprintf(stderr, "  -t            Threads to process.\n");
