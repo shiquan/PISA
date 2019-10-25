@@ -354,52 +354,65 @@ int write_summary(struct gcov *g,struct acc_gene_cov *acc_gene_cov)
 int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_lite *gl, struct gcov *gcov, struct acc_gene_cov *acc_gene_cov)
 {
     bam1_t *b = bam_init1();
-    int r;
-    hts_itr_t *itr = sam_itr_queryi(idx, tid, gl->start, gl->end);
-
+    struct cov *gene_bed = malloc(sizeof(struct cov));
+    memset(gene_bed, 0, sizeof(struct cov));
+    gl2bed(gene_bed, gl);
+    int lgen = cov_sum(gene_bed);
+    
     struct cov *acc_cov = malloc(sizeof(struct cov));
     memset(acc_cov, 0, sizeof(struct cov));
-    int cnt = 0;
-    // each block come from exactly one gene
-    while ((r = sam_itr_next(fp, itr, b)) >= 0) {
-        uint8_t *tag = bam_aux_get(b, args.tag);
-        if (!tag) continue;
-        char *cb = (char*)(tag+1);
-        int id;
-        id = dict_query(gcov->bcodes, cb);
-        if (id == -1) continue;
-        cnt++;
-        // for counting accumulation coverage
-        int l = 0;
-        int start = b->core.pos+1;        
-        dict_push(gcov->names, name);
+    // reset buffer
+    int k;
+    for (k = 0; k < dict_size(gcov->bcodes); ++k) gcov->temp_cov[k].n = 0;
+    
+    int ex;
+    for (ex = 0; ex < gene_bed->n; ++ex) {
+        //hts_itr_t *itr = sam_itr_queryi(idx, tid, gl->start, gl->end);
+        struct bed *exon = &gene_bed->bed[ex];
+        hts_itr_t *itr = sam_itr_queryi(idx, tid, exon->start, exon->end);
+        int r;
+        // each block come from exactly one gene
+        while ((r = sam_itr_next(fp, itr, b)) >= 0) {
+            uint8_t *tag = bam_aux_get(b, args.tag);
+            if (!tag) continue;
+            char *cb = (char*)(tag+1);
+            int id;
+            id = dict_query(gcov->bcodes, cb);
+            if (id == -1) continue;
 
-        struct cov *cov = &gcov->temp_cov[id];
-        int k;
-        for (k = 0; k < b->core.n_cigar; ++k) {
-            int cig = bam_cigar_op(bam_get_cigar(b)[k]);
-            int ncig = bam_cigar_oplen(bam_get_cigar(b)[k]);
-            if (cig == BAM_CMATCH || cig == BAM_CEQUAL || cig == BAM_CDIFF) {
-                l += ncig;
+            // for counting accumulation coverage
+            int l = 0;
+            int start = b->core.pos+1;        
+            dict_push(gcov->names, name);
+            
+            struct cov *cov = &gcov->temp_cov[id];
+            int k;
+            for (k = 0; k < b->core.n_cigar; ++k) {
+                int cig = bam_cigar_op(bam_get_cigar(b)[k]);
+                int ncig = bam_cigar_oplen(bam_get_cigar(b)[k]);
+                if (cig == BAM_CMATCH || cig == BAM_CEQUAL || cig == BAM_CDIFF) {
+                    l += ncig;
+                }
+                else if (cig == BAM_CDEL) {
+                    l += ncig;
+                }
+                else if (cig == BAM_CREF_SKIP) {
+                    cov_push(cov, start, start+l-1);
+                    cov_push(acc_cov, start, start+l-1);
+                    // reset block
+                    start = start + l + ncig;
+                    l = 0;
+                }
             }
-            else if (cig == BAM_CDEL) {
-                l += ncig;
-            }
-            else if (cig == BAM_CREF_SKIP) {
+            if (l != 0) {
                 cov_push(cov, start, start+l-1);
                 cov_push(acc_cov, start, start+l-1);
-                // reset block
-                start = start + l + ncig;
-                l = 0;
             }
         }
-        if (l != 0) {
-            cov_push(cov, start, start+l-1);
-            cov_push(acc_cov, start, start+l-1);
-        }
+        
+        hts_itr_destroy(itr);
     }
-
-    hts_itr_destroy(itr);
+    
     int lcov = cov_sum(acc_cov);
     if (lcov == 0) goto not_update_cov;
     
@@ -408,13 +421,6 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
     if (gid == -1) goto not_update_cov;
     if (gid != dict_size(gcov->names)-1) goto not_update_cov;
         
-    struct cov *gene_bed = malloc(sizeof(struct cov));
-    memset(gene_bed, 0, sizeof(struct cov));
-    gl2bed(gene_bed, gl);
-        
-    int k;
-    int lgen = cov_sum(gene_bed);
-
     kstring_t str = {0,0,0};
     kputs(name, &str);    
     for (k = 0; k < dict_size(gcov->bcodes); ++k) {
@@ -434,8 +440,8 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
     kputc('\n', &str);
     if (args.fp_mtx) fputs(str.s, args.fp_mtx);
     free(str.s);
-    
-    for (k = 0; k < dict_size(gcov->bcodes); ++k) gcov->temp_cov[k].n = 0;
+   
+    // for (k = 0; k < dict_size(gcov->bcodes); ++k) gcov->temp_cov[k].n = 0;
 
     if (acc_gene_cov->n == acc_gene_cov->m) {
         acc_gene_cov->m = acc_gene_cov->m == 0 ? 1024 : acc_gene_cov->m << 1;
@@ -458,6 +464,8 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
 
   not_update_cov:
     bam_destroy1(b);
+    free(gene_bed->bed);
+    free(gene_bed);
     free(acc_cov->bed);
     free(acc_cov);
     return 1;
