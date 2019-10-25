@@ -184,9 +184,7 @@ struct gcov {
     struct dict *names;
     struct dict *bcodes; // load from barcode list    
     struct cov *temp_cov; // temp coverage record for last gene
-    uint8_t **cov;
-    // int n, m;
-    // uint8_t **covs;
+    // uint8_t **cov;
 };
 
 static int cmpfunc(const void *_a, const void *_b)
@@ -269,22 +267,23 @@ struct gcov *gcov_init(const char *fn)
 
     g->temp_cov = malloc(dict_size(g->bcodes)*sizeof(struct cov));
     memset(g->temp_cov, 0, dict_size(g->bcodes)*sizeof(struct cov));
-    
+    /*
     g->cov = malloc(dict_size(g->bcodes)*sizeof(void*));
     int i;
     for (i = 0; i < dict_size(g->bcodes); ++i) {
         g->cov[i] = malloc(101);
         memset(g->cov[i], 0, 101);
     }
+    */
     return g;
 }
 void gcov_destory(struct gcov *g)
 {
     int i;
-    for (i = 0; i < dict_size(g->bcodes); ++i) free(g->cov[i]);
+    // for (i = 0; i < dict_size(g->bcodes); ++i) free(g->cov[i]);
     for (i = 0; i < dict_size(g->bcodes); ++i) free(g->temp_cov[i].bed);
     free(g->temp_cov);
-    free(g->cov);
+    // free(g->cov);
     dict_destroy(g->names);
     dict_destroy(g->bcodes);
     free(g);
@@ -314,29 +313,7 @@ static void gl2bed(struct cov *cov, struct gtf_lite *gl)
         cov_push(cov, gl->start, gl->end);
     }    
 }
-/*
-int write_cov_mtx(struct gcov *g)
-{
-    if (args.fp_mtx == NULL) return 1;
-    int i;
-    fputs("Name", args.fp_mtx);
-    for (i = 0; i < dict_size(g->bcodes); ++i) {
-        fputc('\t',args.fp_mtx);
-        fputs(dict_name(g->bcodes, i), args.fp_mtx);
-    }
-    fputc('\n', args.fp_mtx);
 
-    int j;
-    for (j = 0; j < dict_size(g->names); ++j) {
-        fputs(dict_name(g->names, j), args.fp_mtx);
-        for (i = 0; i < dict_size(g->bcodes); ++i)
-            fprintf(args.fp_mtx,"\t%d", g->covs[j][i]);
-
-        fputc('\n', args.fp_mtx);
-    }
-    return 0;
-}
-*/
 struct acc_gene_cov {
     int n, m;
     uint8_t *cov;
@@ -352,13 +329,13 @@ int write_summary(struct gcov *g,struct acc_gene_cov *acc_gene_cov)
     for (i = 0; i < acc_gene_cov->n; ++i) count[acc_gene_cov->cov[i]]++;
     for (i = 0; i < 101; ++i)  
         fprintf(args.fp_summary,"Accumulation\t%d\t%d\n", i, count[i]);
-        
+    /*
     for (i = 0; i < dict_size(g->bcodes); ++i) {
         int j;
         for (j = 0; j < 101; ++j)
             fprintf(args.fp_summary,"%s\t%d\t%d\n", dict_name(g->bcodes, i), j, g->cov[i][j]);
     }
-
+    */
     return 0;
 }
 int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_lite *gl, struct gcov *gcov, struct acc_gene_cov *acc_gene_cov)
@@ -435,7 +412,7 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
             float f = (float)(lgen + lcov - sum)/lgen;
             r = (uint8_t)(f*100);
         }
-        gcov->cov[k][r]++;
+        // gcov->cov[k][r]++;
         kputc('\t', &str);
         kputw(r, &str);
     }
