@@ -14,8 +14,6 @@
 KHASH_MAP_INIT_STR(str, int)
 typedef kh_str_t strhash_t;
 
-// const char *program_name = "CellBarcodeParser";
-
 static int usage()
 {
     fprintf(stderr, "* Parse cell barcode and UMI string from raw FASTQ.\n");
@@ -89,11 +87,6 @@ struct BarcodeRegion {
     int len;
     int n_wl;
     strhash_t *wlhash;
-    // It is NOT Thread safe. delete it at 11 April 2019
-    // reset to 0 before counting. 
-    // int q30_bases;
-    // int bases;
-    // int exact_match;
 };
 void BarcodeRegion_clean(struct BarcodeRegion *br)
 {
@@ -345,11 +338,9 @@ static void config_init(const char *fn)
         }
         if (strcmp(node->key, "platform") == 0) {
             continue;
-            // if (node->v.str) config.platform = strdup(node->v.str);
         }
         else if (strcmp(node->key, "version") == 0) {
             continue;
-            // if (node->v.str) config.version = strdup(node->v.str);
         }
         else if (strcmp(node->key, "cell barcode tag") == 0) {
             if (node->v.str) config.cell_barcode_tag = strdup(node->v.str);
@@ -703,10 +694,9 @@ struct BRstat *extract_barcodes(struct bseq *b,
     if (run_code) {
         kputc('-', &tag_str);
         kputs(run_code, &tag_str);
-        struct fq_data *data = (struct fq_data*)b->data;
-        data->bc_str = strdup(tag_str.s);
     }
-    
+    struct fq_data *data = (struct fq_data*)b->data;
+    data->bc_str = strdup(tag_str.s);
     if (tag) update_rname(b, tag, tag_str.s);
     if (raw_tag) update_rname(b, raw_tag, str.s);
     if (raw_qual_tag) update_rname(b, raw_qual_tag, qual.s);
@@ -1118,6 +1108,7 @@ void full_details()
                 fprintf(args.barcode_dis_fp, "%s\t%"PRIu64"\t%"PRIu64"\n", br->white_list[j], s0->counts[j].matched, s0->counts[j].corrected);
         }
     }
+
 }
 static void memory_release()
 {
@@ -1182,7 +1173,6 @@ static int parse_args(int argc, char **argv)
     if (args.config_fname == NULL) error("Option -config is required.");
     config_init(args.config_fname);
 
-    //if (args.cbdis_fname == NULL) error("-cbdis is required.");
     if (thread) args.n_thread = str2int((char*)thread);
     if (chunk_size) args.chunk_size = str2int((char*)chunk_size);
     assert(args.n_thread >= 1 && args.chunk_size >= 1);
@@ -1190,7 +1180,6 @@ static int parse_args(int argc, char **argv)
         args.qual_thres = str2int((char*)qual_thres);
         LOG_print("Average quality below %d will be drop.", args.qual_thres);
     }
-
 
     args.hold = malloc(sizeof(void*)*args.n_thread);
     memset(args.hold, 0, sizeof(void*)*args.n_thread);
