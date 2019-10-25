@@ -22,7 +22,16 @@ static int usage()
     fprintf(stderr, "  -@           Thread to unpack BAM.\n");
     return 1;
 }
-
+void *debug_malloc(int x)
+{
+    debug_print("Try to allocate %d bits.", x);
+    return malloc(x);
+}
+void *debug_realloc(void *a, int x)
+{
+    debug_print("Try to re-allocate %d bits.", x);
+    return realloc(a, x);
+}
 // Output
 // Cell_barcode Gene Coverage
 
@@ -233,11 +242,11 @@ int cov_sum(struct cov *cov)
 }
 int cov_sum2(struct cov *cov1, struct cov *cov2)
 {
-    struct cov *cov = malloc(sizeof(struct cov));
+    struct cov *cov = debug_malloc(sizeof(struct cov));
     cov->m = cov1->n + cov2->n;
     cov->n = 0;
     kroundup32(cov->m);
-    cov->bed = malloc(cov->m *sizeof(struct bed));
+    cov->bed = debug_malloc(cov->m *sizeof(struct bed));
     int i;
     for (i = 0; i < cov1->n; ++i) {
         cov->bed[i+cov->n].start = cov1->bed[i].start;
@@ -258,20 +267,20 @@ int cov_sum2(struct cov *cov1, struct cov *cov2)
 
 struct gcov *gcov_init(const char *fn)
 {
-    struct gcov *g = malloc(sizeof(*g));
+    struct gcov *g = debug_malloc(sizeof(*g));
     memset(g, 0, sizeof(*g));
     g->names = dict_init();
     g->bcodes = dict_init();
     if (dict_read(g->bcodes, fn))
         error("Failed to load cell barcode.");
 
-    g->temp_cov = malloc(dict_size(g->bcodes)*sizeof(struct cov));
+    g->temp_cov = debug_malloc(dict_size(g->bcodes)*sizeof(struct cov));
     memset(g->temp_cov, 0, dict_size(g->bcodes)*sizeof(struct cov));
     /*
-    g->cov = malloc(dict_size(g->bcodes)*sizeof(void*));
+    g->cov = debug_malloc(dict_size(g->bcodes)*sizeof(void*));
     int i;
     for (i = 0; i < dict_size(g->bcodes); ++i) {
-        g->cov[i] = malloc(101);
+        g->cov[i] = debug_malloc(101);
         memset(g->cov[i], 0, 101);
     }
     */
@@ -293,7 +302,7 @@ static void cov_push(struct cov *cov, int start, int end)
     if (cov->n == cov->m) {
         cov->m = cov->m == 0 ? 100 : cov->m<<1;
         //kroundup32(cov->m);
-        cov->bed = realloc(cov->bed, cov->m*sizeof(struct bed));
+        cov->bed = debug_realloc(cov->bed, cov->m*sizeof(struct bed));
     }
     cov->bed[cov->n].start = start;
     cov->bed[cov->n].end = end;
@@ -344,7 +353,7 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
     int r;
     hts_itr_t *itr = sam_itr_queryi(idx, tid, gl->start, gl->end);
 
-    struct cov *acc_cov = malloc(sizeof(struct cov));
+    struct cov *acc_cov = debug_malloc(sizeof(struct cov));
     memset(acc_cov, 0, sizeof(struct cov));
 
     // each block come from exactly one gene
@@ -394,7 +403,7 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
     if (gid == -1) goto not_update_cov;
     if (gid != dict_size(gcov->names)-1) goto not_update_cov;
         
-    struct cov *gene_bed = malloc(sizeof(struct cov));
+    struct cov *gene_bed = debug_malloc(sizeof(struct cov));
     memset(gene_bed, 0, sizeof(struct cov));
     gl2bed(gene_bed, gl);
         
@@ -425,7 +434,7 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
 
     if (acc_gene_cov->n == acc_gene_cov->m) {
         acc_gene_cov->m = acc_gene_cov->m == 0 ? 1024 : acc_gene_cov->m << 1;
-        acc_gene_cov->cov = realloc(acc_gene_cov->cov, acc_gene_cov->m);            
+        acc_gene_cov->cov = debug_realloc(acc_gene_cov->cov, acc_gene_cov->m);            
     }
     
     int sum  = cov_sum2(gene_bed, acc_cov);
@@ -462,7 +471,7 @@ int gene_cov(int argc, char **argv)
     }
 
     struct acc_gene_cov *acc_gene_cov;
-    acc_gene_cov = malloc(sizeof(struct acc_gene_cov));
+    acc_gene_cov = debug_malloc(sizeof(struct acc_gene_cov));
     memset(acc_gene_cov, 0, sizeof(struct acc_gene_cov));
 
     struct gtf_spec *G = args.G;
