@@ -370,7 +370,7 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
         struct bed *exon = &gene_bed->bed[ex];
         hts_itr_t *itr = sam_itr_queryi(idx, tid, exon->start, exon->end);
         int r;
-        /*
+        
         // each block come from exactly one gene
         while ((r = sam_itr_next(fp, itr, b)) >= 0) {
             uint8_t *tag = bam_aux_get(b, args.tag);
@@ -397,8 +397,8 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
                     l += ncig;
                 }
                 else if (cig == BAM_CREF_SKIP) {
-                    cov_push(cov, start, start+l-1);
-                    cov_push(acc_cov, start, start+l-1);
+                    //cov_push(cov, start, start+l-1);
+                    //cov_push(acc_cov, start, start+l-1);
                     // reset block
                     start = start + l + ncig;
                     l = 0;
@@ -410,7 +410,7 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
             }
        
         }
-        */ 
+         
         hts_itr_destroy(itr);
     }
     
