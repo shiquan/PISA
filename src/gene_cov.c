@@ -304,7 +304,6 @@ static void cov_push(struct cov *cov, int start, int end)
         if (cov->n > 1000) cov_merge1(cov);
         if (cov->n == cov->m) {
             cov->m = cov->m == 0 ? 100 : cov->m<<1;
-            //kroundup32(cov->m);
             cov->bed = realloc(cov->bed, cov->m*sizeof(struct bed));
         }
     }
@@ -371,6 +370,7 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
         struct bed *exon = &gene_bed->bed[ex];
         hts_itr_t *itr = sam_itr_queryi(idx, tid, exon->start, exon->end);
         int r;
+        /*
         // each block come from exactly one gene
         while ((r = sam_itr_next(fp, itr, b)) >= 0) {
             uint8_t *tag = bam_aux_get(b, args.tag);
@@ -408,8 +408,9 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
                 cov_push(cov, start, start+l-1);
                 cov_push(acc_cov, start, start+l-1);
             }
+       
         }
-        
+        */ 
         hts_itr_destroy(itr);
     }
     
