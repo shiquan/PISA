@@ -49,7 +49,6 @@ static struct args {
     const char *output_fname;
     const char *bulk_fname;
     const char *tag;
-    int file_th;
 
     htsFile    *fp;
     hts_idx_t  *idx;
@@ -67,7 +66,6 @@ static struct args {
     .summary_fname   = NULL,
     .output_fname    = NULL,
     .bulk_fname      = NULL,
-    .file_th         = 1,
     .tag             = NULL,
     .fp              = NULL,
     .idx             = NULL,
@@ -92,7 +90,7 @@ static int parse_args(int argc, char **argv)
     if (argc == 1) return 1;
 
     int i;
-    const char *file_th = NULL;
+
     const char *unit = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
@@ -124,8 +122,6 @@ static int parse_args(int argc, char **argv)
     if (args.gtf_fname == NULL) error("-gtf must be set.");
     if (args.cell_list == NULL) error("Cell barcode list should be set with -list.");
 
-    if (file_th) args.file_th = str2int(file_th);
-
     if (unit) {
         if (strcmp(unit, "gene") == 0) stat_unit = unit_gene;
         else if (strcmp(unit, "transcript") == 0) stat_unit = unit_transcript;
@@ -149,8 +145,6 @@ static int parse_args(int argc, char **argv)
 
     args.hdr = sam_hdr_read(args.fp);
     CHECK_EMPTY(args.hdr, "Failed to open header.");
-
-    //hts_set_threads(args.fp, args.file_th);
 
     args.fp_bulk = args.bulk_fname == NULL ? stdout : fopen(args.bulk_fname, "w");
     if (args.fp_bulk == NULL) error("%s : %s.", args.bulk_fname, strerror(errno));
@@ -194,7 +188,7 @@ struct gcov {
     struct dict *names;
     struct dict *bcodes; // load from barcode list    
     struct cov *temp_cov; // temp coverage record for last gene
-    // uint8_t **cov;
+    uint8_t **cov;
 };
 
 static int cmpfunc(const void *_a, const void *_b)
@@ -277,23 +271,23 @@ struct gcov *gcov_init(const char *fn)
 
     g->temp_cov = malloc(dict_size(g->bcodes)*sizeof(struct cov));
     memset(g->temp_cov, 0, dict_size(g->bcodes)*sizeof(struct cov));
-    /*
+    
     g->cov = malloc(dict_size(g->bcodes)*sizeof(void*));
     int i;
     for (i = 0; i < dict_size(g->bcodes); ++i) {
         g->cov[i] = malloc(101);
         memset(g->cov[i], 0, 101);
     }
-    */
+    
     return g;
 }
 void gcov_destory(struct gcov *g)
 {
     int i;
-    // for (i = 0; i < dict_size(g->bcodes); ++i) free(g->cov[i]);
+    for (i = 0; i < dict_size(g->bcodes); ++i) free(g->cov[i]);
     for (i = 0; i < dict_size(g->bcodes); ++i) free(g->temp_cov[i].bed);
     free(g->temp_cov);
-    // free(g->cov);
+    free(g->cov);
     dict_destroy(g->names);
     dict_destroy(g->bcodes);
     free(g);
@@ -341,13 +335,13 @@ int write_summary(struct gcov *g,struct acc_gene_cov *acc_gene_cov)
     for (i = 0; i < acc_gene_cov->n; ++i) count[acc_gene_cov->cov[i]]++;
     for (i = 0; i < 101; ++i)  
         fprintf(args.fp_summary,"Accumulation\t%d\t%d\n", i, count[i]);
-    /*
+    
     for (i = 0; i < dict_size(g->bcodes); ++i) {
         int j;
         for (j = 0; j < 101; ++j)
             fprintf(args.fp_summary,"%s\t%d\t%d\n", dict_name(g->bcodes, i), j, g->cov[i][j]);
     }
-    */
+    
     return 0;
 }
 int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_lite *gl, struct gcov *gcov, struct acc_gene_cov *acc_gene_cov)
@@ -395,16 +389,16 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
                     l += ncig;
                 }
                 else if (cig == BAM_CREF_SKIP) {
-                    //cov_push(cov, start, start+l-1);
-                    //cov_push(acc_cov, start, start+l-1);
+                    cov_push(cov, start, start+l-1);
+                    cov_push(acc_cov, start, start+l-1);
                     // reset block
                     start = start + l + ncig;
                     l = 0;
                 }
             }
             if (l != 0) {
-                //cov_push(cov, start, start+l-1);
-                //cov_push(acc_cov, start, start+l-1);
+                cov_push(cov, start, start+l-1);
+                cov_push(acc_cov, start, start+l-1);
             }
        
         }
@@ -431,7 +425,7 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
             float f = (float)(lgen + lcov - sum)/lgen;
             r = (uint8_t)(f*100);
         }
-        // gcov->cov[k][r]++;
+        gcov->cov[k][r]++;
         kputc('\t', &str);
         kputw(r, &str);
     }
@@ -442,19 +436,19 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
    
     // for (k = 0; k < dict_size(gcov->bcodes); ++k) gcov->temp_cov[k].n = 0;
 
-    /*
+    
     if (acc_gene_cov->n == acc_gene_cov->m) {
         acc_gene_cov->m = acc_gene_cov->m == 0 ? 1024 : acc_gene_cov->m << 1;
         acc_gene_cov->cov = realloc(acc_gene_cov->cov, acc_gene_cov->m);            
     }
-    */
+    
     int sum  = cov_sum2(gene_bed, acc_cov);
     assert(lgen+lcov-sum <= lgen);
-    // acc_gene_cov->cov[acc_gene_cov->n] = (uint8_t)(((float)(lgen+lcov-sum)/lgen)*100);
+    acc_gene_cov->cov[acc_gene_cov->n] = (uint8_t)(((float)(lgen+lcov-sum)/lgen)*100);
     
-    //fprintf(args.fp_bulk, "%s\t%d\t%d\n", name, lgen, acc_gene_cov->cov[acc_gene_cov->n]);
-    //acc_gene_cov->n++;
-    fprintf(args.fp_bulk, "%s\t%d\t%d\n", name, lgen, (uint8_t)(((float)(lgen+lcov-sum)/lgen)*100));
+    fprintf(args.fp_bulk, "%s\t%d\t%d\n", name, lgen, acc_gene_cov->cov[acc_gene_cov->n]);
+    acc_gene_cov->n++;
+    
     free(acc_cov->bed);
     free(acc_cov);
     free(gene_bed->bed);
@@ -573,7 +567,7 @@ int gene_cov(int argc, char **argv)
         }
     }
 
-    // write_cov_mtx(args.output_fname, gcov);
+    //write_cov_mtx(args.output_fname, gcov);
     write_summary(gcov, acc_gene_cov);
 
     if (acc_gene_cov->m) free(acc_gene_cov->cov);
