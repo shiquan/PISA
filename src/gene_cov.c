@@ -246,7 +246,7 @@ int cov_sum2(struct cov *cov1, struct cov *cov2)
     struct cov *cov = malloc(sizeof(struct cov));
     cov->m = cov1->n + cov2->n;
     cov->n = 0;
-    kroundup32(cov->m);
+    //kroundup32(cov->m);
     cov->bed = malloc(cov->m *sizeof(struct bed));
     int i;
     for (i = 0; i < cov1->n; ++i) {
@@ -420,7 +420,7 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
     int gid = dict_query(gcov->names, name);
     if (gid == -1) goto not_update_cov;
     if (gid != dict_size(gcov->names)-1) goto not_update_cov;
-        
+    
     kstring_t str = {0,0,0};
     kputs(name, &str);    
     for (k = 0; k < dict_size(gcov->bcodes); ++k) {
@@ -443,18 +443,19 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
    
     // for (k = 0; k < dict_size(gcov->bcodes); ++k) gcov->temp_cov[k].n = 0;
 
+    /*
     if (acc_gene_cov->n == acc_gene_cov->m) {
         acc_gene_cov->m = acc_gene_cov->m == 0 ? 1024 : acc_gene_cov->m << 1;
         acc_gene_cov->cov = realloc(acc_gene_cov->cov, acc_gene_cov->m);            
     }
-    
+    */
     int sum  = cov_sum2(gene_bed, acc_cov);
     assert(lgen+lcov-sum <= lgen);
-    acc_gene_cov->cov[acc_gene_cov->n] = (uint8_t)(((float)(lgen+lcov-sum)/lgen)*100);
+    // acc_gene_cov->cov[acc_gene_cov->n] = (uint8_t)(((float)(lgen+lcov-sum)/lgen)*100);
     
-    fprintf(args.fp_bulk, "%s\t%d\t%d\n", name, lgen, acc_gene_cov->cov[acc_gene_cov->n]);
-    acc_gene_cov->n++;
-
+    //fprintf(args.fp_bulk, "%s\t%d\t%d\n", name, lgen, acc_gene_cov->cov[acc_gene_cov->n]);
+    //acc_gene_cov->n++;
+    fprintf(args.fp_bulk, "%s\t%d\t%d\n", name, lgen, (uint8_t)(((float)(lgen+lcov-sum)/lgen)*100));
     free(acc_cov->bed);
     free(acc_cov);
     free(gene_bed->bed);
