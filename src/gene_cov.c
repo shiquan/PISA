@@ -405,8 +405,8 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
                 }
             }
             if (l != 0) {
-                cov_push(cov, start, start+l-1);
-                cov_push(acc_cov, start, start+l-1);
+                //cov_push(cov, start, start+l-1);
+                //cov_push(acc_cov, start, start+l-1);
             }
        
         }
