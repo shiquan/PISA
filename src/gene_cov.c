@@ -19,7 +19,7 @@ static int usage()
     fprintf(stderr, "  -summary     Summary output.\n");
     fprintf(stderr, "  -bulk        Bulk coverage table.\n");
     fprintf(stderr, "  -o           Cell barcode X Gene coverage matrix.\n");
-    fprintf(stderr, "  -@           Thread to unpack BAM.\n");
+    fprintf(stderr, "  -sparse      Generate barcode and gene coverage table instead of matrix.\n");
     return 1;
 }
 
@@ -50,6 +50,7 @@ static struct args {
     const char *bulk_fname;
     const char *tag;
 
+    int         sparse_out;
     htsFile    *fp;
     hts_idx_t  *idx;
     bam_hdr_t  *hdr;
@@ -66,6 +67,7 @@ static struct args {
     .summary_fname   = NULL,
     .output_fname    = NULL,
     .bulk_fname      = NULL,
+    .sparse_out      = 0,
     .tag             = NULL,
     .fp              = NULL,
     .idx             = NULL,
@@ -105,6 +107,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
         else if (strcmp(a, "-bulk") == 0) var = &args.bulk_fname;
         else if (strcmp(a, "-unit") == 0) var = &unit;
+        else if (strcmp(a, "-sparse") == 0) {
+            args.sparse_out = 1;
+            continue;
+        }
         if (var != 0) {
             *var = argv[i++];
             continue;
@@ -414,26 +420,43 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
     int gid = dict_query(gcov->names, name);
     if (gid == -1) goto not_update_cov;
     if (gid != dict_size(gcov->names)-1) goto not_update_cov;
-    
-    kstring_t str = {0,0,0};
-    kputs(name, &str);    
-    for (k = 0; k < dict_size(gcov->bcodes); ++k) {
-        struct cov *cov = &gcov->temp_cov[k];        
-        int lcov = cov_sum(cov);
-        uint8_t r = 0;
-        if (lcov != 0) {
-            int sum = cov_sum2(gene_bed, cov);
-            float f = (float)(lgen + lcov - sum)/lgen;
-            r = (uint8_t)(f*100);
-        }
-        gcov->cov[k][r]++;
-        kputc('\t', &str);
-        kputw(r, &str);
-    }
 
-    kputc('\n', &str);
-    if (args.fp_mtx) fputs(str.s, args.fp_mtx);
-    free(str.s);
+    if (args.sparse_out == 0) {
+        kstring_t str = {0,0,0};
+        kputs(name, &str);    
+        for (k = 0; k < dict_size(gcov->bcodes); ++k) {
+            struct cov *cov = &gcov->temp_cov[k];        
+            int lcov = cov_sum(cov);
+            uint8_t r = 0;
+            if (lcov != 0) {
+                int sum = cov_sum2(gene_bed, cov);
+                float f = (float)(lgen + lcov - sum)/lgen;
+                r = (uint8_t)(f*100);
+            }
+            gcov->cov[k][r]++;
+            kputc('\t', &str);
+            kputw(r, &str);
+        }
+        
+        kputc('\n', &str);
+        if (args.fp_mtx) fputs(str.s, args.fp_mtx);
+        free(str.s);
+    }
+    else { 
+        for (k = 0; k < dict_size(gcov->bcodes); ++k) {
+            struct cov *cov = &gcov->temp_cov[k];        
+            int lcov = cov_sum(cov);
+            uint8_t r = 0;
+            if (lcov != 0) {
+                int sum = cov_sum2(gene_bed, cov);
+                float f = (float)(lgen + lcov - sum)/lgen;
+                r = (uint8_t)(f*100);
+            }
+            gcov->cov[k][r]++;
+            if (r != 0 && args.fp_mtx)
+                fprintf(args.fp_mtx, "%s\t%s\t%d\n", dict_name(gcov->bcodes, k), name, r);
+        }
+    }
    
     // for (k = 0; k < dict_size(gcov->bcodes); ++k) gcov->temp_cov[k].n = 0;
 
@@ -491,21 +514,24 @@ int gene_cov(int argc, char **argv)
 
     struct gtf_spec *G = args.G;
 
+    if (args.sparse_out == 0) {
+        int i;
+        kstring_t str = {0,0,0};
+        kputs("Name", &str);
+        for (i = 0; i < dict_size(gcov->bcodes); ++i) {
+            kputc('\t', &str);
+            kputs(dict_name(gcov->bcodes, i), &str);
+        }
+        
+        if (args.fp_mtx) {
+            fputs(str.s, args.fp_mtx);
+            fputc('\n', args.fp_mtx);
+        }
+
+        free(str.s);
+    }
+
     int i;
-    kstring_t str = {0,0,0};
-    kputs("Name", &str);
-    for (i = 0; i < dict_size(gcov->bcodes); ++i) {
-        kputc('\t', &str);
-        kputs(dict_name(gcov->bcodes, i), &str);
-    }
-
-    if (args.fp_mtx) {
-        fputs(str.s, args.fp_mtx);
-        fputc('\n', args.fp_mtx);
-    }
-
-    free(str.s);
-    
     // iter from whole gtf
     for (i = 0; i < G->n_gtf; ++i) {
         struct gtf_lite *gl = &G->gtf[i];
