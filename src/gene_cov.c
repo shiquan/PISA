@@ -383,7 +383,7 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
             // for counting accumulation coverage
             int l = 0;
             int start = b->core.pos+1;        
-            dict_push(gcov->names, name);
+            //dict_push(gcov->names, name);
             
             struct cov *cov = &gcov->temp_cov[id];
             int k;
