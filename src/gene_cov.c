@@ -67,7 +67,7 @@ static struct args {
     .summary_fname   = NULL,
     .output_fname    = NULL,
     .bulk_fname      = NULL,
-    .file_th         = 4,
+    .file_th         = 1,
     .tag             = NULL,
     .fp              = NULL,
     .idx             = NULL,
@@ -150,7 +150,7 @@ static int parse_args(int argc, char **argv)
     args.hdr = sam_hdr_read(args.fp);
     CHECK_EMPTY(args.hdr, "Failed to open header.");
 
-    hts_set_threads(args.fp, args.file_th);
+    //hts_set_threads(args.fp, args.file_th);
 
     args.fp_bulk = args.bulk_fname == NULL ? stdout : fopen(args.bulk_fname, "w");
     if (args.fp_bulk == NULL) error("%s : %s.", args.bulk_fname, strerror(errno));
