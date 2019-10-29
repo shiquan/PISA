@@ -100,6 +100,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-tag") == 0) var = &args.tag;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-gene") == 0) var = &args.gene_list;
+        else if (strcmp(a, "-trans") == 0) var = &args.transcript_list;
         else if (strcmp(a, "-summary") == 0) var = &args.summary_fname;
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
         else if (strcmp(a, "-bulk") == 0) var = &args.bulk_fname;
@@ -477,6 +478,13 @@ int gene_cov(int argc, char **argv)
             error("Failed to load gene list.");
     }
 
+    struct dict *trans_dict = NULL;
+    if (args.transcript_list) {
+        trans_dict = dict_init();
+        if (dict_read(trans_dict, args.transcript_list))
+            error("Failed to load transcript list.");
+    }
+    
     struct acc_gene_cov *acc_gene_cov;
     acc_gene_cov = malloc(sizeof(struct acc_gene_cov));
     memset(acc_gene_cov, 0, sizeof(struct acc_gene_cov));
@@ -521,7 +529,10 @@ int gene_cov(int argc, char **argv)
                 struct gtf_lite *g1 = &gl->son[j];
                 if (g1->type != feature_transcript) continue;
                 char *name = dict_name(G->transcript_id, g1->transcript_id);
-                assert (name != NULL);
+                if (trans_dict) {
+                    int ret = dict_query(trans_dict, name);
+                    if (ret == -1) continue;
+                }
                 gene_cov_core(args.fp, args.idx, name, tid, g1, gcov, acc_gene_cov);
             }
         }
