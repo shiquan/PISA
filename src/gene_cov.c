@@ -357,16 +357,15 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
     memset(gene_bed, 0, sizeof(struct cov));
     gl2bed(gene_bed, gl);
     int lgen = cov_sum(gene_bed);
+    dict_push(gcov->names, name);
     
     struct cov *acc_cov = malloc(sizeof(struct cov));
     memset(acc_cov, 0, sizeof(struct cov));
     // reset buffer
     int k;
     for (k = 0; k < dict_size(gcov->bcodes); ++k) gcov->temp_cov[k].n = 0;
-    
     int ex;
     for (ex = 0; ex < gene_bed->n; ++ex) {
-        //hts_itr_t *itr = sam_itr_queryi(idx, tid, gl->start, gl->end);
         struct bed *exon = &gene_bed->bed[ex];
         hts_itr_t *itr = sam_itr_queryi(idx, tid, exon->start, exon->end);
         int r;
@@ -382,8 +381,7 @@ int gene_cov_core(htsFile *fp, hts_idx_t *idx, char *name, int tid, struct gtf_l
 
             // for counting accumulation coverage
             int l = 0;
-            int start = b->core.pos+1;        
-            //dict_push(gcov->names, name);
+            int start = b->core.pos+1;
             
             struct cov *cov = &gcov->temp_cov[id];
             int k;
