@@ -66,7 +66,6 @@ int dict_push(struct dict *D, char *key)
     if (key == NULL) error("Trying to push an empty key.");
     int ret;
     ret = dict_query(D, key);
-    debug_print("%s, %d, %d", key, ret, ret > -1 ? D->count[ret] : -1);
     if (ret != -1) {
         D->count[ret]++;
         return ret;
