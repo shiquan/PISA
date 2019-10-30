@@ -214,6 +214,7 @@ struct read_block *read_block_file(FILE *fp, int max, int paired)
     kstring_t str = {0,0,0};
     
     int record = 0;
+    int last_record = 0;
     for (;;) {
         char c = fgetc(fp);
         if (c == EOF) break;
@@ -251,6 +252,17 @@ struct read_block *read_block_file(FILE *fp, int max, int paired)
                 kputc(c, &str);
             }        
         }
+
+        if (args.check_list) {
+            char *val = read_name_pick_tag(str.s+last_record, dict_name(args.tags,0));
+            int idx = dict_query(args.bcodes, val);
+            if (idx==-1) {
+                str.l = last_record;
+                continue;
+            }
+        }
+        
+        last_record = str.l;
         record++;
         if (str.s[str.l-1] == '\n') str.s[str.l-1] = '\0';
         if (str.l >= max) break;
@@ -326,11 +338,13 @@ void read_block_sort_by_name(struct read_block *r, struct dict *tag)
     
     int i;
     for (i = 0; i < r->max; ) {
+        /*
         if (args.check_list) {
             char *val = read_name_pick_tag(r->data+i, dict_name(tag,0));
             int idx = dict_query(args.bcodes, val);
             if (idx==-1) continue;
         }
+        */
         char *name = query_tags(r->data+i, tag);
         if (name == NULL) error("No tag found at %s", r->data+i);
         int id = dict_push(r->dict, name);
@@ -369,6 +383,7 @@ void read_block_destroy(struct read_block *r)
 
 struct fastq_idx *write_block_with_idx(const char *fn, struct read_block *r)
 {
+    if (dict_size(r->dict) == 0) return NULL;
     FILE *fp = fopen(fn, "w");
     if (fp == NULL) error("%s : %s.", fn, strerror(errno));
     struct fastq_idx *idx = malloc(sizeof(*idx));
