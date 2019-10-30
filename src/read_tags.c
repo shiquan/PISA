@@ -28,7 +28,7 @@ char *read_name_pick_tag(char *p, const char *tag)
             if (i >= l) break;
             if (p[i++] != ':') continue;
             int j = i;
-            for (;i<l && p[i] != '|';) ++i;
+            for (;i<l && p[i] != '|' && !isspace(p[i]);) ++i;
             kstring_t val ={0,0,0};
             kputsn(p+j, i-j, &val);
             kputs("", &val);

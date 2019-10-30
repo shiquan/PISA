@@ -327,7 +327,7 @@ void read_block_sort_by_name(struct read_block *r, struct dict *tag)
     int i;
     for (i = 0; i < r->max; ) {
         if (args.check_list) {
-            char *val = read_name_pick_tag((char*)r->data+i, dict_name(tag,0));
+            char *val = read_name_pick_tag(r->data+i, dict_name(tag,0));
             int idx = dict_query(args.bcodes, val);
             if (idx==-1) continue;
         }
