@@ -72,10 +72,10 @@ static struct args {
     
     int n_thread;
     int buffer_size;  // buffered records in each chunk
-    
+    int file_th;
     gzFile fp;        // input file handler
     kstream_t *ks;    // input streaming
-    BGZF *fp_out;     // output file handler
+    htsFile *fp_out;     // output file handler
     BGZF *fp_filter;  // filtered reads file handler
     BGZF *fp_mito;    // if not set, mito reads will be treat at filtered reads
     FILE *fp_report;  // report file handler
@@ -104,7 +104,7 @@ static struct args {
     
     .n_thread = 5,
     .buffer_size = 1000000, // 1M
-
+    .file_th  = 1,
     .fp = NULL,
     .ks = NULL,
     .fp_out = NULL,
@@ -250,8 +250,11 @@ static void write_out(struct sam_pool *p)
     int i;
     struct args *opts = p->opts;    
     for (i = 0; i < p->n; ++i) {
-        if (opts->keep_all == 1 || p->flag[i] == FLG_USABLE ) {
-            if (bam_write1(opts->fp_out, p->bam[i]) == -1) error("Failed to write.");            
+        if (opts->keep_all == 1) {
+            if (sam_write1(opts->fp_out, opts->hdr, p->bam[i]) == -1) error("Failed to write.");            
+        }
+        else if (p->flag[i] == FLG_USABLE ) {
+            if (sam_write1(opts->fp_out, opts->hdr, p->bam[i]) == -1) error("Failed to write.");
         }
         else if (p->flag[i] == FLG_MITO && opts->fp_mito != NULL) {
             if (bam_write1(opts->fp_mito, p->bam[i]) == -1) error("Failed to write.");
@@ -452,6 +455,7 @@ static int usage()
     fprintf(stderr, " -maln chrM.bam           Export mitochondria reads into this file.\n");
     fprintf(stderr, " -r [1000000]             Records per chunk.\n");
     fprintf(stderr, " -p                       Input reads are paired.\n");
+    fprintf(stderr, " -@                       Threads to compress bam file.\n");
     return 1;
 }
 
@@ -461,6 +465,7 @@ static int parse_args(int argc, char **argv)
     const char *buffer_size = NULL;
     const char *thread = NULL;
     const char *qual_thres = NULL;
+    const char *file_th = NULL;
     
     for (i = 1; i < argc;) {
 
@@ -478,6 +483,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-maln") == 0) var = &args.mito_fname;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
         else if (strcmp(a, "-filter") == 0) var = &args.filter_fname;
+        else if (strcmp(a, "-@") == 0) var = &file_th;
         else if (strcmp(a, "-k") == 0) {
             args.keep_all = 1;
             continue;
@@ -504,14 +510,22 @@ static int parse_args(int argc, char **argv)
     // init input
     if (args.input_fname == NULL && !isatty(fileno(stdin))) args.input_fname = "-";
     if (args.input_fname == NULL) error("No input SAM file is set!");
+    if (args.output_fname == NULL) error("No output BAM file specified.");
     args.fp = strcmp(args.input_fname, "-") ? gzopen(args.input_fname, "r") : gzdopen(fileno(stdin), "r");
     if (args.fp == NULL) error("%s : %s.", args.input_fname, strerror(errno));
     args.ks = ks_init(args.fp);
 
     // init output
-    args.fp_out = args.output_fname ? bgzf_open(args.output_fname, "w") : bgzf_fdopen(fileno(stdout), "w");
+    
+    args.fp_out = hts_open(args.output_fname, "bw");
     if (args.fp_out == NULL) error("%s : %s.", args.output_fname, strerror(errno));
 
+    if (file_th) {
+        args.file_th = str2int((char*)file_th);
+        if (args.file_th <1) args.file_th = 1;
+        hts_set_threads(args.fp_out, args.file_th);
+    }
+    
     if (args.report_fname) {
         args.fp_report = fopen(args.report_fname, "w");
         if (args.fp_report == NULL) error("%s : %s.", args.report_fname, strerror(errno));
@@ -543,13 +557,12 @@ static int parse_args(int argc, char **argv)
     // init thread data
     args.thread_data = malloc(args.n_thread*sizeof(struct reads_summary*));
     for (i = 0; i < args.n_thread; ++i) args.thread_data[i] = reads_summary_create();
-
         
     // init bam header and first bam record
     kstring_t str = {0,0,0}; // cache first record
     args.hdr = sam_parse_header(args.ks, &str);
     if (args.hdr == NULL) error("Failed to parse header. %s", args.input_fname);
-    if (bam_hdr_write(args.fp_out, args.hdr)) error("Failed to write header.");
+    if (sam_hdr_write(args.fp_out, args.hdr)) error("Failed to write header.");
     if (args.fp_filter && bam_hdr_write(args.fp_filter, args.hdr)) error("Failed to write header.");
     if (args.fp_mito && bam_hdr_write(args.fp_mito, args.hdr)) error("Failed to write header.");
 
@@ -592,7 +605,7 @@ static int parse_args(int argc, char **argv)
 
 static void memory_release()
 {
-    bgzf_close(args.fp_out);
+    hts_close(args.fp_out);
     ks_destroy(args.ks);
     gzclose(args.fp);
     bam_hdr_destroy(args.hdr);

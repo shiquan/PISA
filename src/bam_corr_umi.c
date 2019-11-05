@@ -120,7 +120,6 @@ static int parse_args(int argc, char **argv)
     CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
 
     hts_set_threads(args.in, args.file_th);
-    hts_set_threads(args.out, args.file_th);
     
     if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
      
