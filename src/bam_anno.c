@@ -151,7 +151,7 @@ static char **chr_binding(const char *fname, bam_hdr_t *hdr)
     }
     
     for (i = 0; i < n; ++i)
-        if (bind[i]) free(list[i]);
+        if (bind[i]) free(bind[i]);
     free(bind);
     return ret;
 }
