@@ -579,7 +579,7 @@ struct seqlite *extract_tag(struct bseq *b, const struct BarcodeRegion *r, struc
     kputsn(s, l, &seq);
     kputs("", &seq);
     if (q) kputsn(q, l, &qual);
-    kputs("", &seq);
+    kputs("", &qual);
     p->seq = seq.s;
     p->qual = qual.s;
     int i;
