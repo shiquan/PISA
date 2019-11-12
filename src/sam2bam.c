@@ -26,6 +26,7 @@ struct reads_summary {
     uint64_t n_qual;
     uint64_t n_mito;
     uint64_t n_usable;
+    uint64_t n_failed_to_parse;
 };
 static struct reads_summary *reads_summary_create()
 {
@@ -250,6 +251,7 @@ static void write_out(struct sam_pool *p)
     int i;
     struct args *opts = p->opts;    
     for (i = 0; i < p->n; ++i) {
+        if (p->bam[i] == NULL) continue;
         if (opts->keep_all == 1) {
             if (sam_write1(opts->fp_out, opts->hdr, p->bam[i]) == -1) error("Failed to write.");            
         }
@@ -386,7 +388,12 @@ static void *sam_name_parse(void *_p, int idx)
         int i;
         for (i = 0; i < p->n; ++i) {
             parse_name_str(p->str[i]);
-            if (sam_parse1(p->str[i], h, p->bam[i])) error("Failed to parse SAM., %s", bam_get_qname(p->bam[i]));
+            if (sam_parse1(p->str[i], h, p->bam[i])) {
+                warnings ("Failed to parse SAM., %s", bam_get_qname(p->bam[i]));
+                summary->n_failed_to_parse++;
+                p->bam[i] = NULL;
+                continue;
+            }
             sam_stat_reads(p->bam[i], summary, &p->flag[i], opts);
         }
     }
@@ -399,7 +406,12 @@ static void *sam_name_parse(void *_p, int idx)
             parse_name_str(p->str[i]);
             if (b1 == NULL) {
                 b1 = p->bam[i];
-                if (sam_parse1(p->str[i], h, b1)) error("Failed to parse SAM.");                
+                if (sam_parse1(p->str[i], h, b1)) {
+                    warnings ("Failed to parse SAM., %s", bam_get_qname(p->bam[i]));
+                    summary->n_failed_to_parse++;
+                    p->bam[i] = NULL;
+                    continue;
+                }
                 if (b1->core.flag&BAM_FSECONDARY || b1->core.flag&BAM_FSUPPLEMENTARY) {
                     p->flag[i] = FLG_FLT;
                     b1 = NULL;
@@ -410,7 +422,13 @@ static void *sam_name_parse(void *_p, int idx)
             }
             else {
                 b2 = p->bam[i];
-                if (sam_parse1(p->str[i], h, b2)) error("Failed to parse SAM.");
+                if (sam_parse1(p->str[i], h, b2)) {
+                    warnings ("Failed to parse SAM., %s", bam_get_qname(p->bam[i]));
+                    summary->n_failed_to_parse++;
+                    p->bam[i] = NULL;
+                    continue;
+                    // error("Failed to parse SAM.");
+                }
                 if (b2->core.flag&BAM_FSECONDARY || b2->core.flag&BAM_FSUPPLEMENTARY) {
                     p->flag[i] = FLG_FLT;
                     b2 = NULL;
@@ -450,9 +468,9 @@ static int usage()
     fprintf(stderr, " -k                       Keep all records in out.bam, include unmapped reads etc.\n");
     fprintf(stderr, " -filter filter.bam       Filter reads, include unmapped, secondary alignment, mitochondra etc.\n");
     fprintf(stderr, " -q [10]                  Map quality theshold, mapped reads with smaller mapQ will be filter.\n");
-    fprintf(stderr, " -report report.md        Alignment report in Json format.\n");
+    fprintf(stderr, " -report report.csv       Alignment report.\n");
     fprintf(stderr, " -mito chrM               Mitochondria name.\n");
-    fprintf(stderr, " -maln chrM.bam           Export mitochondria reads into this file.\n");
+    fprintf(stderr, " -maln chrM.bam           Export mitochondria reads into this file instead of standard output file\n");
     fprintf(stderr, " -r [1000000]             Records per chunk.\n");
     fprintf(stderr, " -p                       Input reads are paired.\n");
     fprintf(stderr, " -@                       Threads to compress bam file.\n");
