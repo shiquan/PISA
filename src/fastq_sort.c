@@ -5,6 +5,7 @@
 #include "number.h"
 #include "read_tags.h"
 #include "htslib/thread_pool.h"
+#include "htslib/bgzf.h"
 #include <zlib.h>
 #include <ctype.h>
 #include <sys/stat.h>
@@ -46,8 +47,8 @@ static struct args {
     int check_list;
     int mem_per_thread;
     struct dict *tags;    
-    FILE *out;
-    FILE *fp_in;
+    BGZF *out;
+    BGZF *fp_in;
     struct dict *bcodes;
     int read_counts;
     int nondup;
@@ -169,7 +170,8 @@ struct read_block {
 struct fastq_idx {
     int n;
     char **name;
-    long int *offset;
+    //long int *offset;
+    int *length;
 };
 
 void fastq_idx_destroy(struct fastq_idx *i)
@@ -177,13 +179,14 @@ void fastq_idx_destroy(struct fastq_idx *i)
     int k;
     for (k = 0; k < i->n; ++k) free(i->name[k]);
     free(i->name);
-    free(i->offset);
+    //free(i->offset);
+    free(i->length);
     free(i);
 }
     
 struct fastq_node {
     char *fn;
-    FILE *fp;
+    BGZF *fp;
     struct fastq_idx *idx;
     int i;
     char *name; // point to idx::name[i]
@@ -194,7 +197,8 @@ struct fastq_node {
 void fastq_node_clean(struct fastq_node *n)
 {
     free(n->fn);
-    fclose(n->fp);
+    //fclose(n->fp);
+    bgzf_close(n->fp);
     fastq_idx_destroy(n->idx);
     if (n->m) free(n->buf);
     memset(n, 0, sizeof(*n));
@@ -205,7 +209,7 @@ struct fastq_stream {
     struct fastq_node *n;
 };
 
-struct read_block *read_block_file(FILE *fp, int max, int paired)
+struct read_block *read_block_file(BGZF *fp, int max, int paired)
 {
     struct read_block *r = malloc(sizeof(*r));
     memset(r, 0, sizeof(*r));
@@ -216,39 +220,39 @@ struct read_block *read_block_file(FILE *fp, int max, int paired)
     int record = 0;
     int last_record = 0;
     for (;;) {
-        char c = fgetc(fp);
+        char c = bgzf_getc(fp);
         if (c == EOF) break;
         if (c == '@') fasta= 0;
         else if (c == '>') fasta = 1;
         else error("Unknown input format.");
 
         kputc(c, &str);
-        for (c = fgetc(fp); c && c != '\n'; c = fgetc(fp)) kputc(c, &str); // read name;
+        for (c = bgzf_getc(fp); c && c != '\n'; c = bgzf_getc(fp)) kputc(c, &str); // read name;
         if (c == EOF) error("Truncated file?");
     
         kputc(c, &str); // push \n to buf
 
-        for (c = fgetc(fp); c && c != '\n'; c = fgetc(fp)) kputc(c, &str); //
+        for (c = bgzf_getc(fp); c && c != '\n'; c = bgzf_getc(fp)) kputc(c, &str); //
         kputc(c, &str); // push \n to buf
     
         if (fasta == 0) {
-            c = fgetc(fp);
+            c = bgzf_getc(fp);
             if (c != '+') error("Unknown format? %c",c);
             kputc(c, &str); // push + to buf
-            for (c = fgetc(fp); c && c!= '\n'; c = fgetc(fp)) kputc(c, &str); // qual name
+            for (c = bgzf_getc(fp); c && c!= '\n'; c = bgzf_getc(fp)) kputc(c, &str); // qual name
             kputc(c, &str); // push \n to buf
-            for (c = fgetc(fp); c && c != '\n'; c = fgetc(fp)) kputc(c, &str); //
+            for (c = bgzf_getc(fp); c && c != '\n'; c = bgzf_getc(fp)) kputc(c, &str); //
             kputc(c, &str);
             
             if (paired) {
                 // read four more lines
-                for (c = fgetc(fp); c && c != '\n'; c = fgetc(fp)) kputc(c, &str); //
+                for (c = bgzf_getc(fp); c && c != '\n'; c = bgzf_getc(fp)) kputc(c, &str); //
                 kputc(c, &str); 
-                for (c = fgetc(fp); c && c != '\n'; c = fgetc(fp)) kputc(c, &str); //
+                for (c = bgzf_getc(fp); c && c != '\n'; c = bgzf_getc(fp)) kputc(c, &str); //
                 kputc(c, &str);
-                for (c = fgetc(fp); c && c != '\n'; c = fgetc(fp)) kputc(c, &str); //
+                for (c = bgzf_getc(fp); c && c != '\n'; c = bgzf_getc(fp)) kputc(c, &str); //
                 kputc(c, &str);
-                for (c = fgetc(fp); c && c != '\n'; c = fgetc(fp)) kputc(c, &str); //
+                for (c = bgzf_getc(fp); c && c != '\n'; c = bgzf_getc(fp)) kputc(c, &str); //
                 kputc(c, &str);
             }        
         }
@@ -384,28 +388,40 @@ void read_block_destroy(struct read_block *r)
 struct fastq_idx *write_block_with_idx(const char *fn, struct read_block *r)
 {
     if (dict_size(r->dict) == 0) return NULL;
-    FILE *fp = fopen(fn, "w");
+    BGZF *fp = bgzf_open(fn, "w");   
     if (fp == NULL) error("%s : %s.", fn, strerror(errno));
+    bgzf_mt(fp, args.n_thread, 256);
     struct fastq_idx *idx = malloc(sizeof(*idx));
     memset(idx, 0, sizeof(*idx));
     idx->n = dict_size(r->dict);
     idx->name = malloc(idx->n*sizeof(char*));
-    idx->offset = malloc(idx->n*sizeof(long int));
+    //idx->offset = malloc(idx->n*sizeof(int));
+    idx->length = malloc(idx->n*sizeof(int));
     
+    kstring_t buf ={0,0,0};
     int i;
     for (i = 0; i < idx->n; ++i) {
+        idx->length[i] = 0;
         char *name = dict_name(r->dict, i);
         int old_idx = dict_query(r->dict, name);
         struct record_offset *off = &r->idx[old_idx];
-        int j;
+        int j;        
         for (j = 0; j < off->n; ++j) {
-            fputs((char*)(r->data+off->offsets[j]),fp);
-            fputc('\n', fp);
+            buf.l = 0;
+            kputs((char*)(r->data+off->offsets[j]),&buf);
+            kputc('\n', &buf);
+            int ret = bgzf_write(fp, buf .s, buf.l);
+            assert(ret == buf.l);
+            idx->length[i] += buf.l;
+            //fputs((char*)(r->data+off->offsets[j]),fp);
+            //fputc('\n', fp);
         }
         idx->name[i] = strdup(name);
-        idx->offset[i] = ftell(fp);
+        // idx->offset[i] = bgzf_tell(fp);
+        
     }
-    fclose(fp);
+    if (buf.m) free(buf.s);
+    bgzf_close(fp);
     return idx;
 }
 static int merge_cmp(const void *a, const void *b)
@@ -418,24 +434,25 @@ static int merge_cmp(const void *a, const void *b)
 
     return strcmp(ia->name, ib->name);
 }
-int fastq_merge_core(struct fastq_node **node, int n_node, FILE *fp)
+int fastq_merge_core(struct fastq_node **node, int n_node, BGZF *fp)
 {
-    int n = n_node;
+    // int n = n_node;
     if (node[0]->name == NULL) return 0;
     char *name = strdup(node[0]->name);
-    
     int i;
-    for (i = 0; i < n; ++i) {
+    for (i = 0; i < n_node; ++i) {
         struct fastq_node *d = node[i];
 
         if (d->name == NULL) {
-            n=i; // emit all empty handler
+            // n=i; // emit all empty handler
             break;
         }
 
         if (strcmp(name, d->name) == 0) {
             d->buf[d->n] = '\0';
-            fputs(d->buf, fp);
+            int ret = bgzf_write(fp, d->buf, d->n);
+            if (ret != d->n) error("Failed to write. %s", d->fn);
+            
             // cache next record
             d->i ++;
             if (d->i >= d->idx->n) { // close handler
@@ -444,15 +461,19 @@ int fastq_merge_core(struct fastq_node **node, int n_node, FILE *fp)
                 fastq_node_clean(d);
             }
             else {
-                int l;
-                l = d->idx->offset[d->i] - d->idx->offset[d->i-1];
+                // int l;
+                // l = d->idx->offset[d->i] - d->idx->offset[d->i-1];
+                // debug_print("%d\t%d\t%d",l,d->idx->offset[d->i], d->idx->offset[d->i-1]);
+                int l = d->idx->length[d->i];
                 if (l >= d->m) {
                     d->m = l+1;
                     d->buf = realloc(d->buf, d->m);
                 }
                 d->n = l;
                 int ret;
-                ret = fread(d->buf, 1, d->n, d->fp);
+                // ret = fread(d->buf, 1, d->n, d->fp);
+                ret = bgzf_read(d->fp, d->buf, d->n);
+                //debug_print("ret : %d\t%d", ret,bgzf_tell(d->fp));
                 d->buf[d->n] = '\0';
                 assert(ret == d->n);
                 d->name = d->idx->name[d->i];
@@ -461,24 +482,27 @@ int fastq_merge_core(struct fastq_node **node, int n_node, FILE *fp)
         else break;
     }
     free(name);
-    return n;
+    return 0;
 }
 struct fastq_idx *fastq_merge(struct fastq_node **node, int n_node, const char *fn)
 {
     // init
-    FILE *fp = fopen(fn, "w");
+    BGZF *fp = bgzf_open(fn, "w");
     if (fp == NULL) error("%s : %s.", fn, strerror(errno));
+    bgzf_mt(fp, args.n_thread, 64);
+    
     int i;
     for (i = 0; i < n_node; ++i) {
         struct fastq_node *d = node[i];
-        d->fp = fopen(d->fn, "r");
+        d->fp = bgzf_open(d->fn, "r");
+        bgzf_mt(d->fp, args.n_thread, 64);
         // debug_print("%s", d->fn);
         if (d->fp == NULL) error("%s : %s.", d->fn, strerror(errno));
         d->name = d->idx->name[0];
-        d->m = d->idx->offset[0] + 1;
+        d->m = d->idx->length[0] + 1;
         d->buf = malloc(d->m);
-        d->n = d->idx->offset[0];
-        fread(d->buf, 1, d->n, d->fp);
+        d->n = d->idx->length[0];
+        bgzf_read(d->fp, d->buf, d->n);
         d->buf[d->n] = '\0';
     }
     // merge
@@ -488,7 +512,7 @@ struct fastq_idx *fastq_merge(struct fastq_node **node, int n_node, const char *
     memset(idx, 0, sizeof(*idx));
     
     for (;;) {
-        if (n > 1) 
+        if (n > 1) // todo: improve performation here
             qsort(node, n, sizeof(struct fastq_node*), merge_cmp);
         
         if (node[0]->name == NULL) break;
@@ -496,16 +520,17 @@ struct fastq_idx *fastq_merge(struct fastq_node **node, int n_node, const char *
         if (idx->n == m_idx) {
             m_idx = m_idx == 0 ? 1024 : m_idx*2;
             idx->name = realloc(idx->name, m_idx*sizeof(char*));
-            idx->offset = realloc(idx->offset, m_idx*sizeof(long int));
+            //idx->offset = realloc(idx->offset, m_idx*sizeof(long int));
+            idx->length = realloc(idx->length, m_idx*sizeof(int));
         }
         idx->name[idx->n] = strdup(node[0]->name);
         
-        n = fastq_merge_core(node, n, fp);
-        idx->offset[idx->n] = ftell(fp);
+        fastq_merge_core(node, n, fp);
+        // idx->offset[idx->n] = bgzf_tell(fp);
         idx->n++;
     }
     for (i = 0; i < n_node; ++i) free(node[i]);
-    fclose(fp);
+    bgzf_close(fp);
     LOG_print("Create %s from %d files.", fn, n_node);
     return idx;
 }
@@ -761,9 +786,10 @@ void *dedup_str(void *_s)
 
 static const int max_file_open = 100;
 
-void dedup_write(struct fastq_dedup_pool *dp, FILE *out)
+void dedup_write(struct fastq_dedup_pool *dp, BGZF *out)
 {
-    fputs(dp->buf, out);
+    bgzf_write(out, dp->buf, dp->l_buf);
+    // fputs(dp->buf, out);
     args.read_counts += dp->read_counts;
     args.nondup += dp->nondup;
     fastq_dedup_pool_destroy(dp);
@@ -775,32 +801,22 @@ int fsort(int argc, char **argv)
 
     if (parse_args(argc, argv)) return usage();
     
-    FILE *fp = fopen(args.input_fname, "r");
+    BGZF *fp = bgzf_open(args.input_fname, "r");
     if (fp == NULL) error("%s : %s.", args.input_fname, strerror(errno));
+    int type = bgzf_compression(fp);
+    if (type == 2) 
+        bgzf_mt(fp, args.n_thread, 256);
     
     int n_file = 0;
     int i_name = 0;
     struct fastq_stream *fastqs = malloc(max_file_open*sizeof(struct fastq_stream));
-    
-    hts_tpool *pool = hts_tpool_init(args.n_thread);
-    hts_tpool_process *q = hts_tpool_process_init(pool, args.n_thread*2, 0);
-    hts_tpool_result *r;
 
-    for ( ;;) {
-
-
-        if (n_file >= 100) {
+    for (;;) {
+        if (n_file >= max_file_open) {
             char *name = calloc(strlen(args.prefix)+20,1);
-            sprintf(name, "%s.%.4d.tmp", args.prefix, i_name);
+            sprintf(name, "%s.%.4d.bgz", args.prefix, i_name);
             i_name++;
-
-            // finished all files
-            hts_tpool_process_flush(q);
-                   
-            while ((r = hts_tpool_next_result(q))) {                
-                hts_tpool_delete_result(r, 0);
-            }
-
+            
             struct fastq_idx *idx = merge_files(fastqs, n_file, name);
             memset(fastqs, 0, sizeof(struct fastq_stream)*max_file_open);
             fastqs[0].n = malloc(sizeof(struct fastq_node));
@@ -808,94 +824,51 @@ int fsort(int argc, char **argv)
             fastqs[0].n->fn = name;
             n_file = 1; // merged file will put as the first record in the list
         }
-
+        
         struct read_block *b = read_block_file(fp, args.mem_per_thread, args.paired);
         if (b == NULL) break;
         struct fastq_stream *stream = &fastqs[n_file];
         n_file++;
-
+        
         char *name = calloc(strlen(args.prefix)+20,1);
-        sprintf(name, "%s.%.4d.tmp", args.prefix, i_name);
+        sprintf(name, "%s.%.4d.bgz", args.prefix, i_name);
         i_name++;
-
+        
         stream->r = b;
         stream->n = malloc(sizeof(struct fastq_node));
         memset(stream->n, 0, sizeof(struct fastq_node));
         stream->n->fn = name;
         
-        int block;
-        do {
-            block = hts_tpool_dispatch2(pool, q, run_it, stream, 1);
-            if ((r = hts_tpool_next_result(q))) {    
-                // struct fastq_stream *d = (struct fastq_stream*)hts_tpool_result_data(r);
-                // write_file(d);
-                hts_tpool_delete_result(r, 0);
-            }
-        }
-        while (block == -1);
+        run_it(stream);
     }
-    
-    hts_tpool_process_flush(q);
-        
-    while ((r = hts_tpool_next_result(q))) {
-        // struct fastq_stream *d = (struct fastq_stream*)hts_tpool_result_data(r);
-        // write_file(d);
-        hts_tpool_delete_result(r, 0);
-    }
-    hts_tpool_process_destroy(q);
-    hts_tpool_destroy(pool);
-
     
     if (args.dedup) {
         char *name = calloc(strlen(args.prefix)+20,1);
-        sprintf(name, "%s.all.tmp", args.prefix);
+        sprintf(name, "%s.all.bgz", args.prefix);
         struct fastq_idx *idx = merge_files(fastqs, n_file, name);
         
-        FILE *fp = fopen(name, "r");
+        BGZF *fp = bgzf_open(name, "r");        
         if (fp == NULL)
             error("%s : %s.", args.output_fname, strerror(errno));
-        FILE *out = fopen(args.output_fname, "w");
+        bgzf_mt(fp, args.n_thread, 256);
+        BGZF *out = bgzf_open(args.output_fname, "w");
         if (out == NULL) error("%s : %s.", args.output_fname, strerror(errno));
-
-        hts_tpool *pool = hts_tpool_init(args.n_thread);
-        hts_tpool_process *q = hts_tpool_process_init(pool, args.n_thread*2, 0);
-        hts_tpool_result *r;
-
+        bgzf_mt(out, args.n_thread, 256);
         int i;
         long int offset = 0;
         for (i = 0; i < idx->n; ++i) {
-            int l = idx->offset[i] - offset;
-            offset = idx->offset[i];
+            // int l = idx->offset[i] - offset;
+            int l = idx->length[i];
             char *buf = malloc(l+1);
-            fread(buf, 1, l, fp);
+            bgzf_read(fp, buf, l);
             buf[l] = '\0';
-
-            int block;
-            do {
-                block = hts_tpool_dispatch2(pool, q, dedup_str, buf, 1);
-                if ((r = hts_tpool_next_result(q))) {
-                    struct fastq_dedup_pool *dp = (struct fastq_dedup_pool*)hts_tpool_result_data(r);
-                    dedup_write(dp, out);
-                    hts_tpool_delete_result(r, 0);
-                }
-            }
-            while (block == -1);
-        }
-        
-        hts_tpool_process_flush(q);
-        
-        while ((r = hts_tpool_next_result(q))) {
-            struct fastq_dedup_pool *dp = (struct fastq_dedup_pool*)hts_tpool_result_data(r);
+            struct fastq_dedup_pool *dp = (struct fastq_dedup_pool*)dedup_str(buf);
             dedup_write(dp, out);
-            hts_tpool_delete_result(r, 0);
         }
-        hts_tpool_process_destroy(q);
-        hts_tpool_destroy(pool);
-        
         unlink(name);
         free(name);
-        fclose(fp);
-        fclose(out);
+        bgzf_close(fp);
+        bgzf_close(out);
         if (args.report_fname) {
             FILE *re = fopen(args.report_fname, "w");
             fprintf(re, "All reads,%d\n", args.read_counts);
@@ -909,9 +882,8 @@ int fsort(int argc, char **argv)
     }
     else {
         char *name = strdup(args.output_fname);
-        struct fastq_idx *idx = merge_files(fastqs, n_file, name);
+        merge_files(fastqs, n_file, name);
         free(name);
-        fastq_idx_destroy(idx);
     }
 
     free(fastqs);
