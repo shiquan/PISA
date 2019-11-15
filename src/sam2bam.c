@@ -103,7 +103,7 @@ static struct args {
     .mito = "chrM",
     .mito_fname = NULL,
     
-    .n_thread = 5,
+    .n_thread = 1,
     .buffer_size = 1000000, // 1M
     .file_th  = 1,
     .fp = NULL,
@@ -465,7 +465,7 @@ static int usage()
 {
     fprintf(stderr, "name_parser in.sam\n");
     fprintf(stderr, " -o out.bam               Output file [stdout].\n");
-    fprintf(stderr, " -t [5]                   Threads.\n");
+    // fprintf(stderr, " -t [5]                   Threads.\n");
     fprintf(stderr, " -k                       Keep all records in out.bam, include unmapped reads etc.\n");
     fprintf(stderr, " -filter filter.bam       Filter reads, include unmapped, secondary alignment, mitochondra etc.\n");
     fprintf(stderr, " -q [10]                  Map quality theshold, mapped reads with smaller mapQ will be filter.\n");
@@ -560,10 +560,14 @@ static int parse_args(int argc, char **argv)
         if (args.fp_mito == NULL) error("%s : %s.", args.mito_fname, strerror(errno));
     }
     // init parameters
+
+    // the bottleneck happens at compress BAM, not processing sam records, so we delete the multi-thread mode, 2019/11/14
+    /*
     if (thread) {
         args.n_thread = str2int((char*)thread);
         assert(args.n_thread > 0);
     }
+    */
     if (buffer_size) {
         args.buffer_size = str2int((char*)buffer_size);
         assert(args.buffer_size>0);
