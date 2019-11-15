@@ -76,7 +76,7 @@ static int parse_args(int argc, char **argv)
 {
     if (argc == 1) return 1;
 
-    int i;
+   int i;
     const char *thread = NULL;
     const char *tags = NULL;
     const char *memory = NULL;
@@ -439,6 +439,7 @@ int fastq_merge_core(struct fastq_node **node, int n_node, BGZF *fp)
     // int n = n_node;
     if (node[0]->name == NULL) return 0;
     char *name = strdup(node[0]->name);
+    int length = 0;
     int i;
     for (i = 0; i < n_node; ++i) {
         struct fastq_node *d = node[i];
@@ -452,7 +453,7 @@ int fastq_merge_core(struct fastq_node **node, int n_node, BGZF *fp)
             d->buf[d->n] = '\0';
             int ret = bgzf_write(fp, d->buf, d->n);
             if (ret != d->n) error("Failed to write. %s", d->fn);
-            
+            length+=d->n;
             // cache next record
             d->i ++;
             if (d->i >= d->idx->n) { // close handler
@@ -482,7 +483,7 @@ int fastq_merge_core(struct fastq_node **node, int n_node, BGZF *fp)
         else break;
     }
     free(name);
-    return 0;
+    return length;
 }
 struct fastq_idx *fastq_merge(struct fastq_node **node, int n_node, const char *fn)
 {
@@ -502,7 +503,8 @@ struct fastq_idx *fastq_merge(struct fastq_node **node, int n_node, const char *
         d->m = d->idx->length[0] + 1;
         d->buf = malloc(d->m);
         d->n = d->idx->length[0];
-        bgzf_read(d->fp, d->buf, d->n);
+        int ret = bgzf_read(d->fp, d->buf, d->n);
+        assert(ret == d->n);
         d->buf[d->n] = '\0';
     }
     // merge
@@ -525,7 +527,8 @@ struct fastq_idx *fastq_merge(struct fastq_node **node, int n_node, const char *
         }
         idx->name[idx->n] = strdup(node[0]->name);
         
-        fastq_merge_core(node, n, fp);
+        int l = fastq_merge_core(node, n, fp);
+        idx->length[idx->n] = l;
         // idx->offset[idx->n] = bgzf_tell(fp);
         idx->n++;
     }
@@ -602,11 +605,9 @@ static int check_similar_sequences(char *s1, char *s2, int m)
 }
 static struct fastq_dedup_pool *dedup_it(struct fastq_dedup_pool *p)
 {
-    // struct fastq_dedup_pool *p = (struct fastq_dedup_pool*)d;
-    int i;
     kstring_t str = {0,0,0};
     int start;
-    
+    int i;
     for (i = 0; i < p->l_buf;) {
         start = i;
         str.l = 0;
@@ -622,7 +623,7 @@ static struct fastq_dedup_pool *dedup_it(struct fastq_dedup_pool *p)
         kputs("", &str);
         i++;
         
-        if (p->buf[i] != '+') error("Error format, %s, %s", p->buf, str.s);
+        if(p->buf[i] != '+') error("Error format, %s, %s", p->buf, str.s);
         for (; p->buf[i] != '\n'; i++) { } // qual name
         i++;
         
@@ -788,7 +789,8 @@ static const int max_file_open = 100;
 
 void dedup_write(struct fastq_dedup_pool *dp, BGZF *out)
 {
-    bgzf_write(out, dp->buf, dp->l_buf);
+    int ret =bgzf_write(out, dp->buf, dp->l_buf);
+    assert(ret == dp->l_buf);
     // fputs(dp->buf, out);
     args.read_counts += dp->read_counts;
     args.nondup += dp->nondup;
@@ -849,18 +851,19 @@ int fsort(int argc, char **argv)
         
         BGZF *fp = bgzf_open(name, "r");        
         if (fp == NULL)
-            error("%s : %s.", args.output_fname, strerror(errno));
+            error("%s : %s.", name, strerror(errno));
         bgzf_mt(fp, args.n_thread, 256);
+        
         BGZF *out = bgzf_open(args.output_fname, "w");
         if (out == NULL) error("%s : %s.", args.output_fname, strerror(errno));
         bgzf_mt(out, args.n_thread, 256);
+        
         int i;
-        long int offset = 0;
         for (i = 0; i < idx->n; ++i) {
-            // int l = idx->offset[i] - offset;
             int l = idx->length[i];
             char *buf = malloc(l+1);
-            bgzf_read(fp, buf, l);
+            int ret = bgzf_read(fp, buf, l);
+            assert(ret == l);
             buf[l] = '\0';
             struct fastq_dedup_pool *dp = (struct fastq_dedup_pool*)dedup_str(buf);
             dedup_write(dp, out);
@@ -882,8 +885,9 @@ int fsort(int argc, char **argv)
     }
     else {
         char *name = strdup(args.output_fname);
-        merge_files(fastqs, n_file, name);
+        struct fastq_idx *idx = merge_files(fastqs, n_file, name);
         free(name);
+        fastq_idx_destroy(idx);
     }
 
     free(fastqs);
