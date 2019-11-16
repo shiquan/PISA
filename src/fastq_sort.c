@@ -185,6 +185,8 @@ void fastq_idx_destroy(struct fastq_idx *i)
 }
     
 struct fastq_node {
+    struct fastq_node *next;
+    struct fastq_node *before;
     char *fn;
     BGZF *fp;
     struct fastq_idx *idx;
@@ -444,11 +446,8 @@ int fastq_merge_core(struct fastq_node **node, int n_node, BGZF *fp)
     for (i = 0; i < n_node; ++i) {
         struct fastq_node *d = node[i];
 
-        if (d->name == NULL) {
-            // n=i; // emit all empty handler
-            break;
-        }
-
+        if (d->name == NULL) break;
+        
         if (strcmp(name, d->name) == 0) {
             d->buf[d->n] = '\0';
             int ret = bgzf_write(fp, d->buf, d->n);
@@ -462,9 +461,6 @@ int fastq_merge_core(struct fastq_node **node, int n_node, BGZF *fp)
                 fastq_node_clean(d);
             }
             else {
-                // int l;
-                // l = d->idx->offset[d->i] - d->idx->offset[d->i-1];
-                // debug_print("%d\t%d\t%d",l,d->idx->offset[d->i], d->idx->offset[d->i-1]);
                 int l = d->idx->length[d->i];
                 if (l >= d->m) {
                     d->m = l+1;
@@ -472,12 +468,11 @@ int fastq_merge_core(struct fastq_node **node, int n_node, BGZF *fp)
                 }
                 d->n = l;
                 int ret;
-                // ret = fread(d->buf, 1, d->n, d->fp);
                 ret = bgzf_read(d->fp, d->buf, d->n);
-                //debug_print("ret : %d\t%d", ret,bgzf_tell(d->fp));
                 d->buf[d->n] = '\0';
                 assert(ret == d->n);
                 d->name = d->idx->name[d->i];
+                
             }
         }
         else break;
