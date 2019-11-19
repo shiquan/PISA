@@ -1,0 +1,13 @@
+{
+    "pattern":"ATGTACTCTGCGTTGATACCACTGCTTAAGTCGGANNNNNNNNNNNNNNNNNNNCCTTATCAGCGTCCGACTTCTACACGACGCTCTTCCGATCT(CB)(UY)[polyT]",
+    "segments":[
+        {
+	    "tag":"CB",
+            "length":"16",
+	},
+	{
+            "tag":"UB",
+            "length":"10",
+        }
+    ]
+}
