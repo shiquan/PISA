@@ -1,0 +1,13 @@
+{
+    "pattern":"(polyA)GTACTCTGCGTTGATACCACTGCTTAAGTCGGACGCTGATAAGGTCGCCATGCCTAAGTCGGACGCTGATAAGGTCGCCATGCCTCTCAGTACTCCGACTTCTACACGACGCTCTTCCGATCT(CB)(UB)TTTCTTATATGGG",
+    "segments":[
+        {
+	    "tag":"CB",
+            "length":"16",
+	},
+	{
+            "tag":"UB",
+            "length":"10",
+        }
+    ]
+}
