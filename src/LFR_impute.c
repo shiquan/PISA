@@ -389,7 +389,7 @@ static int usage()
     fprintf(stderr, "  -dist         Distance between reads from same block will be imputed.\n");
     fprintf(stderr, "  -k            Keep unclassified reads in the output.\n");
     fprintf(stderr, "  -@            Threads to pack and unpack bam file.\n");
-    fprintf(stderr, "  -t            Threads to process.\n");
+    //fprintf(stderr, "  -t            Threads to process.\n");
     return 1;
 }
 
@@ -404,10 +404,6 @@ int LFR_impute(int argc, char **argv)
     
     LOG_print("Index build finished: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     
-    hts_tpool *p = hts_tpool_init(args.n_thread);
-    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
-    hts_tpool_result *r;
-
     for (;;) {
         struct bam_pool *b = bam_pool_create();
         bam_read_pool(b, args.in, args.hdr, args.chunk_size);
@@ -415,27 +411,10 @@ int LFR_impute(int argc, char **argv)
         if (b == NULL) break;
         if (b->n == 0) { free(b->bam); free(b); break; }
         
-        int block;
-        do {
-            block = hts_tpool_dispatch2(p, q, run_it, b, 1);
-            if ((r = hts_tpool_next_result(q))) {
-                struct p_data *d = (struct p_data*)hts_tpool_result_data(r);
-                write_out(d);   
-                hts_tpool_delete_result(r, 0);
-            }
-        }
-        while (block == -1);
+        struct p_data *d = (struct p_data*)run_it(b);
+        write_out(d);   
     }
     
-    hts_tpool_process_flush(q);
-
-    while ((r = hts_tpool_next_result(q))) {
-        struct p_data *d = (struct p_data*)hts_tpool_result_data(r);
-        write_out(d);
-        hts_tpool_delete_result(r, 0);
-    }
-    hts_tpool_process_destroy(q);
-    hts_tpool_destroy(p);
     memory_release();    
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     LOG_print("%"PRIu64" records updated.", args.imputed_records);
