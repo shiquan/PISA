@@ -1,5 +1,5 @@
 {
-    "pattern":"ATCAGCGTCCGACTTCGTAGCCATGTCGTTCTGCG(T1)CCTTCC(T2)CGATG(UB)[polyT]",
+    "pattern":"GTAGCCATGTCGTTCTGCG(T1)CCTTCC(T2)CGATG(UB)[polyT]",
     "segments":[
         {
 	    "tag":"CB",
