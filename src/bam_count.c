@@ -467,7 +467,7 @@ int count_matrix(int argc, char **argv)
             for (i = 0; i < n; ++i) {
                 for (j = 0; j < lb->n; ++j) {
                     if (v[i].v[j] != NULL && v[i].v[j]->c > 0)
-                        fprintf(out, "%s\t%s\t%d\n",reg[i],lb->b[j].s, v[i].v[j]);
+                        fprintf(out, "%s\t%s\t%d\n",reg[i],lb->b[j].s, v[i].v[j]->c);
                 }
             }
         }

@@ -32,7 +32,7 @@ force:
 	$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@
 
 LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/dict.o src/seq_merge.o src/ksa.o \
-	src/bam_pool.o src/umi_corr.o src/dict.o src/read_thread.o src/read_tags.o
+	src/bam_pool.o src/umi_corr.o src/dict.o src/read_thread.o src/read_tags.o src/sim_search.o
 
 AOBJ = src/bam_anno.o \
 	src/bam_count.o \
@@ -72,6 +72,7 @@ test: $(HTSLIB) version.h
 PISA: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h libfml.a libz
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) fermi-lite/libfml.a  src/liba.a $(HTSLIB) zlib-1.2.11/libz.a $(LIBS)
 
+src/sim_search.o: src/sim_search.c
 src/fragment.o: src/fragment.c
 src/gene_cov.o: src/gene_cov.c
 src/bam2fq.o: src/bam2fq.c

@@ -3,7 +3,7 @@
     "cell barcode":[
         {
             "location":"R2:133-142",
-            "distance":"0",
+            "distance":"1",
             "white list":[
                 "TAACAGCCAA",
 		"CTAAGAGTCC",
@@ -1545,7 +1545,7 @@
         },
         {
             "location":"R2:117-126",
-            "distance":"0",
+            "distance":"1",
             "white list":[
                 "TAACAGCCAA",
 		"CTAAGAGTCC",
@@ -3087,7 +3087,7 @@
         },
         {
             "location":"R2:101-110",
-            "distance":"0",
+            "distance":"1",
             "white list":[
                 "TAACAGCCAA",
 		"CTAAGAGTCC",

@@ -10,6 +10,7 @@
 #include "htslib/kstring.h"
 #include "htslib/khash.h"
 #include "htslib/kseq.h"
+#include "sim_search.h"
 
 KHASH_MAP_INIT_STR(str, int)
 typedef kh_str_t strhash_t;
@@ -41,6 +42,7 @@ struct bcount {
     uint64_t corrected;
 };
 
+// thread-safe summary information, NOT used anymore. edit:2019/12/02
 struct segment {
     int n; // white list barcodes per segment
     struct bcount *counts;
@@ -78,28 +80,33 @@ void thread_hold_destroy(struct thread_hold *h)
     free(h->seg);
     free(h);
 }
-struct BarcodeRegion {
+
+struct bcode_reg {
     int rd; // read 1 or 2
     int start;
     int end;
     int dist;
+    ss_t *wl;
     char **white_list;
     int len;
     int n_wl;
-    strhash_t *wlhash;
+    // strhash_t *wlhash;
 };
-void BarcodeRegion_clean(struct BarcodeRegion *br)
+void bcode_reg_clean(struct bcode_reg *br)
 {
+    if (br->wl) ss_destroy(br->wl);
+    /*
     if (br->n_wl) {
         int k;
         for (k = 0; k < br->n_wl; ++k) free(br->white_list[k]);
         free(br->white_list);
         kh_destroy(str,br->wlhash);
     }
+    */
 }
-void BarcodeRegion_destory(struct BarcodeRegion *br)
+void bcode_reg_destory(struct bcode_reg *br)
 {
-    BarcodeRegion_clean(br);
+    bcode_reg_clean(br);
     free(br);
 }
 struct BRstat {
@@ -263,21 +270,21 @@ static struct config {
     char *raw_cell_barcode_tag;
     char *raw_cell_barcode_qual_tag;
     int n_cell_barcode;
-    struct BarcodeRegion *cell_barcodes;
+    struct bcode_reg *cell_barcodes;
 
     char *raw_sample_barcode_tag;
     char *raw_sample_barcode_qual_tag;
     int n_sample_barcode; // usually == 1, sometimes == 2,
-    struct BarcodeRegion *sample_barcodes;
+    struct bcode_reg *sample_barcodes;
 
     char *umi_tag;
     char *umi_qual_tag;
     // UMI, usually random generated and located at one region
-    struct BarcodeRegion *UMI;
+    struct bcode_reg *UMI;
 
     // clean read sequence
-    struct BarcodeRegion *read_1; 
-    struct BarcodeRegion *read_2;  // for single ends, read2 == NULL
+    struct bcode_reg *read_1; 
+    struct bcode_reg *read_2;  // for single ends, read2 == NULL
 } config = {
     // .platform = NULL,
     // .version = NULL,
@@ -305,14 +312,14 @@ void config_destory()
     if (config.raw_cell_barcode_qual_tag) free(config.raw_cell_barcode_qual_tag);
     int i;
     for (i = 0; i < config.n_cell_barcode; ++i) {
-        struct BarcodeRegion *br = &config.cell_barcodes[i];
-        BarcodeRegion_clean(br);
+        struct bcode_reg *br = &config.cell_barcodes[i];
+        bcode_reg_clean(br);
     }
     free(config.cell_barcodes);
-    if (config.sample_barcodes) BarcodeRegion_destory(config.sample_barcodes);
-    if (config.UMI) BarcodeRegion_destory(config.UMI);
-    if (config.read_1) BarcodeRegion_destory(config.read_1);
-    if (config.read_2) BarcodeRegion_destory(config.read_2);
+    if (config.sample_barcodes) bcode_reg_destory(config.sample_barcodes);
+    if (config.UMI) bcode_reg_destory(config.UMI);
+    if (config.read_1) bcode_reg_destory(config.read_1);
+    if (config.read_2) bcode_reg_destory(config.read_2);
     if (config.raw_sample_barcode_tag) free(config.raw_sample_barcode_tag);
     if (config.raw_sample_barcode_qual_tag) free(config.raw_sample_barcode_qual_tag);
     if (config.umi_tag) free(config.umi_tag);
@@ -354,7 +361,7 @@ static void config_init(const char *fn)
         else if (strcmp(node->key, "cell barcode") == 0) {
             if (node->type != KSON_TYPE_BRACKET) error("Format error. \"cell barcode\":[{},{}]");
             config.n_cell_barcode = node->n;
-            config.cell_barcodes = calloc(node->n,sizeof(struct BarcodeRegion));
+            config.cell_barcodes = calloc(node->n,sizeof(struct bcode_reg));
 
             int j;
             for (j = 0; j < node->n; ++j) {
@@ -362,8 +369,8 @@ static void config_init(const char *fn)
                 if (n1 == NULL) error("cell barcode is empty.");
                 if (n1->type != KSON_TYPE_BRACE) error("Format error. \"cell barcode\":[{},{}]");
                 if (n1->n == 0) continue; // empty record
-                struct BarcodeRegion *br = &config.cell_barcodes[j];
-                memset(br, 0, sizeof(struct BarcodeRegion));
+                struct bcode_reg *br = &config.cell_barcodes[j];
+                memset(br, 0, sizeof(struct bcode_reg));
                 int k;
                 for (k = 0; k < n1->n; ++k) {
                     const kson_node_t *n2 = kson_by_index(n1, k);
@@ -417,9 +424,9 @@ static void config_init(const char *fn)
         }
         else if (strcmp(node->key, "read 1") == 0) {
             if (node->type != KSON_TYPE_BRACE) error("Format error. \"read 1\":{}");
-            config.read_1 = malloc(sizeof(struct BarcodeRegion));
-            struct BarcodeRegion *br = config.read_1;
-            memset(br, 0, sizeof(struct BarcodeRegion));
+            config.read_1 = malloc(sizeof(struct bcode_reg));
+            struct bcode_reg *br = config.read_1;
+            memset(br, 0, sizeof(struct bcode_reg));
             const kson_node_t *n1 = kson_by_index(node, 0);
             if (n1 == NULL) error("read 1 location at config is empty.");
             if (strcmp(n1->key, "location") == 0) {
@@ -449,9 +456,9 @@ static void config_init(const char *fn)
         }
         else if (strcmp(node->key, "read 2") == 0) {
             if (node->type != KSON_TYPE_BRACE) error("Format error. \"read 1\":{}");
-            config.read_2 = malloc(sizeof(struct BarcodeRegion));
-            struct BarcodeRegion *br = config.read_2;
-            memset(br, 0, sizeof(struct BarcodeRegion));
+            config.read_2 = malloc(sizeof(struct bcode_reg));
+            struct bcode_reg *br = config.read_2;
+            memset(br, 0, sizeof(struct bcode_reg));
             const kson_node_t *n1 = kson_by_index(node, 0);
             if (n1 == NULL) error("read 2 location at config is empty.");
             if (strcmp(n1->key, "location") == 0) {
@@ -487,8 +494,8 @@ static void config_init(const char *fn)
         }
         else if (strcmp(node->key, "UMI") == 0) {
             if (node->type != KSON_TYPE_BRACE) error("Format error. \"UMI\":{}");
-            config.UMI = malloc(sizeof(struct BarcodeRegion));
-            struct BarcodeRegion *br = config.UMI;
+            config.UMI = malloc(sizeof(struct bcode_reg));
+            struct bcode_reg *br = config.UMI;
             memset(br, 0, sizeof(*br));
             const kson_node_t *n1 = kson_by_index(node, 0);
             if (n1 == NULL) error("UMI location at config is empty.");
@@ -524,21 +531,25 @@ static void config_init(const char *fn)
 
     // init white list hash
     for (i = 0; i < config.n_cell_barcode; ++i) {
-        struct BarcodeRegion *br = &config.cell_barcodes[i];
+        struct bcode_reg *br = &config.cell_barcodes[i];
         if (br->n_wl == 0) continue;
-        br->wlhash = kh_init(str);
+        br->wl = ss_init();
+        // br->wlhash = kh_init(str);
         int j;
-        khint_t k;
-        int ret;
+        // khint_t k;
+        // int ret;
         for (j = 0; j < br->n_wl; j++) {
             int len = strlen(br->white_list[j]);
             if (len != br->len) error("Inconsistance white list length. %d vs %d, %s", br->len, len, br->white_list[j]);
             if (br->dist>3) error("Set too much distance for cell barcode, allow 3 distance at max.");
             if (br->dist > len/2) error("Allow distance greater than half of barcode! Try to reduce distance.");
-            k = kh_put(str, br->wlhash, br->white_list[j], &ret);
-            if (!ret) error("Duplicated white list %s", br->white_list[j]);
-            kh_val(br->wlhash, k) = j+1;
+            //k = kh_put(str, br->wlhash, br->white_list[j], &ret);
+            //if (!ret) error("Duplicated white list %s", br->white_list[j]);
+            // kh_val(br->wlhash, k) = j+1;            
+            ss_push(br->wl, br->white_list[j]);
+            free(br->white_list[j]);
         }
+        free(br->white_list);
     }
     kson_destroy(json);
 }
@@ -555,7 +566,7 @@ void seqlite_destory(struct seqlite *s)
     free(s);
 }
 
-struct seqlite *extract_tag(struct bseq *b, const struct BarcodeRegion *r, struct BRstat *stat, int *n)
+struct seqlite *extract_tag(struct bseq *b, const struct bcode_reg *r, struct BRstat *stat, int *n)
 {
     if (b == NULL || r == NULL) return NULL;
     
@@ -590,13 +601,15 @@ struct seqlite *extract_tag(struct bseq *b, const struct BarcodeRegion *r, struc
     stat->bases += l;
     return p;
 }
-// -1 on unfound, 0 on No found on white list, >0 for iterater of white lists
-int check_whitelist(char *s, const struct BarcodeRegion *r, int *exact_match)
+// NULL on unfound, else on sequence
+char *check_whitelist(char *s, const struct bcode_reg *r, int *exact_match)
 {
     if (r->n_wl == 0) return 0;
     int len = strlen(s);
     if (len != r->len) error("Trying to check inconsistance length sequence.");
     
+    return ss_query(r->wl, s, r->dist, exact_match);
+    /*
     khint_t k;
     k = kh_get(str, r->wlhash, s);
     if (k != kh_end(r->wlhash)) {
@@ -618,6 +631,8 @@ int check_whitelist(char *s, const struct BarcodeRegion *r, int *exact_match)
         return ret;
     }
     return -1;
+    */
+
 }
 static void update_rname(struct bseq *b, const char *tag, char *s)
 {
@@ -633,7 +648,7 @@ static void update_rname(struct bseq *b, const char *tag, char *s)
 
 struct BRstat *extract_barcodes(struct bseq *b,
                                 int n,
-                                const struct BarcodeRegion *r,
+                                const struct bcode_reg *r,
                                 const char *tag,
                                 const char *raw_tag,
                                 const char *raw_qual_tag,                                
@@ -654,38 +669,38 @@ struct BRstat *extract_barcodes(struct bseq *b,
     int i;
     for (i = 0; i < n; ++i) {
 
-        const struct BarcodeRegion *br = &r[i];
-        struct segment *seg = hold == NULL ? NULL : hold->seg[i];
+        const struct bcode_reg *br = &r[i];
+        // struct segment *seg = hold == NULL ? NULL : hold->seg[i];
         struct seqlite *s = extract_tag(b, br, stat, &dropN);
         if (s == NULL) goto failed_check_barcode;
 
         int exact_match = 0;
-        int ret = check_whitelist(s->seq, br, &exact_match);
+        char *wl = check_whitelist(s->seq, br, &exact_match);
 
         if (raw_tag) kputs(s->seq, &str);
         if (raw_qual_tag && s->qual) kputs(s->qual, &qual);
         
         if (tag) {
-            if (ret>0)
-                kputs(br->white_list[ret-1], &tag_str);
-            else // in case no white list
-                kputs(s->seq, &tag_str);
+            kputs(wl == NULL ? s->seq : wl, &tag_str);
         }
         seqlite_destory(s);
 
+        if (wl) free(wl);
+        
         if (br->n_wl == 0)             
             continue;
         
-        if (ret <= 0) {
+        if (wl == 0) {
             stat->filter = 1;
             continue;
         }
-        if (ret > 0) {
+        /*
+        if (wl) {
             if (exact_match == 1) seg->counts[ret-1].matched++;
             else seg->counts[ret-1].corrected++;
         }
-        
-        if (ret == 0 || exact_match == 0) {
+        */
+        if (wl == NULL ||exact_match == 0) {
             stat->exact_match = 0;
             continue;
         }        
@@ -716,7 +731,7 @@ struct BRstat *extract_barcodes(struct bseq *b,
 
 struct BRstat *extract_sample_barcode_reads(struct bseq *b,
                                  int n,
-                                 const struct BarcodeRegion *r,
+                                 const struct bcode_reg *r,
                                  const char *tag,
                                  const char *raw_tag,
                                  const char *raw_qual_tag)
@@ -725,7 +740,7 @@ struct BRstat *extract_sample_barcode_reads(struct bseq *b,
 }
 struct BRstat *extract_cell_barcode_reads(struct bseq *b,
                                int n,
-                               const struct BarcodeRegion *r,
+                               const struct bcode_reg *r,
                                const char *tag,
                                const char *raw_tag,
                                const char *raw_qual_tag,                               
@@ -735,7 +750,7 @@ struct BRstat *extract_cell_barcode_reads(struct bseq *b,
     return extract_barcodes(b, n, r, tag, raw_tag, raw_qual_tag, run_code, hold);
 }
 
-struct BRstat *extract_umi(struct bseq *b, const struct BarcodeRegion *r, const char *tag, const char *qual_tag)
+struct BRstat *extract_umi(struct bseq *b, const struct bcode_reg *r, const char *tag, const char *qual_tag)
 {
     if (tag == NULL) return NULL;
     struct BRstat *stat = malloc(sizeof(*stat));
@@ -763,7 +778,7 @@ struct BRstat *extract_umi(struct bseq *b, const struct BarcodeRegion *r, const 
     return stat;
 }
                 
-struct BRstat *extract_reads(struct bseq *b, const struct BarcodeRegion *r1, const struct BarcodeRegion *r2)
+struct BRstat *extract_reads(struct bseq *b, const struct bcode_reg *r1, const struct bcode_reg *r2)
 {
     assert(r1);
     struct BRstat *stat = malloc(sizeof(struct BRstat));
@@ -1087,9 +1102,11 @@ void report_write()
 }
 void full_details()
 {
+    /*
     if (args.barcode_dis_fp) {
         LOG_print("Cell barcodes summary.");
         int i, j, k;
+      
         for (i = 1; i < args.n_thread; ++i) {
             for (j = 0; j < args.hold[i]->n; ++j) {
                 struct segment *s0 = args.hold[0]->seg[j];
@@ -1100,14 +1117,16 @@ void full_details()
                 }
             }
         }
+      
         for (i = 0; i < config.n_cell_barcode; ++i) {
-            struct BarcodeRegion *br = &config.cell_barcodes[i];
+            struct bcode_reg *br = &config.cell_barcodes[i];
             struct segment *s0 = args.hold[0]->seg[i];
             fprintf(args.barcode_dis_fp, "# Read %d, %d-%d\n", br->rd, br->start, br->end);
             for (j = 0; j < br->n_wl; ++j)
                 fprintf(args.barcode_dis_fp, "%s\t%"PRIu64"\t%"PRIu64"\n", br->white_list[j], s0->counts[j].matched, s0->counts[j].corrected);
         }
     }
+    */
 
 }
 static void memory_release()

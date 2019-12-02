@@ -367,7 +367,7 @@ void bseq_pool_push(struct bseq *b, struct bseq_pool *p)
     //debug_print("c %d, b %d", c->l0, b->l0);
     // free(b);
 }
-// credit to https://github.com/wooorm/levenshtein.c
+// credit to https://github.com/wooorm/levenshtein.
 int levenshtein(char *a, char *b, int l) {
     int *cache = calloc(l, sizeof(int));
     int index = 0;
