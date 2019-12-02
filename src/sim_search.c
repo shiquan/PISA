@@ -85,7 +85,7 @@ uint64_t enc64(char *s)
 char *decode64(uint64_t q)
 {
     char c[23];
-    memset(c, 23, 0);
+    memset(c, 0, 23);
     int i = 21;
     for (;;) {
         uint8_t x = q & 0x7;
@@ -99,7 +99,7 @@ char *decode64(uint64_t q)
         q = q>>3;
     }
     kstring_t str = {0,0,0};
-    kputs(c+i+1, &str); kputs("",&str);
+    kputs(c+i+1, &str);
     return str.s;
 }
 char *decode32(uint32_t q)
@@ -119,7 +119,7 @@ char *decode32(uint32_t q)
         q = q>>3;
     }
     kstring_t str = {0,0,0};
-    kputs(c+i+1, &str); kputs("",&str);
+    kputs(c+i+1, &str);
     return str.s;
 }
 static int check_Ns(char *s, int l)
@@ -251,7 +251,7 @@ static void set_push_core(int ele, set_t *set)
         set->m = set->m == 0 ? 2 : set->m<<1;
         set->ele = realloc(set->ele, sizeof(struct element)*set->m);
     }
-
+    
     set->ele[set->n].ele = ele;
     set->ele[set->n].cnt = 1;
     set->n++;
@@ -259,16 +259,13 @@ static void set_push_core(int ele, set_t *set)
 void set_push(int *ele, int n, set_t *set)
 {
     assert(n > 0);
-    if (set->n + n <= set->m) {
-        set->m = set->m + n;
-        set->ele = realloc(set->ele, sizeof(struct element)*set->m);
-    }
+
     int i;
     for (i = 0; i < n; ++i) set_push_core(ele[i], set);    
 }
 int cmpfunc (const void * a, const void * b)
 {
-    return (*(struct element*)a).cnt - (*(struct element*)b).cnt;
+    return (*(struct element*)b).cnt - (*(struct element*)a).cnt;
 }
 
 int set_top_2(set_t *set)
@@ -279,7 +276,7 @@ int set_top_2(set_t *set)
 
     int max = set->ele[1].cnt;
     int i;
-    for (i = 1; max <= set->ele[i].cnt; ++i) {}
+    for (i = 1; max <= set->ele[i].cnt && i < set->n; ++i) {}
     return i;
 }
 
@@ -313,7 +310,8 @@ char *ss_query(ss_t *S, char *seq, int e, int *exact)
             continue;
         }
         uint32_t q0 = enc32(seq+i, kmer_size);
-        //char *s0 = decode32(q0);
+        char *s0 = decode32(q0);
+
         k = kh_get(ss32, S->d1, q0);
         if (k == kh_end(S->d1)) continue;
         
@@ -327,11 +325,13 @@ char *ss_query(ss_t *S, char *seq, int e, int *exact)
         int dist = levnshn_dist_calc(S->cs[set->ele[i].ele], q);
         if (dist <= e) {
             if (hit != -1) goto multi_hits;
-            hit = i;
+            hit = set->ele[i].ele;
         }
     }
-
+    
     set_destory(set);
+
+    if (hit == -1) return NULL;
     return decode64(S->cs[hit]);
 
   multi_hits:

@@ -41,7 +41,7 @@ struct bcount {
     uint64_t matched;
     uint64_t corrected;
 };
-
+/*
 // thread-safe summary information, NOT used anymore. edit:2019/12/02
 struct segment {
     int n; // white list barcodes per segment
@@ -80,29 +80,20 @@ void thread_hold_destroy(struct thread_hold *h)
     free(h->seg);
     free(h);
 }
-
+*/
 struct bcode_reg {
     int rd; // read 1 or 2
     int start;
     int end;
     int dist;
     ss_t *wl;
-    char **white_list;
+    char **white_list; // temp allocated, will be free after initization
     int len;
     int n_wl;
-    // strhash_t *wlhash;
 };
 void bcode_reg_clean(struct bcode_reg *br)
 {
     if (br->wl) ss_destroy(br->wl);
-    /*
-    if (br->n_wl) {
-        int k;
-        for (k = 0; k < br->n_wl; ++k) free(br->white_list[k]);
-        free(br->white_list);
-        kh_destroy(str,br->wlhash);
-    }
-    */
 }
 void bcode_reg_destory(struct bcode_reg *br)
 {
@@ -121,7 +112,7 @@ struct BRstat *BRstat_alloc()
     memset(b, 0, sizeof(*b));
     return b;
 }
-struct NameCountPair {
+struct name_count_pair {
     char *name;
     uint32_t count;
 };
@@ -168,13 +159,13 @@ static struct args {
     int dropN;
     
     // Cell barcodes found in white list, if no white list all barcodes treat as background
-    struct NameCountPair *names;
+    struct name_count_pair *names;
     int n_name;
     int m_name;    
     strhash_t *cbhash;
 
     // Background
-    struct NameCountPair *bgnames;
+    struct name_count_pair *bgnames;
     int n_bg, m_bg;
     strhash_t *bghash;
 
@@ -191,8 +182,8 @@ static struct args {
     FILE *barcode_dis_fp;
     
     // hold thread safe data
-    struct thread_hold **hold;
-
+    // struct thread_hold **hold;
+    
     // input file streaming
     struct fastq_handler *fastq;
 
@@ -241,7 +232,7 @@ static struct args {
     .report_fp = NULL,
     // .html_report_fp = NULL,
     .barcode_dis_fp = NULL,
-    .hold = NULL,
+    // .hold = NULL,
     .fastq = NULL,
 
     .raw_reads = 0,
@@ -534,18 +525,12 @@ static void config_init(const char *fn)
         struct bcode_reg *br = &config.cell_barcodes[i];
         if (br->n_wl == 0) continue;
         br->wl = ss_init();
-        // br->wlhash = kh_init(str);
         int j;
-        // khint_t k;
-        // int ret;
         for (j = 0; j < br->n_wl; j++) {
             int len = strlen(br->white_list[j]);
             if (len != br->len) error("Inconsistance white list length. %d vs %d, %s", br->len, len, br->white_list[j]);
             if (br->dist>3) error("Set too much distance for cell barcode, allow 3 distance at max.");
             if (br->dist > len/2) error("Allow distance greater than half of barcode! Try to reduce distance.");
-            //k = kh_put(str, br->wlhash, br->white_list[j], &ret);
-            //if (!ret) error("Duplicated white list %s", br->white_list[j]);
-            // kh_val(br->wlhash, k) = j+1;            
             ss_push(br->wl, br->white_list[j]);
             free(br->white_list[j]);
         }
@@ -571,8 +556,6 @@ struct seqlite *extract_tag(struct bseq *b, const struct bcode_reg *r, struct BR
     if (b == NULL || r == NULL) return NULL;
     
     struct seqlite *p = malloc(sizeof(*p));
-
-    // memset(stat, 0, sizeof(struct BRstat));
     *n = 0;
     char *s = NULL;
     char *q = NULL;
@@ -609,30 +592,6 @@ char *check_whitelist(char *s, const struct bcode_reg *r, int *exact_match)
     if (len != r->len) error("Trying to check inconsistance length sequence.");
     
     return ss_query(r->wl, s, r->dist, exact_match);
-    /*
-    khint_t k;
-    k = kh_get(str, r->wlhash, s);
-    if (k != kh_end(r->wlhash)) {
-        *exact_match = 1;
-        int id = kh_val(r->wlhash, k);
-        return id;
-    }
-    if (r->dist > 0) {
-        int ret = -1;
-        int i;
-        for (i = 0; i < r->n_wl; ++i) {
-            char *f = r->white_list[i];
-            int dist = levenshtein(f, s, len);
-            if (dist <= r->dist) {
-                if (ret == -1) ret = i+1;
-                else return -1; // more than one barcode statisfied, skip it
-            }
-        }
-        return ret;
-    }
-    return -1;
-    */
-
 }
 static void update_rname(struct bseq *b, const char *tag, char *s)
 {
@@ -652,8 +611,7 @@ struct BRstat *extract_barcodes(struct bseq *b,
                                 const char *tag,
                                 const char *raw_tag,
                                 const char *raw_qual_tag,                                
-                                const char *run_code,
-                                struct thread_hold *hold
+                                const char *run_code
     )
 {
     if (tag == NULL && raw_tag == NULL) return NULL;
@@ -665,53 +623,48 @@ struct BRstat *extract_barcodes(struct bseq *b,
     struct BRstat *stat = malloc(sizeof(struct BRstat));
     memset(stat, 0, sizeof(struct BRstat));
     stat->exact_match = 1;
+    
     int dropN;
+    // barcodes construct from multi segments, only all segments matched with whitelist will be export
     int i;
-    for (i = 0; i < n; ++i) {
-
+    for (i = 0; i < n; ++i) { 
         const struct bcode_reg *br = &r[i];
-        // struct segment *seg = hold == NULL ? NULL : hold->seg[i];
         struct seqlite *s = extract_tag(b, br, stat, &dropN);
         if (s == NULL) goto failed_check_barcode;
-
+        char *wl = NULL;
         int exact_match = 0;
-        char *wl = check_whitelist(s->seq, br, &exact_match);
-
+        if (br->n_wl) {
+            wl = check_whitelist(s->seq, br, &exact_match);
+            if (wl == NULL) {                
+                stat->exact_match = 0;
+                stat->filter = 1;
+                goto failed_check_barcode;
+            }
+            if (exact_match == 0)  stat->exact_match = 0;
+        }
+        else stat->exact_match = 0;
+        
         if (raw_tag) kputs(s->seq, &str);
         if (raw_qual_tag && s->qual) kputs(s->qual, &qual);
         
-        if (tag) {
+        if (tag) {            
             kputs(wl == NULL ? s->seq : wl, &tag_str);
         }
         seqlite_destory(s);
 
         if (wl) free(wl);
-        
-        if (br->n_wl == 0)             
-            continue;
-        
-        if (wl == 0) {
-            stat->filter = 1;
-            continue;
-        }
-        /*
-        if (wl) {
-            if (exact_match == 1) seg->counts[ret-1].matched++;
-            else seg->counts[ret-1].corrected++;
-        }
-        */
-        if (wl == NULL ||exact_match == 0) {
-            stat->exact_match = 0;
-            continue;
-        }        
     }
+
+    if (stat->filter == 1) goto failed_check_barcode;
     
     if (run_code) {
         kputc('-', &tag_str);
         kputs(run_code, &tag_str);
     }
+
     struct fq_data *data = (struct fq_data*)b->data;
     data->bc_str = strdup(tag_str.s);
+    
     if (tag) update_rname(b, tag, tag_str.s);
     if (raw_tag) update_rname(b, raw_tag, str.s);
     if (raw_qual_tag) update_rname(b, raw_qual_tag, qual.s);
@@ -736,18 +689,17 @@ struct BRstat *extract_sample_barcode_reads(struct bseq *b,
                                  const char *raw_tag,
                                  const char *raw_qual_tag)
 {
-    return extract_barcodes(b, n, r, tag, raw_tag, raw_qual_tag, NULL, NULL);
+    return extract_barcodes(b, n, r, tag, raw_tag, raw_qual_tag, NULL);
 }
 struct BRstat *extract_cell_barcode_reads(struct bseq *b,
-                               int n,
-                               const struct bcode_reg *r,
-                               const char *tag,
-                               const char *raw_tag,
-                               const char *raw_qual_tag,                               
-                               const char *run_code,
-                               struct thread_hold *hold)
+                                          int n,
+                                          const struct bcode_reg *r,
+                                          const char *tag,
+                                          const char *raw_tag,
+                                          const char *raw_qual_tag,                               
+                                          const char *run_code)
 {
-    return extract_barcodes(b, n, r, tag, raw_tag, raw_qual_tag, run_code, hold);
+    return extract_barcodes(b, n, r, tag, raw_tag, raw_qual_tag, run_code);
 }
 
 struct BRstat *extract_umi(struct bseq *b, const struct bcode_reg *r, const char *tag, const char *qual_tag)
@@ -826,7 +778,7 @@ static void *run_it(void *_p, int idx)
 {
     struct bseq_pool *p = (struct bseq_pool*)_p;
     struct args *opts = p->opts;
-    struct thread_hold *hold = opts->hold[idx];
+    //struct thread_hold *hold = opts->hold[idx];
 
     int i;
     for (i = 0; i < p->n; ++i) {
@@ -863,6 +815,9 @@ static void *run_it(void *_p, int idx)
                 config.UMI,
                 config.umi_tag,
                 config.umi_qual_tag);
+
+            if (umi_stat == NULL) error("Failed to extract UMIs.");
+            
             data->q30_bases_umi = umi_stat->q30_bases;
             data->bases_umi = umi_stat->bases;
             free(umi_stat);
@@ -877,8 +832,7 @@ static void *run_it(void *_p, int idx)
                 config.cell_barcode_tag,
                 config.raw_cell_barcode_tag,
                 config.raw_cell_barcode_qual_tag,
-                opts->run_code,
-                hold
+                opts->run_code
                 );
             
             if (cell_stat == NULL) {
@@ -1009,9 +963,9 @@ static void write_out(void *_data)
                 if (k == kh_end(opts->cbhash)) {
                     if (opts->n_name == opts->m_name) {
                         opts->m_name += 10000;
-                        opts->names = realloc(opts->names,opts->m_name *sizeof(struct NameCountPair));                        
+                        opts->names = realloc(opts->names,opts->m_name *sizeof(struct name_count_pair));                        
                     }
-                    struct NameCountPair *pair = &opts->names[opts->n_name];
+                    struct name_count_pair *pair = &opts->names[opts->n_name];
                     pair->name = strdup(data->bc_str);
                     pair->count = 1;
                     k = kh_put(str,opts->cbhash, pair->name, &ret);
@@ -1020,7 +974,7 @@ static void write_out(void *_data)
                 }
                 else {
                     int id = kh_val(opts->cbhash, k);
-                    struct NameCountPair *pair = &opts->names[id];
+                    struct name_count_pair *pair = &opts->names[id];
                     pair->count++;
                 }
             }
@@ -1034,9 +988,9 @@ static void write_out(void *_data)
                 if (k == kh_end(opts->bghash)) {
                     if (opts->n_bg == opts->m_bg) {
                         opts->m_bg += 10000;
-                        opts->bgnames = realloc(opts->bgnames,opts->m_bg *sizeof(struct NameCountPair));                        
+                        opts->bgnames = realloc(opts->bgnames,opts->m_bg *sizeof(struct name_count_pair));                        
                     }
-                    struct NameCountPair *pair = &opts->bgnames[opts->n_bg];
+                    struct name_count_pair *pair = &opts->bgnames[opts->n_bg];
                     pair->name = strdup(data->bc_str);
                     pair->count = 1;
                     k = kh_put(str,opts->bghash, pair->name, &ret);
@@ -1045,7 +999,7 @@ static void write_out(void *_data)
                 }
                 else {
                     int id = kh_val(opts->bghash, k);
-                    struct NameCountPair *pair = &opts->bgnames[id];
+                    struct name_count_pair *pair = &opts->bgnames[id];
                     pair->count++;
                 }
             }
@@ -1067,12 +1021,12 @@ static void write_out(void *_data)
 }
 static int cmpfunc (const void *a, const void *b)
 {    
-    return ( ((struct NameCountPair*)b)->count - ((struct NameCountPair*)a)->count );
+    return ( ((struct name_count_pair*)b)->count - ((struct name_count_pair*)a)->count );
 }
 void cell_barcode_count_pair_write()
 {
     if (args.cbdis_fp && args.n_name && args.cbhash) {
-        qsort(args.names, args.n_name, sizeof(struct NameCountPair), cmpfunc);
+        qsort(args.names, args.n_name, sizeof(struct name_count_pair), cmpfunc);
         int i;
         for (i = 0; i < args.n_name; ++i) {
             fprintf(args.cbdis_fp, "%s\t%d\n", args.names[i].name, args.names[i].count);
@@ -1137,9 +1091,9 @@ static void memory_release()
     if (args.out2_fp) fclose(args.out2_fp);
     if (args.barcode_dis_fp) fclose(args.barcode_dis_fp);
     fastq_handler_destory(args.fastq);
-    int i;
-    for (i = 0; i < args.n_thread; ++i) thread_hold_destroy(args.hold[i]);
-    free(args.hold);    
+    //int i;
+    //for (i = 0; i < args.n_thread; ++i) thread_hold_destroy(args.hold[i]);
+    //free(args.hold);    
 }
 static int parse_args(int argc, char **argv)
 {
@@ -1191,7 +1145,8 @@ static int parse_args(int argc, char **argv)
 
     if (args.config_fname == NULL) error("Option -config is required.");
     config_init(args.config_fname);
-
+    LOG_print("Configure file inited.");
+    
     if (thread) args.n_thread = str2int((char*)thread);
     if (chunk_size) args.chunk_size = str2int((char*)chunk_size);
     assert(args.n_thread >= 1 && args.chunk_size >= 1);
@@ -1200,13 +1155,14 @@ static int parse_args(int argc, char **argv)
         LOG_print("Average quality below %d will be drop.", args.qual_thres);
     }
 
-    args.hold = malloc(sizeof(void*)*args.n_thread);
-    memset(args.hold, 0, sizeof(void*)*args.n_thread);
-    
+    //args.hold = malloc(sizeof(void*)*args.n_thread);
+    //memset(args.hold, 0, sizeof(void*)*args.n_thread);
+
+    /*
     if (config.n_cell_barcode > 0) { // segments        
-        struct thread_hold *h1 = malloc(sizeof(struct thread_hold));
-        h1->n = config.n_cell_barcode;
-        h1->seg = malloc(sizeof(void*)*h1->n);
+        //struct thread_hold *h1 = malloc(sizeof(struct thread_hold));
+        //h1->n = config.n_cell_barcode;
+        //h1->seg = malloc(sizeof(void*)*h1->n);
         
         for (i = 0; i < config.n_cell_barcode; ++i) { // barcodes per segment
             int wl = config.cell_barcodes[i].n_wl;
@@ -1219,7 +1175,7 @@ static int parse_args(int argc, char **argv)
         args.hold[0] = h1;
         for (i = 1; i < args.n_thread; ++i) args.hold[i] = thread_hold_fork(h1);
     }
-
+    */
     if (args.r1_fname == NULL && (!isatty(fileno(stdin)))) args.r1_fname = "-";
     if (args.r1_fname == NULL) error("Fastq file(s) must be set.");
         
