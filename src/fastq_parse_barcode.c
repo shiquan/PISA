@@ -638,6 +638,7 @@ struct BRstat *extract_barcodes(struct bseq *b,
             if (wl == NULL) {                
                 stat->exact_match = 0;
                 stat->filter = 1;
+                seqlite_destory(s);
                 goto failed_check_barcode;
             }
             if (exact_match == 0)  stat->exact_match = 0;

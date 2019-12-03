@@ -144,6 +144,11 @@ ss_t *ss_init()
 void ss_destroy(ss_t *S)
 {
     kh_destroy(ss64, S->d0);
+    khint_t k;
+    for (k = kh_begin(S->d1); k != kh_end(S->d1); ++k) {
+        sidx_t *idx = &kh_val(S->d1, k);
+        free(idx->idx);
+    }
     kh_destroy(ss32, S->d1);
     free(S->cs);
     free(S);
@@ -286,7 +291,10 @@ int levnshn_dist_calc(uint64_t a, uint64_t b)
     char *s1 = decode64(a);
     char *s2 = decode64(b);
     int l = strlen(s1);
-    return levenshtein(s1, s2, l);
+    int dist = levenshtein(s1, s2, l);
+    free(s1);
+    free(s2);
+    return dist;
 }
 
 char *ss_query(ss_t *S, char *seq, int e, int *exact)
@@ -310,7 +318,7 @@ char *ss_query(ss_t *S, char *seq, int e, int *exact)
             continue;
         }
         uint32_t q0 = enc32(seq+i, kmer_size);
-        char *s0 = decode32(q0);
+        // char *s0 = decode32(q0);
 
         k = kh_get(ss32, S->d1, q0);
         if (k == kh_end(S->d1)) continue;
