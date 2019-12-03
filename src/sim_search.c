@@ -146,8 +146,10 @@ void ss_destroy(ss_t *S)
     kh_destroy(ss64, S->d0);
     khint_t k;
     for (k = kh_begin(S->d1); k != kh_end(S->d1); ++k) {
-        sidx_t *idx = &kh_val(S->d1, k);
-        free(idx->idx);
+        if (kh_exist(S->d1, k)) {
+            sidx_t *idx = &kh_val(S->d1, k);
+            if (idx &&idx->idx) free(idx->idx);
+        }
     }
     kh_destroy(ss32, S->d1);
     free(S->cs);
@@ -281,7 +283,7 @@ int set_top_2(set_t *set)
 
     int max = set->ele[1].cnt;
     int i;
-    for (i = 1; max <= set->ele[i].cnt && i < set->n; ++i) {}
+    for (i = 2; max <= set->ele[i].cnt && i < set->n; ++i) {}
     return i;
 }
 
