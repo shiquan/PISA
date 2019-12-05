@@ -62,7 +62,7 @@ static struct args {
     .paired = 0,
     .dedup = 0,
     .dup_tag = "DU",
-    .mem_per_thread = 1000, // 1G
+    .mem_per_thread = 1000000000, // 1G
     .tags = NULL,
     .check_list = 0,
     .out = NULL,
@@ -138,7 +138,7 @@ static int parse_args(int argc, char **argv)
     if (args.n_thread < 1) args.n_thread = 1;
     if (memory) args.mem_per_thread = human2int(memory);
 
-    //if (args.mem_per_thread < MIN_MEM_PER_THREAD) args.mem_per_thread = MIN_MEM_PER_THREAD;
+    if (args.mem_per_thread < MIN_MEM_PER_THREAD) args.mem_per_thread = MIN_MEM_PER_THREAD;
     
     if (args.list_fname) {
         args.bcodes = dict_init();
