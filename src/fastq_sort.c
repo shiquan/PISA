@@ -510,11 +510,9 @@ struct fastq_idx *fastq_merge(struct fastq_node **node, int n_node, const char *
     
     for (;;) {
         //if (n > 1) // todo: improve performation here
-            qsort(node, n, sizeof(struct fastq_node*), merge_cmp);
-        int i;
-        for (i = 0; i < n; ++i) {
-            LOG_print("%d\t%s",i,node[i]->name);
-        }
+        
+        qsort(node, n, sizeof(struct fastq_node*), merge_cmp);
+        
         if (node[0]->name == NULL) break;
 
         if (idx->n == m_idx) {
