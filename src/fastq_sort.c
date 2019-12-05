@@ -62,7 +62,7 @@ static struct args {
     .paired = 0,
     .dedup = 0,
     .dup_tag = "DU",
-    .mem_per_thread = 1000000000, // 1G
+    .mem_per_thread = 1000, // 1G
     .tags = NULL,
     .check_list = 0,
     .out = NULL,
@@ -76,7 +76,7 @@ static int parse_args(int argc, char **argv)
 {
     if (argc == 1) return 1;
 
-   int i;
+    int i;
     const char *thread = NULL;
     const char *tags = NULL;
     const char *memory = NULL;
@@ -138,7 +138,7 @@ static int parse_args(int argc, char **argv)
     if (args.n_thread < 1) args.n_thread = 1;
     if (memory) args.mem_per_thread = human2int(memory);
 
-    if (args.mem_per_thread < MIN_MEM_PER_THREAD) args.mem_per_thread = MIN_MEM_PER_THREAD;
+    //if (args.mem_per_thread < MIN_MEM_PER_THREAD) args.mem_per_thread = MIN_MEM_PER_THREAD;
     
     if (args.list_fname) {
         args.bcodes = dict_init();
@@ -474,8 +474,8 @@ int fastq_merge_core(struct fastq_node **node, int n_node, BGZF *fp)
                 d->name = d->idx->name[d->i];
                 
             }
-        }
-        else break;
+    }
+    else break;
     }
     free(name);
     return length;
@@ -509,9 +509,12 @@ struct fastq_idx *fastq_merge(struct fastq_node **node, int n_node, const char *
     memset(idx, 0, sizeof(*idx));
     
     for (;;) {
-        if (n > 1) // todo: improve performation here
+        //if (n > 1) // todo: improve performation here
             qsort(node, n, sizeof(struct fastq_node*), merge_cmp);
-        
+        int i;
+        for (i = 0; i < n; ++i) {
+            LOG_print("%d\t%s",i,node[i]->name);
+        }
         if (node[0]->name == NULL) break;
 
         if (idx->n == m_idx) {
@@ -807,9 +810,11 @@ int fsort(int argc, char **argv)
     int n_file = 0;
     int i_name = 0;
     struct fastq_stream *fastqs = malloc(max_file_open*sizeof(struct fastq_stream));
-
+    int i=0;
     for (;;) {
+        i++;
         if (n_file >= max_file_open) {
+            LOG_print("iter: %d",i);
             char *name = calloc(strlen(args.prefix)+20,1);
             sprintf(name, "%s.%.4d.bgz", args.prefix, i_name);
             i_name++;
@@ -838,7 +843,8 @@ int fsort(int argc, char **argv)
         
         run_it(stream);
     }
-    
+
+
     if (args.dedup) {
         char *name = calloc(strlen(args.prefix)+20,1);
         sprintf(name, "%s.all.bgz", args.prefix);
