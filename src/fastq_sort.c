@@ -31,7 +31,7 @@ static int usage()
     return 1;
 }
 
-#define MIN_MEM_PER_THREAD  10000000 // 10M
+#define MIN_MEM_PER_THREAD  100000 // 100K
 
 static struct args {
     const char *input_fname;
@@ -170,7 +170,6 @@ struct read_block {
 struct fastq_idx {
     int n;
     char **name;
-    //long int *offset;
     int *length;
 };
 
@@ -397,7 +396,6 @@ struct fastq_idx *write_block_with_idx(const char *fn, struct read_block *r)
     memset(idx, 0, sizeof(*idx));
     idx->n = dict_size(r->dict);
     idx->name = malloc(idx->n*sizeof(char*));
-    //idx->offset = malloc(idx->n*sizeof(int));
     idx->length = malloc(idx->n*sizeof(int));
     
     kstring_t buf ={0,0,0};
@@ -412,15 +410,11 @@ struct fastq_idx *write_block_with_idx(const char *fn, struct read_block *r)
             buf.l = 0;
             kputs((char*)(r->data+off->offsets[j]),&buf);
             kputc('\n', &buf);
-            int ret = bgzf_write(fp, buf .s, buf.l);
+            int ret = bgzf_write(fp, buf.s, buf.l);
             assert(ret == buf.l);
             idx->length[i] += buf.l;
-            //fputs((char*)(r->data+off->offsets[j]),fp);
-            //fputc('\n', fp);
         }
         idx->name[i] = strdup(name);
-        // idx->offset[i] = bgzf_tell(fp);
-        
     }
     if (buf.m) free(buf.s);
     bgzf_close(fp);
@@ -472,10 +466,9 @@ int fastq_merge_core(struct fastq_node **node, int n_node, BGZF *fp)
                 d->buf[d->n] = '\0';
                 assert(ret == d->n);
                 d->name = d->idx->name[d->i];
-                
             }
-    }
-    else break;
+        }
+        else break;
     }
     free(name);
     return length;
@@ -518,14 +511,12 @@ struct fastq_idx *fastq_merge(struct fastq_node **node, int n_node, const char *
         if (idx->n == m_idx) {
             m_idx = m_idx == 0 ? 1024 : m_idx*2;
             idx->name = realloc(idx->name, m_idx*sizeof(char*));
-            //idx->offset = realloc(idx->offset, m_idx*sizeof(long int));
             idx->length = realloc(idx->length, m_idx*sizeof(int));
         }
         idx->name[idx->n] = strdup(node[0]->name);
         
         int l = fastq_merge_core(node, n, fp);
         idx->length[idx->n] = l;
-        // idx->offset[idx->n] = bgzf_tell(fp);
         idx->n++;
     }
     for (i = 0; i < n_node; ++i) free(node[i]);
@@ -538,7 +529,9 @@ struct fastq_idx *merge_files(struct fastq_stream *fastqs, int n, const char *fn
 {
     struct fastq_node **nodes = malloc(n*sizeof(struct fastq_node*));
     int i;
-    for (i = 0; i < n; ++i) nodes[i] = fastqs[i].n;
+    for (i = 0; i < n; ++i) {
+        nodes[i] = fastqs[i].n;
+    }
     struct fastq_idx *idx = fastq_merge(nodes, n, fn);
     free(nodes);
     return idx;
@@ -812,7 +805,6 @@ int fsort(int argc, char **argv)
     for (;;) {
         i++;
         if (n_file >= max_file_open) {
-            LOG_print("iter: %d",i);
             char *name = calloc(strlen(args.prefix)+20,1);
             sprintf(name, "%s.%.4d.bgz", args.prefix, i_name);
             i_name++;
@@ -820,11 +812,13 @@ int fsort(int argc, char **argv)
             struct fastq_idx *idx = merge_files(fastqs, n_file, name);
             memset(fastqs, 0, sizeof(struct fastq_stream)*max_file_open);
             fastqs[0].n = malloc(sizeof(struct fastq_node));
+            memset(fastqs[0].n, 0, sizeof(struct fastq_node));
             fastqs[0].n->idx = idx;
             fastqs[0].n->fn = name;
             n_file = 1; // merged file will put as the first record in the list
+
         }
-        
+
         struct read_block *b = read_block_file(fp, args.mem_per_thread, args.paired);
         if (b == NULL) break;
         struct fastq_stream *stream = &fastqs[n_file];
