@@ -1266,6 +1266,7 @@ static void *run_it(void *_p)
                 read_block_clear(&phase_block[j]);
             }
             free(phase_block);
+            if (temp.n == 0) continue;
             if (args.keep_all == 0 && empty_block == 1) continue; // if set -k, keep empty block
             ret->ret_block++;
             kputs(temp.s, &str);
