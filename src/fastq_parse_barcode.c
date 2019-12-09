@@ -540,14 +540,27 @@ static void config_init(const char *fn)
 }
 
 struct seqlite {
-    char *seq;
-    char *qual;
+    kstring_t *seq;
+    kstring_t *qual;
 };
 
+kstring_t *kstr_init()
+{
+    kstring_t *str;
+    str = malloc(sizeof(kstring_t));
+    memset(str, 0, sizeof(*str));
+    return str;
+}
+void kstr_destory(kstring_t *str)
+{
+    if (str == NULL) return;
+    if (str->m) free(str->s);
+    free(str);
+}
 void seqlite_destory(struct seqlite *s)
 {
-    free(s->seq);
-    if (s->qual) free(s->qual);    
+    kstr_destory(s->seq);
+    kstr_destory(s->qual);
     free(s);
 }
 
@@ -556,6 +569,9 @@ struct seqlite *extract_tag(struct bseq *b, const struct bcode_reg *r, struct BR
     if (b == NULL || r == NULL) return NULL;
     
     struct seqlite *p = malloc(sizeof(*p));
+    p->seq = kstr_init();
+    p->qual = kstr_init();
+    
     *n = 0;
     char *s = NULL;
     char *q = NULL;
@@ -568,18 +584,21 @@ struct seqlite *extract_tag(struct bseq *b, const struct bcode_reg *r, struct BR
         q = b->q1 ? b->q1 + r->start -1 : NULL;
     }
     int l = r->end - r->start + 1;
-    kstring_t seq = {0,0,0};
-    kstring_t qual = {0,0,0};
-    kputsn(s, l, &seq);
-    kputs("", &seq);
-    if (q) kputsn(q, l, &qual);
-    kputs("", &qual);
-    p->seq = seq.s;
-    p->qual = qual.s;
+    //kstring_t seq = {0,0,0};
+    //kstring_t qual = {0,0,0};
+   
+    kputsn(s, l, p->seq);
+    kputs("", p->seq);
+    if (q){
+        kputsn(q, l, p->qual);
+        kputs("", p->qual);
+    }
+    //p->seq = seq.s;
+    //p->qual = qual.s;
     int i;
     for (i = 0; i < l; ++i) {
-        if (p->qual[i]-33 >= 30) stat->q30_bases++;
-        if (p->seq[i] == 'N') *n = 1;
+        if (p->qual->s[i]-33 >= 30) stat->q30_bases++;
+        if (p->seq->s[i] == 'N') *n = 1;
     }
     stat->bases += l;
     return p;
@@ -634,7 +653,7 @@ struct BRstat *extract_barcodes(struct bseq *b,
         char *wl = NULL;
         int exact_match = 0;
         if (br->n_wl) {
-            wl = check_whitelist(s->seq, br, &exact_match);
+            wl = check_whitelist(s->seq->s, br, &exact_match);
             if (wl == NULL) {                
                 stat->exact_match = 0;
                 stat->filter = 1;
@@ -645,11 +664,11 @@ struct BRstat *extract_barcodes(struct bseq *b,
         }
         else stat->exact_match = 0;
         
-        if (raw_tag) kputs(s->seq, &str);
-        if (raw_qual_tag && s->qual) kputs(s->qual, &qual);
+        if (raw_tag) kputs(s->seq->s, &str);
+        if (raw_qual_tag && s->qual->l) kputs(s->qual->s, &qual);
         
         if (tag) {            
-            kputs(wl == NULL ? s->seq : wl, &tag_str);
+            kputs(wl == NULL ? s->seq->s : wl, &tag_str);
         }
         seqlite_destory(s);
 
@@ -708,29 +727,19 @@ struct BRstat *extract_umi(struct bseq *b, const struct bcode_reg *r, const char
     if (tag == NULL) return NULL;
     struct BRstat *stat = malloc(sizeof(*stat));
     memset(stat, 0, sizeof(*stat));
-    //int i;
-    kstring_t str = {0,0,0};
-    kstring_t qual = {0,0,0};
+
     int dropN;
     struct seqlite *s = extract_tag(b, r, stat, &dropN);
 
     if (args.dropN && dropN== 1) b->flag= FQ_FLAG_READ_QUAL;
     
-    if (qual_tag && s->qual)
-        kputs(s->qual, &qual);
-    if (tag)
-        kputs(s->seq, &str);
-    
-    seqlite_destory(s);
-   
-    if (tag) update_rname(b, tag, str.s);
-    if (qual_tag) update_rname(b, qual_tag, qual.s);
+    if (tag && s->seq->l) update_rname(b, tag, s->seq->s);
+    if (qual_tag && s->qual->l) update_rname(b, qual_tag, s->qual->s);
 
-    if (str.m) free(str.s);
-    if (qual.m) free(qual.s);
+    seqlite_destory(s);
     return stat;
 }
-                
+
 struct BRstat *extract_reads(struct bseq *b, const struct bcode_reg *r1, const struct bcode_reg *r2)
 {
     assert(r1);
@@ -745,8 +754,11 @@ struct BRstat *extract_reads(struct bseq *b, const struct bcode_reg *r1, const s
     
     free(b->s0);
     if (b->q0) free(b->q0);
-    b->s0 = strdup(s1->seq);
-    if (s1->qual) b->q0 = strdup(s1->qual);
+    assert(s1->seq->l>0);
+    b->s0 = strdup(s1->seq->s);
+    if (s1->qual) b->q0 = strdup(s1->qual->s);
+
+    b->l0 = r1->end - r1->start + 1; 
 
     if (b->s1) {
         free(b->s1);
@@ -757,16 +769,14 @@ struct BRstat *extract_reads(struct bseq *b, const struct bcode_reg *r1, const s
         free(b->q1);
         b->q1 = NULL;
     }
-    if (s2 && s2->seq) {
-        b->s1 = strdup(s2->seq);
-        // b->l1 = strlen(s2->seq);
+    if (s2 && s2->seq->l) {
+        b->s1 = strdup(s2->seq->s);
     }
 
-    b->l0 = r1->end - r1->start + 1;    
-
-    if (s2 && s2->qual) {
-        b->q1 = strdup(s2->qual);
+    if (s2 && s2->qual->l) {
+        b->q1 = strdup(s2->qual->s);
         b->l1 = r2->end-r2->start+1;
+        assert(s2->qual->l == b->l1);
     }
 
     seqlite_destory(s1);
