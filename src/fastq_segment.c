@@ -659,6 +659,8 @@ static int check_pattern_right(char *s, const int start,  struct ref_pat *r, con
     st1 = h->loc;
     if (r->seq[st1] != 'B' && r->seq[st1] != 'P') st1 += args.seed_length; // skip seed if not polyT/As
     st2 = start + args.seed_length;
+    int polyT_length = 0;
+    int polyT_mismatch = 0;
     for ( ; st1 < r->l_seq;) {
         if (st2 >= len) { // adjust position for circle sequence
             if (is_circle) st2 = st2-len; // circle
@@ -706,10 +708,23 @@ static int check_pattern_right(char *s, const int start,  struct ref_pat *r, con
             st1++;
         }
         else if (r->seq[st1] == 'P') {
-            if (s[st2] == 'T') { st2++; continue;}
-            else  st1++;
+            if (s[st2] == 'T') {
+                st2++;
+                polyT_length++;
+                continue;
+            }
+            else {
+                if (polyT_length < 20 && polyT_mismatch < 3) { // if polyT is too short, skip mismatches
+                    st2++;
+                    polyT_mismatch++;
+                    continue;
+                }
+                st1++;
+            }
         }
         else {
+            polyT_length = 0;
+            polyT_mismatch = 0;
             if (r->seq[st1] != s[st2]) mis++;
             if (mis > MAX_MISMATCH) return -1;
             st1++, st2++;
