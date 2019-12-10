@@ -1,0 +1,25 @@
+{
+    "pattern":"GTAGCCATGTCGTTCTGCG(T1)CCTTCC(T2)CGATG(UB)[polyT]",
+    "segments":[
+        {
+	    "tag":"CB",
+            "seg":[
+                {
+                    "tag":"T1",
+                    "length":"10",
+                    "white list":[
+                        
+                    ]
+                },
+                {
+                    "tag":"T2",
+                    "length":"10",
+                }
+            ]
+	},
+	{
+            "tag":"UB",
+            "length":"10",
+        }
+    ]
+}
