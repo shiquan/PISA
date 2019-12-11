@@ -714,7 +714,7 @@ static int check_pattern_right(char *s, const int start,  struct ref_pat *r, con
                 continue;
             }
             else {
-                if (polyT_length < 20 && polyT_mismatch < 3) { // if polyT is too short, skip mismatches
+                if (polyT_length < 20 && polyT_mismatch < 4) { // if polyT is too short, skip mismatches
                     st2++;
                     polyT_mismatch++;
                     continue;
