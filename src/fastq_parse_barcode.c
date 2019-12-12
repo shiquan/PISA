@@ -1232,35 +1232,45 @@ int fastq_prase_barcodes(int argc, char **argv)
     if (parse_args(argc, argv)) return usage();
 
     int nt = args.n_thread;
-    
-    struct thread_pool *p = thread_pool_init(nt);
-    struct thread_pool_process *q = thread_pool_process_init(p, nt*2, 0);
-    struct thread_pool_result *r;
+    if (nt == 1) {
+        for (;;) {
+            struct bseq_pool *b = fastq_read(args.fastq, &args);
+            if (b == NULL) break;
+            b = run_it(b, 0);
+            write_out(b);
+        } 
+    }
+    else {
+        
+        struct thread_pool *p = thread_pool_init(nt);
+        struct thread_pool_process *q = thread_pool_process_init(p, nt*2, 0);
+        struct thread_pool_result *r;
 
-    for (;;) {
-        struct bseq_pool *b = fastq_read(args.fastq, &args);
-        if (b == NULL) break;
-        int block;
-        do {
-            block = thread_pool_dispatch2(p, q, run_it, b, 0);
-            if ((r = thread_pool_next_result(q))) {
-                struct bseq_pool *d = (struct bseq_pool *)r->data;
-                write_out(d);
+        for (;;) {
+            struct bseq_pool *b = fastq_read(args.fastq, &args);
+            if (b == NULL) break;
+            int block;
+            do {
+                block = thread_pool_dispatch2(p, q, run_it, b, 0);
+                if ((r = thread_pool_next_result(q))) {
+                    struct bseq_pool *d = (struct bseq_pool *)r->data;
+                    write_out(d);
+                }
+                thread_pool_delete_result(r, 0);
             }
+            while (block == -1);
+        }
+        thread_pool_process_flush(q);
+        
+        while ((r = thread_pool_next_result(q))) {
+            struct bseq_pool *d = (struct bseq_pool*)r->data;
+            write_out(d);
             thread_pool_delete_result(r, 0);
         }
-        while (block == -1);
-    }
-    thread_pool_process_flush(q);
 
-    while ((r = thread_pool_next_result(q))) {
-        struct bseq_pool *d = (struct bseq_pool*)r->data;
-        write_out(d);
-        thread_pool_delete_result(r, 0);
+        thread_pool_process_destroy(q);
+        thread_pool_destroy(p);
     }
-
-    thread_pool_process_destroy(q);
-    thread_pool_destroy(p);
 
     cell_barcode_count_pair_write();
 
