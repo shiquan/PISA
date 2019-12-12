@@ -9,25 +9,37 @@ static int usage()
 {
     fprintf(stderr, "* This program used to trim the mosic ends and merge paired reads for scLFR library.\n");
     fprintf(stderr, "Usage: LFR_cleanup input.fq\n");
+    fprintf(stderr, "  -merge\n");
+    fprintf(stderr, "  -report <FILE>\n");
     return 1;
 }
 
 static struct args {
     const char *input_fname;
     const char *output_fname;
+    const char *report_fname;
     int n_thread;
     FILE *out;
     uint8_t *me_enc;
     uint8_t *rev_enc;
     struct fastq_handler *fastq;
+    int merge;
+    uint32_t input_reads;
+    uint32_t clean_reads;
+    uint32_t merged_reads;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
+    .report_fname = NULL,
     .n_thread = 1,
     .out = NULL,
     .me_enc = NULL,
     .rev_enc = NULL,
     .fastq = NULL,
+    .merge = 0,
+    .input_reads = 0,
+    .clean_reads = 0,
+    .merged_reads = 0,
 };
 
 static void memory_release()
@@ -53,7 +65,11 @@ static int parse_args(int argc, char **argv)
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return usage();
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
-        
+        else if (strcmp(a, "-report") == 0) var = &args.report_fname;
+        else if (strcmp(a, "-merge") == 0) {
+            args.merge = 1;
+            continue;
+        }
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -121,6 +137,7 @@ char *trim_ends(struct bseq_pool *p)
     kstring_t str = {0,0,0};
     int i;
     for (i = 0; i < p->n; ++i) {
+        args.input_reads++;
         struct bseq *b = &p->s[i];
         if (is_simply_seq(b->s0, b->l0) == 0) continue;
         if (is_simply_seq(b->s1, b->l1) == 0) continue;
@@ -132,13 +149,15 @@ char *trim_ends(struct bseq_pool *p)
         if (l != -1) continue;
         l = check_overlap(b->l1, 19, b->s1, args.rev_enc);
         if (l != -1) continue;
-
+        args.clean_reads++;
 
         int l1 = check_overlap(b->l0, 19, b->s0, args.me_enc);
         int l2 = check_overlap(b->l1, 19, b->s1, args.me_enc);
         if (l1 == -1 && l2 == -1) {
             char *s, *q;
-            if (merge_paired(b->l0, b->l1, b->s0, b->s1, b->q0, b->q1, &s, &q) == 0) {
+            
+            if (args.merge== 1 && merge_paired(b->l0, b->l1, b->s0, b->s1, b->q0, b->q1, &s, &q) == 0) {
+                args.merged_reads++;
                 kputc('@', &str);
                 kputs(b->n0, &str); kputc('\n', &str);
                 kputs(s, &str); kputs("\n+\n", &str);
@@ -187,6 +206,13 @@ int LFR_cleanup(int argc, char **argv)
     double t_real;
     t_real = realtime();
 
+    for (;;) {
+        struct bseq_pool *b = fastq_read(args.fastq, &args);
+        b = run_it(b, 0);
+        write_out(b);
+    }
+    
+    /*
     void *opts = &args;
     int nt = args.n_thread;
     
@@ -218,7 +244,22 @@ int LFR_cleanup(int argc, char **argv)
 
     thread_pool_process_destroy(q);
     thread_pool_destroy(p);
+    */
     memory_release();
+    LOG_print("Input reads: %u", args.input_fname);
+    LOG_print("Clean reads: %u", args.clean_reads);
+    LOG_print("Merged reads: %u", args.merged_reads);
+
+    
+    if (args.report_fname) {
+        FILE *fp = fopen(args.report_fname, "w");
+        if (fp == NULL)
+            error("%s : %s.", args.report_fname, strerror(errno));
+        fprintf(fp, "Input reads: %u", args.input_fname);
+        fprintf(fp, "Clean reads: %u", args.clean_reads);
+        fprintf(fp, "Merged reads: %u", args.merged_reads);
+        fclose(fp);
+    }
 
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     
