@@ -208,6 +208,7 @@ int LFR_cleanup(int argc, char **argv)
 
     for (;;) {
         struct bseq_pool *b = fastq_read(args.fastq, &args);
+        if (b == NULL) break;
         b = run_it(b, 0);
         write_out(b);
     }
