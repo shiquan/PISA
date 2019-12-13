@@ -164,8 +164,8 @@ char *trim_ends(struct bseq_pool *p)
         }
         l = check_overlap(b->l1, 19, b->s1, args.rev_enc);
         if (l != -1) {
-            continue;
             args.detected_rev++;
+            continue;
         }
 
         int l1 = check_overlap(b->l0, 19, b->s0, args.me_enc);
@@ -269,19 +269,19 @@ int LFR_cleanup(int argc, char **argv)
     thread_pool_destroy(p);
     */
     memory_release();
-    LOG_print("Input reads: %u", args.input_fname);
+    LOG_print("Input reads: %u", args.input_reads);
     LOG_print("Clean reads: %u", args.clean_reads);
     LOG_print("Merged reads: %u", args.merged_reads);
     LOG_print("Read has just one kind base: %u", args.simple_reads);
     LOG_print("Read contain unknown base: %u", args.low_quals);
-    LOG_print("Rev ME detected: %u\n", args.detected_rev);
-    LOG_print("Reads skipped shorter than 30: %u\n", args.too_short);
+    LOG_print("Rev ME detected: %u", args.detected_rev);
+    LOG_print("Reads skipped shorter than 30: %u", args.too_short);
     
     if (args.report_fname) {
         FILE *fp = fopen(args.report_fname, "w");
         if (fp == NULL)
             error("%s : %s.", args.report_fname, strerror(errno));
-        fprintf(fp, "Input reads: %u\n", args.input_fname);
+        fprintf(fp, "Input reads: %u\n", args.input_reads);
         fprintf(fp, "Clean reads: %u\n", args.clean_reads);
         fprintf(fp, "Merged reads: %u\n", args.merged_reads);
         fprintf(fp, "Read has just one kind base: %u\n", args.simple_reads);
