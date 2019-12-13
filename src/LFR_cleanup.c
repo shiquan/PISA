@@ -30,6 +30,7 @@ static struct args {
     uint32_t simple_reads;
     uint32_t low_quals;
     uint32_t detected_rev;
+    uint32_t too_short;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
@@ -46,6 +47,7 @@ static struct args {
     .simple_reads = 0,
     .low_quals = 0,
     .detected_rev = 0,
+    .too_short = 0,
 };
 
 static void memory_release()
@@ -192,7 +194,10 @@ char *trim_ends(struct bseq_pool *p)
         }
         else {
             l = l1 < l2 ? l1 : l2;
-            if (l < 40) continue; // to short;
+            if (l < 30) {
+                args.too_short++;
+                continue; // to short;
+            }
             //char *s0 = b->s0;
             // char *s1 = b->s1 + (b->l1 - l);
             if (check_compl(b->s0, b->s1, l) == 0) {                                
@@ -270,7 +275,7 @@ int LFR_cleanup(int argc, char **argv)
     LOG_print("Read has just one kind base: %u", args.simple_reads);
     LOG_print("Read contain unknown base: %u", args.low_quals);
     LOG_print("Rev ME detected: %u\n", args.detected_rev);
-
+    LOG_print("Reads skipped shorter than 30: %u\n", args.too_short);
     
     if (args.report_fname) {
         FILE *fp = fopen(args.report_fname, "w");
@@ -282,6 +287,7 @@ int LFR_cleanup(int argc, char **argv)
         fprintf(fp, "Read has just one kind base: %u\n", args.simple_reads);
         fprintf(fp, "Read contain unknown base: %u\n", args.low_quals);
         fprintf(fp, "Rev ME detected: %u\n", args.detected_rev);
+        fprintf(fp, "Reads skipped shorter than 30: %u\n", args.too_short);
         fclose(fp);
     }
 
