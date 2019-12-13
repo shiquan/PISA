@@ -27,6 +27,9 @@ static struct args {
     uint32_t input_reads;
     uint32_t clean_reads;
     uint32_t merged_reads;
+    uint32_t simple_reads;
+    uint32_t low_quals;
+    uint32_t detected_rev;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
@@ -40,6 +43,9 @@ static struct args {
     .input_reads = 0,
     .clean_reads = 0,
     .merged_reads = 0,
+    .simple_reads = 0,
+    .low_quals = 0,
+    .detected_rev = 0,
 };
 
 static void memory_release()
@@ -139,17 +145,26 @@ char *trim_ends(struct bseq_pool *p)
     for (i = 0; i < p->n; ++i) {
         args.input_reads++;
         struct bseq *b = &p->s[i];
-        if (is_simply_seq(b->s0, b->l0) == 0) continue;
-        if (is_simply_seq(b->s1, b->l1) == 0) continue;
-        if (is_low_qual(b->s0, b->l0) == 0) continue;
-        if (is_low_qual(b->s1, b->l1) == 0) continue;
+        if (is_simply_seq(b->s0, b->l0) == 0 ||is_simply_seq(b->s1, b->l1) == 0) {
+            args.simple_reads++;
+            continue;
+        }
+        if (is_low_qual(b->s0, b->l0) == 0 || is_low_qual(b->s1, b->l1) == 0) {
+            args.low_quals++;
+            continue;
+        }
         int l;
         // all reverse ME sequence should not be detected
         l = check_overlap(b->l0, 19, b->s0, args.rev_enc);
-        if (l != -1) continue;
+        if (l != -1) {
+            args.detected_rev++;
+            continue;
+        }
         l = check_overlap(b->l1, 19, b->s1, args.rev_enc);
-        if (l != -1) continue;
-        args.clean_reads++;
+        if (l != -1) {
+            continue;
+            args.detected_rev++;
+        }
 
         int l1 = check_overlap(b->l0, 19, b->s0, args.me_enc);
         int l2 = check_overlap(b->l1, 19, b->s1, args.me_enc);
@@ -187,6 +202,8 @@ char *trim_ends(struct bseq_pool *p)
                 kputsn(b->q0, l, &str); kputc('\n', &str);
             }
         }
+
+        args.clean_reads++;
     }
 
     bseq_pool_destroy(p);
@@ -250,15 +267,21 @@ int LFR_cleanup(int argc, char **argv)
     LOG_print("Input reads: %u", args.input_fname);
     LOG_print("Clean reads: %u", args.clean_reads);
     LOG_print("Merged reads: %u", args.merged_reads);
+    LOG_print("Read has just one kind base: %u", args.simple_reads);
+    LOG_print("Read contain unknown base: %u", args.low_quals);
+    LOG_print("Rev ME detected: %u\n", args.detected_rev);
 
     
     if (args.report_fname) {
         FILE *fp = fopen(args.report_fname, "w");
         if (fp == NULL)
             error("%s : %s.", args.report_fname, strerror(errno));
-        fprintf(fp, "Input reads: %u", args.input_fname);
-        fprintf(fp, "Clean reads: %u", args.clean_reads);
-        fprintf(fp, "Merged reads: %u", args.merged_reads);
+        fprintf(fp, "Input reads: %u\n", args.input_fname);
+        fprintf(fp, "Clean reads: %u\n", args.clean_reads);
+        fprintf(fp, "Merged reads: %u\n", args.merged_reads);
+        fprintf(fp, "Read has just one kind base: %u\n", args.simple_reads);
+        fprintf(fp, "Read contain unknown base: %u\n", args.low_quals);
+        fprintf(fp, "Rev ME detected: %u\n", args.detected_rev);
         fclose(fp);
     }
 
