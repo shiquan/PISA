@@ -7,10 +7,8 @@ workflow main {
   String STAR
   String sambamba
   String Rscript
-  String ?Python3
   String ID
   String gtf
-  String ?runID
   String config
   String ?lib
   Int ?expectCell
@@ -26,7 +24,6 @@ workflow main {
     fastq1=fastq1,
     fastq2=fastq2,
     outdir=makedir.Outdir,
-    runID=runID,
     root=root,
   }
   call fastq2bam {
@@ -73,38 +70,8 @@ workflow main {
     outdir=outdir,
     anno=sortBam.anno
   }
-  call report {
-    input:
-    root = root,
-    lib=lib,
-    outdir=outdir,
-    expectCell = expectCell,
-    Rscript=Rscript,
-    Python3=Python3,
-    matrix=countMatrix.matrix,
-    ID=ID
-  }
 }
-task report {
-  String root
-  String Rscript
-  String ?lib
-  Int ?expectCell
-  String ID
-  String outdir
-  String matrix
-  String ?Python3
-  command {
-    if [ -f ${default=abjdbashj lib} ]; then
-    source ${lib}
-    fi
-    
-    ${Rscript} -e 'library(rmarkdown);render("${root}/scripts/iDrop_RNAseq.Report.rmd", output_format="html_document", output_file = "${outdir}/outs/${ID}.html", params = list(lib="${ID}",exp="${default=1000 expectCell}",path="${outdir}"))'
-    if [ -f ${default=dakdhaksjdh Python3} ]; then
-    ${Python3} ${root}/scripts/cluster.py ${matrix} ${outdir}/outs/cluster.h5ad
-    fi
-  }
-}
+
 task countMatrix {
   String root
   String list
@@ -117,11 +84,13 @@ task countMatrix {
     source ${lib}
     fi
 
-    ${root}/SingleCellTools count -@ 20 -tag CB -anno_tag GN -umi UY -o ${outdir}/outs/count_mtx.tsv -list ${list} ${anno}
+    ${root}/PISA count -@ 10 -tag CB -anno_tag GN -umi UB -o ${outdir}/outs/gene_mtx.tsv -list ${list} ${anno}
+    gzip -f ${outdir}/outs/gene_mtx.tsv
     echo "[`date +%F` `date +%T`] workflow end" >> ${outdir}/workflowtime.log
   }
   output {
-    String matrix = "${outdir}/outs/count_mtx.tsv"
+    String matrix = "${outdir}/outs/gene_mtx.tsv"
+    File matrix0 = "${outdir}/outs/gene_mtx.tsv"
   }
 }
 task cellCalling {
@@ -137,10 +106,11 @@ task cellCalling {
     source ${lib}
     fi
 
-    ${Rscript} ${root}/scripts/scRNA_cell_calling.R -i ${count} -o ${outdir}/outs -e ${default=1000 expectCell} -f ${default=0 forceCell}
+    ${Rscript} ${root}/scripts/scRNA_cell_calling.R -i ${count} -o ${outdir}/outs -e ${default=0 expectCell} -f ${default=0 forceCell}
   }
   output {
     String list="${outdir}/outs/cell_barcodes.txt"
+    File list0="${outdir}/outs/cell_barcodes.txt"
   }
 }
 
@@ -155,7 +125,7 @@ task cellCount {
     source ${lib}
     fi
 
-    ${root}/SingleCellTools count -tag CB -@ 20 -anno_tag GN -umi UY -o ${outdir}/outs/count_mtx_raw.tsv -count ${outdir}/temp/cell_stat.txt -list ${rawlist} ${bam}
+    ${root}/PISA corr -tag UB -@ 10 -tags-block CB,GN -o ${outdir}/outs/final.bam ${bam} && ${root}/PISA attrcnt -tag CB -tags UB,GN -dedup -list ${rawlist} -@ 10 -o ${outdir}/temp/cell_stat.txt ${outdir}/outs/final.bam
   }
   output {
     String count="${outdir}/temp/cell_stat.txt"
@@ -168,6 +138,7 @@ task makedir {
     mkdir -p ${Dir}
     mkdir -p ${Dir}/outs
     mkdir -p ${Dir}/temp
+    mkdir -p ${Dir}/report
   }
   output {
     String Outdir="${Dir}"
@@ -178,7 +149,6 @@ task parseFastq {
   String fastq1
   String fastq2
   String outdir
-  String ?runID
   String root
   String ?lib
   command {
@@ -186,14 +156,14 @@ task parseFastq {
     source ${lib}
     fi
 
-    ${root}/SingleCellTools parse -t 15 -f -q 20 -dropN -config ${config} -cbdis ${outdir}/temp/barcode_counts_raw.txt -run ${default=1 runID} -report ${outdir}/temp/sequencing_report.txt ${fastq1} ${fastq2}  > ${outdir}/temp/reads.fq
+    ${root}/PISA parse -t 10 -q 20 -config ${config} -cbdis ${outdir}/temp/barcode_counts_raw.txt -report ${outdir}/report/sequencing_report.csv ${fastq1} ${fastq2}  > ${outdir}/temp/reads.fq
 
     head -n 50000 ${outdir}/temp/barcode_counts_raw.txt |cut -f1 > ${outdir}/temp/barcode_raw_list.txt
   }
   output {
     String count="${outdir}/temp/barcode_counts_raw.txt"
     String fastq="${outdir}/temp/reads.fq"
-    String sequencingReport="${outdir}/temp/sequencing_report.txt"
+    String sequencingReport="${outdir}/report/sequencing_report.csv"
     String rawlist="${outdir}/temp/barcode_raw_list.txt"
   }
 }
@@ -210,12 +180,14 @@ task fastq2bam {
     source ${lib}
     fi
 
-    ${STAR}  --outStd SAM --runThreadN 20 --genomeDir ${refdir} --readFilesIn ${fastq} --outFileNamePrefix ${outdir}/temp/ | ${root}/SingleCellTools sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/temp/alignment_report.txt /dev/stdin
+    ${STAR}  --outStd SAM --runThreadN 10 --genomeDir ${refdir} --readFilesIn ${fastq} --outFileNamePrefix ${outdir}/temp/ 1> ${outdir}/temp/aln.sam && \
+    ${root}/PISA sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/report/alignment_report.csv ${outdir}/temp/aln.sam && rm -f ${outdir}/temp/aln.sam
     
   }
   output {
     String bam="${outdir}/temp/aln.bam"
-    String alnReport="{outdir}/temp/alignment_report.txt"
+    File bam0="${outdir}/temp/aln.bam"
+    String alnReport="{outdir}/report/alignment_report.csv"
   }
 }
 task sortBam {
@@ -230,10 +202,10 @@ task sortBam {
     source ${lib}
     fi
 
-    ${sambamba} sort -t 20 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam
-    ${root}/SingleCellTools anno -gtf ${gtf} -o ${outdir}/outs/annotated.bam -report ${outdir}/temp/annotated_report.txt ${outdir}/temp/sorted.bam
+    ${sambamba} sort -t 10 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam
+    ${root}/PISA anno -gtf ${gtf} -o ${outdir}/temp/anno.bam -report ${outdir}/report/anno_report.csv ${outdir}/temp/sorted.bam
   }
   output {
-    String anno="${outdir}/outs/annotated.bam"
+    String anno="${outdir}/outs/anno.bam"
   }
 }
