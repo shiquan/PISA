@@ -180,7 +180,7 @@ task fastq2bam {
     source ${lib}
     fi
 
-    ${hisat2} -x ${refdir} -q ${fastq} -p 10 1> ${outdir}/temp/aln.sam && \
+    ${hisat2} -x ${refdir} -U ${fastq} -p 10 1> ${outdir}/temp/aln.sam && \
     ${root}/PISA sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/report/alignment_report.csv ${outdir}/temp/aln.sam && rm -f ${outdir}/temp/aln.sam
     
   }
