@@ -87,7 +87,7 @@ static struct args {
 
 static int usage()
 {
-    fprintf(stderr, "fastq_unitig in.fq\n");
+    fprintf(stderr, "fastq_overlap in.fq\n");
     fprintf(stderr, "   -t         Threads.\n");
     fprintf(stderr, "   -o         Output fastq.\n");
     fprintf(stderr, "   -tag       Tags of read block.\n");
@@ -614,7 +614,7 @@ static void write_out(void *s, FILE *out)
     free(r);
 }
 
-int fastq_unitig(int argc, char **argv)
+int fastq_overlap(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();

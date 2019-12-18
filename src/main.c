@@ -12,7 +12,7 @@ int usage()
     fprintf(stderr, "    parse      Parse barcodes and UMIs from fastq reads.\n");
     // fprintf(stderr, "    trim       Trim TN5 mosic ends or polyAs.\n");
     fprintf(stderr, "    fsort      Sort fastq records by tags.\n");
-    fprintf(stderr, "    unitig     Construct unitigs by tags.\n");
+    fprintf(stderr, "    overlap    Concat sequence by overlap.\n");
     fprintf(stderr, "    segment    Trim predefined segments from untigs.\n");
     
     fprintf(stderr, "\n--- Processing BAM\n");
