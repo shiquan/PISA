@@ -166,11 +166,11 @@ static void push_base(struct base_v *v, const uint8_t *s, int l)
     v->v = realloc(v->v, v->l+(l+1)*2);    
     memcpy(v->v+v->l, e, l+1);
     v->l += l+1;
-    if (args.both_strand == 1) {
+    //if (args.both_strand == 1) {
         revcomp6(e, l);    
         memcpy(v->v + v->l, e, l+1);
         v->l += l+1;
-    }
+//}
     free(e);
 }
 
