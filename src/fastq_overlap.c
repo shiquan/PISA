@@ -64,13 +64,11 @@ static struct args {
     const char *output_fname;
     struct dict *tag_dict;
     int pair;
-    int min_ovlp;
     int n_thread;
     char *last_name;
 
     fml_opt_t *assem_opt;
-    int l_seed;
-    uint8_t *seed;
+    int both_strand;
     uint64_t assem_block;
 } args = {
     .input_fname = NULL,
@@ -78,13 +76,11 @@ static struct args {
     .tag_dict = NULL,
 
     .pair = 0,
-    .min_ovlp = 10,
     .n_thread = 1,
     .last_name = NULL,
 
     .assem_opt = NULL,
-    .l_seed = 0,
-    .seed = NULL,
+    .both_strand = 0,
     .assem_block = 0,
 
 };
@@ -95,7 +91,7 @@ static int usage()
     fprintf(stderr, "   -t         Threads.\n");
     fprintf(stderr, "   -o         Output fastq.\n");
     fprintf(stderr, "   -tag       Tags of read block.\n");
-    fprintf(stderr, "   -ss        Seed sequence for scLFR library. Usually be fixed adaptor sequences.\n");
+    fprintf(stderr, "   -bs        Consider both strand of sequence.\n");
     fprintf(stderr, "   -p         Input fastq is smart paired.\n");
     return 1;
 }
@@ -107,7 +103,6 @@ static int parse_args(int argc, char **argv)
     int i;
     const char *thread = NULL;
     const char *tags = NULL;
-    const char *seed = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -115,7 +110,11 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-tag") == 0) var = &tags;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
-        else if (strcmp(a, "-ss") == 0) var = &seed;
+        //else if (strcmp(a, "-ss") == 0) var = &seed;
+        else if (strcmp(a, "-bs") == 0) {
+            args.both_strand =1;
+            continue;
+        }
         else if (strcmp(a, "-p") == 0) {
             args.pair = 1;
             continue;
@@ -135,11 +134,6 @@ static int parse_args(int argc, char **argv)
     }
     if (args.input_fname == NULL ) error("No input fastq specified.");
     if (tags == NULL) error("-tag must be set.");
-    if (seed) { //error("Seed sequence for scLFR must be set with -ss.");
-        args.l_seed = strlen(seed);
-        if (args.l_seed < 6) error("Seed is too short, need >= 6bp.");
-        args.seed = enc_str((char*)seed, args.l_seed);
-    }
     
     args.tag_dict = str2tag(tags);
     
@@ -172,9 +166,11 @@ static void push_base(struct base_v *v, const uint8_t *s, int l)
     v->v = realloc(v->v, v->l+(l+1)*2);    
     memcpy(v->v+v->l, e, l+1);
     v->l += l+1;
-    revcomp6(e, l);    
-    memcpy(v->v + v->l, e, l+1);
-    v->l += l+1;
+    if (args.both_strand == 1) {
+        revcomp6(e, l);    
+        memcpy(v->v + v->l, e, l+1);
+        v->l += l+1;
+    }
     free(e);
 }
 
@@ -233,23 +229,6 @@ static rld_t *bwt_enc(int asize, int sbits, int64_t l, const uint8_t *s)
 	rld_enc_finish(e, &itr);
 	return e;
 }
-/*
-static int check_polyTs(const rld_t *e, int len)
-{
-    uint64_t k,l, ok, ol;
-    int i;
-    k = e->cnt[4];
-    l = e->cnt[5]-1;
-    for (i = len -2; i>=0; --i) {
-        rld_rank21(e, k, l, 4, &ok, &ol);
-        k = e->cnt[4]+ok;
-        l = e->cnt[4]+ol;
-        if (k >= l) break;
-    }
-    if ( k >= l ) return 1;
-    return 0;
-}
-*/
 
 int bwt_search_id(const rld_t *e, const char *s, int len)
 {
@@ -263,17 +242,15 @@ int bwt_search_id(const rld_t *e, const char *s, int len)
     for (i = len-2; i >= 10; --i) {
         c = nt6_tab[(int)s[i]];
         if (c == 5) return -1;
-        // c = c== 0 ? 0 : 5-c;
+
         rld_rank21(e, k, l, c, &ok, &ol);
-        //debug_print("%c\t%lld\t%lld","$ACGTN"[c],ok,ol);
+
         k = e->cnt[c] + ok;
         l = e->cnt[c] + ol;
         if (k==l) break;        
     }
 
-    // fprintf(stderr, "\n");
     assert(k<=l);
-    // debug_print("K: %d, L: %d", k, l);
     if (k != l-1) return -1;
     k = l;
     uint64_t k6[6];
@@ -282,12 +259,12 @@ int bwt_search_id(const rld_t *e, const char *s, int len)
         fputc("$ACGTN"[c],stderr);
         if (c == 0)  fputc('\n', stderr);
         k = e->cnt[c] + k6[c];
-        //debug_print("l: %lld, cnt: %d, occ: %d, %c", k, e->cnt[c], k6[c], "$ACGTN"[c]);;
         if (c == 0) return k;
     }
 
     return -1;
 }
+/*
 static int bwt_backward_search(const rld_t *e, int len, const uint8_t *str, uint64_t *sa_beg, uint64_t *sa_end)
 {
 	uint64_t k, l, ok, ol;
@@ -301,20 +278,17 @@ static int bwt_backward_search(const rld_t *e, int len, const uint8_t *str, uint
             rld_rank21(e, k, l, c, &ok, &ol);
             k = e->cnt[c] + ok;
             l = e->cnt[c] + ol;
-            // debug_print("%d\t%c\t%d\t%d",i,"$ACGTN"[c], k, l);
             if (k == l) break;
 	}
-        // if (i < len) return -1;
-	// if (k == l) return 0;
+
 	*sa_beg = k; *sa_end = l;
 	return l - k;
 }
-
+*/
 static rld_t *bwt_build_core(rld_t *e0, int asize, int sbits, int64_t l, uint8_t *s)
 {
 	rld_t *e;
         bwt_gen(asize, l, s);
-        // putchar('\n');                
         e = bwt_enc(asize, sbits, l, s);
 	return e;
 }
@@ -339,7 +313,6 @@ int64_t bwt_retrieve(const rld_t *e, uint64_t x, kstring_t *s)
 struct rld_t *fmi_gen2(struct base_v *v)
 {
     mrope_t *mr;
-    //kstring_t str = {0,0,0};
     mritr_t itr;
     rlditr_t di;
     const uint8_t *block;
@@ -604,13 +577,6 @@ static void *run_it(void *_d)
         rld_t *e = fmi_gen2(v);
         free(v->v); free(v);
         
-        if (args.l_seed) {        
-            int n;
-            uint64_t st = 0, ed = 0;
-            n = bwt_backward_search(e, args.l_seed, args.seed, &st, &ed);
-            if (n == 0) continue;
-        }
-
         mag_t *g = fml_fmi2mag(args.assem_opt, e);
 
         char *s = NULL;
@@ -716,9 +682,3 @@ int fastq_unitig(int argc, char **argv)
     return 0;
 }
 
-/*
-int main(int argc, char **argv)
-{
-    return assem(argc, argv);
-}
-*/

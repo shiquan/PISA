@@ -74,8 +74,10 @@ static struct args {
     FILE *out;
     kseq_t *ks;
     fml_opt_t *assem_opt;
-    int l_seed;
-    uint8_t *seed;
+
+    int both_strand;
+    //int l_seed;
+    // uint8_t *seed;
     uint64_t filter_block;
     uint64_t assem_block;
     uint64_t full_covered;
@@ -94,8 +96,9 @@ static struct args {
     .out = NULL,
     .ks = NULL,
     .assem_opt = NULL,
-    .l_seed = 0,
-    .seed = NULL,
+    .both_strand = 0,
+    //.l_seed = 0,
+    //.seed = NULL,
     .filter_block = 0,
     .assem_block = 0,
     .full_covered = 0,
@@ -108,8 +111,7 @@ static int usage()
     fprintf(stderr, "   -t         Threads.\n");
     fprintf(stderr, "   -o         Output fastq.\n");
     fprintf(stderr, "   -tag       Tags of read block.\n");
-    fprintf(stderr, "   -ss        Seed sequence for scLFR library. Usually be fixed adaptor sequences.\n");
-    // fprintf(stderr, "   -p         Input fastq is smart paired.\n");
+    fprintf(stderr, "   -bs        Consider double strand of sequence.\n");
     return 1;
 }
 static void memory_release()
@@ -133,9 +135,13 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-tag") == 0) var = &tags;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
-        else if (strcmp(a, "-ss") == 0) var = &seed;
+        //        else if (strcmp(a, "-ss") == 0) var = &seed;
         else if (strcmp(a, "-p") == 0) {
             args.pair = 1;
+            continue;
+        }
+        else if (strcmp(a, "-bs") == 0) {
+            args.both_strand = 1;
             continue;
         }
 
@@ -164,9 +170,7 @@ static int parse_args(int argc, char **argv)
     int n;
     int *s = ksplit(&str, ',', &n);
     args.tag_dict = dict_init();
-    
-    //args.n_tag = n;
-    //args.tags = malloc(n*sizeof(char*));
+
     for (i = 0; i <n; ++i) dict_push(args.tag_dict,str.s+s[i]);
     free(s); free(str.s);
 
@@ -292,9 +296,12 @@ void push_str_base(struct base_v *v, char *s)
     uint8_t *e = enc_str(s, l);
     memcpy(v->v+v->l, e, l+1);
     v->l += l+1;
-    revcomp6(e, l);
-    memcpy(v->v + v->l, e, l+1);
-    v->l += l+1;
+    
+    if (args.both_strand == 1) { // build index of both strand
+        revcomp6(e, l);
+        memcpy(v->v + v->l, e, l+1);
+        v->l += l+1;
+    }
     free(e);
 }
 
@@ -309,36 +316,7 @@ static struct base_v *rend_bseq(struct read_block *b)
        
     return v;
 }
-/*
-static char *rend_utg(char *name, fml_utg_t *utg, int n)
-{
-    int i;
-    kstring_t str = {0,0,0};
-    for (i = 0; i < n; ++i) {
-        fml_utg_t *u = &utg[i];
-        kputc('@', &str);
-        kputw(i, &str);kputc('_', &str);
-        kputs(name, &str);
-        kputc('\t', &str);
-        kputs("assembled",&str);
-        kputc('\n', &str);
-        kputsn(u->seq, u->len, &str); kputc('\n', &str);
-        kputc('+', &str);  kputc('\n', &str);
-        kputsn(u->cov, u->len, &str); kputc('\n', &str);
-    }
-    kputs("", &str);
-    return str.s;
-}
-*/
-/*
-mrope_t *ropebwt_build(struct fastq_handler *fastq)
-{
-    
-    kstring_t str = {0,0,0};
-    
-    
-}
-*/
+
 static int bwt_gen(int asize, int64_t l, uint8_t *s)
 {
     if (l <= INT32_MAX) return ksa_bwt(s, l, asize);
@@ -385,50 +363,24 @@ static int bwt_backward_search(const rld_t *e, int len, const uint8_t *str, uint
 {
 	uint64_t k, l, ok, ol;
 	int i, c;
-        //c = str[len - 1];
         c = str[0];
 	k = e->cnt[c];
         l = e->cnt[c + 1]-1;
-	//for (i = len - 2; i >= 0; --i) {
         for (i = 1; i < len; ++i) {
             c = str[i];
-            // putchar("$ACGTN"[c]);
             rld_rank21(e, k, l, c, &ok, &ol);
             k = e->cnt[c] + ok;
             l = e->cnt[c] + ol;
-            // debug_print("%d\t%c\t%d\t%d",i,"$ACGTN"[c], k, l);
             if (k == l) break;
 	}
-        // if (i < len) return -1;
-	// if (k == l) return 0;
 	*sa_beg = k; *sa_end = l;
 	return l - k;
 }
-/*
-static int bwt_ext(const rld_t *e, uint64_t st, uint64_t ed, uint64_t *k0)
-{
-    uint64_t i;
-    int j = 0;
-    for (i = st; i <=ed; ++i) {
-        uint64_t k = i, ok[6];
-        while (1) {
-            int c = rld_rank1a(e, k, ok);
-            // putchar("$ACGTN"[c]);
-            k = e->cnt[c] + ok[c];
-            // debug_print("%d\t%c\t%d",i,"$ACGTN"[c], k);
-            if (c==0) break;
-        }
-        k0[j++] = k-1;
-        // putchar('\n');
-    }
-    return j;
-}
-*/
+
 static rld_t *bwt_build_core(rld_t *e0, int asize, int sbits, int64_t l, uint8_t *s)
 {
 	rld_t *e;
         bwt_gen(asize, l, s);
-        // putchar('\n');                
         e = bwt_enc(asize, sbits, l, s);
 	return e;
 }
@@ -453,7 +405,6 @@ int64_t bwt_retrieve(const rld_t *e, uint64_t x, kstring_t *s)
 struct rld_t *fmi_gen2(struct base_v *v)
 {
     mrope_t *mr;
-    //kstring_t str = {0,0,0};
     mritr_t itr;
     rlditr_t di;
     const uint8_t *block;
@@ -496,7 +447,6 @@ static void *run_it(void *_d)
     if (b->n == 0) return NULL;
 
     if (b->n == 1) {
-        //return b->s;
         kstring_t str = {0,0,0};
         kputc('@', &str);
         kputs(b->name, &str);
@@ -514,33 +464,18 @@ static void *run_it(void *_d)
     // Step 1: Pure clean up of ME sequences, merge short reads 
     struct base_v *v = rend_bseq(b);
     if (v->l == 0) return NULL;
-    // assert(v->v[v->l] == 0);
+
     // Step 2: build eBWT
     //rld_t *e = bwt_build(v);
     rld_t *e = fmi_gen2(v);
     free(v->v); free(v);
-    //debug_print("%s", b->name);
+
     // Step 3: adaptors and polyTs, if no just skip this block
-
-    //int has_seed = 0;
-    //int has_poly = 0;
-    if (args.l_seed) {        
-        int n;
-        uint64_t st = 0, ed = 0;
-        n = bwt_backward_search(e, args.l_seed, args.seed, &st, &ed);
-        // if (n != 0) has_seed = 1;
-        // if (check_polyTs(e, 10) == 0) has_poly = 1;
-        // debug_print("n : %d",n);
-        if (n == 0) goto empty_block;
-    }
-
     struct ret_block *r = ret_block_build();
-    // if (has_seed && has_poly) r->full=1;
-    // else if (has_seed || has_poly) r->part = 1;
-    // debug_print("%s", b->name);
+
     // Step 4: construct unitigs
     mag_t *g = fml_fmi2mag(args.assem_opt, e);
-    // mag_g_print(g);
+
     kstring_t s = {0,0,0};        
     int i;
     for (i = 0; i < g->v.n; ++i) {
@@ -599,10 +534,9 @@ int LFR_unitig(int argc, char **argv)
     hts_tpool_result *r;
     
     for (;;) {
-        //int nseq;
         struct read_block *b = read_block();
         if (b == NULL) break;
-        //if (b->n == 1) continue;
+
         int block;
         do {
             block = hts_tpool_dispatch2(p, q, run_it, b, 1);
@@ -634,9 +568,4 @@ int LFR_unitig(int argc, char **argv)
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;
 }
-/*
-int main(int argc, char **argv)
-{
-    return assem(argc, argv);
-}
-*/
+
