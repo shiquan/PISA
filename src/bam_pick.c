@@ -94,7 +94,7 @@ static int parse_args(int argc, char **argv)
     CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
 
     hts_set_threads(args.in, args.file_th);
-    hts_set_threads(args.out, args.file_th);
+    //hts_set_threads(args.out, args.file_th);
 
     args.hdr = sam_hdr_read(args.in);
     CHECK_EMPTY(args.hdr, "Failed to open header.");

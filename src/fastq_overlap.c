@@ -573,7 +573,7 @@ static void *run_it(void *_d)
         struct base_v *v = rend_bseq(rb);
         
         if (v->l == 0) continue;
-        //debug_print("%s, %d",rb->name, rb->n);
+
         rld_t *e = fmi_gen2(v);
         free(v->v); free(v);
         
