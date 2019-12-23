@@ -67,6 +67,7 @@ static struct args {
     int n_thread;
     char *last_name;
 
+    int mini_overlap;
     fml_opt_t *assem_opt;
     int both_strand;
     uint64_t assem_block;
@@ -78,7 +79,7 @@ static struct args {
     .pair = 0,
     .n_thread = 1,
     .last_name = NULL,
-
+    .mini_overlap = 10,
     .assem_opt = NULL,
     .both_strand = 0,
     .assem_block = 0,
@@ -91,7 +92,7 @@ static int usage()
     fprintf(stderr, "   -t         Threads.\n");
     fprintf(stderr, "   -o         Output fastq.\n");
     fprintf(stderr, "   -tag       Tags of read block.\n");
-    fprintf(stderr, "   -bs        Consider both strand of sequence.\n");
+    //fprintf(stderr, "   -bs        Consider both strand of sequence.\n");
     fprintf(stderr, "   -p         Input fastq is smart paired.\n");
     return 1;
 }
@@ -167,9 +168,9 @@ static void push_base(struct base_v *v, const uint8_t *s, int l)
     memcpy(v->v+v->l, e, l+1);
     v->l += l+1;
     //if (args.both_strand == 1) {
-        revcomp6(e, l);    
-        memcpy(v->v + v->l, e, l+1);
-        v->l += l+1;
+    revcomp6(e, l);    
+    memcpy(v->v + v->l, e, l+1);
+    v->l += l+1;
 //}
     free(e);
 }
@@ -578,7 +579,8 @@ static void *run_it(void *_d)
         free(v->v); free(v);
         
         mag_t *g = fml_fmi2mag(args.assem_opt, e);
-
+        mag_g_merge(g,1,args.mini_overlap);
+        
         char *s = NULL;
         if (rb->pair_mode)
             s = remap_reads_scaf(rb, g);
