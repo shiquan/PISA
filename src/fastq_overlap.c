@@ -92,7 +92,7 @@ static int usage()
     fprintf(stderr, "   -t         Threads.\n");
     fprintf(stderr, "   -o         Output fastq.\n");
     fprintf(stderr, "   -tag       Tags of read block.\n");
-    fprintf(stderr, "   -bs        Consider both strand of sequence.\n");
+    //fprintf(stderr, "   -bs        Consider both strand of sequence.\n");
     fprintf(stderr, "   -p         Input fastq is smart paired.\n");
     return 1;
 }
