@@ -52,6 +52,7 @@ int main(int argc, char **argv)
                 if (ks->qual.l) kputc('@', &str);
                 else kputc('>',&str);
                 kputs(ks->name.s, &str);
+                kputw(i, &str);
                 kputc('\n', &str);
                 kputsn(ks->seq.s+i, length, &str);
                 kputc('\n', &str);
@@ -61,7 +62,7 @@ int main(int argc, char **argv)
                     kputc('\n', &str);
                 }
             }
-            puts(str.s);
+            fputs(str.s,out);
         }
     }
     if (str.m) free(str.s);
