@@ -51,8 +51,8 @@ int main(int argc, char **argv)
             for (i = 0; i + length <= ks->seq.l; i+=50) {
                 if (ks->qual.l) kputc('@', &str);
                 else kputc('>',&str);
+                if (i>0) kputw(i, &str);
                 kputs(ks->name.s, &str);
-                kputw(i, &str);
                 kputc('\n', &str);
                 kputsn(ks->seq.s+i, length, &str);
                 kputc('\n', &str);
