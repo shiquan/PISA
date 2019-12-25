@@ -62,7 +62,7 @@ int main(int argc, char **argv)
                     kputc('\n', &str);
                 }
             }
-            fputs(str.s,out);
+            fputs(str.s,stdout);
         }
     }
     if (str.m) free(str.s);
