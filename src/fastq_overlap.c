@@ -57,7 +57,7 @@ static void assem_opt_init(fml_opt_t *opt)
     fml_opt_init(opt);
     opt->min_asm_ovlp = 10;
     opt->ec_k = -1;
-    opt->mag_opt.flag = MAG_F_NO_SIMPL | MAG_F_AGGRESSIVE;
+    opt->mag_opt.flag = MAG_F_NO_SIMPL | MAG_F_AGGRESSIVE | MAG_F_POPOPEN;
 };
 static struct args {
     const char *input_fname;
@@ -580,7 +580,8 @@ static void *run_it(void *_d)
         
         mag_t *g = fml_fmi2mag(args.assem_opt, e);
         mag_g_merge(g,1,args.mini_overlap);
-        
+        //mag_g_clean(g,args.assem_opt);
+        //mag_g_trim_open(g, args.assem_opt);
         char *s = NULL;
         if (rb->pair_mode)
             s = remap_reads_scaf(rb, g);
