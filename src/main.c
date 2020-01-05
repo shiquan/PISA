@@ -12,7 +12,7 @@ int usage()
     fprintf(stderr, "    parse      Parse barcodes and UMIs from fastq reads.\n");
     // fprintf(stderr, "    trim       Trim TN5 mosic ends or polyAs.\n");
     fprintf(stderr, "    fsort      Sort fastq records by tags.\n");
-    fprintf(stderr, "    overlap    Concat sequence by overlap.\n");
+    fprintf(stderr, "    assem      Assemble reads.\n");
     fprintf(stderr, "    segment    Trim predefined segments from untigs.\n");
     
     fprintf(stderr, "\n--- Processing BAM\n");
@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
     //extern int check_segment2(int argc, char **argv);
     extern int fastq_segment(int argc, char **argv);
     //extern int LFR_cleanup(int argc, char **argv);
-    extern int fastq_overlap(int argc, char **argv);
+    extern int fastq_assem(int argc, char **argv);
     extern int LFR_impute(int argc, char **argv);
 
     if (argc == 1) return usage();
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "segment") == 0) return fastq_segment(argc-1, argv+1);
     // else if (strcmp(argv[1], "segment2") == 0) return check_segment2(argc-1, argv+1);
     //else if (strcmp(argv[1], "cleanup") == 0) return LFR_cleanup(argc-1, argv+1);
-    else if (strcmp(argv[1], "overlap") == 0) return fastq_overlap(argc-1, argv+1);
+    else if (strcmp(argv[1], "assem") == 0) return fastq_assem(argc-1, argv+1);
     else if (strcmp(argv[1], "impute") == 0) return LFR_impute(argc-1, argv+1);                    
     else return usage();
     return 0;
