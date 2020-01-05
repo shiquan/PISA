@@ -609,11 +609,10 @@ static void *run_it(void *_d)
         mag_g_clean(g, &args.assem_opt->mag_opt);
         mag_g_trim_open(g, &args.assem_opt->mag_opt);
 
-        int *n_utg;
-        *n_utg = 0;
-        fml_utg_t *utg = fml_mag2utg(g, n_utg);
-        if (*n_utg > 0) {
-            print_utg(utg, *n_utg, &str, rb->name);
+        int n_utg = 0;        
+        fml_utg_t *utg = fml_mag2utg(g, &n_utg);
+        if (n_utg > 0) {
+            print_utg(utg, n_utg, &str, rb->name);
             r->assem_block++;
         }
         /*
