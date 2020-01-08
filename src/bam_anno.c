@@ -652,6 +652,7 @@ void *run_it(void *_d)
             bam1_t *b = &dat->p->bam[i];
             char *v = args.chr_binding[b->core.tid];
             if (v == NULL) continue;
+            debug_print("%s",v);
             bam_aux_append(b, args.btag, 'Z', strlen(v)+1, (uint8_t*)v);
         }
     }
