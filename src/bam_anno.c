@@ -650,10 +650,11 @@ void *run_it(void *_d)
         int i;
         for (i = 0; i < dat->p->n; ++i) {
             bam1_t *b = &dat->p->bam[i];
-            debug_print("%d",b->core.tid);
+            //debug_print("%d",b->core.tid);
+            if (b->core.tid == -1) continue;
             char *v = args.chr_binding[b->core.tid];
             if (v == NULL) continue;
-            debug_print("%s",v);
+            //debug_print("%s",v);
             bam_aux_append(b, args.btag, 'Z', strlen(v)+1, (uint8_t*)v);
         }
     }
