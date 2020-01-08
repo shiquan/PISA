@@ -650,6 +650,7 @@ void *run_it(void *_d)
         int i;
         for (i = 0; i < dat->p->n; ++i) {
             bam1_t *b = &dat->p->bam[i];
+            debug_print("%d",b->core.tid);
             char *v = args.chr_binding[b->core.tid];
             if (v == NULL) continue;
             debug_print("%s",v);
