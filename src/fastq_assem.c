@@ -605,7 +605,7 @@ static void *run_it(void *_d)
         free(v->v); free(v);
         
         mag_t *g = fml_fmi2mag(args.assem_opt, e);
-        mag_g_merge(g,1,args.mini_overlap);
+        mag_g_merge(g, 1, args.mini_overlap);
         mag_g_clean(g, &args.assem_opt->mag_opt);
         mag_g_trim_open(g, &args.assem_opt->mag_opt);
 

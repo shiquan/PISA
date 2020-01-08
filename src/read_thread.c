@@ -166,7 +166,6 @@ struct thread_dat *read_thread_dat(FILE *fp, struct dict *tag_dict)
 
         READ_LINE(seq);
 
-
         if (fasta == 0) {
             c = fgetc(fp);
             if (c != '+') error("Format error. Not fastq file ? '+' vs %c", c);
