@@ -561,18 +561,21 @@ void print_utg(fml_utg_t *utg, int n, kstring_t *out, char *name)
         kputc('@', out); kputw(i, out); kputc('_', out);
         kputs(name, out);
         kputs("|||SR:i:", out); kputw(u->nsr, out);
+
+        /*
         kputc('\t', out);
         for (j = 0; j < u->n_ovlp[0]; ++j) {
-            kputw(u->ovlp[j].id<<1|u->ovlp[j].to, out); kputc(',', out);
-            kputw(u->ovlp[j].len, out); kputc(';', out);
+          kputw(u->ovlp[j].id<<1|u->ovlp[j].to, out); kputc(',', out);
+          kputw(u->ovlp[j].len, out); kputc(';', out);
         }
         if (u->n_ovlp[0] == 0) kputc('.', out);
         kputc('\t', out);
         for (; j < u->n_ovlp[0] + u->n_ovlp[1]; ++j) {
-            kputw(u->ovlp[j].id<<1|u->ovlp[j].to, out); kputc(',', out);
-            kputw(u->ovlp[j].len, out); kputc(';', out);
+          kputw(u->ovlp[j].id<<1|u->ovlp[j].to, out); kputc(',', out);
+          kputw(u->ovlp[j].len, out); kputc(';', out);
         }
         if (u->n_ovlp[1] == 0) kputc('.', out);
+        */
         kputc('\n', out);
         l = out->l;
         kputsn(u->seq, u->len, out);
