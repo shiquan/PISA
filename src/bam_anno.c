@@ -687,7 +687,7 @@ void write_report()
         fprintf(args.fp_report, "Reads Mapped Confidently to Genome,%.1f%%\n", (float)args.reads_pass_qc/args.reads_input*100);
         fprintf(args.fp_report, "Reads Mapped Confidently to Peaks,%.1f%%\n", (float)args.reads_in_peak/args.reads_pass_qc*100);
     }
-    else {
+    if (args.G) {
         fprintf(args.fp_report, "Reads Mapped Confidently to Genome,%.1f%%\n", (float)args.reads_pass_qc/args.reads_input*100);
         fprintf(args.fp_report, "Reads Mapped Confidently to Gene,%.1f%%\n", (float)args.reads_in_gene/args.reads_input*100);
         fprintf(args.fp_report, "Reads Mapped Confidently to Exonic Regions,%.1f%%\n", (float)args.reads_in_exon/args.reads_input*100);

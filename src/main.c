@@ -25,8 +25,8 @@ int usage()
     fprintf(stderr, "    extract    Extract tags information from BAM.\n");
     fprintf(stderr, "    count      Count matrix.\n");
     fprintf(stderr, "    bam2fq     Convert bam to fastq file. Select tags will be export at read name.\n");
-    fprintf(stderr, "    genecov    Calculate reads coverage over gene body.\n");
-    fprintf(stderr, "    bam2frag   Convert bam to bgzipped fragment file.\n");
+    // fprintf(stderr, "    genecov    Calculate reads coverage over gene body.\n");
+    // fprintf(stderr, "    bam2frag   Convert bam to bgzipped fragment file.\n");
     fprintf(stderr, "    impute     Impute tags in BAM.\n");
     
     // fprintf(stderr, "\n--- Processing scLFR reads. *experimental*\n");
