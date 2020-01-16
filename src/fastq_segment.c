@@ -1405,9 +1405,9 @@ int fastq_segment(int argc, char **argv)
     return 0;
 }
 
-#ifdef LFR_seg
+#ifdef LFR_SEG
 int main(int argc, char **argv)
 {
-    return check_segment2(argc, argv);
+    return fastq_segment(argc, argv);
 }
 #endif
