@@ -1404,9 +1404,10 @@ int fastq_segment(int argc, char **argv)
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;
 }
-/*
+
+#ifdef LFR_seg
 int main(int argc, char **argv)
 {
     return check_segment2(argc, argv);
 }
-*/
+#endif

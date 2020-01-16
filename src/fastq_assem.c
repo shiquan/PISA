@@ -722,9 +722,11 @@ int fastq_assem(int argc, char **argv)
     return 0;
 }
 
-/*
+#ifdef LFR_ASSEM
 int main(int argc, char **argv)
 {
     return fastq_assem(argc, argv);
 }
-*/
+
+#endif
+
