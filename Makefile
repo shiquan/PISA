@@ -45,6 +45,7 @@ AOBJ = src/bam_anno.o \
 	src/fastq_parse_barcode.o \
 	src/fastq_segment.o \
 	src/fastq_overlap.o \
+	src/fastq_assem.o \
 	src/LFR_impute.o \
 	src/bam_corr_umi.o \
 	src/bam2fq.o \
@@ -100,6 +101,7 @@ src/bam_rmdup.o: src/bam_rmdup.c
 src/bam_attr_count.o: src/bam_attr_count.c
 src/fastq_segment.o: src/fastq_segment.c
 src/fastq_overlap.o: src/fastq_overlap.c
+src/fastq_assem.o: src/fastq_assem.c
 src/read_thread.o: src/read_thread.c
 src/read_tags.o: src/read_tags.c
 src/ksa.o: src/ksa.c
