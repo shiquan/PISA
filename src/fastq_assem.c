@@ -258,15 +258,19 @@ struct ret_block {
     struct read1 *a;    
 };
 
-static struct ret_block *ret_block_build(int m)
+static struct ret_block *ret_block_build()
 {
     struct ret_block *r = malloc(sizeof(*r));
-    memset(r, 0, sizeof(*r));
-    r->m = m;
-    r->a = malloc(sizeof(struct read1)*m);
+    memset(r,0,sizeof(*r));
     return r;
 }
-
+static kstring_t *kstr_create()
+{
+    kstring_t *s = malloc(sizeof(*s));
+    s->m = s->l = 0;
+    s->s = NULL;
+    return s;
+}
 static void kstr_destory(kstring_t *str)
 {
     if (str) {
@@ -282,7 +286,7 @@ static void ret_block_destory(struct ret_block *r)
         kstr_destory(r->a[i].seq);
         kstr_destory(r->a[i].qual);
     }
-    free(r->a);
+    if (r->m) free(r->a);
     free(r);      
 }
 static void print_utg(fml_utg_t *utg, int n, struct ret_block *r, char *name)
@@ -290,19 +294,19 @@ static void print_utg(fml_utg_t *utg, int n, struct ret_block *r, char *name)
     int i;
     for (i = 0; i < n; ++i) {
         const fml_utg_t *u = &utg[i];
-        kstring_t *nam = malloc(sizeof(kstring_t));
-        kstring_t *seq  = malloc(sizeof(kstring_t));
-        kstring_t *qual = malloc(sizeof(kstring_t));
-        memset(nam, 0, sizeof(kstring_t));
-        memset(seq, 0, sizeof(kstring_t));
-        memset(qual, 0, sizeof(kstring_t));
+        kstring_t *nam  = kstr_create();
+        kstring_t *seq  = kstr_create();
+        kstring_t *qual = kstr_create();
         
         kputc('@', nam); kputw(i, nam); kputc('_', nam);
         kputs(name,nam);
         kputs("|||SR:i:", nam); kputw(u->nsr, nam);
-
-        kputsn(u->seq, u->len, seq);
-        kputsn(u->cov, u->len, qual);
+        kputsn(u->seq, u->len, seq); kputs("", seq);
+        kputsn(u->cov, u->len, qual); kputs("", qual);
+        if (r->n == r->m) {
+            r->m = r->n == 0 ? 2 : r->n*2;
+            r->a = realloc(r->a, r->m*sizeof(struct read1));
+        }
         struct read1 *a = &r->a[r->n++];
         a->name = nam;
         a->seq = seq;
@@ -317,7 +321,7 @@ static void *run_it(void *_d)
         return NULL;
     }
 
-    struct ret_block *r = ret_block_build(dat->n);    
+    struct ret_block *r = ret_block_build();    
     int i;
     for (i = 0; i < dat->n; ++i) {
         struct read_block *rb = &dat->rb[i];   
@@ -325,7 +329,7 @@ static void *run_it(void *_d)
         struct base_v *v = rend_bseq(rb);
         
         if (v->l == 0) continue;
-
+        debug_print("%s",rb->name);
         rld_t *e = fmi_gen2(v);
         free(v->v); free(v);
         
