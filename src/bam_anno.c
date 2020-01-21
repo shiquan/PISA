@@ -593,13 +593,15 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
                 if (c->flag & BAM_FREVERSE) {
                     if (g0->strand == 0) {
                         //anti = 1;
-                        et = type_antisense;
+                        if (et == type_unknown)
+                            et = type_antisense;
                         continue;
                     }
                 }
                 else if (g0->strand == 1) {
                     // anti = 1;
-                    et = type_antisense;
+                    if (et == type_unknown)
+                        et = type_antisense;
                     continue;
                 }
             }
