@@ -21,7 +21,7 @@ static int usage()
     fprintf(stderr, "anno_bam -gtf genes.gtf -o anno.bam in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, "  -o               Output bam file.\n");
-    fprintf(stderr, "  -q               Mapping quality threshold. [20]\n");
+    // fprintf(stderr, "  -q               Mapping quality threshold. [20]\n");
     fprintf(stderr, "  -report          Summary report.\n");
     fprintf(stderr, "  -@               Threads to read and write bam file.\n");
     fprintf(stderr, "\nOptions for BED file :\n");
@@ -115,7 +115,7 @@ static struct args {
     .reads_in_intron = 0,
     .reads_antisense = 0,
 
-    .qual_thres      = 20,
+    .qual_thres      = 0,
 };
 
 static char **chr_binding(const char *fname, bam_hdr_t *hdr)
@@ -719,7 +719,7 @@ int bam_anno_attr(int argc, char *argv[])
         while ((ret = sam_read1(args.fp, args.hdr, b)) >= 0) {
             args.reads_input++;
             // todo: QC?
-            if (b->core.qual < args.qual_thres) continue;
+            // if (b->core.qual < args.qual_thres) continue;
             args.reads_pass_qc++;
             check_is_overlapped_bed(args.hdr, b, args.B); 
             if (sam_write1(args.out, args.hdr, b) == -1) error("Failed to write SAM.");
