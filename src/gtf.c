@@ -341,7 +341,9 @@ int gtf_query(struct gtf_itr *itr, char *name, int start, int end)
     int ed = st + G->ctg[id].offset-1;
     int ed0 = ed;
     if (end < idx_start(G->idx[st])) return -1; // out of range
-    if (start > idx_end(G->idx[ed])) return -1;
+
+    // removed because for overlapped transcript, big transcript may cover both ends of short ones
+    // if (start > idx_end(G->idx[ed])) return -1; 
 
     if (id == itr->id) {
         st = itr->st;
@@ -349,10 +351,11 @@ int gtf_query(struct gtf_itr *itr, char *name, int start, int end)
         if (st+1 < ed && idx_start(G->idx[st+1]) > end) return 1; // intergenic
     }
 
-    // find the smallest i such that idx_end >= st
+    // FIX: find the smallest i such that start(idx[st]) <= start && start <= end(idx[st])
+    // 
     while (st < ed) {
         int mid = st + ((ed-st)>>1);
-        if (idx_end(G->idx[mid])<start) st = mid+1;
+        if (idx_start(G->idx[mid])>start) st = mid+1;
         else ed = mid;
     }
     if (st != ed) error("%d %d, %d, %d, start : %d, end : %d", st, ed, idx_start(G->idx[st]), idx_end(G->idx[st]), start, end);
