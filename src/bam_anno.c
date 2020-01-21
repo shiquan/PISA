@@ -546,20 +546,25 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
         if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) continue;
         stat->reads_pass_qc++;
 
-        if (last_id == -2 || last_id != c->tid) {
-            if (last_id >= 0) push_blacklist(last_id);
+        if (last_id == -2) {
             last_id = c->tid;
             last_pos = c->pos;
-        }
-        else if (c->tid >= 0) {
+        } else if (last_id != c->tid) {
+            if (last_id >= 0) push_blacklist(last_id);
             if (check_blacklist(c->tid)) {
                 free(blacklist);
                 error("Input BAM is not sorted?");
             }
+                        
+            last_id = c->tid;
+            last_pos = c->pos;
+        }
+        else if (c->tid >= 0) {
             if (last_pos > c->pos) {
                 free(blacklist);
                 error("Input BAM is not sorted?");
             }
+            last_pos = c->pos;
         }
         
         char *name = h->target_name[c->tid];
