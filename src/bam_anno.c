@@ -512,8 +512,9 @@ static void push_blacklist(int id)
 
 static int check_blacklist(int id)
 {
+    if (id < 0) return -1;
     if (id < n_bl) return blacklist[id];
-    return id;
+    return 0;
 }
 
 enum exon_type {
