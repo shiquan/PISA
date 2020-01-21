@@ -318,20 +318,7 @@ void gtf_itr_destory(struct gtf_itr *i)
 {
     free(i); 
 }
-/*
-char *gtf_get_gene_name(struct gtf_spec *G, struct gtf_lite *gl)
-{
-    return G->gene_name->name[gl->gene_name];
-}
-char *gtf_get_gene_id(struct gtf_spec *G, struct gtf_lite *gl)
-{
-    return G->gene_id->name[gl->gene_id];
-}
-char *gtf_get_transcript_id(struct gtf_spec *G, struct gtf_lite *gl)
-{
-    return G->transcript_id->name[gl->transcript_id];
-}
-*/
+
 #define idx_start(a) (int)(a>>32)
 #define idx_end(a) (int)(a)
 
@@ -390,82 +377,8 @@ int gtf_query(struct gtf_itr *itr, char *name, int start, int end)
     itr->n = c;
     return 0;
 }
-/*
-static int last_idx = -1;
-static int last_id = -1;
 
-void gtf_clean_cache()
-{
-    last_idx = -1;
-    last_id = -1;
-}
-
-// if cache == 1, last record will be kept and assume input records have been sorted
-struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int end, int *n, int cache)
-{
-    *n = 0;
-    int id = dict_query(G->name, name);
-    if (id == -1) return NULL;
-
-    int st = G->ctg[id].idx;
-    int ed = st + G->ctg[id].offset-1;
-    int ed0 = ed;
-    if (end < idx_start(G->idx[st])) return NULL;
-    if (start > idx_end(G->idx[ed])) return NULL;
-
-    if (cache == 1 && id == last_id) {
-        st = last_idx;
-        if (idx_end(G->idx[st]) > start) goto check_overlap;
-        if (st+1 < ed && idx_start(G->idx[st+1]) > end) return NULL; // intergenic, for fast access
-    }
-
-    // find the smallest i such that idx_end >= st
-    while (st < ed) {
-        int mid = st + ((ed-st)>>1);
-        if (idx_end(G->idx[mid])<start) st = mid+1;
-        else ed = mid;
-    }
-    if (st != ed) error("%d %d, %d, %d, start : %d, end : %d", st, ed, idx_start(G->idx[st]), idx_end(G->idx[st]), start, end);
-    // assert(st == ed);
-
-  check_overlap:
-    //struct gtf_lite *g0 = &G->gtf[st];
-    if (end < G->gtf[st].start) {
-        last_id = id;
-        last_idx = st;        
-        return NULL; // intergenic
-    }
-    int i;
-    int c = 0;
-    for (i = st; i <= ed0; ++i) {
-        struct gtf_lite *g1 = &G->gtf[i];
-        if (g1->start <= end) c++;
-        else break;
-        if (c > 4) break; // cover over 4 genes?? impossible
-    }
-    *n = c;
-    
-    last_id = id;
-    last_idx = st;
-    return &G->gtf[st];
-}
-
-void gtf_format_print_test(struct gtf_spec *G)
-{
-    int i;
-    for (i = 0; i < G->n_gtf; ++i) {
-        struct gtf_lite *gl = &G->gtf[i];
-        printf("%s\t%d\t%d\t%s\t%s\n", dict_name(G->name,gl->seqname), gl->start, gl->end, dict_name(G->features, gl->type), G->gene_name->name[gl->gene_name]);
-        int j;
-        for (j = 0; j < gl->n_son; ++j) {
-            struct gtf_lite *tx = &gl->son[j];
-            printf("%s\t%d\t%d\t%s\t%s\n", G->name->name[tx->seqname], tx->start, tx->end, G->features->name[tx->type], G->gene_name->name[tx->gene_name]);
-        }
-    }
-}
-*/
 #ifdef GTF_MAIN
-
 int main(int argc, char **argv)
 {
     if (argc != 2) error("gtfformat in.gtf");

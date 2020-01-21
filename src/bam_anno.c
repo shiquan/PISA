@@ -21,7 +21,6 @@ static int usage()
     fprintf(stderr, "anno_bam -gtf genes.gtf -o anno.bam in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, "  -o               Output bam file.\n");
-    // fprintf(stderr, "  -q               Mapping quality threshold. [20]\n");
     fprintf(stderr, "  -report          Summary report.\n");
     fprintf(stderr, "  -@               Threads to read and write bam file.\n");
     fprintf(stderr, "\nOptions for BED file :\n");
@@ -56,6 +55,8 @@ static struct args {
     const char *report_fname;
     const char *chr_spec_fname;
 
+    const char *group_tag; // export summary information for each group
+    
     char **chr_binding;
     const char *btag;
     
@@ -67,6 +68,7 @@ static struct args {
     htsFile *fp;
     htsFile *out;
     bam_hdr_t *hdr;
+
     FILE *fp_report;
     struct gtf_spec *G;
 
@@ -92,6 +94,8 @@ static struct args {
     .gtf_fname       = NULL,
     .report_fname    = NULL,
 
+    .group_tag       = NULL,
+    
     .chr_binding     = NULL,
     .btag            = NULL,
     .ignore_strand   = 0,
@@ -166,10 +170,11 @@ static int parse_args(int argc, char **argv)
 {
     int i;
     const char *tags = NULL;
-    const char *qual = NULL;
+    // const char *qual = NULL;
     const char *thread = NULL;
     const char *chunk = NULL;
     const char *file_thread = NULL;
+    
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -177,10 +182,11 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-o") == 0 ) var = &args.output_fname;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
         else if (strcmp(a, "-tag") == 0) var = &args.tag;
+        else if (strcmp(a, "-group") == 0) var = &args.group_tag;
         else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
         else if (strcmp(a, "-tags") == 0) var = &tags;
-        else if (strcmp(a, "-q") == 0) var = &qual;
+        // else if (strcmp(a, "-q") == 0) var = &qual;
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-chunk") == 0) var = &chunk;
@@ -207,7 +213,6 @@ static int parse_args(int argc, char **argv)
         error("Unknown argument: %s", a);
     }
     // CHECK_EMPTY(args.bed_fname, "-bed must be set.");
-
     
     if (args.bed_fname == NULL && args.gtf_fname == NULL && args.chr_spec_fname == NULL) 
         error("-bed or -gtf or -chr-species must be set.");
@@ -222,8 +227,11 @@ static int parse_args(int argc, char **argv)
     CHECK_EMPTY(args.input_fname, "Input bam must be set.");
     if (thread) args.n_thread = str2int((char*)thread);
     if (chunk) args.chunk_size = str2int((char*)chunk);
-    if (qual) args.qual_thres = str2int((char*)qual);
-    if (args.qual_thres < 0) args.qual_thres = 0; // no filter
+
+    // Skip checking quality score, 2020/01/20
+    // if (qual) args.qual_thres = str2int((char*)qual);
+    // if (args.qual_thres < 0) args.qual_thres = 0; // no filter
+    
     int file_th = 5;
     if (file_thread)
         file_th = str2int((char*)file_thread);
@@ -489,6 +497,34 @@ struct read_stat {
     uint64_t reads_antisense;
 };
 
+static int8_t *blacklist = 0;
+static int n_bl = 0;
+//static int m_bl = 0;
+
+static void push_blacklist(int id)
+{
+    if (id >= n_bl) {
+        blacklist = realloc(blacklist, (id+1)*sizeof(int8_t));
+        for (;n_bl <= id; ++n_bl) blacklist[n_bl] = 0;
+    }
+    blacklist[id] = 1;
+}
+
+static int check_blacklist(int id)
+{
+    if (id < n_bl) return blacklist[id];
+    return id;
+}
+
+enum exon_type {
+    type_unknown = -1,
+    type_exon  = 0,
+    type_intron,
+    type_antisense,
+    type_splice,
+    type_ambi,
+};
+
 void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
 {
     struct gtf_itr *itr = gtf_itr_build(args.G);
@@ -497,7 +533,10 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
     kstring_t genes = {0,0,0};
     kstring_t gene_id = {0,0,0};
     bam_hdr_t *h = args.hdr;
-    struct gtf_spec const *G = args.G;
+    struct gtf_spec const *G = args.G;    
+    
+    int last_id = -2;
+    int last_pos = -1;
     int i;
     for (i = 0; i < p->n; ++i) {
         stat->reads_input++;
@@ -506,31 +545,46 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
         c = &b->core;
         if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) continue;
         stat->reads_pass_qc++;
+
+        if (last_id == -2 || last_id != c->tid) {
+            if (last_id >= 0) push_blacklist(last_id);
+            last_id = c->tid;
+            last_pos = c->pos;
+        }
+        else if (c->tid >= 0) {
+            if (check_blacklist(c->tid)) {
+                free(blacklist);
+                error("Input BAM is not sorted?");
+            }
+            if (last_pos > c->pos) {
+                free(blacklist);
+                error("Input BAM is not sorted?");
+            }
+        }
+        
         char *name = h->target_name[c->tid];
         int endpos = bam_endpos(b);
 
-        /*
-        struct gtf_lite *g;
-        int n = 0;
-        // todo: improve the algorithm of overlap
-        g = gtf_overlap_gene(G, name, c->pos, endpos, &n, 1);
-        if (n==0) return 1;
-        */
-        if ( gtf_query(itr, name, c->pos+1, endpos) != 0 || itr->n == 0) continue;
+        enum exon_type et = type_unknown;
+
+        if ( gtf_query(itr, name, c->pos+1, endpos) != 0 ) continue; // query failed
+        if ( itr->n == 0) continue; // no hit
         
         stat->reads_in_gene++;
 
         struct isoform *S = bend_sam_isoform(b);
         
         int l;
-        int anti = 0;
         int trans_novo = 0;
-        int is_intron = 0;
-        int is_ambi = 0;
-        int splice_overlapped = 0;
+        // int is_ambi = 0;
+        //int anti = 0;
+        //int is_intron = 0;
+        // int splice_overlapped = 0;
+
+        // reset buffer
         trans.l = genes.l = gene_id.l = 0;
         
-        // exon > intron > antisense
+        // exon == splice > intron > antisense
         struct gtf_lite const *g = &G->gtf[itr->st];
         
         for (l = 0; l < itr->n; ++l) {            
@@ -538,29 +592,36 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
             if (args.ignore_strand == 0) {
                 if (c->flag & BAM_FREVERSE) {
                     if (g0->strand == 0) {
-                        anti = 1;
+                        //anti = 1;
+                        et = type_antisense;
                         continue;
                     }
                 }
                 else if (g0->strand == 1) {
-                    anti = 1;
+                    // anti = 1;
+                    et = type_antisense;
                     continue;
                 }
             }
 
+            // reset antisense mark if multi GL record detected
+            // anti = 0;
+            
             if (c->pos+1 < g0->start || endpos > g0->end || c->pos >= g0->end || endpos <= g0->start) {
-                is_ambi = 1;
+                if (et == type_unknown || et == type_antisense)
+                    et = type_ambi;
                 continue; // not full enclosed in genes
             }
-                
+            
             /*
             // for reads overlapped with multiply genes, only count the last one, since the last one is more close with the reads
             g = g + (n-1);
             */
+            
             int i;
             int in_gene = 0;
-            // TX
-            for (i = 0; i < g->n_son; ++i) {
+            // for each transcript
+            for (i = 0; i < g0->n_son; ++i) {
                 struct gtf_lite const *g1 = &g0->son[i];
                 if (g1->type != feature_transcript) continue;
                 int ret = match_isoform(S, g1);
@@ -568,15 +629,22 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
                 if (ret == 2 || ret == 3) {
                     trans_novo = 1;
                     continue; // not this transcript
-                }
+                }                
+
                 if (ret == -1) {
-                    is_intron = 1;
+                    // is_intron = 1;
+                    if (et == type_unknown) // if not set, set to intron
+                        et = type_intron;
                     continue; // introns will also be filter
                 }
                 if (ret == 1) { 
-                    splice_overlapped = 1;
+                    // splice_overlapped = 1;
+                    if (et != type_exon) 
+                        et = type_splice;
                     if (args.splice_consider == 0) continue;
                 }
+
+                et = type_exon;
                 
                 trans_novo = 0;
                 in_gene = 1;
@@ -590,7 +658,7 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
                 if (gene_id.l) kputc(';', &gene_id);
                 kputs(dict_name(G->gene_id,g0->gene_id), &gene_id);
                 
-                anti = 0; // reset antisense flag
+                //anti = 0; // reset antisense flag
             } 
         }
         // GN_tag
@@ -598,28 +666,34 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
         // l = strlen(gene);
         if (trans.l) { // match case
             bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
+            //bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
             bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
             bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
             stat->reads_in_exon++;
-        }
-        else if (anti) { // antisense
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
-            stat->reads_antisense++;
         }
         else if (trans_novo) {
             kputs(dict_name(G->gene_name,g->gene_name), &genes);
             bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
             bam_aux_append(b, TX_tag, 'Z', 8, (uint8_t*)"UNKNOWN");            
         }
-        else if (is_intron) {
+
+        if (et == type_exon) {
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
+        }
+        else if (et == type_antisense) {
+        //else if (anti) { // antisense
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
+            stat->reads_antisense++;
+        }
+        else if (et == type_intron) {
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
             stat->reads_in_intron++;
         }
-        else if (is_ambi) {
+        else if (et == type_ambi) {
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"U");
         }
-        else if (splice_overlapped) {
+        else if (et == type_splice) {
+        //else if (splice_overlapped) {
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"S");
         }
         
