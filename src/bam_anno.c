@@ -542,6 +542,16 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
         bam1_t *b = &p->bam[i];
         bam1_core_t *c;
         c = &b->core;
+
+        // cleanup all exist tags
+        uint8_t *data;
+        if ((data = bam_aux_get(b, TX_tag)) != NULL) bam_aux_del(b, data);
+        if ((data = bam_aux_get(b, AN_tag)) != NULL) bam_aux_del(b, data);
+        if ((data = bam_aux_get(b, GN_tag)) != NULL) bam_aux_del(b, data);
+        if ((data = bam_aux_get(b, GX_tag)) != NULL) bam_aux_del(b, data);
+        if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
+        
+
         if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) continue;
         stat->reads_pass_qc++;
 
@@ -644,13 +654,6 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
             } 
         }
 
-        uint8_t *data;
-        if ((data = bam_aux_get(b, TX_tag)) != NULL) bam_aux_del(b, data);
-        if ((data = bam_aux_get(b, AN_tag)) != NULL) bam_aux_del(b, data);
-        if ((data = bam_aux_get(b, GN_tag)) != NULL) bam_aux_del(b, data);
-        if ((data = bam_aux_get(b, GX_tag)) != NULL) bam_aux_del(b, data);
-        if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
-        
         // GN_tag
         if (trans.l) { // match case
             bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
