@@ -646,15 +646,15 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
         
         // GN_tag
         if (trans.l) { // match case
-            bam_aux_update_str(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
-            bam_aux_update_str(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
-            bam_aux_update_strppend(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
+            bam_aux_update_str(b, TX_tag, trans.l+1, trans.s);
+            bam_aux_update_str(b, GN_tag, genes.l+1, genes.s);
+            bam_aux_update_str(b, GX_tag, gene_id.l+1, gene_id.s);
             stat->reads_in_exon++;
         }
         else if (trans_novo) {
             kputs(dict_name(G->gene_name, gene_save), &genes);
-            bam_aux_update_str(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
-            bam_aux_update_str(b, TX_tag, 'Z', 8, (uint8_t*)"UNKNOWN");            
+            bam_aux_update_str(b, GN_tag, genes.l+1, genes.s);
+            // bam_aux_update_str(b, TX_tag, 8, (uint8_t*)"UNKNOWN");            
         }
 
         if (et == type_exon) {
