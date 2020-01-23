@@ -659,33 +659,33 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
 
         if (et == type_exon) {
             uint8_t *s = bam_aux_get(b, RE_tag);
-            if (!s) *s = 'E';
+            if (s) *s = 'E';
             else 
                 bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
         }
         else if (et == type_antisense) {
             uint8_t *s = bam_aux_get(b, RE_tag);
-            if (!s) *s = 'A';
+            if (s) *s = 'A';
             else             
                 bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
             stat->reads_antisense++;
         }
         else if (et == type_intron) {
             uint8_t *s = bam_aux_get(b, RE_tag);
-            if (!s) *s = 'I';
+            if (s) *s = 'I';
             else 
                 bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
             stat->reads_in_intron++;
         }
         else if (et == type_ambi) {
             uint8_t *s = bam_aux_get(b, RE_tag);
-            if (!s) *s = 'U';
+            if (s) *s = 'U';
             else 
                 bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"U");
         }
         else if (et == type_splice) {
             uint8_t *s = bam_aux_get(b, RE_tag);
-            if (!s) *s = 'S';
+            if (s) *s = 'S';
             else                             
                 bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"S");
         }
