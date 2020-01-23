@@ -535,7 +535,6 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
     struct gtf_spec const *G = args.G;    
     
     int last_id = -2;
-    int last_pos = -1;
     int i;
     for (i = 0; i < p->n; ++i) {
         stat->reads_input++;
@@ -550,32 +549,22 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
         if ((data = bam_aux_get(b, GN_tag)) != NULL) bam_aux_del(b, data);
         if ((data = bam_aux_get(b, GX_tag)) != NULL) bam_aux_del(b, data);
         if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
-        
 
         if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) continue;
         stat->reads_pass_qc++;
 
-        if (last_id == -2) {
+        if (last_id == -2)
             last_id = c->tid;
-            last_pos = c->pos;
-        } else if (last_id != c->tid) {
+        else if (last_id != c->tid) {
             if (last_id >= 0) push_blacklist(last_id);
             if (check_blacklist(c->tid)) {
                 free(blacklist);
-                error("Input BAM is not sorted?");
+                error("Input BAM is not sorted? %d:%d",c->tid, c->pos);
             }
                         
             last_id = c->tid;
-            last_pos = c->pos;
         }
-        else if (c->tid >= 0) {
-            if (last_pos > c->pos) {
-                free(blacklist);
-                error("Input BAM is not sorted?");
-            }
-            last_pos = c->pos;
-        }
-        
+
         char *name = h->target_name[c->tid];
         int endpos = bam_endpos(b);
 
