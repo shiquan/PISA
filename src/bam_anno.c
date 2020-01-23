@@ -643,51 +643,43 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
                 kputs(dict_name(G->gene_id,g0->gene_id), &gene_id);
             } 
         }
+
+        uint8_t *data;
+        if ((data = bam_aux_get(b, TX_tag)) != NULL) bam_aux_del(b, data);
+        if ((data = bam_aux_get(b, AN_tag)) != NULL) bam_aux_del(b, data);
+        if ((data = bam_aux_get(b, GN_tag)) != NULL) bam_aux_del(b, data);
+        if ((data = bam_aux_get(b, GX_tag)) != NULL) bam_aux_del(b, data);
+        if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
         
         // GN_tag
         if (trans.l) { // match case
-            bam_aux_update_str(b, TX_tag, trans.l+1, trans.s);
-            bam_aux_update_str(b, GN_tag, genes.l+1, genes.s);
-            bam_aux_update_str(b, GX_tag, gene_id.l+1, gene_id.s);
+            bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
+            bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
+            bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
             stat->reads_in_exon++;
         }
         else if (trans_novo) {
             kputs(dict_name(G->gene_name, gene_save), &genes);
-            bam_aux_update_str(b, GN_tag, genes.l+1, genes.s);
+            bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
             // bam_aux_update_str(b, TX_tag, 8, (uint8_t*)"UNKNOWN");            
         }
 
         if (et == type_exon) {
-            uint8_t *s = bam_aux_get(b, RE_tag);
-            if (s) *s = 'E';
-            else 
-                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
         }
         else if (et == type_antisense) {
-            uint8_t *s = bam_aux_get(b, RE_tag);
-            if (s) *s = 'A';
-            else             
-                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
             stat->reads_antisense++;
         }
         else if (et == type_intron) {
-            uint8_t *s = bam_aux_get(b, RE_tag);
-            if (s) *s = 'I';
-            else 
-                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
             stat->reads_in_intron++;
         }
         else if (et == type_ambi) {
-            uint8_t *s = bam_aux_get(b, RE_tag);
-            if (s) *s = 'U';
-            else 
-                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"U");
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"U");
         }
         else if (et == type_splice) {
-            uint8_t *s = bam_aux_get(b, RE_tag);
-            if (s) *s = 'S';
-            else                             
-                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"S");
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"S");
         }
 
         gtf_itr_destory(itr);
