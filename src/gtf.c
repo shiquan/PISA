@@ -440,7 +440,9 @@ struct gtf_itr*gtf_query(struct gtf_spec *G, char *name, int start, int end)
                 itr->gtf[l++] = list->a[j];                
         }
 
+    free(bins);
     qsort(itr->gtf, itr->n, sizeof(struct gtf_lite*), cmpfunc1);
+
     return itr;
 }
 
