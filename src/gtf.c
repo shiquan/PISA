@@ -65,6 +65,15 @@ static int cmpfunc (const void *_a, const void *_b)
     if (a->start != b->start) return a->start - b->start;
     return a->end - b->end;
 }
+static int cmpfunc1 (const void *_a, const void *_b)
+{
+    struct gtf_lite *a = *(struct gtf_lite**)_a;
+    struct gtf_lite *b = *(struct gtf_lite**)_b;
+    if (a->seqname != b->seqname) return a->seqname - b->seqname;
+    if (a->start != b->start) return a->start - b->start;
+    return a->end - b->end;
+}
+
 struct binlist {
     int n, m;
     struct gtf_lite **a;
@@ -431,7 +440,7 @@ struct gtf_itr*gtf_query(struct gtf_spec *G, char *name, int start, int end)
                 itr->gtf[l++] = list->a[j];                
         }
 
-    qsort(itr->gtf, itr->n, sizeof(struct gtf_lite), cmpfunc);
+    qsort(itr->gtf, itr->n, sizeof(struct gtf_lite*), cmpfunc1);
     return itr;
 }
 
