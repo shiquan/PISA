@@ -586,7 +586,7 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
         // exon == splice > intron > antisense        
         for (l = 0; l < itr->n; ++l) {            
             struct gtf_lite const *g0 = itr->gtf[l];
-            if (g0->start > c->pos || endpos > g0->end) continue; // not fully covered
+            if (g0->start > c->pos+1 || endpos > g0->end) continue; // not fully covered
             
             if (args.ignore_strand == 0) {
                 if (c->flag & BAM_FREVERSE) {
@@ -662,7 +662,6 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
         }
         else if (et == type_antisense) {
-        //else if (anti) { // antisense
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
             stat->reads_antisense++;
         }
@@ -674,7 +673,6 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"U");
         }
         else if (et == type_splice) {
-        //else if (splice_overlapped) {
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"S");
         }
 
