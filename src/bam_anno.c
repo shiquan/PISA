@@ -170,7 +170,7 @@ static int parse_args(int argc, char **argv)
 {
     int i;
     const char *tags = NULL;
-    // const char *qual = NULL;
+    const char *qual = NULL;
     const char *thread = NULL;
     const char *chunk = NULL;
     const char *file_thread = NULL;
@@ -186,7 +186,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
         else if (strcmp(a, "-tags") == 0) var = &tags;
-        // else if (strcmp(a, "-q") == 0) var = &qual;
+        else if (strcmp(a, "-q") == 0) var = &qual;
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-chunk") == 0) var = &chunk;
@@ -646,34 +646,48 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
         
         // GN_tag
         if (trans.l) { // match case
-            bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
-            //bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
-            bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
-            bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
+            bam_aux_update_str(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
+            bam_aux_update_str(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
+            bam_aux_update_strppend(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
             stat->reads_in_exon++;
         }
         else if (trans_novo) {
             kputs(dict_name(G->gene_name, gene_save), &genes);
-            bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
-            bam_aux_append(b, TX_tag, 'Z', 8, (uint8_t*)"UNKNOWN");            
+            bam_aux_update_str(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
+            bam_aux_update_str(b, TX_tag, 'Z', 8, (uint8_t*)"UNKNOWN");            
         }
 
         if (et == type_exon) {
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
+            uint8_t *s = bam_aux_get(b, RE_tag);
+            if (!s) *s = 'E';
+            else 
+                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
         }
         else if (et == type_antisense) {
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
+            uint8_t *s = bam_aux_get(b, RE_tag);
+            if (!s) *s = 'A';
+            else             
+                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
             stat->reads_antisense++;
         }
         else if (et == type_intron) {
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
+            uint8_t *s = bam_aux_get(b, RE_tag);
+            if (!s) *s = 'I';
+            else 
+                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
             stat->reads_in_intron++;
         }
         else if (et == type_ambi) {
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"U");
+            uint8_t *s = bam_aux_get(b, RE_tag);
+            if (!s) *s = 'U';
+            else 
+                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"U");
         }
         else if (et == type_splice) {
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"S");
+            uint8_t *s = bam_aux_get(b, RE_tag);
+            if (!s) *s = 'S';
+            else                             
+                bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"S");
         }
 
         gtf_itr_destory(itr);
