@@ -497,6 +497,7 @@ struct read_stat {
     uint64_t reads_antisense;
 };
 
+/*
 static int8_t *blacklist = 0;
 static int n_bl = 0;
 //static int m_bl = 0;
@@ -516,7 +517,7 @@ static int check_blacklist(int id)
     if (id < n_bl) return blacklist[id];
     return 0;
 }
-
+*/
 enum exon_type {
     type_unknown = -1,
     type_exon  = 0,
@@ -556,12 +557,12 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
         if (last_id == -2)
             last_id = c->tid;
         else if (last_id != c->tid) {
-            if (last_id >= 0) push_blacklist(last_id);
-            if (check_blacklist(c->tid)) {
-                free(blacklist);
+            //if (last_id >= 0) push_blacklist(last_id);
+            //if (check_blacklist(c->tid)) {
+            //free(blacklist);
+            if (last_id > c->tid)
                 error("Input BAM is not sorted? %d:%d",c->tid, c->pos);
-            }
-                        
+                
             last_id = c->tid;
         }
 
