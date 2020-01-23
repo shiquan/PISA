@@ -65,19 +65,65 @@ static int cmpfunc (const void *_a, const void *_b)
     if (a->start != b->start) return a->start - b->start;
     return a->end - b->end;
 }
+struct binlist {
+    int n, m;
+    struct gtf_lite **a;
+};
 
+KHASH_MAP_INIT_INT(bin, struct binlist)
+
+struct gtf_idx {
+    khash_t(bin) *idx;
+};
+// copied from tabix/index.c
+static inline int ti_reg2bin(uint32_t beg, uint32_t end)
+{
+	--end;
+	if (beg>>14 == end>>14) return 4681 + (beg>>14);
+	if (beg>>17 == end>>17) return  585 + (beg>>17);
+	if (beg>>20 == end>>20) return   73 + (beg>>20);
+	if (beg>>23 == end>>23) return    9 + (beg>>23);
+	if (beg>>26 == end>>26) return    1 + (beg>>26);
+	return 0;
+}
+
+static void idx_bin_push(struct gtf_idx *idx, uint32_t start, uint32_t end, struct gtf_lite *gl)
+{
+    khint_t k;
+    int ret;
+    struct binlist *l;
+    int bin = ti_reg2bin(start, end);
+    //    debug_print("BIN : %d", bin);
+    k = kh_put(bin, idx->idx, bin, &ret);
+    l = &kh_val(idx->idx, k);
+    if (ret) { // not present
+        l->m = 1; l->n = 0;
+        l->a = (struct gtf_lite**)calloc(1, sizeof(void*));
+    }
+    if (l->m == l->n) {
+        l->m <<=1;
+        l->a = (struct gtf_lite**)realloc(l->a, l->m*sizeof(void*));
+    }
+    l->a[l->n++] = gl;
+}
 static void gtf_build_index(struct gtf_spec *G)
 {
     qsort(G->gtf, G->n_gtf, sizeof(struct gtf_lite), cmpfunc);
     G->ctg = malloc(dict_size(G->name)*sizeof(struct ctg_idx));
     memset(G->ctg, 0, sizeof(struct ctg_idx)*dict_size(G->name));
-    G->idx = malloc(G->n_gtf*sizeof(uint64_t));
+    G->idx = malloc(dict_size(G->name)*sizeof(struct gtf_idx));    
+    
     int i;
+    for (i = 0; i < dict_size(G->name); ++i)
+        G->idx[i].idx = kh_init(bin);
+    
     for (i = 0; i < G->n_gtf; ++i) {
-        struct gtf_lite *gl = &G->gtf[i];
-        G->idx[i] = (uint64_t)gl->start<<32|gl->end;
-        G->ctg[gl->seqname].offset++;        
+        struct gtf_lite *gl = &G->gtf[i];        
+        // G->idx[i] = (uint64_t)gl->start<<32|gl->end;
+        G->ctg[gl->seqname].offset++;    
         if (G->ctg[gl->seqname].idx == 0) G->ctg[gl->seqname].idx = i+1;
+
+        idx_bin_push(&G->idx[gl->seqname], gl->start, gl->end, gl);
     }
     for (i = 0; i < dict_size(G->name); ++i) G->ctg[i].idx -= 1; // convert to 0 based
 }
@@ -98,9 +144,18 @@ void gtf_destory(struct gtf_spec *G)
 {
     int i;
     for (i = 0; i < G->n_gtf; ++i) gtf_lite_clean(&G->gtf[i]);
-    free(G->ctg);
+
+    for (i = 0; i < dict_size(G->name); ++i) {
+        struct gtf_idx *idx = &G->idx[i];
+        khint_t k;
+        for (k = kh_begin(idx->idx); k != kh_end(idx->idx); ++k) {
+            if (kh_exist(idx->idx, k)) 
+                if (kh_val(idx->idx, k).m) free(kh_val(idx->idx, k).a);
+        }
+        kh_destroy(bin,idx->idx);
+    }
     free(G->idx);
-    // free(G->gene_idx);
+    free(G->ctg);
     free(G->gtf);
     dict_destroy(G->name);
     dict_destroy(G->gene_name);
@@ -208,7 +263,6 @@ static int gtf_push_to_last_gene(struct gtf_spec *G, struct gtf_lite *gl)
 static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
 {
     int n;
-    // debug_print("%s", str->s);
     int *s = ksplit(str, '\t', &n);
     if (n != 9) error("Unknown format. %s", str->s);
 
@@ -314,71 +368,71 @@ struct gtf_spec *gtf_read(const char *fname, int filter)
     
     return G;
 }
-void gtf_itr_destory(struct gtf_itr *i)
+
+#define MAX_BIN 37450 // =(8^6-1)/7+1
+
+static inline int reg2bins(uint32_t beg, uint32_t end, uint16_t list[MAX_BIN])
 {
-    free(i); 
+	int i = 0, k;
+	if (beg >= end) return 0;
+	if (end >= 1u<<29) end = 1u<<29;
+	--end;
+	list[i++] = 0;
+	for (k =    1 + (beg>>26); k <=    1 + (end>>26); ++k) list[i++] = k;
+	for (k =    9 + (beg>>23); k <=    9 + (end>>23); ++k) list[i++] = k;
+	for (k =   73 + (beg>>20); k <=   73 + (end>>20); ++k) list[i++] = k;
+	for (k =  585 + (beg>>17); k <=  585 + (end>>17); ++k) list[i++] = k;
+	for (k = 4681 + (beg>>14); k <= 4681 + (end>>14); ++k) list[i++] = k;
+	return i;
 }
 
-#define idx_start(a) (int)(a>>32)
-#define idx_end(a) (int)(a)
-
-struct gtf_itr *gtf_itr_build(struct gtf_spec *G)
+void gtf_itr_destory(struct gtf_itr *itr)
 {
-    struct gtf_itr *i = malloc(sizeof(*i));
-    memset(i, 0, sizeof(*i));
-    i->G = G;
-    i->id = -1;
-    return i;
+    free(itr->gtf);
+    free(itr);
 }
-// todo: improve performance here
-int gtf_query(struct gtf_itr *itr, char *name, int start, int end)
+
+// TODO: improve performance here
+struct gtf_itr*gtf_query(struct gtf_spec *G, char *name, int start, int end)
 {
-    struct gtf_spec *G = itr->G;
     int id = dict_query(G->name, name);
-    if (id == -1) return -2; // not this chrom
+    if (id == -1) return NULL;
+
+    if (start < 0) start = 0;
+    if (end < start) return NULL;
 
     int st = G->ctg[id].idx;
-    int ed = st + G->ctg[id].offset-1;
-    int ed0 = ed;
-    if (end < idx_start(G->idx[st])) return -1; // out of range
+    if (end < G->gtf[st].start) return NULL; // out of range
 
-    // removed because for overlapped transcript, big transcript may cover both ends of short ones
-    // if (start > idx_end(G->idx[ed])) return -1; 
+    int n=0, i, n_bin;
+    khint_t k;
+    struct gtf_idx *idx = &G->idx[id];
+    uint16_t *bins  = (uint16_t*)calloc(MAX_BIN, 2);
+    n_bin = reg2bins(start, end, bins);
 
-    if (id == itr->id) {
-        st = itr->st;
-        if (idx_end(G->idx[st]) > start) goto check_overlap;
-        if (st+1 < ed && idx_start(G->idx[st+1]) > end) return 1; // intergenic
+    for (i = 0; i < n_bin; ++i) 
+        if ((k = kh_get(bin, idx->idx, bins[i])) != kh_end(idx->idx))
+            n += kh_val(idx->idx, k).n;
+
+    if (n == 0) {
+        free(bins);
+        return NULL;
     }
 
-    // FIX: find the smallest i such that start(idx[st]) <= start && start <= end(idx[st])
-    // 
-    while (st < ed) {
-        int mid = st + ((ed-st)>>1);
-        if (idx_start(G->idx[mid])>start) st = mid+1;
-        else ed = mid;
-    }
-    if (st != ed) error("%d %d, %d, %d, start : %d, end : %d", st, ed, idx_start(G->idx[st]), idx_end(G->idx[st]), start, end);
+    struct gtf_itr *itr = malloc(sizeof(*itr));
+    itr->n = n;
+    itr->gtf = malloc(sizeof(void*)*n);
+    int l = 0;
+    for (i = 0; i < n_bin; ++i)
+        if ((k = kh_get(bin, idx->idx, bins[i])) != kh_end(idx->idx)) {
+            int j;
+            struct binlist *list = &kh_val(idx->idx, k);
+            for (j = 0; j < list->n; ++j)
+                itr->gtf[l++] = list->a[j];                
+        }
 
-  check_overlap:
-    if (end < G->gtf[st].start) {
-        itr->id = id;
-        itr->st = st;
-        return 1; // intergenic
-    }
-    int i;
-    int c = 0;
-    for (i = st; i <= ed0; ++i) {
-        struct gtf_lite *g1 = &G->gtf[i];
-        if (g1->start <= end) c++;
-        else break;
-        // if (c > 4) break; // cover over 4 genes?? impossible
-    }
-
-    itr->id = id;
-    itr->st = st;
-    itr->n = c;
-    return 0;
+    qsort(itr->gtf, itr->n, sizeof(struct gtf_lite), cmpfunc);
+    return itr;
 }
 
 #ifdef GTF_MAIN

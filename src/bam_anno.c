@@ -528,8 +528,6 @@ enum exon_type {
 
 void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
 {
-    struct gtf_itr *itr = gtf_itr_build(args.G);
-    
     kstring_t trans = {0,0,0};
     kstring_t genes = {0,0,0};
     kstring_t gene_id = {0,0,0};
@@ -571,61 +569,40 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
         char *name = h->target_name[c->tid];
         int endpos = bam_endpos(b);
 
-        enum exon_type et = type_unknown;
-
-        if ( gtf_query(itr, name, c->pos+1, endpos) != 0 ) continue; // query failed
-        if ( itr->n == 0) continue; // no hit
+        struct gtf_itr *itr = gtf_query(args.G, name, c->pos+1, endpos);
+        if (itr == NULL) continue; // query failed
+        if (itr->n == 0) continue; // no hit
         
         stat->reads_in_gene++;
-
+        enum exon_type et = type_unknown;
         struct isoform *S = bend_sam_isoform(b);
         
         int l;
         int trans_novo = 0;
-        // int is_ambi = 0;
-        //int anti = 0;
-        //int is_intron = 0;
-        // int splice_overlapped = 0;
 
         // reset buffer
         trans.l = genes.l = gene_id.l = 0;
-        
-        // exon == splice > intron > antisense
-        struct gtf_lite const *g = &G->gtf[itr->st];
-        
+        int gene_save = -1;
+        // exon == splice > intron > antisense        
         for (l = 0; l < itr->n; ++l) {            
-            struct gtf_lite const *g0 = &g[l];
+            struct gtf_lite const *g0 = itr->gtf[l];
+            if (g0->start > c->pos || endpos > g0->end) continue; // not fully covered
+            
             if (args.ignore_strand == 0) {
                 if (c->flag & BAM_FREVERSE) {
-                    if (g0->strand == 0) {
-                        //anti = 1;
+                    if (g0->strand == 0) {                   
                         if (et == type_unknown)
                             et = type_antisense;
                         continue;
                     }
                 }
                 else if (g0->strand == 1) {
-                    // anti = 1;
                     if (et == type_unknown)
                         et = type_antisense;
                     continue;
                 }
             }
 
-            // reset antisense mark if multi GL record detected
-            // anti = 0;
-            
-            if (c->pos+1 < g0->start || endpos > g0->end || c->pos >= g0->end || endpos <= g0->start) {
-                if (et == type_unknown || et == type_antisense)
-                    et = type_ambi;
-                continue; // not full enclosed in genes
-            }
-            
-            /*
-            // for reads overlapped with multiply genes, only count the last one, since the last one is more close with the reads
-            g = g + (n-1);
-            */
-            
             int i;
             int in_gene = 0;
             // for each transcript
@@ -636,22 +613,21 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
                 if (ret == -2) continue;
                 if (ret == 2 || ret == 3) {
                     trans_novo = 1;
+                    gene_save = g0->gene_name;
                     continue; // not this transcript
                 }                
 
                 if (ret == -1) {
-                    // is_intron = 1;
                     if (et == type_unknown) // if not set, set to intron
                         et = type_intron;
                     continue; // introns will also be filter
                 }
                 if (ret == 1) { 
-                    // splice_overlapped = 1;
                     if (et != type_exon) 
                         et = type_splice;
                     if (args.splice_consider == 0) continue;
                 }
-
+                
                 et = type_exon;
                 
                 trans_novo = 0;
@@ -659,19 +635,16 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
                 if (trans.l) kputc(';', &trans);
                 kputs(dict_name(G->transcript_id,g1->transcript_id), &trans);
             }
-
+            
             if (in_gene) {
                 if (genes.l) kputc(';', &genes);
                 kputs(dict_name(G->gene_name,g0->gene_name), &genes);
                 if (gene_id.l) kputc(';', &gene_id);
                 kputs(dict_name(G->gene_id,g0->gene_id), &gene_id);
-                
-                //anti = 0; // reset antisense flag
             } 
         }
+        
         // GN_tag
-        // char *gene = G->gene_name->name[g->gene_name];
-        // l = strlen(gene);
         if (trans.l) { // match case
             bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
             //bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
@@ -680,7 +653,7 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
             stat->reads_in_exon++;
         }
         else if (trans_novo) {
-            kputs(dict_name(G->gene_name,g->gene_name), &genes);
+            kputs(dict_name(G->gene_name, gene_save), &genes);
             bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
             bam_aux_append(b, TX_tag, 'Z', 8, (uint8_t*)"UNKNOWN");            
         }
@@ -704,15 +677,14 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
         //else if (splice_overlapped) {
             bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"S");
         }
-        
+
+        gtf_itr_destory(itr);
         free(S->p);
         free(S);
     }
     if (trans.m) free(trans.s);
     if (genes.m) free(genes.s);
     if (gene_id.m) free(gene_id.s);
-
-    gtf_itr_destory(itr);
 }
 
 struct ret_dat {
