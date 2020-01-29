@@ -169,7 +169,7 @@ static struct read_block *read_block()
 
         bseq1_t *bb = &b->b[0];
         bb->seq = strdup(args.ks->seq.s);
-        if (args.ks->qual.l) bb->qual =  strdup(args.ks->qual.s);
+        if (args.ks->qual.l) bb->qual = strdup(args.ks->qual.s);
         bb->l_seq = args.ks->seq.l;
         b->n++;
         free(args.last_name);
@@ -254,10 +254,7 @@ static void *run_it(void *_d)
 {
     char *out = NULL;
     struct read_block *b = (struct read_block*)_d;
-    //if (b->n == 1) {
-    //out = rend_bseq(b);
-//}
-    //else {
+
     if (b->n > 1) {
         int n_utg;
         fml_utg_t *utg = fml_assemble(args.assem_opt, b->n, b->b, &n_utg);
