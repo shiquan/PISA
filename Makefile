@@ -11,7 +11,7 @@ LIBFML = fermi-lite/libfml.a
 CC       = gcc
 CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64
 DFLAGS   =
-INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I fermi-lite -I zlib-1.2.11
+INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I fermi-lite
 LIBS = -lbz2 -llzma -pthread -lm
 
 #all:$(PROG)
@@ -29,7 +29,8 @@ single_cell_version.h:
 force:
 
 .c.o:
-	$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@
+	@printf "Compiling $<...                               \r"
+	@$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@ || echo "Error in command: $(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $<"
 
 LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/dict.o src/seq_merge.o src/ksa.o \
 	src/bam_pool.o src/umi_corr.o src/dict.o src/read_thread.o src/read_tags.o src/sim_search.o
@@ -47,7 +48,7 @@ AOBJ = src/bam_anno.o \
 	src/fastq_overlap.o \
 	src/fastq_assem.o \
 	src/LFR_impute.o \
-	src/bam_corr_umi.o \
+	src/bam_tag_corr.o \
 	src/bam2fq.o \
 	src/gene_cov.o \
 	src/bam_extract_tags.o \
@@ -55,10 +56,6 @@ AOBJ = src/bam_anno.o \
 
 ASSM_LIB_OBJ =	fermi-lite/bfc.o fermi-lite/bseq.o fermi-lite/bubble.o fermi-lite/htab.o fermi-lite/ksw.o fermi-lite/kthread.o fermi-lite/mag.o fermi-lite/misc.o \
 	fermi-lite/mrope.o fermi-lite/rld0.o fermi-lite/rle.o fermi-lite/rope.o fermi-lite/unitig.o
-
-# bfc.c bseq.c		bubble.c	example.c	htab.c		ksw.c		kthread.c	mag.c		misc.c		mrope.c		rld0.c		rle.c		rope.c		unitigc.
-libz:
-	cd zlib-1.2.11 && ${MAKE}
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@
@@ -70,8 +67,8 @@ libfml.a: $(ASSM_LIB_OBJ)
 
 test: $(HTSLIB) version.h
 
-PISA: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h libfml.a libz
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) fermi-lite/libfml.a  src/liba.a $(HTSLIB) zlib-1.2.11/libz.a $(LIBS)
+PISA: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h libfml.a 
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) fermi-lite/libfml.a  src/liba.a $(HTSLIB) -lz $(LIBS)
 
 src/sim_search.o: src/sim_search.c
 src/fragment.o: src/fragment.c
@@ -81,7 +78,7 @@ src/seq_merge.o: src/seq_merge.c
 src/bam_anno.o: src/bam_anno.c
 src/bam_count.o: src/bam_count.c
 src/bam_pick.o: src/bam_pick.c
-src/bam_corr_umi.o: src/bam_corr_umi.c
+src/bam_tag_corr.o: src/bam_tag_corr.c
 src/umi_corr.o: src/umi_corr.c
 src/fastq_parse_barcode.o: src/fastq_parse_barcode.c
 src/fastq_sort.o: src/fastq_sort.c
