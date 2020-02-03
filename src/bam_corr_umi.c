@@ -13,11 +13,10 @@ static int usage()
     fprintf(stderr, "bam_tag_corr in.bam\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -o             Output bam.\n");
-    fprintf(stderr, "  -tag           Tag for kmers to correct. Usually be UMI tag.\n");
-    fprintf(stderr, "  -tags-block    Tags for each block. Reads in one block will be corrected with each other. Usually be cell barcode tag and gene tag.\n");
+    fprintf(stderr, "  -tag           Tag to correct.\n");
+    fprintf(stderr, "  -tags-block    Tags to define each block. Reads in one block will be corrected by frequency.\n");
     fprintf(stderr, "  -@             Thread to unpack and pack BAM file.[5]\n");
     fprintf(stderr, "  -t             Thread to process data.[4]\n");
-    // fprintf(stderr, "  -white-list    White list. Conflict with -block. If set tag will be correct with white list.\n");
     return 1;
 }
 
@@ -108,21 +107,6 @@ static int parse_args(int argc, char **argv)
     if (file_th) args.file_th = str2int((char*)file_th);
     if (thread) args.n_thread = str2int((char*)thread);
 
-    args.in  = hts_open(args.input_fname, "r");
-    CHECK_EMPTY(args.in, "%s : %s.", args.input_fname, strerror(errno));
-    htsFormat type = *hts_get_format(args.in);
-    if (type.format != bam && type.format != sam)
-        error("Unsupported input format, only support BAM/SAM/CRAM format.");
-    args.hdr = sam_hdr_read(args.in);
-    CHECK_EMPTY(args.hdr, "Failed to open header.");
-    
-    args.out = hts_open(args.output_fname, "bw");
-    CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
-
-    hts_set_threads(args.in, args.file_th);
-    
-    if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
-     
     return 0;
 }
 
@@ -188,9 +172,9 @@ static struct corr_tag *build_index(const char *fn)
 
     struct corr_tag *Cindex = corr_tag_build();
     
-    hts_tpool *p = hts_tpool_init(args.n_thread);
-    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
-    hts_tpool_result *r;
+    //hts_tpool *p = hts_tpool_init(args.n_thread);
+    //hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+    //hts_tpool_result *r;
 
     for (;;) {
         struct bam_pool *b = bam_pool_create();
@@ -198,7 +182,10 @@ static struct corr_tag *build_index(const char *fn)
         
         if (b == NULL) break;
         if (b->n == 0) { free(b->bam); free(b); break; }
-        
+
+        struct idx_str_pool *d = build_idx_read(b);
+        build_idx_core(Cindex, d);
+        /*
         int block;
         do {
             block = hts_tpool_dispatch2(p, q, build_idx_read, b, 1);
@@ -209,8 +196,10 @@ static struct corr_tag *build_index(const char *fn)
             }
         }
         while (block == -1);
+        */
     }
-    
+
+    /*
     hts_tpool_process_flush(q);
 
     while ((r = hts_tpool_next_result(q))) {
@@ -220,7 +209,7 @@ static struct corr_tag *build_index(const char *fn)
     }
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
-
+    */
     bam_hdr_destroy(hdr);
     sam_close(fp);
 
@@ -293,10 +282,24 @@ int bam_corr_umi(int argc, char **argv)
     t_real = realtime();        
     args.Cindex = build_index(args.input_fname);
     LOG_print("Index build finished: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
+
+    args.in  = hts_open(args.input_fname, "r");
+    CHECK_EMPTY(args.in, "%s : %s.", args.input_fname, strerror(errno));
+    htsFormat type = *hts_get_format(args.in);
+    if (type.format != bam && type.format != sam) error("Unsupported input format, only support BAM/SAM/CRAM format.");
+    args.hdr = sam_hdr_read(args.in);
+    CHECK_EMPTY(args.hdr, "Failed to open header.");
     
-    hts_tpool *p = hts_tpool_init(args.n_thread);
-    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
-    hts_tpool_result *r;
+    args.out = hts_open(args.output_fname, "bw");
+    CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
+    
+    if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
+    
+    hts_set_threads(args.out, args.file_th); // write file in multi-threads
+
+    //hts_tpool *p = hts_tpool_init(args.n_thread);
+    //hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+    //hts_tpool_result *r;
 
     for (;;) {
         struct bam_pool *b = bam_pool_create();
@@ -304,7 +307,11 @@ int bam_corr_umi(int argc, char **argv)
             
         if (b == NULL) break;
         if (b->n == 0) { free(b->bam); free(b); break; }
+
+        struct p_data *d = run_it(b);
+        write_out(d);
         
+        /*
         int block;
         do {
             block = hts_tpool_dispatch2(p, q, run_it, b, 1);
@@ -315,8 +322,10 @@ int bam_corr_umi(int argc, char **argv)
             }
         }
         while (block == -1);
+        */
     }
-    
+
+    /*
     hts_tpool_process_flush(q);
 
     while ((r = hts_tpool_next_result(q))) {
@@ -326,6 +335,7 @@ int bam_corr_umi(int argc, char **argv)
     }
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
+    */
     memory_release();    
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     LOG_print("%d records updated.", args.update_count);

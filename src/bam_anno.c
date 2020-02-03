@@ -292,8 +292,7 @@ static int parse_args(int argc, char **argv)
     if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
 
     hts_set_threads(args.fp, file_th); 
-    hts_set_threads(args.out, file_th);
-
+    //hts_set_threads(args.out, file_th);
     return 0;
 }
 

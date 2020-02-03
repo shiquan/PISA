@@ -56,6 +56,7 @@ static void assem_opt_init(fml_opt_t *opt)
 {
     fml_opt_init(opt);
     opt->min_asm_ovlp = 20;
+    opt->min_merge_len = 50;
     opt->ec_k = -1;
     opt->mag_opt.flag |= MAG_F_AGGRESSIVE;
     opt->mag_opt.flag &= ~MAG_F_POPOPEN;
