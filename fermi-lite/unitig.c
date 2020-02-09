@@ -130,7 +130,6 @@ int fm6_get_nei(const rld_t *e, int min_match, int beg, kstring_t *s, rldintv_v 
 	int ori_l = s->l, j, i, c, rbeg, is_forked = 0;
 	rldintv_v *swap;
 	rldintv_t ok[6], ok0;
-
 	curr->n = nei->n = cat->n = 0;
 	if (prev->n == 0) { // when this routine is called for the seed, prev may filled by fm6_is_contained()
 		overlap_intv(e, s->l - beg, (uint8_t*)s->s + beg, min_match, s->l - beg - 1, 0, prev, 0);

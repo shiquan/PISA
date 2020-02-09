@@ -68,7 +68,7 @@ void thread_dat_destroy(struct thread_dat *td)
     free(td->rb);
     free(td);
 }
-static char *generate_names(char **names, struct dict *dict)
+static char *generate_names(char **names, const struct dict *dict)
 {
     kstring_t str = {0,0,0};
     int i;

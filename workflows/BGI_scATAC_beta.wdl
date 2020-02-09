@@ -84,7 +84,7 @@ task parseFastq {
   output {
     String fastq="${outdir}/temp/reads.fq"
     File fastq0="${outdir}/temp/reads.fq"
-    File trimReport="{outdir}/report/trim.csv"
+    File trimReport="${outdir}/report/trim.csv"
   }
 }
 
