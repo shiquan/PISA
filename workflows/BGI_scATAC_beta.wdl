@@ -118,6 +118,8 @@ task sortBam {
     if [ -f ${default=abjdbashj lib} ]; then
     source ${lib}
     fi
+    export PATH=${root}/bin:$PATH
+    
     ${root}/bin/sambamba sort -t 10 -o ${outdir}/temp/sorted.bam ${bam} && \
     ${root}/bin/PISA rmdup -tag CB -t 10 -o ${outdir}/temp/rmdup.bam  ${outdir}/temp/sorted.bam && \
     ${root}/bin/sambamba index -t 10 ${outdir}/temp/rmdup.bam && \
