@@ -106,7 +106,7 @@ task fastq2bam {
   output {
     String bam="${outdir}/temp/aln.bam"
     File bam1="${outdir}/temp/aln.bam"
-    File alnReport="{outdir}/report/alignment_report.csv"
+    File alnReport="${outdir}/report/alignment_report.csv"
   }
 }
 task sortBam {
