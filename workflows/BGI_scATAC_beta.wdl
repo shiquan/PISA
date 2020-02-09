@@ -118,8 +118,8 @@ task sortBam {
     if [ -f ${default=abjdbashj lib} ]; then
     source ${lib}
     fi
-    ${root}/bin/sambamba sort -t 10 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam && \
-    ${root}/bin/PISA rmdup -tag CB -t 10 -o ${outdir}/temp/rmdup.bam && \
+    ${root}/bin/sambamba sort -t 10 -o ${outdir}/temp/sorted.bam ${bam} && \
+    ${root}/bin/PISA rmdup -tag CB -t 10 -o ${outdir}/temp/rmdup.bam  ${outdir}/temp/sorted.bam && \
     ${root}/bin/sambamba index -t 10 ${outdir}/temp/rmdup.bam && \
     ${root}/bin/bap2 bam -i ${outdir}/temp/rmdup.bam -bt CB -r mm10 --mapq 20 -o ${outdir}/outs -c 20 -n sample    
   }
