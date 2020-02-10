@@ -5,37 +5,31 @@
 
 int usage()
 {
-    fprintf(stderr, "\nPISA - a Preprocessing and In silico dissecting toolkit for Single-cell data Analysis.\n");
+    fprintf(stderr, "\nPISA - a preprocessing and inference tool for single-cell data analysis\n");
     fprintf(stderr, "Version : %s + htslib : %s\n", PISA_VERSION, HTS_VERSION_TEXT);
+    fprintf(stderr, "Contact : Quan SHI [shiquan(AT)genomics.cn]\n");
     fprintf(stderr, "\nCommands :\n");
     fprintf(stderr, "\n--- Processing FASTQ\n");
-    fprintf(stderr, "    parse      Parse barcodes and UMIs from fastq reads.\n");
-    // fprintf(stderr, "    trim       Trim TN5 mosic ends or polyAs.\n");
-    fprintf(stderr, "    fsort      Sort fastq records by tags.\n");
-    // fprintf(stderr, "    assem      Assemble reads.\n");
-    // fprintf(stderr, "    segment    Trim predefined segments from untigs.\n");
+    fprintf(stderr, "    parse      Parse barcodes from fastq reads.\n");
+    fprintf(stderr, "    fsort      Sort fastq records by barcodes.\n");
+    fprintf(stderr, "    assem      Assemble tagged reads. Fastq need be sorted by `fsort` before assembly ** experiment **.\n");
+    fprintf(stderr, "    segment    Select defined segments from contigs. ** experiment **\n");
     
     fprintf(stderr, "\n--- Processing BAM\n");
     fprintf(stderr, "    sam2bam    Convert SAM to BAM, and transform tags from read name to standard SAM tags.\n");
-    fprintf(stderr, "    rmdup      Remove PCR duplicates, consider cell barcodes and UMI tags.\n");
+    fprintf(stderr, "    rmdup      Remove PCR duplicates, consider cell barcodes and/or UMIs.\n");
     fprintf(stderr, "    pick       Pick alignments of specific cells.\n");
-    fprintf(stderr, "    anno       Annotate peak or gene names into BAM attributions.\n");
-    fprintf(stderr, "    corr       Correct low frequency UMI to close one, 1 mismatch considered.\n");
-    fprintf(stderr, "    attrcnt    Count raw reads and reads with predefined tag for each cell.\n");
+    fprintf(stderr, "    anno       Annotate functional regions or gene names.\n");
+    fprintf(stderr, "    corr       Correct error prone UMIs. 1 mismatch considered.\n");
+    fprintf(stderr, "    attrcnt    Count raw reads and tags.\n");
     fprintf(stderr, "    extract    Extract tags information from BAM.\n");
     fprintf(stderr, "    count      Count matrix.\n");
-    fprintf(stderr, "    bam2fq     Convert bam to fastq file. Select tags will be export at read name.\n");
+    fprintf(stderr, "    bam2fq     Convert bam to fastq file. Tagged information will exported at read name.\n");
     // fprintf(stderr, "    genecov    Calculate reads coverage over gene body.\n");
     // fprintf(stderr, "    bam2frag   Convert bam to bgzipped fragment file.\n");
-    fprintf(stderr, "    impute     Impute tags in BAM.\n");
+    fprintf(stderr, "    impute     Impute tagged reads.\n");
     
-    // fprintf(stderr, "\n--- Processing scLFR reads. *experimental*\n");
-    // fprintf(stderr, "    assem      Assem reads per fastq block (specified with -tag, fastq need be sorted)\n");
-    // fprintf(stderr, "    segment    Check predefined segments from reads.\n");
-    //fprintf(stderr, "    cleanup    Clean up reads before assembly.\n");   
     fprintf(stderr, "\n");
-    // fprintf(stderr, "Author : Shi Quan [shiquan(AT)genomics.cn]\n");
-    // fprintf(stderr, "Homepage : https://github.com/shiquan/SingleCellTools\n");
     return 1;
 }
 int main(int argc, char *argv[])
