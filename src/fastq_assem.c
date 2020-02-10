@@ -82,7 +82,7 @@ static void assem_opt_init(fml_opt_t *opt)
     opt->mag_opt.flag &= ~MAG_F_POPOPEN;
     opt->min_cnt = 1;
     opt->max_cnt = 2;
-    mag_init_lfr(opt->mag_opt);
+    mag_init_lfr(&opt->mag_opt);
 };
 static struct args {
     const char *input_fname;
