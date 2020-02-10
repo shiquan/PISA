@@ -130,7 +130,8 @@ show-version:
 .SUFFIXES: .bundle .c .cygdll .dll .o .pico .so
 
 .c.o:
-	$(CC) $(CFLAGS) -I. $(CPPFLAGS) -c -o $@ $<
+	@printf "Compiling $<...                               \r"
+	@$(CC) $(CFLAGS) -I. $(CPPFLAGS) -c -o $@ $<
 
 .c.pico:
 	$(CC) $(CFLAGS) -I. $(CPPFLAGS) $(EXTRA_CFLAGS_PIC) -c -o $@ $<

@@ -6,15 +6,19 @@ HTSDIR = third_party/htslib-1.10.2
 include $(HTSDIR)/htslib.mk
 HTSLIB = $(HTSDIR)/libhts.a
 HTSVERSION = $(HTSDIR)/version.h
+
 FMLDIR = third_party/fermi-lite
-LIBA = src/liba.a
+include $(FMLDIR)/fermi.mk
 FMLLIB = $(FMLDIR)/libfml.a
+
+LIBA = src/liba.a
+
 
 CC       = gcc
 CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64
 DFLAGS   =
 INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I $(FMLDIR)
-LIBS = -lbz2 -llzma -pthread -lm -lcurl
+LIBS = -lbz2 -llzma -pthread -lm -lcurl -lz
 
 #all:$(PROG)
 
@@ -54,21 +58,14 @@ AOBJ = src/bam_anno.o \
 	src/bam_extract_tags.o \
 	src/fragment.o
 
-ASSM_LIB_OBJ =	fermi-lite/bfc.o fermi-lite/bseq.o fermi-lite/bubble.o fermi-lite/htab.o fermi-lite/ksw.o fermi-lite/kthread.o fermi-lite/mag.o fermi-lite/misc.o \
-	fermi-lite/mrope.o fermi-lite/rld0.o fermi-lite/rle.o fermi-lite/rope.o fermi-lite/unitig.o
-
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@
 	$(AR) -rcs src/$@ $(LIB_OBJ)
 
-libfml.a: $(ASSM_LIB_OBJ)
-	@-rm -f $(FMLDIR)/$@
-	$(AR) -rcs $(FMLDIR)/$@ $(ASSM_LIB_OBJ)
-
 test: $(HTSLIB) $(HTSVERSION)
 
-PISA: $(HTSLIB) liba.a $(AOBJ) pisa_version.h libfml.a 
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) $(FMLLIB) src/liba.a $(HTSLIB) -lz $(LIBS)
+PISA: $(HTSLIB) $(FMLLIB) liba.a $(AOBJ) pisa_version.h 
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) $(FMLLIB) src/liba.a $(HTSLIB) $(LIBS)
 
 src/sim_search.o: src/sim_search.c
 src/fragment.o: src/fragment.c
@@ -103,19 +100,6 @@ src/ksa.o: src/ksa.c
 src/bam_pool.o: src/bam_pool.c
 src/LFR_impute.o: src/LFR_impute.c
 src/bam_extract_tags.o: src/bam_extract_tags.c
-fermi-lite/bfc.o: fermi-lite/bfc.c
-fermi-lite/bseq.o: fermi-lite/bseq.c
-fermi-lite/bubble.o: fermi-lite/bubble.c
-fermi-lite/htab.o: fermi-lite/htab.c
-fermi-lite/ksw.o: fermi-lite/ksw.c
-fermi-lite/kthread.o: fermi-lite/kthread.c
-fermi-lite/mag.o: fermi-lite/mag.c
-fermi-lite/misc.o: fermi-lite/misc.c
-fermi-lite/mrope.o: fermi-lite/mrope.c
-fermi-lite/rld0.o: fermi-lite/rld0.c
-fermi-lite/rle.o: fermi-lite/rle.c
-fermi-lite/rope.o: fermi-lite/rope.c
-fermi-lite/unitig.o: fermi-lite/unitig.c
 
 clean: testclean
 	-rm -f gmon.out *.o *~ $(PROG) pisa_version.h 
