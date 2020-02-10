@@ -21,21 +21,21 @@ struct dict *dict_init()
     return D;
 }
 
-char *dict_name(struct dict *D, int idx)
+char *dict_name(const struct dict *D, int idx)
 {
     assert(idx >= 0 && idx < D->n);
     return D->name[idx];
 }
 
-int dict_size(struct dict *D)
+int dict_size(const struct dict *D)
 {
     return D->n;    
 }
-uint32_t dict_count(struct dict *D, int idx)
+uint32_t dict_count(const struct dict *D, int idx)
 {
     return D->count[idx];
 }
-uint32_t dict_count_sum(struct dict *D)
+uint32_t dict_count_sum(const struct dict *D)
 {
     uint32_t sum = 0;
     int i;
@@ -52,7 +52,7 @@ void dict_destroy(struct dict *D)
     free(D);
 }
 
-int dict_query(struct dict *D, char *key)
+int dict_query(const struct dict *D, char *key)
 {
     if (key == NULL) error("Trying to query an empty key.");
     khint_t k;

@@ -266,10 +266,12 @@ static int stack_check_quote()
         return 0;
     return stack.nodes[stack.l -1].type == double_quote || stack.nodes[stack.l -1].type == quote;
 }
+/*
 static int check_key_pair()
 {
     return is_paired;
 }
+*/
 static int check_complement(kstring_t *string)
 {
     int i;

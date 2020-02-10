@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <time.h>
+#include <string.h>
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"

@@ -52,16 +52,37 @@ static uint8_t *enc_str(char *s, int l)
     e[l] = 0;
     return e;
 }
+void mag_init_lfr(magopt_t *o)
+{
+    memset(o, 0, sizeof(magopt_t));
+    o->trim_len = 0;
+    o->trim_depth = 6;
+    
+    o->min_elen = 300;
+    o->min_ovlp = 0;
+    o->min_merge_len = 0;
+    o->min_ensr = 1;
+    o->min_insr = 0;
+    o->min_dratio1 = 0.7;
+    
+    o->max_bcov = 10.;
+    o->max_bfrac = 0.15;
+    o->max_bvtx = 64;
+    o->max_bdist = 512;
+    o->max_bdiff = 50;
+}
 static void assem_opt_init(fml_opt_t *opt)
 {
-    fml_opt_init(opt);
+    //fml_opt_init(opt);
+    opt->n_threads = 1;
     opt->min_asm_ovlp = 20;
-    opt->min_merge_len = 50;
+    opt->min_merge_len = 0;
     opt->ec_k = -1;
     opt->mag_opt.flag |= MAG_F_AGGRESSIVE;
     opt->mag_opt.flag &= ~MAG_F_POPOPEN;
     opt->min_cnt = 1;
     opt->max_cnt = 2;
+    mag_init_lfr(opt->mag_opt);
 };
 static struct args {
     const char *input_fname;

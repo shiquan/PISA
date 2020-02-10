@@ -10,7 +10,7 @@
 #define BASE_T  0x4
 #define BASE_N  0x5
 
-static int kmer_min = 5;
+//static int kmer_min = 5;
 static int kmer_max = 21;
 
 static int kmer_size = 5;
@@ -155,6 +155,7 @@ void ss_destroy(ss_t *S)
     free(S->cs);
     free(S);
 }
+/*
 static char *print_bits64(uint64_t x)
 {
     kstring_t str={0,0,0};
@@ -175,6 +176,7 @@ static char *print_bits32(uint32_t x)
     }
     return str.s;
 }
+*/
 static void build_kmers(ss_t *S, uint64_t q, int idx)
 {
     int offset = 3 *kmer_size;

@@ -236,7 +236,7 @@ static inline char *pick_tag_name(const bam1_t *b, int n_tag, char **tags)
     int i;
     for (i = 0; i < args.n_tag; ++i) {
         uint8_t *tag = bam_aux_get(b, args.tags[i]);
-        if (!tag) error("No %s tag at alignment. %d:%d", args.tags[i], c->tid, c->pos+1);
+        if (!tag) error("No %s tag at alignment. %d:%lld", args.tags[i], c->tid, c->pos+1);
         kputs((char*)tag, &str);
     }
     return str.s;

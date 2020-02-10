@@ -4,7 +4,8 @@
 struct bam_pool *bam_pool_create()
 {
     struct bam_pool *p = malloc(sizeof(*p));
-    memset(p, 0, sizeof(*p));
+    p->n = p->m =0;
+    p->bam = NULL;
     return p;
 }
 void bam_read_pool(struct bam_pool *p, htsFile *fp, bam_hdr_t *h, int chunk_size)

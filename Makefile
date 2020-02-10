@@ -2,25 +2,27 @@ PROG= PISA
 
 all: $(PROG)
 
-HTSDIR = htslib-1.9
+HTSDIR = third_party/htslib-1.10.2
 include $(HTSDIR)/htslib.mk
 HTSLIB = $(HTSDIR)/libhts.a
+HTSVERSION = $(HTSDIR)/version.h
+FMLDIR = third_party/fermi-lite
 LIBA = src/liba.a
-LIBFML = fermi-lite/libfml.a
+FMLLIB = $(FMLDIR)/libfml.a
 
 CC       = gcc
 CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64
 DFLAGS   =
-INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I fermi-lite
-LIBS = -lbz2 -llzma -pthread -lm
+INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I $(FMLDIR)
+LIBS = -lbz2 -llzma -pthread -lm -lcurl
 
 #all:$(PROG)
 
 # See htslib/Makefile
 PACKAGE_VERSION := $(shell git describe --tags)
 
-single_cell_version.h:
-	echo '#define SINGLECELL_VERSION "$(PACKAGE_VERSION)"' > $@
+pisa_version.h:
+	echo '#define PISA_VERSION "$(PACKAGE_VERSION)"' > $@
 
 .SUFFIXES:.c .o
 
@@ -38,14 +40,12 @@ LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_
 AOBJ = src/bam_anno.o \
 	src/bam_count.o \
 	src/bam_pick.o \
-	src/dyncut.o \
 	src/sam2bam.o \
 	src/bam_rmdup.o \
 	src/bam_attr_count.o \
 	src/fastq_sort.o \
 	src/fastq_parse_barcode.o \
 	src/fastq_segment.o \
-	src/fastq_overlap.o \
 	src/fastq_assem.o \
 	src/LFR_impute.o \
 	src/bam_tag_corr.o \
@@ -62,13 +62,13 @@ liba.a: $(LIB_OBJ)
 	$(AR) -rcs src/$@ $(LIB_OBJ)
 
 libfml.a: $(ASSM_LIB_OBJ)
-	@-rm -f fermi-lite/$@
-	$(AR) -rcs fermi-lite/$@ $(ASSM_LIB_OBJ)
+	@-rm -f $(FMLDIR)/$@
+	$(AR) -rcs $(FMLDIR)/$@ $(ASSM_LIB_OBJ)
 
-test: $(HTSLIB) version.h
+test: $(HTSLIB) $(HTSVERSION)
 
-PISA: $(HTSLIB) liba.a $(AOBJ) single_cell_version.h libfml.a 
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) fermi-lite/libfml.a  src/liba.a $(HTSLIB) -lz $(LIBS)
+PISA: $(HTSLIB) liba.a $(AOBJ) pisa_version.h libfml.a 
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) $(FMLLIB) src/liba.a $(HTSLIB) -lz $(LIBS)
 
 src/sim_search.o: src/sim_search.c
 src/fragment.o: src/fragment.c
@@ -82,7 +82,6 @@ src/bam_tag_corr.o: src/bam_tag_corr.c
 src/umi_corr.o: src/umi_corr.c
 src/fastq_parse_barcode.o: src/fastq_parse_barcode.c
 src/fastq_sort.o: src/fastq_sort.c
-src/dyncut.o: src/dyncut.c
 src/dict.o: src/dict.c
 src/sam2bam.o: src/sam2bam.c
 src/barcode_list.o: src/barcode_list.c
@@ -97,7 +96,6 @@ src/kson.o: src/kson.c
 src/bam_rmdup.o: src/bam_rmdup.c
 src/bam_attr_count.o: src/bam_attr_count.c
 src/fastq_segment.o: src/fastq_segment.c
-src/fastq_overlap.o: src/fastq_overlap.c
 src/fastq_assem.o: src/fastq_assem.c
 src/read_thread.o: src/read_thread.c
 src/read_tags.o: src/read_tags.c
@@ -120,7 +118,7 @@ fermi-lite/rope.o: fermi-lite/rope.c
 fermi-lite/unitig.o: fermi-lite/unitig.c
 
 clean: testclean
-	-rm -f gmon.out *.o *~ $(PROG) single_cell_version.h 
+	-rm -f gmon.out *.o *~ $(PROG) pisa_version.h 
 	-rm -rf *.dSYM plugins/*.dSYM test/*.dSYM
 	-rm src/*.o src/liba.a
 

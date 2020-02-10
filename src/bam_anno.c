@@ -334,7 +334,7 @@ int check_is_overlapped_bed(bam_hdr_t *hdr, bam1_t *b, struct bedaux *B)
     kstring_t str = {0,0,0};// name buffer    
     uint8_t *tag = bam_aux_get(b, args.tag);
     if (tag) {
-        warnings("%s already present at line %s:%d, skip", args.tag, hdr->target_name[c->tid], c->pos+1);
+        warnings("%s already present at line %s:%lld, skip", args.tag, hdr->target_name[c->tid], c->pos+1);
         return 1;
     }
     int i;
@@ -536,7 +536,7 @@ void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
             last_id = c->tid;
         else if (last_id != c->tid) {
             if (last_id > c->tid)
-                error("Input BAM is not sorted? %d:%d",c->tid, c->pos);
+                error("Input BAM is not sorted? %d:%lld",c->tid, c->pos);
                 
             last_id = c->tid;
         }

@@ -1,6 +1,6 @@
 #include "read_tags.h"
 #include "htslib/kstring.h"
-
+#include <ctype.h>
 
 struct dict *str2tag(const char *seq)
 {
