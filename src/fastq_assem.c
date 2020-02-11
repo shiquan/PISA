@@ -440,13 +440,17 @@ int kmer_query_id(struct kmer_idx *idx, char *s, int l)
             if (p[k] != z[k]) break;
 
         if (k < l - SEED_LEN) continue;
+        /*
         if (ret != -1) {
             debug_print("hit : %d, %s", ret, idx->z[ret]);
             debug_print("hit : %d, %s", offset->idx, idx->z[offset->idx]);
             return -1; // too much hits
         }
+        */
         ret = offset->idx;
 
+        // for multiple hits, only mark the first one
+        break; 
     }
 
     return ret/2;
@@ -467,6 +471,7 @@ void remap_reads(struct ret_block *r, struct read_block *b)
     
     for (i = 0; i < b->n; ++i) {
         if (b->b[i].s1 == NULL) continue;
+        if (b->b[i].l0 < SEED_LEN || b->b[i].l1 < SEED_LEN) continue;
         int id1 = kmer_query_id(idx, b->b[i].s0, b->b[i].l0);
         int id2 = kmer_query_id(idx, b->b[i].s1, b->b[i].l1);
         // no hit
