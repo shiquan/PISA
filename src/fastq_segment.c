@@ -626,23 +626,6 @@ static struct ref *config_init(const char *fn)
     return r;
 }
 
-static int usage()
-{
-    fprintf(stderr, "* Pick pre-designed segments from untigs.\n");
-    fprintf(stderr, "Segment [options] in.fq\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "-config [json]          Configure file.\n");    
-    fprintf(stderr, "-o      [fastq]         Trimed fastq.\n");
-    fprintf(stderr, "-sl     [INT]           Seed length for mapping consensus sequence.\n");
-    fprintf(stderr, "-t      [INT]           Threads.\n");
-    fprintf(stderr, "-tag    [CB,UMI]        Tags for each read block.\n");
-    fprintf(stderr, "-pb     [PB]            Phase block tag.\n");
-    fprintf(stderr, "-k                      Keep all reads even no segments detected.\n");
-    fprintf(stderr, "-sum    summary.csv     Summary report.\n");
-    return 1;
-}
-
 struct tag_val {
     int n;
     struct dict *tag;
@@ -1316,12 +1299,14 @@ static void write_out(void *_d)
 }
 */
 
+extern int segment_usage();
+
 int fastq_segment(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
     
-    if (parse_args(argc, argv) == 1) return usage();
+    if (parse_args(argc, argv) == 1) return segment_usage();
 
     FILE *fp_in = fopen(args.input_fname, "r");
     if (fp_in == NULL) error("%s : %s.", args.input_fname, strerror(errno));

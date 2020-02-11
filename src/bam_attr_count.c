@@ -8,22 +8,6 @@
 #include "dict.h"
 #include <zlib.h>
 
-static int usage()
-{
-    fprintf(stderr, "AttrCount in.bam\n");
-    fprintf(stderr, "Options :\n");
-    fprintf(stderr, "    -cb          Cell Barcode, or other tag used for each individual.\n");
-    fprintf(stderr, "    -list        Cell barcode white list.\n");
-    fprintf(stderr, "    -tags        Tags to count.\n");
-    fprintf(stderr, "    -dedup       Deduplicate the atrributes in each tag.\n");
-    fprintf(stderr, "    -group       Group tag, count all tags for each group seperately.\n");
-    fprintf(stderr, "    -o           Output count table.\n");
-    fprintf(stderr, "    -q           Map Quality to filter bam.\n");
-    fprintf(stderr, "    -no-header   Ignore header in the output.\n");
-    fprintf(stderr, "    -@           Thread to unpack bam.\n");
-    return 1;
-}
-
 static struct args {
     const char *input_fname;
     const char *output_fname;
@@ -251,12 +235,14 @@ int generat_outputs(struct counts *cnt)
     return 0;
 }
 
+extern int bam_attr_usage();
+
 int bam_count_attr(int argc, char *argv[])
 {
     double t_real;
     t_real = realtime();
 
-    if (parse_args(argc, argv)) return usage();
+    if (parse_args(argc, argv)) return bam_attr_usage();
     
     htsFile *fp  = hts_open(args.input_fname, "r");
     CHECK_EMPTY(fp, "%s : %s.", args.input_fname, strerror(errno));

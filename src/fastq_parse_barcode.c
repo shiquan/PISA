@@ -15,28 +15,6 @@
 KHASH_MAP_INIT_STR(str, int)
 typedef kh_str_t strhash_t;
 
-static int usage()
-{
-    fprintf(stderr, "* Parse cell barcode and UMI string from raw FASTQ.\n");
-    fprintf(stderr, " parse_barcode [options] lane1_1.fq.gz,lane02_1.fq.gz  lane1_2.fq.gz,lane2_2.fq.gz\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -1        Read 1 output.\n");
-    fprintf(stderr, "  -2        Read 2 output.\n");
-    fprintf(stderr, "  -config   Configure file in JSON format. Required.\n");
-    fprintf(stderr, "  -run      Run code, used for different library.\n");
-    fprintf(stderr, "  -cbdis    Cell barcode sequence and count pairs.\n");
-    fprintf(stderr, "  -t        Thread.\n");
-    fprintf(stderr, "  -r        Records per chunk. [10000]\n");
-    fprintf(stderr, "  -report   Summary report.\n");
-    fprintf(stderr, "  -dis      Barcode distribution count.\n");
-    fprintf(stderr, "  -f        Filter reads based on MGISEQ standard (2 bases < q10 at first 15 bases).\n");
-    fprintf(stderr, "  -q        Drop this read if average sequencing quality below this value.\n");
-    fprintf(stderr, "  -dropN    Drop the reads if N base in reads or UMI.\n");
-    fprintf(stderr, "\n");
-    return 1;
-}
-
 struct bcount {
     uint64_t matched;
     uint64_t corrected;
@@ -1224,12 +1202,14 @@ static int parse_args(int argc, char **argv)
     return 0;
 }
 
+extern int fastq_parse_usage();
+
 int fastq_prase_barcodes(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
     
-    if (parse_args(argc, argv)) return usage();
+    if (parse_args(argc, argv)) return fastq_parse_usage();
 
     int nt = args.n_thread;
     if (nt == 1) {

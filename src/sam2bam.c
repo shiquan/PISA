@@ -461,22 +461,8 @@ static int sam_name_parse_light()
     }
     return 0;
 }
-static int usage()
-{
-    fprintf(stderr, "name_parser in.sam\n");
-    fprintf(stderr, " -o out.bam               Output file [stdout].\n");
-    // fprintf(stderr, " -t [5]                   Threads.\n");
-    fprintf(stderr, " -k                       Keep all records in out.bam, include unmapped reads etc.\n");
-    fprintf(stderr, " -filter filter.bam       Filter reads, include unmapped, secondary alignment, mitochondra etc.\n");
-    fprintf(stderr, " -q [10]                  Map quality theshold, mapped reads with smaller mapQ will be filter.\n");
-    fprintf(stderr, " -report report.csv       Alignment report.\n");
-    fprintf(stderr, " -mito chrM               Mitochondria name.\n");
-    fprintf(stderr, " -maln chrM.bam           Export mitochondria reads into this file instead of standard output file\n");
-    fprintf(stderr, " -r [1000000]             Records per chunk.\n");
-    fprintf(stderr, " -p                       Input reads are paired.\n");
-    fprintf(stderr, " -@                       Threads to compress bam file.\n");
-    return 1;
-}
+
+extern int sam2bam_usage();
 
 static int parse_args(int argc, char **argv)
 {
@@ -491,9 +477,7 @@ static int parse_args(int argc, char **argv)
         const char *a = argv[i++];
         const char **var = 0;
 
-        if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0)
-            return usage();
-        //if (strcmp(a, "-v") == 0 || strcmp(a, "--version") == 0 ) return get_version();
+        if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return sam2bam_usage();
         if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-r") == 0) var = &buffer_size;

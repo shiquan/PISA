@@ -10,27 +10,6 @@
 #include <ctype.h>
 #include <sys/stat.h>
 
-static int usage()
-{
-    fprintf(stderr, "* Sort fastq records by tags and deduplicate.\n");
-    fprintf(stderr, "fastq-sort  in.fq\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "General options:\n");
-    fprintf(stderr, " -tag         Tags, such as CB,UR. Order of these tags is sensitive.\n");
-    fprintf(stderr, " -dedup       Remove dna copies with same tags. Only keep reads have the best quality.\n");
-    fprintf(stderr, " -dup-tag     If -dedup set, duplicated number will be record with this tag name.[DU]\n");
-    fprintf(stderr, " -report      Report reads counts and non-duplicates.\n");
-    fprintf(stderr, " -list        White list for first tag, usually for cell barcodes.\n");
-    fprintf(stderr, " -t           Threads.\n");
-    fprintf(stderr, " -o           Output fastq.\n");
-    fprintf(stderr, " -m           Memory per thread. [1G]\n");
-    fprintf(stderr, " -p           Input fastq is smart pairing.\n");
-    fprintf(stderr, " -T PREFIX    Write temporary files to PREFIX.nnnn.tmp\n");
-    // fprintf(stderr, " -dropN       Drop if N found in tags.\n");
-    fprintf(stderr, "\n");
-    return 1;
-}
-
 #define MIN_MEM_PER_THREAD  100000 // 100K
 
 static struct args {
@@ -785,12 +764,15 @@ void dedup_write(struct fastq_dedup_pool *dp, BGZF *out)
     args.nondup += dp->nondup;
     fastq_dedup_pool_destroy(dp);
 }
+
+extern int fsort_usage();
+
 int fsort(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
 
-    if (parse_args(argc, argv)) return usage();
+    if (parse_args(argc, argv)) return fsort_usage();
     
     BGZF *fp = bgzf_open(args.input_fname, "r");
     if (fp == NULL) error("%s : %s.", args.input_fname, strerror(errno));

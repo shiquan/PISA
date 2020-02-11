@@ -73,7 +73,6 @@ void mag_init_lfr(magopt_t *o)
 }
 static void assem_opt_init(fml_opt_t *opt)
 {
-    //fml_opt_init(opt);
     opt->n_threads = 1;
     opt->min_asm_ovlp = 20;
     opt->min_merge_len = 0;
@@ -121,16 +120,7 @@ static struct args {
     .assem_block  = 0,
 };
 
-static int usage()
-{
-    fprintf(stderr, "fastq_overlap in.fq\n");
-    fprintf(stderr, "   -t         Threads.\n");
-    fprintf(stderr, "   -o         Output fastq.\n");
-    fprintf(stderr, "   -tag       Tags of read block.\n");
-    fprintf(stderr, "   -p         Input fastq is smart paired.\n");
-    fprintf(stderr, "   -dis       Assembled length distribution.\n");
-    return 1;
-}
+extern int assemble_usage();
 
 static int parse_args(int argc, char **argv)
 {
@@ -275,7 +265,6 @@ struct read1 {
 
 struct ret_block {
     int assem_block;
-    //char *s;
     int n,m;
     struct read1 *a;    
 };
@@ -369,14 +358,6 @@ static void *run_it(void *_d)
     }
 
     thread_dat_destroy(dat);
-    /*
-    if (str.l == 0) {
-        free(r);
-        return NULL;
-    }
-    r->s = str.s;
-    return r;
-    */
 
     return r;
 }
@@ -408,7 +389,7 @@ int fastq_assem(int argc, char **argv)
     double t_real;
     t_real = realtime();
     
-    if (parse_args(argc, argv)) return usage();
+    if (parse_args(argc, argv)) return assemble_usage();
 
     FILE *fp_in = fopen(args.input_fname, "r");
     if (fp_in == NULL) error("%s : %s.", args.input_fname, strerror(errno));

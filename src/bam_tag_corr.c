@@ -8,18 +8,6 @@
 #include "number.h"
 #include "htslib/thread_pool.h"
 
-static int usage()
-{
-    fprintf(stderr, "bam_tag_corr in.bam\n");
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -o             Output bam.\n");
-    fprintf(stderr, "  -tag           Tag to correct.\n");
-    fprintf(stderr, "  -tags-block    Tags to define each block. Reads in one block will be corrected by frequency.\n");
-    fprintf(stderr, "  -@             Thread to unpack and pack BAM file.[5]\n");
-    fprintf(stderr, "  -t             Thread to process data.[4]\n");
-    return 1;
-}
-
 static struct args {
     const char *input_fname;
     const char *output_fname;
@@ -273,9 +261,11 @@ static void memory_release()
     corr_tag_destory(args.Cindex);
 }
 
+extern int bam_corr_usage();
+
 int bam_corr_umi(int argc, char **argv)
 {
-    if (parse_args(argc, argv)) return usage();
+    if (parse_args(argc, argv)) return bam_corr_usage();
 
     LOG_print("Build index ..");
     double t_real;

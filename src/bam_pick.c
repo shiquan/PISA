@@ -1,7 +1,7 @@
 // pick alignment reads by cell barcodes
 #include "utils.h"
 #include "number.h"
-#include "htslib/thread_pool.h"
+//#include "htslib/thread_pool.h"
 #include "barcode_list.h"
 #include "htslib/khash.h"
 #include "htslib/kstring.h"
@@ -10,18 +10,13 @@
 #include "htslib/kseq.h"
 #include "bam_pool.h"
 
-static int usage()
-{
-    fprintf(stderr, "PickBam -list barcode.txt -tag CB -o out.bam in.bam\n");
-    return 1;
-}
 static struct args {
     const char *input_fname;
     const char *output_fname;
     const char *barcode_fname;
     const char *tag;
     int file_th;
-    int n_thread;
+    //int n_thread;
     struct barcode_list *barcode;
 
     htsFile *in;
@@ -35,7 +30,7 @@ static struct args {
     .barcode_fname = NULL,
     .tag = NULL,
     .file_th = 4,
-    .n_thread = 1,
+    //.n_thread = 1,
     .barcode = NULL,
 
     .in = NULL,
@@ -43,10 +38,13 @@ static struct args {
     .hdr = NULL,
     .chunk_size = 1000000, // 1M
 };
+
+extern int pick_usage();
+
 static int parse_args(int argc, char **argv)
 {
     const char *file_th = NULL;
-    const char *thread = NULL;
+    //const char *thread = NULL;
     int i;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
@@ -56,7 +54,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-tag") == 0) var = &args.tag;
         else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         else if (strcmp(a, "-@") == 0) var = &file_th;
-        else if (strcmp(a, "-t") == 0) var = &thread;
+        // else if (strcmp(a, "-t") == 0) var = &thread;
         
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
@@ -77,7 +75,7 @@ static int parse_args(int argc, char **argv)
     CHECK_EMPTY(args.output_fname, "Output BAM file must be set.");
 
     if (file_th) args.file_th = str2int((char*)file_th);
-    if (thread) args.n_thread = str2int((char*)thread);
+    //if (thread) args.n_thread = str2int((char*)thread);
     
     if (args.barcode_fname) {
         args.barcode = barcode_init();
@@ -146,11 +144,11 @@ int bam_pick(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
-    if (parse_args(argc, argv)) return usage();
+    if (parse_args(argc, argv)) return pick_usage();
         
-    hts_tpool *p = hts_tpool_init(args.n_thread);
-    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
-    hts_tpool_result *r;
+    //hts_tpool *p = hts_tpool_init(args.n_thread);
+    //hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+    //hts_tpool_result *r;
 
     for (;;) {
         struct bam_pool *b = bam_pool_create();
@@ -158,7 +156,11 @@ int bam_pick(int argc, char **argv)
             
         if (b == NULL) break;
         if (b->n == 0) { free(b->bam); free(b); break; }
+
+        struct bam_pool *d = run_it(b);
+        write_out(d);
         
+        /*
         int block;
         do {
             block = hts_tpool_dispatch2(p, q, run_it, b, 1);
@@ -169,8 +171,10 @@ int bam_pick(int argc, char **argv)
             }
         }
         while (block == -1);
+        */
     }
-    
+
+    /*
     hts_tpool_process_flush(q);
 
     while ((r = hts_tpool_next_result(q))) {
@@ -180,7 +184,7 @@ int bam_pick(int argc, char **argv)
     }
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
-
+    */
     memory_release();
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
 

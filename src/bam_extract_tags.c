@@ -4,11 +4,6 @@
 #include "htslib/kstring.h"
 #include "number.h"
 
-static int usage()
-{
-    fprintf(stderr, "bam_extract_tags -tags CB,GE,UY -o extract.txt in.bam\n");
-    return 1;
-}
 static struct args {
     const char *input_fname;
     const char *output_fname;
@@ -22,6 +17,8 @@ static struct args {
     .n_tag = 0,
     .tags = NULL,
 };
+
+extern int bam_extract_usage();
 
 static int parse_args(int argc, char **argv)
 {
@@ -71,7 +68,7 @@ static int parse_args(int argc, char **argv)
 
 int bam_extract_tags(int argc, char **argv)
 {
-    if (parse_args(argc, argv)) return usage();
+    if (parse_args(argc, argv)) return bam_extract_usage();
     htsFile *in  = hts_open(args.input_fname, "r");
     CHECK_EMPTY(in, "%s : %s.", args.input_fname, strerror(errno));
     htsFormat type = *hts_get_format(in);

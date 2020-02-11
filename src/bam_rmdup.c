@@ -8,16 +8,6 @@
 
 KHASH_SET_INIT_STR(name)
 
-static int usage()
-{
-    fprintf(stderr, "bam_rmdup input.srt.bam -o out.bam\n");
-    fprintf(stderr, "   -tag        Sample tag, cell barcode tag, and/or UMI tag. RG,CB,UR\n");
-    fprintf(stderr, "   -t          Threads.\n");
-    fprintf(stderr, "   -o          Output bam.\n");
-    fprintf(stderr, "   -r          Records per thread chunk.[10000000]\n");
-    fprintf(stderr, "   -kd         Keep duplicates, make flag instead of remove them.\n");
-    return 1;
-}
 static struct args {
     const char *input_fname;
     const char *output_fname;
@@ -63,7 +53,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-tag") == 0) var = &args.tag_string;
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-r") == 0) var = &chunk_size;
-        else if (strcmp(a, "-kd") == 0) {
+        else if (strcmp(a, "-k") == 0) {
             args.keep_dup = 1;
             continue;
         }
@@ -359,12 +349,14 @@ static void *run_it(void *_p)
     return p;
 }
 
+extern int rmdup_usage();
+
 int bam_rmdup(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
 
-    if (parse_args(argc, argv)) return usage();
+    if (parse_args(argc, argv)) return rmdup_usage();
 
     if (args.n_thread == 1) {
         for (;;) {

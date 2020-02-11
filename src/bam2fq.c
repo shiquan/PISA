@@ -4,17 +4,6 @@
 #include "htslib/hts.h"
 #include "number.h"
 
-static int usage()
-{
-    fprintf(stderr, "bam2fq -tag CB,UY in.bam\n");
-    fprintf(stderr, "Options :\n");
-    fprintf(stderr, "   -filter     Filter this record if not all tags matched.\n");
-    fprintf(stderr, "   -fa         Output fasta.\n");
-    fprintf(stderr, "   -o          Output file.\n");
-    fprintf(stderr, "   -@          Thread to unpack BAM.\n");
-    fprintf(stderr, "\n");
-    return 1;
-}
 static struct args {
     const char *input_fname;
     const char *output_fname;
@@ -116,9 +105,11 @@ void memory_release()
     hts_close(args.in);
     fclose(args.out);
 }
+
+extern int bam2fq_usage();
 int bam2fq(int argc, char **argv)
 {
-    if (parse_args(argc, argv)) return usage();
+    if (parse_args(argc, argv)) return bam2fq_usage();
     bam_hdr_t *hdr = sam_hdr_read(args.in);
     if (hdr == NULL) error("Failed to read header.");
     bam1_t *b = bam_init1();

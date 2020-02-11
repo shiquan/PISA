@@ -14,38 +14,6 @@
 #include "dict.h"
 #include <zlib.h>
 
-static int usage()
-{
-    fprintf(stderr, "* Annotate bam records with overlapped function regions. Such as gene, trnascript etc.\n");
-    fprintf(stderr, "anno_bam -bed peak.bed -tag PK -o anno.bam in.bam\n");
-    fprintf(stderr, "anno_bam -gtf genes.gtf -o anno.bam in.bam\n");
-    fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, "  -o               Output bam file.\n");
-    fprintf(stderr, "  -report          Summary report.\n");
-    fprintf(stderr, "  -@               Threads to read and write bam file.\n");
-    fprintf(stderr, "\nOptions for BED file :\n");
-    fprintf(stderr, "  -bed             Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
-    fprintf(stderr, "  -tag             Attribute tag name. Set with -bed.\n");
-    fprintf(stderr, "\nOptions for mixed samples.\n");
-    fprintf(stderr, "  -chr-species     Chromosome name and related species binding list.\n");
-    fprintf(stderr, "  -btag            Species tag name. Set with -chr-species.\n");
-    fprintf(stderr, "\nOptions for GTF file :\n");
-    fprintf(stderr, "  -gtf             GTF annotation file. -gtf is conflict with -bed, if set strand will be consider.\n");
-    fprintf(stderr, "  -tags            Attribute names. Default is TX,AN,GN,GX,RE.\n");
-    fprintf(stderr, "  -ignore-strand   Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be count.\n");
-    fprintf(stderr, "  -splice-consider Reads covered exon-intron edge will also be count.\n");
-    fprintf(stderr, "  -t               Threads to annotate.\n");
-    fprintf(stderr, "  -chunk           Chunk size per thread.\n");
-    fprintf(stderr, "\nNotice :\n");
-    fprintf(stderr, " * For GTF mode, this program will set tags in default, you could also reset them by -tags.\n");
-    fprintf(stderr, "   TX : Transcript id.\n");
-    fprintf(stderr, "   AN : Same with TX but set only if read mapped to antisense strand of transcript.\n");
-    fprintf(stderr, "   GN : Gene name.\n");
-    fprintf(stderr, "   GX : Gene ID.\n");
-    fprintf(stderr, "   RE : Region type, should E(exon), N(intron)\n");
-    return 1;
-}
-
 static struct args {
     const char *input_fname;
     const char *output_fname;
@@ -291,8 +259,8 @@ static int parse_args(int argc, char **argv)
     CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
     if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
 
-    hts_set_threads(args.fp, file_th); 
-    //hts_set_threads(args.out, file_th);
+    //hts_set_threads(args.fp, file_th); 
+    hts_set_threads(args.out, file_th);
     return 0;
 }
 
@@ -731,12 +699,14 @@ static void memory_release()
     if (args.fp_report != stderr) fclose(args.fp_report);
 }
 
+extern int anno_usage();
+
 int bam_anno_attr(int argc, char *argv[])
 {
     double t_real;
     t_real = realtime();
 
-    if (parse_args(argc, argv)) return usage();
+    if (parse_args(argc, argv)) return anno_usage();
 
     if (args.B) { // todo: support multi-threads
         bam1_t *b;

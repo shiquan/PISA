@@ -10,24 +10,6 @@ KHASH_MAP_INIT_STR(name, int)
 
 typedef uint32_t count_t;
 
-static int usage()
-{
-    fprintf(stderr, "* Count reads or fragments matrix for single-cell datasets.\n");
-    fprintf(stderr, "Usage :\n  CountMatrix [options] aln.bam\n");
-    fprintf(stderr, "Mandatory options :\n");
-    fprintf(stderr, "    -tag        [CB]    Specify cell barcode tag.\n");
-    fprintf(stderr, "    -anno-tag   [GN]    Annotation attribute.\n");
-    fprintf(stderr, "    -list       [FILE]  Barcode list, white list, used as column names at matrix. If not set all barcodes will be count.\n");
-    fprintf(stderr, "    -tab                Output in three column format. Name\\tCB\\tCount\n");
-    fprintf(stderr, "    -o          [FILE]  Output matrix.\n");
-    fprintf(stderr, "    -umi        [UY]    UMI tag. Count once if more than one record has same UMI which overlapped with a region.\n");
-    fprintf(stderr, "    -dis-corr           Disable correct UMI. Default all UMIs with 1 mismatch distance to each other are collapsed\n");
-    fprintf(stderr, "    -q          [INT]   Minimal map quality to filter. [20]\n");
-    fprintf(stderr, "    -count      [FILE]  UMI,Gene,Saturation per cell barcode.\n");
-    fprintf(stderr, "    -@          [5]     Threads to read bam file.\n");
-    fprintf(stderr,"\n");
-    return 1;
-}
 struct cell_barcode_counts {
     // int idx;
     uint32_t nUMI;
@@ -66,6 +48,9 @@ static struct args {
 };
 // if not set white list, dynamic allocate barcodes list
 static int no_white_list = 0;
+
+
+extern int bam_count_usage();
 
 static int parse_args(int argc, char **argv)
 {
@@ -257,7 +242,7 @@ int count_matrix(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
-    if (parse_args(argc, argv)) return usage();
+    if (parse_args(argc, argv)) return bam_count_usage();
 
     struct barcode_list *lb = barcode_init();
     if (args.whitelist_fname) {

@@ -381,21 +381,11 @@ static void write_out(struct p_data *p)
 
 // reads in each block with same BCs will be intepret as fragments from same template
 // this program used to impute missed tags for reads from same block.
-static int usage()
-{
-    fprintf(stderr, "bam_impute in.bam\n");
-    fprintf(stderr, "  -impute       Tags to impute.\n");
-    fprintf(stderr, "  -block        Tags to identify each block.\n");
-    fprintf(stderr, "  -dist         Distance between reads from same block will be imputed.\n");
-    fprintf(stderr, "  -k            Keep unclassified reads in the output.\n");
-    fprintf(stderr, "  -@            Threads to pack and unpack bam file.\n");
-    //fprintf(stderr, "  -t            Threads to process.\n");
-    return 1;
-}
 
+extern int bam_impute_usage();
 int LFR_impute(int argc, char **argv)
 {
-    if (parse_args(argc, argv)) return usage();
+    if (parse_args(argc, argv)) return bam_impute_usage();
     
     LOG_print("Build index ..");
     double t_real;
