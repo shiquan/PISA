@@ -571,6 +571,7 @@ void mag_g_clean(mag_t *g, const magopt_t *opt)
 	mag_g_merge(g, 0, opt->min_merge_len);
 	if ((opt->flag & MAG_F_AGGRESSIVE) || (opt->flag & MAG_F_POPOPEN)) mag_g_pop_open(g, opt->min_elen);
 	if (!(opt->flag & MAG_F_NO_SIMPL)) mag_g_simplify_bubble(g, opt->max_bvtx, opt->max_bdist);
+        
 	mag_g_pop_simple(g, opt->max_bcov, opt->max_bfrac, opt->min_merge_len, opt->max_bdiff, opt->flag & MAG_F_AGGRESSIVE);
 	mag_g_rm_vint(g, opt->min_elen, opt->min_insr, g->min_ovlp);
 	mag_g_rm_edge(g, g->min_ovlp, opt->min_dratio1, opt->min_elen, opt->min_ensr);

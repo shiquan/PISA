@@ -11,9 +11,6 @@
 #include "number.h"
 #include "mag.h"
 
-extern int ksa_sa(const unsigned char *T, int *SA, int n, int k);
-extern int ksa_bwt(unsigned char *T, int n, int k);
-
 static unsigned char nt6_tab[256] = {
     5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
     5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5,
@@ -58,10 +55,10 @@ void mag_init_lfr(magopt_t *o)
     o->trim_len = 0;
     o->trim_depth = 6;
     
-    o->min_elen = 300;
-    o->min_ovlp = 0;
+    o->min_elen = 50;
+    o->min_ovlp = 20;
     o->min_merge_len = 0;
-    o->min_ensr = 1;
+    o->min_ensr = 10;
     o->min_insr = 0;
     o->min_dratio1 = 0.7;
     
@@ -69,7 +66,7 @@ void mag_init_lfr(magopt_t *o)
     o->max_bfrac = 0.15;
     o->max_bvtx = 64;
     o->max_bdist = 512;
-    o->max_bdiff = 50;
+    o->max_bdiff = 50;   
 }
 static void assem_opt_init(fml_opt_t *opt)
 {
@@ -77,12 +74,15 @@ static void assem_opt_init(fml_opt_t *opt)
     opt->min_asm_ovlp = 20;
     opt->min_merge_len = 0;
     opt->ec_k = -1;
-    opt->mag_opt.flag |= MAG_F_AGGRESSIVE;
-    opt->mag_opt.flag &= ~MAG_F_POPOPEN;
-    opt->min_cnt = 1;
-    opt->max_cnt = 2;
+    //opt->mag_opt.flag |= MAG_F_AGGRESSIVE;
+    //opt->mag_opt.flag &= ~MAG_F_POPOPEN;
+    //opt->mag_opt.flag &= MAG_F_POPOPEN;
+    //opt->mag_opt.flag = MAG_F_NO_SIMPL | MAG_F_POPOPEN;
+    opt->min_cnt = 4;
+    opt->max_cnt = 8;
     mag_init_lfr(&opt->mag_opt);
 };
+
 static struct args {
     const char *input_fname;
     const char *output_fname;
@@ -324,6 +324,178 @@ static void print_utg(fml_utg_t *utg, int n, struct ret_block *r, char *name)
         a->qual = qual;
     }
 }
+// After construct unitigs from reads, we map reads back to the unitigs. By using
+// the paired reads, we connect unitigs into a scaffold
+struct kmer_idx {
+    struct dict *dict;
+    int m, n;
+    struct idx {
+        int n, m;
+        struct offset {
+            int strand;
+            int idx;
+            int pos;
+        } *offset;
+    } *idx;
+    int n_z, m_z;
+    char **z; // cache original sequences
+};
+
+struct kmer_idx *kmer_idx_build()
+{
+    struct kmer_idx *i = malloc(sizeof(*i));
+    memset(i, 0, sizeof(*i));
+    i->dict = dict_init();
+    return i;
+}
+
+void kmer_idx_destroy(struct kmer_idx *idx)
+{
+    int i;
+    for (i = 0; i < idx->n; i++)
+        if (idx->idx[i].m)
+            free(idx->idx[i].offset);
+    free(idx->idx);
+    dict_destroy(idx->dict);
+    for (i = 0; i < idx->n_z; ++i) free(idx->z[i]);
+    free(idx->z);
+    free(idx);
+}
+
+#define SEED_LEN 30
+
+void kmer_idx_add(struct kmer_idx *idx, const char *s, int l)
+{
+    if (l < SEED_LEN) error("Read is too short. Require at least %d bases.", SEED_LEN);
+
+    char seed[SEED_LEN+1];
+    seed[SEED_LEN] = '\0';
+    int strand;
+    for (strand = 0; strand < 2; ++strand) {
+        char *z = strdup(s);
+        z[l] = '\0';
+        if (strand == 1) {
+            int i;
+            for (i = 0; i < l/2; ++i) {
+                char c = "$TGCAN"[nt6_tab[(int)z[i]]];
+                z[i] = "$TGCAN"[nt6_tab[(int)z[l-i-1]]];
+                z[l-i-1] = c;
+            }
+            if (l&1) {
+                z[i] = "$TGCAN"[nt6_tab[(int)z[i]]];
+            }
+        }
+        if (idx->n_z == idx->m_z) {
+            idx->m_z = idx->m_z == 0 ? 10 : idx->m_z<<1;
+            idx->z = realloc(idx->z, idx->m_z*sizeof(char*));
+        }
+        idx->z[idx->n_z] = z;
+        int i;
+        for (i = 0; i < l - SEED_LEN; ++i) {        
+            memcpy(seed, z+i, SEED_LEN);
+
+            int id = dict_query(idx->dict, seed);
+            if (id == -1) {
+                id = dict_push(idx->dict, seed);
+                if (id >= idx->m) {
+                    idx->m = id+1;
+                    idx->idx = realloc(idx->idx, idx->m*sizeof(struct idx));
+                    for ( ; idx->n < idx->m; idx->n++) 
+                        memset(&idx->idx[idx->n], 0, sizeof(struct idx));                    
+                }
+            }
+            struct idx *d = &idx->idx[id];
+            if (d->n == d->m) {
+                d->m = d->m == 0 ? 1 : d->m<<1;
+                d->offset = realloc(d->offset, sizeof(struct offset)*d->m);
+                d->offset[d->n].strand = strand;
+                d->offset[d->n].idx = idx->n_z;
+                d->offset[d->n].pos = i;
+                d->n++;
+            }
+        }
+        idx->n_z++;
+    }
+}
+
+int kmer_query_id(struct kmer_idx *idx, char *s, int l)
+{
+    if (l < SEED_LEN) error("Read is too short. Require at least %d bases.", SEED_LEN);
+    char seed[SEED_LEN+1];
+    seed[SEED_LEN] = '\0';
+    memcpy(seed, s, SEED_LEN);
+    int off = dict_query(idx->dict, seed);
+    if (off == -1)
+        return -1;
+    
+    int ret = -1;
+    int i;    
+    for (i = 0; i < idx->idx[off].n; ++i) {
+        struct offset *offset = &idx->idx[off].offset[i];
+        char *z = idx->z[offset->idx];
+        char *p = s + SEED_LEN;
+        z = z + offset->pos + SEED_LEN;
+        int k;
+        for (k = 0; k < l-SEED_LEN;  ++k)
+            if (p[k] != z[k]) break;
+
+        if (k < l - SEED_LEN) continue;
+        if (ret != -1) {
+            debug_print("hit : %d, %s", ret, idx->z[ret]);
+            debug_print("hit : %d, %s", offset->idx, idx->z[offset->idx]);
+            return -1; // too much hits
+        }
+        ret = offset->idx;
+
+    }
+
+    return ret/2;
+}
+void remap_reads(struct ret_block *r, struct read_block *b)
+{
+    struct kmer_idx *idx = kmer_idx_build();
+    int i;
+    kstring_t str = {0,0,0};
+    for (i = 0; i < r->n; ++i){
+        struct read1 *a = &r->a[i];
+        kmer_idx_add(idx, a->seq->s, a->seq->l);        
+    }
+    int *bidx = malloc(r->n*sizeof(int));
+    memset(bidx, 0, r->n*sizeof(int));
+    
+    int max_bidx = 1;
+    
+    for (i = 0; i < b->n; ++i) {
+        if (b->b[i].s1 == NULL) continue;
+        int id1 = kmer_query_id(idx, b->b[i].s0, b->b[i].l0);
+        int id2 = kmer_query_id(idx, b->b[i].s1, b->b[i].l1);
+        // no hit
+        if (id1 == -1 || id2 == -1) continue;
+        
+        if (bidx[id1] != 0 && bidx[id2] != 0) {
+            if (bidx[id1] != bidx[id2]) {
+                int c = bidx[id2];
+                int j;
+                for (j =0; j < r->n; ++j)
+                    if (bidx[j] == c) bidx[j] = bidx[id1];
+            }
+        }
+        else {
+            if (bidx[id1] != 0) bidx[id2] = bidx[id1];
+            else if (bidx[id2] != 0) bidx[id1] = bidx[id2];
+            else bidx[id1] = bidx[id2] = max_bidx++;
+        }
+    }
+    kmer_idx_destroy(idx);
+    str.l = 0;
+
+    for (i = 0; i < r->n; ++i) {
+        struct read1 *a = &r->a[i];       
+        if (bidx[i] != 0) ksprintf(a->name, "|||PB:Z:%d", bidx[i]);
+    }
+    free(bidx);    
+}
+
 static void *run_it(void *_d)
 {
     struct thread_dat *dat = (struct thread_dat*)_d;
@@ -352,6 +524,11 @@ static void *run_it(void *_d)
         fml_utg_t *utg = fml_mag2utg(g, &n_utg);
         if (n_utg > 0) {
             print_utg(utg, n_utg, r, rb->name);
+
+            // connect contigs by paired reads
+            if (args.pair)
+                remap_reads(r, rb);
+
             r->assem_block++;
         }
         fml_utg_destroy(n_utg, utg);
