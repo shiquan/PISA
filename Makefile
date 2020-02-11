@@ -13,12 +13,15 @@ FMLLIB = $(FMLDIR)/libfml.a
 
 LIBA = src/liba.a
 
+ZLIBDIR= third_party/zlib-1.2.11
+include $(ZLIBDIR)/zlib.mk
+LIBZ = $(ZLIBDIR)/libz.a
 
 CC       = gcc
 CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64
 DFLAGS   =
-INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I $(FMLDIR)
-LIBS = -lbz2 -llzma -pthread -lm -lcurl -lz
+INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I $(FMLDIR) -I$(ZLIBDIR)
+LIBS = -lbz2 -llzma -pthread -lm -lcurl 
 
 #all:$(PROG)
 
@@ -65,8 +68,8 @@ liba.a: $(LIB_OBJ)
 
 test: $(HTSLIB) $(HTSVERSION)
 
-PISA: $(HTSLIB) $(FMLLIB) liba.a $(AOBJ) pisa_version.h 
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) $(FMLLIB) src/liba.a $(HTSLIB) $(LIBS)
+PISA: $(HTSLIB) $(FMLLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h 
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) $(FMLLIB) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
 
 src/sim_search.o: src/sim_search.c
 src/fragment.o: src/fragment.c
