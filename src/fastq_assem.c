@@ -366,7 +366,7 @@ void kmer_idx_destroy(struct kmer_idx *idx)
 
 void kmer_idx_add(struct kmer_idx *idx, const char *s, int l)
 {
-    if (l < SEED_LEN) error("Read is too short. Require at least %d bases.", SEED_LEN);
+    if (l < SEED_LEN) return; //Read is too short. 
 
     char seed[SEED_LEN+1];
     seed[SEED_LEN] = '\0';
