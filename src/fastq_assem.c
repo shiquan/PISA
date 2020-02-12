@@ -282,12 +282,37 @@ static kstring_t *kstr_create()
     s->s = NULL;
     return s;
 }
+static kstring_t *kstr_dup(kstring_t *s)
+{
+    kstring_t *s0 = kstr_create();
+    s0->m =s->l+1;
+    s0->l = s->l;
+    s0->s = malloc(s->l+1);
+    memcpy(s0->s, s->s, s->l);
+    s0->s[s0->l] = '\0';
+    return s0;
+}
 static void kstr_destory(kstring_t *str)
 {
     if (str) {
         if (str->m) free(str->s);
         free(str);
     }
+}
+static void ret_block_push(struct ret_block *r0, struct ret_block *r)
+{
+    if (r0->n + r->n > r->m) {
+        r->m = r0->n + r->n;
+        r->a = realloc(r->a, r->m*sizeof(struct read1));
+    }
+    int i;
+    for (i = 0; i < r0->n; ++i) {
+        struct read1 *a = &r->a[r->n++];
+        a->name = kstr_dup(r0->a[i].name);
+        a->seq = kstr_dup(r0->a[i].seq);
+        a->qual = kstr_dup(r0->a[i].qual);
+    }
+    r->assem_block += r0->assem_block;
 }
 static void ret_block_destory(struct ret_block *r)
 {
@@ -459,7 +484,6 @@ void remap_reads(struct ret_block *r, struct read_block *b)
 {
     struct kmer_idx *idx = kmer_idx_build();
     int i;
-    kstring_t str = {0,0,0};
     for (i = 0; i < r->n; ++i){
         struct read1 *a = &r->a[i];
         kmer_idx_add(idx, a->seq->s, a->seq->l);        
@@ -468,12 +492,18 @@ void remap_reads(struct ret_block *r, struct read_block *b)
     memset(bidx, 0, r->n*sizeof(int));
     
     int max_bidx = 1;
-    
+
+    // use each read pair to connect contigs
     for (i = 0; i < b->n; ++i) {
         if (b->b[i].s1 == NULL) continue;
         if (b->b[i].l0 < SEED_LEN || b->b[i].l1 < SEED_LEN) continue;
+        
         int id1 = kmer_query_id(idx, b->b[i].s0, b->b[i].l0);
         int id2 = kmer_query_id(idx, b->b[i].s1, b->b[i].l1);
+
+        // mapped to the same contig
+        if (id1 == id2) continue; 
+        
         // no hit
         if (id1 == -1 || id2 == -1) continue;
         
@@ -492,11 +522,15 @@ void remap_reads(struct ret_block *r, struct read_block *b)
         }
     }
     kmer_idx_destroy(idx);
-    str.l = 0;
 
+    // return block value to each contigs. TODO: improvement
     for (i = 0; i < r->n; ++i) {
-        struct read1 *a = &r->a[i];       
-        if (bidx[i] != 0) ksprintf(a->name, "|||PB:Z:%d", bidx[i]);
+        struct read1 *a = &r->a[i];
+        if (bidx[i] != 0) {
+            kputs("|||PB:Z:",a->name);
+            kputw(bidx[i], a->name);
+            kputs("", a->name);
+        }
     }
     free(bidx);    
 }
@@ -527,14 +561,18 @@ static void *run_it(void *_d)
 
         int n_utg = 0;        
         fml_utg_t *utg = fml_mag2utg(g, &n_utg);
+        
         if (n_utg > 0) {
-            print_utg(utg, n_utg, r, rb->name);
+            struct ret_block *r0 = ret_block_build();    
+            print_utg(utg, n_utg, r0, rb->name);
 
             // connect contigs by paired reads
             if (args.pair)
-                remap_reads(r, rb);
+                remap_reads(r0, rb);
 
-            r->assem_block++;
+            r0->assem_block++;
+            ret_block_push(r0,r);
+            ret_block_destory(r0);
         }
         fml_utg_destroy(n_utg, utg);
     }
@@ -555,6 +593,8 @@ static void write_out(void *s, FILE *out)
         fputs(a->name->s, out); fputc('\n', out);
         fputs(a->seq->s, out); fputs("\n+\n", out);
         fputs(a->qual->s, out); fputc('\n', out);
+
+        // assemble length distribution
         int len = a->seq->l;
         if (len > args.n_len) {
             args.len = args.n_len == 0 ? malloc(len*sizeof(int)) : realloc(args.len, len*sizeof(int));
