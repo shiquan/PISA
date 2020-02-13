@@ -418,7 +418,7 @@ static void *sam_name_parse(void *_p, int idx)
                     continue;
                 }
                 sam_stat_reads(b1, summary, &p->flag[i], opts);
-                f1 = &p->flag[i];
+                //f1 = &p->flag[i];
             }
             else {
                 b2 = p->bam[i];
@@ -436,7 +436,7 @@ static void *sam_name_parse(void *_p, int idx)
                 }
                 if (strcmp(bam_get_qname(b1), bam_get_qname(b2)) != 0) error("Inconsist paried read name. %s vs %s", bam_get_qname(b1), bam_get_qname(b2));
                 sam_stat_reads(b2, summary, &p->flag[i], opts);
-                f2 = &p->flag[i];
+                //f2 = &p->flag[i];
                 /*
                 if (*f1 == FLG_FLT || *f2 == FLG_FLT || b1->core.tid != b2->core.tid) {
                     *f1 = FLG_FLT;
