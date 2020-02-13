@@ -25,7 +25,7 @@ struct reads_summary {
     uint64_t n_diffchr, n_pstrand, n_mstrand;
     uint64_t n_qual;
     uint64_t n_mito;
-    uint64_t n_usable;
+    //uint64_t n_usable;
     uint64_t n_failed_to_parse;
 };
 static struct reads_summary *reads_summary_create()
@@ -56,7 +56,7 @@ static struct reads_summary *merge_reads_summary(struct reads_summary **rs, int 
         s->n_mstrand   += s0->n_mstrand;
         s->n_qual      += s0->n_qual;
         s->n_mito      += s0->n_mito;
-        s->n_usable    += s0->n_usable;
+        //s->n_usable    += s0->n_usable;
     }
     return s;
 }
@@ -65,7 +65,7 @@ static struct args {
     // file names
     const char *input_fname;  // alignment input, only SAM format is required
     const char *output_fname; // BAM output, only support BAM format, default is stdout
-    const char *filter_fname; // if filter BAM file is set, filtered reads will output in this file
+    //const char *filter_fname; // if filter BAM file is set, filtered reads will output in this file
     const char *report_fname; // summary report for whole file
 
     const char *mito; // mitochrondria name, the mito ratio will export in the summary report
@@ -77,7 +77,7 @@ static struct args {
     gzFile fp;        // input file handler
     kstream_t *ks;    // input streaming
     htsFile *fp_out;     // output file handler
-    BGZF *fp_filter;  // filtered reads file handler
+    //BGZF *fp_filter;  // filtered reads file handler
     BGZF *fp_mito;    // if not set, mito reads will be treat at filtered reads
     FILE *fp_report;  // report file handler
     
@@ -93,23 +93,23 @@ static struct args {
 
     int mito_id;
     int PE_flag;
-    int keep_all;
+//    int keep_all;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
-    .filter_fname = NULL,
+    //.filter_fname = NULL,
     .report_fname = NULL,
     //.btable_fname = NULL,
     .mito = "chrM",
     .mito_fname = NULL,
     
     .n_thread = 1,
-    .buffer_size = 1000000, // 1M
+   .buffer_size = 1000000, // 1M
     .file_th  = 1,
     .fp = NULL,
     .ks = NULL,
     .fp_out = NULL,
-    .fp_filter = NULL,
+    //.fp_filter = NULL,
     .fp_mito = NULL,
     .fp_report = NULL,
     
@@ -122,7 +122,7 @@ static struct args {
     .qual_thres = 10,
     .mito_id = -2,
     .PE_flag = 0,
-    .keep_all = 0,
+    //  .keep_all = 0,
 };
 
 // Buffer input and output records in a memory pool per thread
@@ -252,17 +252,14 @@ static void write_out(struct sam_pool *p)
     struct args *opts = p->opts;    
     for (i = 0; i < p->n; ++i) {
         if (p->bam[i] == NULL) continue;
-        if (opts->keep_all == 1) {
-            if (sam_write1(opts->fp_out, opts->hdr, p->bam[i]) == -1) error("Failed to write.");            
-        }
-        else if (p->flag[i] == FLG_USABLE ) {
-            if (sam_write1(opts->fp_out, opts->hdr, p->bam[i]) == -1) error("Failed to write.");
-        }
-        else if (p->flag[i] == FLG_MITO && opts->fp_mito != NULL) {
+
+        if (p->flag[i] == FLG_FLT) continue; // filter this alignment for low map quality
+        
+        if (p->flag[i] == FLG_MITO && opts->fp_mito != NULL) {
             if (bam_write1(opts->fp_mito, p->bam[i]) == -1) error("Failed to write.");
         }
-        else if (opts->fp_filter != NULL) {
-            if (bam_write1(opts->fp_filter, p->bam[i]) == -1) error("Failed to write.");
+        else {
+            if (sam_write1(opts->fp_out, opts->hdr, p->bam[i]) == -1) error("Failed to write.");
         }
     }
     sam_pool_destroy(p);
@@ -282,9 +279,11 @@ static void summary_report(struct args *opts)
         fprintf(opts->fp_report,"Plus strand,%"PRIu64"\n", summary->n_pstrand);
         fprintf(opts->fp_report,"Minus strand,%"PRIu64"\n", summary->n_mstrand);
         fprintf(opts->fp_report,"Mapping quals above %d,%"PRIu64"\n", opts->qual_thres, summary->n_qual);
-        fprintf(opts->fp_report,"Mitochondria ratio,%.2f%%\n", (float)summary->n_mito/summary->n_mapped*100);
-        fprintf(opts->fp_report,"Usable reads (ratio),%"PRIu64" (%.2f%%)\n", summary->n_usable, (float)summary->n_usable/summary->n_reads*100);
-        fprintf(opts->fp_report,"Failed to parse reads,%"PRIu64"\n", summary->n_failed_to_parse);
+        if (opts->mito_id != -1)
+            fprintf(opts->fp_report,"Mitochondria ratio,%.2f%%\n", (float)summary->n_mito/summary->n_mapped*100);
+        // fprintf(opts->fp_report,"Usable reads (ratio),%"PRIu64" (%.2f%%)\n", summary->n_usable, (float)summary->n_usable/summary->n_reads*100);
+        if (summary->n_failed_to_parse > 0)
+            fprintf(opts->fp_report,"Failed to parse reads,%"PRIu64"\n", summary->n_failed_to_parse);
     }
 
     free(summary);
@@ -337,47 +336,47 @@ static void sam_stat_reads(bam1_t *b, struct reads_summary *s, int *flag, struct
 {
     bam1_core_t *c = &b->core;
     s->n_reads++;
-    if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY || c->flag & BAM_FUNMAP)
-        *flag = FLG_FLT; // filtered
+
+    if (c->qual >= opts->qual_thres) s->n_qual++;
     else {
-        // mito ratio, mito come before qc filter, so only high quality mito reads will be exported in mito.bam
-        if (c->tid == opts->mito_id) {
-            s->n_mito++;
-            *flag = FLG_MITO; // filter mito
-        }
-        
-        s->n_mapped++;
-        if (c->flag & BAM_FREVERSE) s->n_mstrand++;
-        else s->n_pstrand++;            
-
-        if (c->qual >= opts->qual_thres) s->n_qual++;
-        else *flag = FLG_FLT; // filter low mapping quality
-        
-        if (c->flag & BAM_FPAIRED) {
-            s->n_pair_all ++;
-
-            if ((c->flag & BAM_FPROPER_PAIR) && !(c->flag & BAM_FUNMAP)) s->n_pair_good++;
-            else *flag = FLG_FLT;
-            
-            if (c->flag & BAM_FREAD1) s->n_read1++;
-            else if (c->flag & BAM_FREAD2) s->n_read2++;
-
-            if ((c->flag & BAM_FMUNMAP) && !(c->flag & BAM_FUNMAP)) {
-                s->n_sgltn++;
-                // if -p set, singleton will be filtered, else will kept
-                //  *flag = FLG_FLT; 
-            }
-            
-            if (!(c->flag & BAM_FUNMAP) && !(c->flag & BAM_FMUNMAP)) {
-                s->n_pair_map++;
-                if (c->mtid != c->tid) {
-                    s->n_diffchr++;
-                    *flag = FLG_FLT; // no matter -p set or not, skip reads mapped to diff chroms
-                }
-            }
-        }
+        *flag = FLG_FLT; // filter low mapping quality
+        return;
     }
-    if (*flag == FLG_USABLE) s->n_usable++;
+            
+    if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY || c->flag & BAM_FUNMAP) return; // unmapped
+
+
+    // mito ratio, mito come before qc filter, so only high quality mito reads will be exported in mito.bam
+    if (c->tid == opts->mito_id) {
+        s->n_mito++;
+        *flag = FLG_MITO; // filter mito
+    }
+        
+    s->n_mapped++;
+    if (c->flag & BAM_FREVERSE) s->n_mstrand++;
+    else s->n_pstrand++;            
+
+    if (c->flag & BAM_FPAIRED) {
+        s->n_pair_all ++;
+
+        if ((c->flag & BAM_FPROPER_PAIR) && !(c->flag & BAM_FUNMAP)) s->n_pair_good++;
+            
+        if (c->flag & BAM_FREAD1) s->n_read1++;
+        else if (c->flag & BAM_FREAD2) s->n_read2++;
+
+        if ((c->flag & BAM_FMUNMAP) && !(c->flag & BAM_FUNMAP)) {
+            s->n_sgltn++;
+        }
+        
+        if (!(c->flag & BAM_FUNMAP) && !(c->flag & BAM_FMUNMAP)) {
+            s->n_pair_map++;
+            if (c->mtid != c->tid) {
+                s->n_diffchr++;
+                // *flag = FLG_FLT; // no matter -p set or not, skip reads mapped to diff chroms
+            }
+        }    
+    }
+    //if (*flag == FLG_USABLE) s->n_usable++;
 }
 static void *sam_name_parse(void *_p, int idx)
 {
@@ -438,10 +437,12 @@ static void *sam_name_parse(void *_p, int idx)
                 if (strcmp(bam_get_qname(b1), bam_get_qname(b2)) != 0) error("Inconsist paried read name. %s vs %s", bam_get_qname(b1), bam_get_qname(b2));
                 sam_stat_reads(b2, summary, &p->flag[i], opts);
                 f2 = &p->flag[i];
+                /*
                 if (*f1 == FLG_FLT || *f2 == FLG_FLT || b1->core.tid != b2->core.tid) {
                     *f1 = FLG_FLT;
                     *f2 = FLG_FLT;
                 }
+                */
                 b1 = NULL;
                 b2 = NULL;
             }     
@@ -485,11 +486,11 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-mito") == 0) var = &args.mito;
         else if (strcmp(a, "-maln") == 0) var = &args.mito_fname;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
-        else if (strcmp(a, "-filter") == 0) var = &args.filter_fname;
+        else if (strcmp(a, "-filter") == 0) continue; // var = &args.filter_fname;
         else if (strcmp(a, "-@") == 0) var = &file_th;
-        else if (strcmp(a, "-k") == 0) {
-            args.keep_all = 1;
-            continue;
+        else if (strcmp(a, "-k") == 0) { // -k has been removed, 2020/02/13
+            // args.keep_all = 1;
+            continue; 
         }
         else if (strcmp(a, "-p") == 0) {
             args.PE_flag = 1;
@@ -533,13 +534,15 @@ static int parse_args(int argc, char **argv)
         args.fp_report = fopen(args.report_fname, "w");
         if (args.fp_report == NULL) error("%s : %s.", args.report_fname, strerror(errno));
     }
+    /*
     if (args.filter_fname) {
         if (args.keep_all == 1) error("-k is conflict with -filter");
         args.fp_filter = bgzf_open(args.filter_fname, "w");
         if (args.fp_filter == NULL) error("%s : %s.", args.filter_fname, strerror(errno));
     }
+    */
     if (args.mito_fname) {
-        if (args.keep_all == 1) error("-k is conflict with -maln");
+        // if (args.keep_all == 1) error("-k is conflict with -maln");
         args.fp_mito = bgzf_open(args.mito_fname, "w");
         if (args.fp_mito == NULL) error("%s : %s.", args.mito_fname, strerror(errno));
     }
@@ -570,7 +573,7 @@ static int parse_args(int argc, char **argv)
     args.hdr = sam_parse_header(args.ks, &str);
     if (args.hdr == NULL) error("Failed to parse header. %s", args.input_fname);
     if (sam_hdr_write(args.fp_out, args.hdr)) error("Failed to write header.");
-    if (args.fp_filter && bam_hdr_write(args.fp_filter, args.hdr)) error("Failed to write header.");
+    // if (args.fp_filter && bam_hdr_write(args.fp_filter, args.hdr)) error("Failed to write header.");
     if (args.fp_mito && bam_hdr_write(args.fp_mito, args.hdr)) error("Failed to write header.");
 
     // init mitochondria id
@@ -617,7 +620,7 @@ static void memory_release()
     gzclose(args.fp);
     bam_hdr_destroy(args.hdr);
 
-    if (args.fp_filter) bgzf_close(args.fp_filter);
+    //if (args.fp_filter) bgzf_close(args.fp_filter);
     if (args.fp_mito) bgzf_close(args.fp_mito);
     if (args.fp_report) fclose(args.fp_report);
     int i;
