@@ -400,7 +400,7 @@ static void *sam_name_parse(void *_p, int idx)
     else { // PE
         
         bam1_t *b1 = NULL, *b2 = NULL;
-        int *f1 = NULL, *f2 = NULL;
+        //int *f1 = NULL, *f2 = NULL;
         int i;
         for (i = 0; i < p->n; ++i) {
             parse_name_str(p->str[i]);
