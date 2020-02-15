@@ -50,7 +50,7 @@ int assemble_usage()
     fprintf(stderr, " -tag     [TAGS]     Tags of read block.\n");
     fprintf(stderr, " -p                  Input fastq is smart paired.\n");
     fprintf(stderr, " -dis     [file]     Assembled length distribution.\n");
-    fprintf(stderr, " -report  [csv]      Summary information.\n");
+    //fprintf(stderr, " -report  [csv]      Summary information.\n");
     fprintf(stderr, "\n");
     return 1;
 }

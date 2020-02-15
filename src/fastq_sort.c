@@ -57,6 +57,7 @@ static int parse_args(int argc, char **argv)
 
     int i;
     const char *thread = NULL;
+    const char *file_thread = NULL;
     const char *tags = NULL;
     const char *memory = NULL;
     for (i = 1; i < argc; ) {
@@ -65,6 +66,7 @@ static int parse_args(int argc, char **argv)
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         if (strcmp(a, "-list") == 0) var = &args.list_fname;
         else if (strcmp(a, "-t") == 0) var = &thread;
+        else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-tag") == 0) var = &tags;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-prefix") == 0) var = &args.prefix;
@@ -113,7 +115,8 @@ static int parse_args(int argc, char **argv)
 
     free(s); free(str.s);
     
-    if (thread) args.n_thread = str2int(thread);
+    //if (thread) args.n_thread = str2int(thread);
+    if (file_thread) args.n_thread = str2int(file_thread);
     if (args.n_thread < 1) args.n_thread = 1;
     if (memory) args.mem_per_thread = human2int(memory);
 
