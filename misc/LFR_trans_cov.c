@@ -53,6 +53,7 @@ static int parse_args(int argc, char **argv)
     if (args.fastq == NULL) error("Failed to read fastq.");
 
     args.tag_dict = str2tag(tags);
+    args.n_tag    = dict_size(args.tag_dict);
     return 0;
 }
 
