@@ -86,8 +86,8 @@ int main(int argc, char **argv)
             idx = dict_query(bc, str.s);
             if (idx == -1) idx = dict_push(bc, str.s);
             if (idx >= alloc) {
-                counts = realloc(counts, sizeof(idx)*sizeof(int));
-                for (; alloc < idx; ++alloc) counts[alloc] = 0;
+                counts = realloc(counts, (idx+100)*sizeof(int));
+                for (; alloc < idx+100; ++alloc) counts[alloc] = 0;
             }
             counts[idx] += s->l1;
         }
