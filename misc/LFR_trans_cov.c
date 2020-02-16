@@ -89,18 +89,25 @@ int main(int argc, char **argv)
                 counts = realloc(counts, (idx+100)*sizeof(int));
                 for (; alloc < idx+100; ++alloc) counts[alloc] = 0;
             }
-            counts[idx] += s->l1;
+            counts[idx] += s->l0;
         }
     }
 
+    int max = 0;
     int i;
-    for (i = 0; i < alloc; ++i) {
-        if (counts[i] == 0) continue;
-        printf("%d\t%d\n", i, counts[i]);
-    }
+    for (i = 0; i < alloc; ++i)
+        if (counts[i] > max ) max = counts[i];
+
+    int *stats = malloc(sizeof(int)*(max+1));
+    memset(stats, 0, sizeof(int)*(max+1));
+    for (i = 0; i < alloc; ++i) stats[counts[i]]++;
+
+    for (i = 0; i < max+1; ++i)
+        if (stats[i] >0) printf("%d\t%d\n", i, stats[i]);
     
     if (str.m) free(str.s);
     if (alloc) free(counts);
+    free(stats);
     dict_destroy(bc);
     dict_destroy(args.tag_dict);
     fastq_handler_destory(args.fastq);
