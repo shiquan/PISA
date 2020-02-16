@@ -10,11 +10,13 @@ static struct args {
     struct fastq_handler *fastq;
     struct dict          *tag_dict;
     int                   n_tag;
+    int                   min;
 } args = {
     .read_fname  = NULL,
     .fastq       = NULL,
     .tag_dict    = NULL,
     .n_tag       = 0,
+    .min         = 100,
 };
 
 static int parse_args(int argc, char **argv)
@@ -22,13 +24,14 @@ static int parse_args(int argc, char **argv)
     if ( argc == 1 ) return 1;
 
     const char *tags = 0;
-    
+    const char *min  = 0;
     int i;
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
         const char **var = 0;
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         else if (strcmp(a, "-tags") == 0) var = &tags;
+        else if (strcmp(a, "-min") == 0) var = &min;
 
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
@@ -54,12 +57,14 @@ static int parse_args(int argc, char **argv)
 
     args.tag_dict = str2tag(tags);
     args.n_tag    = dict_size(args.tag_dict);
+    if (min) args.min = atoi(min);
+    if (args.min < 1) args.min = 1;
     return 0;
 }
 
 static int usage()
 {
-    fprintf(stderr, "LFR_trans_cov -tags CB,UB,GN in.fq\n");
+    fprintf(stderr, "LFR_trans_cov -tags CB,UB,GN [-min 100] in.fq\n");
     return 1;
 }
 int main(int argc, char **argv)
@@ -95,7 +100,7 @@ int main(int argc, char **argv)
 
     int max = 0;
     int i;
-    for (i = 0; i < alloc; ++i)
+    for (i = 100; i < alloc; ++i)
         if (counts[i] > max ) max = counts[i];
 
     int *stats = malloc(sizeof(int)*(max+1));
