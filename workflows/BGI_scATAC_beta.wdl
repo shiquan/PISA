@@ -8,6 +8,7 @@ workflow main {
   String ?lib
   String tssFile
   String Rscript
+  String ?runID
   call makedir {
     input:
     Dir=outdir
@@ -20,6 +21,7 @@ workflow main {
     fastq2=fastq2,
     outdir=makedir.Outdir,
     root=root,
+    runID=runID
   }
   call fastq2bam {
     input:
@@ -73,12 +75,14 @@ task parseFastq {
   String fastq2
   String outdir
   String root
+  String ?runID
   String ?lib
   command {
     if [ -f ${default=abjdbashj lib} ]; then
     source ${lib}
     fi
-    ${root}/bin/PISA parse -t 10 -q 20 -config ${config} -cbdis ${outdir}/temp/barcode_counts_raw.txt -report ${outdir}/report/sequencing_report.csv ${fastq1} ${fastq2} |\
+    
+    ${root}/bin/PISA parse -run ${default=1 runID} -t 10 -q 20 -config ${config} -cbdis ${outdir}/temp/barcode_counts_raw.txt -report ${outdir}/report/sequencing_report.csv ${fastq1} ${fastq2} |\
     ${root}/bin/dyncut -1 ${outdir}/temp/reads.fq -l 30 -report ${outdir}/report/trim.csv /dev/stdin
   }
   output {
