@@ -38,7 +38,7 @@ int parse_args(int argc, char **argv)
         if (strcmp(a, "-1") == 0) var = &args.r1_fname;
         else if (strcmp(a, "-2") == 0) var = &args.r2_fname;
         else if (strcmp(a, "-o") == 0) var = &args.output_dir;
-        else if (strcmp(a, "-t") == 0) var = &thread;
+        else if (strcmp(a, "-@") == 0) var = &thread;
                         
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
@@ -79,8 +79,8 @@ int main(int argc, char **argv)
     free(str1.s);
     free(str2.s);
     
-    // bgzf_mt(fp1, args.n_thread, 256);
-    // bgzf_mt(fp2, args.n_thread, 256);
+    bgzf_mt(fp1, args.n_thread, 256);
+    //bgzf_mt(fp2, args.n_thread, 256);
     
     do {
         struct bseq_pool *p = fastq_read(fastq, &args);
