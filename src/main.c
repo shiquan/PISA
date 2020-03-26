@@ -12,8 +12,8 @@ int usage()
     fprintf(stderr, "\n--- Processing FASTQ\n");
     fprintf(stderr, "    parse      Parse barcodes from fastq reads.\n");
     fprintf(stderr, "    fsort      Sort fastq records by barcodes.\n");
-    fprintf(stderr, "    assem      Assemble tagged reads. Fastq need be sorted by `fsort` before assembly ** experiment **.\n");
-    fprintf(stderr, "    segment    Select defined segments from contigs. ** experiment **\n");
+    //fprintf(stderr, "    assem      Assemble tagged reads. Fastq need be sorted by `fsort` before assembly ** experiment **.\n");
+    //fprintf(stderr, "    segment    Select defined segments from contigs. ** experiment **\n");
     
     fprintf(stderr, "\n--- Processing BAM\n");
     fprintf(stderr, "    sam2bam    Convert SAM to BAM, and transform tags from read name to standard SAM tags.\n");
@@ -27,7 +27,7 @@ int usage()
     fprintf(stderr, "    bam2fq     Convert bam to fastq file. Tagged information will exported at read name.\n");
     // fprintf(stderr, "    genecov    Calculate reads coverage over gene body.\n");
     // fprintf(stderr, "    bam2frag   Convert bam to bgzipped fragment file.\n");
-    fprintf(stderr, "    impute     Impute tagged reads.\n");
+    // fprintf(stderr, "    impute     Impute tagged reads.\n");
     
     fprintf(stderr, "\n");
     return 1;

@@ -395,10 +395,11 @@ int levenshtein(char *a, char *b, int l) {
 int main()
 {
     ss_t *S = ss_init();
-    ss_push(S,"TAACACGCAA");
-    ss_push(S,"TAACAGCCAA");
-    char *s1 = ss_query(S, "TAACAGCCAA", 1);
-    char *s2 = ss_query(S, "TAACAGCCNA", 2);
+    ss_push(S,"CTTCGATGGT");
+    ss_push(S,"ACTTCTATGC");
+    int exact;
+    char *s1 = ss_query(S, "CTTCTATGGT", 1, &exact);
+    char *s2 = ss_query(S, "CTTCTATGGT", 2, &exact);
     fprintf(stderr, "%s\t%s\n", s1, s2);
     return 0;
 }
