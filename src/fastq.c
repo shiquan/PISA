@@ -368,6 +368,59 @@ void bseq_pool_push(struct bseq *b, struct bseq_pool *p)
     // free(b);
 }
 // credit to https://github.com/wooorm/levenshtein.
+size_t levenshtein_n(const char *a, const size_t length, const char *b, const size_t bLength) {
+  // Shortcut optimizations / degenerate cases.
+  if (a == b) {
+    return 0;
+  }
+
+  if (length == 0) {
+    return bLength;
+  }
+
+  if (bLength == 0) {
+    return length;
+  }
+
+  size_t *cache = calloc(length, sizeof(size_t));
+  size_t index = 0;
+  size_t bIndex = 0;
+  size_t distance;
+  size_t bDistance;
+  size_t result;
+  char code;
+
+  // initialize the vector.
+  while (index < length) {
+    cache[index] = index + 1;
+    index++;
+  }
+
+  // Loop.
+  while (bIndex < bLength) {
+    code = b[bIndex];
+    result = distance = bIndex++;
+    index = SIZE_MAX;
+
+    while (++index < length) {
+      bDistance = code == a[index] ? distance : distance + 1;
+      distance = cache[index];
+
+      cache[index] = result = distance > result
+        ? bDistance > result
+          ? result + 1
+          : bDistance
+        : bDistance > distance
+          ? distance + 1
+          : bDistance;
+    }
+  }
+
+  free(cache);
+
+  return result;
+}
+/*
 int levenshtein(char *a, char *b, int l) {
     int *cache = calloc(l, sizeof(int));
     int index = 0;
@@ -406,7 +459,7 @@ int levenshtein(char *a, char *b, int l) {
     free(cache);    
     return result;
 }
-
+*/
 static char *reverse_seq(char *s, int l)
 {
     char *r = malloc(sizeof(char)*l);
@@ -471,7 +524,7 @@ static int check_dup(struct bseq *r, struct bseq *q, int strand)
     kputs("", &str1);
 
     assert(str.l == str1.l);
-    int score = levenshtein(str.s, str1.s, str.l);
+    int score = levenshtein_n(str.s, str.l, str1.s, str1.l);
     if (score > 2) {
         free(str.s);
         free(str1.s);

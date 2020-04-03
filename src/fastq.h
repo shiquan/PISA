@@ -71,7 +71,8 @@ extern int fastq_handler_state(struct fastq_handler*);
 
 extern void fastq_handler_destory(struct fastq_handler *h);
 extern void bseq_pool_push(struct bseq *b, struct bseq_pool *p);
-extern int levenshtein(char *a, char *b, int l);
+//extern int levenshtein(char *a, char *b, int l);
 extern int bseq_pool_dedup(struct bseq_pool *p);
 
+extern size_t levenshtein_n(const char *a, const size_t length, const char *b, const size_t bLength);
 #endif
