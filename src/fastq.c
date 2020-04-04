@@ -367,7 +367,8 @@ void bseq_pool_push(struct bseq *b, struct bseq_pool *p)
     //debug_print("c %d, b %d", c->l0, b->l0);
     // free(b);
 }
-// credit to https://github.com/wooorm/levenshtein.
+
+// credit to https://github.com/wooorm/levenshtein.c
 size_t levenshtein_n(const char *a, const size_t length, const char *b, const size_t bLength) {
   // Shortcut optimizations / degenerate cases.
   if (a == b) {
@@ -420,46 +421,7 @@ size_t levenshtein_n(const char *a, const size_t length, const char *b, const si
 
   return result;
 }
-/*
-int levenshtein(char *a, char *b, int l) {
-    int *cache = calloc(l, sizeof(int));
-    int index = 0;
-    int bIndex = 0;
-    int distance;
-    int bDistance;
-    int result;
-    char code;
 
-    // initialize the vector.
-    while (index < l) {
-        cache[index] = index + 1;
-        index++;
-    }
-
-    // Loop.
-    while (bIndex < l) {
-        code = b[bIndex];
-        result = distance = bIndex++;
-        index = 0;
-
-        while (++index < l) {
-            bDistance = code == a[index] ? distance : distance + 1;
-            distance = cache[index];
-
-            cache[index] = result = distance > result
-                ? bDistance > result
-                ? result + 1
-                : bDistance
-                : bDistance > distance
-                ? distance + 1
-                : bDistance;
-        }
-    }
-    
-    free(cache);    
-    return result;
-}
-*/
 static char *reverse_seq(char *s, int l)
 {
     char *r = malloc(sizeof(char)*l);

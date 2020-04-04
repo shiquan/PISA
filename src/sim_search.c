@@ -365,47 +365,7 @@ char *ss_query(ss_t *S, char *seq, int e, int *exact)
     set_destory(set);
     return NULL;
 }
-/*
-int levenshtein(char *a, char *b, int l) {
-    int *cache = calloc(l, sizeof(int));
-    int index = 0;
-    int bIndex = 0;
-    int distance;
-    int bDistance;
-    int result;
-    char code;
 
-    // initialize the vector.
-    while (index < l) {
-        cache[index] = index + 1;
-        index++;
-    }
-
-    // Loop.
-    while (bIndex < l) {
-        code = b[bIndex];
-        result = distance = bIndex++;
-        index = 0;
-
-        while (++index < l) {
-            bDistance = code == a[index] ? distance : distance + 1;
-            distance = cache[index];
-
-            cache[index] = result = distance > result
-                ? bDistance > result
-                ? result + 1
-                : bDistance
-                : bDistance > distance
-                ? distance + 1
-                : bDistance;
-        }
-    }
-    
-    free(cache);    
-    return result;
-}
-
-*/
 #ifdef SS_MAIN
 int main()
 {

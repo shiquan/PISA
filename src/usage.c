@@ -11,10 +11,11 @@ int fastq_parse_usage()
     fprintf(stderr, " -config  [json]    Configure file in JSON format. Required.\n");
     fprintf(stderr, " -run     [string]  Run code, used for different library.\n");
     fprintf(stderr, " -cbdis   [file]    Cell barcode sequence and count pairs.\n");
-    fprintf(stderr, " -t       [INT]     Thread.\n");
-    fprintf(stderr, " -r       [INT]     Records per chunk. [10000]\n");
+    fprintf(stderr, " -p                 Read 1 and read 2 interleaved in the input file.\n");
+    // fprintf(stderr, " -t       [INT]     Thread.\n");
+    // fprintf(stderr, " -r       [INT]     Records per chunk. [10000]\n");
     fprintf(stderr, " -dis     [file]    Barcode distribution count.\n");
-    fprintf(stderr, " -f                 Filter reads based on MGISEQ standard (2 bases < q10 at first 15 bases).\n");
+    fprintf(stderr, " -f                 Filter reads on DNBSEQ standard (2 bases < q10 at first 15 bases).\n");
     fprintf(stderr, " -q       [INT]     Drop this read if average sequencing quality below this value.\n");
     fprintf(stderr, " -dropN             Drop the reads if N base in reads or UMI.\n");
     fprintf(stderr, " -report  [csv]     Summary report.\n");
