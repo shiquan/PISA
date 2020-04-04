@@ -14,7 +14,7 @@ int usage()
     fprintf(stderr, "    fsort      Sort fastq records by barcodes.\n");
     
     fprintf(stderr, "\n--- Processing BAM\n");
-    fprintf(stderr, "    sam2bam    Convert SAM to BAM, and transform tags from read name to standard SAM tags.\n");
+    fprintf(stderr, "    sam2bam    Parse FASTQ+ read name and convert SAM to BAM.\n");
     fprintf(stderr, "    rmdup      Remove PCR duplicates per cell barcodes and/or UMIs.\n");
     fprintf(stderr, "    pick       Pick alignments with tags.\n");
     fprintf(stderr, "    anno       Annotate functional regions or gene names.\n");
