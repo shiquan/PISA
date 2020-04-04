@@ -19,46 +19,7 @@ struct bcount {
     uint64_t matched;
     uint64_t corrected;
 };
-/*
-// thread-safe summary information, NOT used anymore. edit:2019/12/02
-struct segment {
-    int n; // white list barcodes per segment
-    struct bcount *counts;
-};
 
-struct segment *segment_alloc(int n)
-{
-    struct segment *s = malloc(sizeof(*s));
-    s->n = n;
-    s->counts = malloc(sizeof(struct bcount)*n);
-    memset(s->counts, 0, sizeof(struct bcount)*n);
-    return s;
-}
-struct thread_hold {
-    int n; // segments
-    struct segment **seg;
-};
-struct thread_hold *thread_hold_fork(struct thread_hold *h)
-{
-    struct thread_hold *f = malloc(sizeof(*f));
-    f->n = h->n;
-    f->seg = malloc(sizeof(void*)*f->n);
-    int i;
-    for (i = 0; i < f->n; ++i) f->seg[i] = segment_alloc(h->seg[i]->n);
-    return f;
-}
-void thread_hold_destroy(struct thread_hold *h)
-{
-    int i;
-    for (i = 0; i < h->n; ++i) {
-        struct segment *s = h->seg[i];
-        free(s->counts);
-        free(s);
-    }
-    free(h->seg);
-    free(h);
-}
-*/
 struct bcode_reg {
     int rd; // read 1 or 2
     int start;
@@ -127,7 +88,7 @@ static struct args {
 
     int qual_thres;
     
-    int n_thread;
+    // int n_thread;
     int chunk_size;
     int cell_number;
 
@@ -191,7 +152,7 @@ static struct args {
     .report_fname = NULL,
     .dis_fname = NULL,
     .qual_thres = 0,
-    .n_thread = 4,
+    //.n_thread = 4,
     .chunk_size = 10000,
     .cell_number = 10000,
     .smart_pair = 0,
@@ -1101,14 +1062,18 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-2") == 0) var = &args.out2_fname;
         else if (strcmp(a, "-config") == 0) var = &args.config_fname;
         else if (strcmp(a, "-cbdis") == 0) var = &args.cbdis_fname;
-        else if (strcmp(a, "-t") == 0) var = &thread;
-        else if (strcmp(a, "-r") == 0) var = &chunk_size;
+        else if (strcmp(a, "-t") == 0) var = &thread; // skip
+        else if (strcmp(a, "-r") == 0) var = &chunk_size; // skip
         else if (strcmp(a, "-run") == 0) var = &args.run_code;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
         else if (strcmp(a, "-dis") == 0) var = &args.dis_fname;
-        else if (strcmp(a, "-q") == 0) var = &qual_thres;
+        else if (strcmp(a, "-q") == 0) var = &qual_thres;       
         else if (strcmp(a, "-f") == 0) {
             args.bgiseq_filter = 1;
+            continue;
+        }
+        else if (strcmp(a, "-p") == 0) {
+            args.smart_pair = 1;
             continue;
         }
         else if (strcmp(a, "-dropN") == 0) {
@@ -1136,35 +1101,14 @@ static int parse_args(int argc, char **argv)
     config_init(args.config_fname);
     LOG_print("Configure file inited.");
     
-    if (thread) args.n_thread = str2int((char*)thread);
+    // if (thread) args.n_thread = str2int((char*)thread);
     if (chunk_size) args.chunk_size = str2int((char*)chunk_size);
-    assert(args.n_thread >= 1 && args.chunk_size >= 1);
+    // assert(args.n_thread >= 1 && args.chunk_size >= 1);
     if (qual_thres) {
         args.qual_thres = str2int((char*)qual_thres);
         LOG_print("Average quality below %d will be drop.", args.qual_thres);
     }
 
-    //args.hold = malloc(sizeof(void*)*args.n_thread);
-    //memset(args.hold, 0, sizeof(void*)*args.n_thread);
-
-    /*
-    if (config.n_cell_barcode > 0) { // segments        
-        //struct thread_hold *h1 = malloc(sizeof(struct thread_hold));
-        //h1->n = config.n_cell_barcode;
-        //h1->seg = malloc(sizeof(void*)*h1->n);
-        
-        for (i = 0; i < config.n_cell_barcode; ++i) { // barcodes per segment
-            int wl = config.cell_barcodes[i].n_wl;
-            h1->seg[i] = malloc(sizeof(struct segment));
-            h1->seg[i]->n = wl;
-            h1->seg[i]->counts = malloc(wl*sizeof(struct bcount));
-            memset(h1->seg[i]->counts, 0, sizeof(struct bcount)*wl);
-        }
-
-        args.hold[0] = h1;
-        for (i = 1; i < args.n_thread; ++i) args.hold[i] = thread_hold_fork(h1);
-    }
-    */
     if (args.r1_fname == NULL && (!isatty(fileno(stdin)))) args.r1_fname = "-";
     if (args.r1_fname == NULL) error("Fastq file(s) must be set.");
         
@@ -1211,14 +1155,17 @@ int fastq_prase_barcodes(int argc, char **argv)
     
     if (parse_args(argc, argv)) return fastq_parse_usage();
 
-    int nt = args.n_thread;
-    if (nt == 1) {
-        for (;;) {
-            struct bseq_pool *b = fastq_read(args.fastq, &args);
-            if (b == NULL) break;
-            b = run_it(b, 0);
-            write_out(b);
-        } 
+    // int nt = args.n_thread;
+    //if (nt == 1) {
+    for (;;) {
+        struct bseq_pool *b = fastq_read(args.fastq, &args);
+        if (b == NULL) break;
+        b = run_it(b, 0);
+        write_out(b);
+    }
+    /*
+
+      TODO: the multi-threads mode usually get stuck, delete it at 20200204
     }
     else {
         
@@ -1251,7 +1198,8 @@ int fastq_prase_barcodes(int argc, char **argv)
         thread_pool_process_destroy(q);
         thread_pool_destroy(p);
     }
-
+    */
+    
     cell_barcode_count_pair_write();
 
     report_write();
