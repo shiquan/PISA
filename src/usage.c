@@ -10,14 +10,14 @@ int fastq_parse_usage()
     fprintf(stderr, " -2       [fastq]   Read 2 output.\n");
     fprintf(stderr, " -config  [json]    Configure file in JSON format. Required.\n");
     fprintf(stderr, " -run     [string]  Run code, used for different library.\n");
-    fprintf(stderr, " -cbdis   [file]    Cell barcode sequence and count pairs.\n");
+    fprintf(stderr, " -cbdis   [file]    Read count per cell barcode.\n");
     fprintf(stderr, " -p                 Read 1 and read 2 interleaved in the input file.\n");
     // fprintf(stderr, " -t       [INT]     Thread.\n");
     // fprintf(stderr, " -r       [INT]     Records per chunk. [10000]\n");
-    fprintf(stderr, " -dis     [file]    Barcode distribution count.\n");
+    // fprintf(stderr, " -dis     [file]    Barcode distribution count.\n");
     fprintf(stderr, " -f                 Filter reads on DNBSEQ standard (2 bases < q10 at first 15 bases).\n");
-    fprintf(stderr, " -q       [INT]     Drop this read if average sequencing quality below this value.\n");
-    fprintf(stderr, " -dropN             Drop the reads if N base in reads or UMI.\n");
+    fprintf(stderr, " -q       [INT]     Drop reads if average sequencing quality below this value.\n");
+    fprintf(stderr, " -dropN             Drop reads if N base in sequence or barcode.\n");
     fprintf(stderr, " -report  [csv]     Summary report.\n");
     fprintf(stderr, "\n");
     return 1;
@@ -31,7 +31,7 @@ int fsort_usage()
     fprintf(stderr, " -dedup              Remove dna copies with same tags. Only keep reads have the best quality.\n");
     fprintf(stderr, " -dup-tag [TAG]      Tag name of duplication counts. Use with -dedup only. [DU]\n");
     fprintf(stderr, " -list    [file]     White list for first tag, usually for cell barcodes.\n");
-    fprintf(stderr, " -@       [INT]      Threads to compress.\n");
+    fprintf(stderr, " -@       [INT]      Threads to compress file.\n");
     fprintf(stderr, " -o       [fq.gz]    bgzipped output fastq file.\n");
     fprintf(stderr, " -m       [mem]      Memory per thread. [1G]\n");
     fprintf(stderr, " -p                  Input fastq is smart pairing.\n");
@@ -40,7 +40,7 @@ int fsort_usage()
     fprintf(stderr, "\n");
     return 1;
 }
-
+/*
 int assemble_usage()
 {
     fprintf(stderr, "* Assemble reads from the same barcode.\n");
@@ -72,20 +72,16 @@ int segment_usage()
     fprintf(stderr, "\n");
     return 1;
 }
-
+*/
 int sam2bam_usage()
 {
-    fprintf(stderr, "* Convert SAM to BAM format. Tag information in read name will be extract.\n");
+    fprintf(stderr, "* Parse FASTQ+ read name and convert SAM to BAM.\n");
     fprintf(stderr, "sam2bam [options] in.sam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -o       [BAM]       Output file [stdout].\n");
-    fprintf(stderr, " -k                   Keep all records in out.bam, include unmapped reads etc.\n");
-    fprintf(stderr, " -filter  [BAM]       Filter reads, include unmapped, secondary alignment, mitochondra etc.\n");
-    fprintf(stderr, " -q       [INT]       Map quality theshold, mapped reads with smaller mapQ will be filter.\n");
-    fprintf(stderr, " -mito    [string]    Mitochondria name. If set ratio of reads in mito will be export in summary file.\n");
-    fprintf(stderr, " -maln    [BAM]       Export mitochondria reads into this file instead of standard output file. Use wuth -mito.\n");
-    fprintf(stderr, " -r       [INT]       Records per chunk. Default is 1000000.\n");
-    fprintf(stderr, " -p                   Input reads are paired.\n");
+    fprintf(stderr, " -mito    [string]    Mitochondria name. Used to stat ratio of mitochondria reads.\n");
+    fprintf(stderr, " -maln    [BAM]       Export mitochondria reads into this file instead of standard output file.\n");
+    // fprintf(stderr, " -r       [INT]       Records per chunk. Default is 1000000.\n");    
     fprintf(stderr, " -@       [INT]       Threads to compress bam file.\n");
     fprintf(stderr, " -report  [csv]       Alignment report.\n");
     fprintf(stderr, "\n");
@@ -223,7 +219,7 @@ int bam2fq_usage()
     fprintf(stderr, "\n");
     return 1;
 }
-
+/*
 int bam_impute_usage()
 {
     fprintf(stderr, "* Imputate empty tag by existed tags.\n");
@@ -237,3 +233,4 @@ int bam_impute_usage()
     fprintf(stderr, "\n");
     return 1;
 }
+*/

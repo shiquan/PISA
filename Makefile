@@ -52,14 +52,9 @@ AOBJ = src/bam_anno.o \
 	src/bam_attr_count.o \
 	src/fastq_sort.o \
 	src/fastq_parse_barcode.o \
-	src/fastq_segment.o \
-	src/fastq_assem.o \
-	src/LFR_impute.o \
 	src/bam_tag_corr.o \
 	src/bam2fq.o \
-	src/gene_cov.o \
 	src/bam_extract_tags.o \
-	src/fragment.o \
 	src/usage.o
 
 liba.a: $(LIB_OBJ)
@@ -72,10 +67,7 @@ PISA: $(HTSLIB) $(FMLLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) $(FMLLIB) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
 
 src/sim_search.o: src/sim_search.c
-src/fragment.o: src/fragment.c
-src/gene_cov.o: src/gene_cov.c
 src/bam2fq.o: src/bam2fq.c
-src/seq_merge.o: src/seq_merge.c
 src/bam_anno.o: src/bam_anno.c
 src/bam_count.o: src/bam_count.c
 src/bam_pick.o: src/bam_pick.c
@@ -96,13 +88,10 @@ src/json_config.o: src/json_config.c
 src/kson.o: src/kson.c
 src/bam_rmdup.o: src/bam_rmdup.c
 src/bam_attr_count.o: src/bam_attr_count.c
-src/fastq_segment.o: src/fastq_segment.c
-src/fastq_assem.o: src/fastq_assem.c
 src/read_thread.o: src/read_thread.c
 src/read_tags.o: src/read_tags.c
 src/ksa.o: src/ksa.c
 src/bam_pool.o: src/bam_pool.c
-src/LFR_impute.o: src/LFR_impute.c
 src/bam_extract_tags.o: src/bam_extract_tags.c
 src/usage.o:src/usage.c
 

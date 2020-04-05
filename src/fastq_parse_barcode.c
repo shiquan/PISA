@@ -994,7 +994,7 @@ void report_write()
         fprintf(args.report_fp, "Fragments pass QC,%"PRIu64"\n", args.reads_pass_qc);
         fprintf(args.report_fp, "Fragments with Exactly Matched Barcodes,%"PRIu64"\n", args.barcode_exactly_matched);
         fprintf(args.report_fp, "Fragments with Failed Barcodes,%"PRIu64"\n", args.filtered_by_barcode);
-        fprintf(args.report_fp, "Fragments Filtered on Low Qulity,%"PRIu64"\n", args.filtered_by_lowqual);
+        fprintf(args.report_fp, "Fragments Filtered on Low Quality,%"PRIu64"\n", args.filtered_by_lowqual);
         fprintf(args.report_fp, "Fragments Filtered on Unknown Sample Barcodes,%"PRIu64"\n", args.filtered_by_sample);
         fprintf(args.report_fp, "Q30 bases in Cell Barcode,%.1f%%\n",args.bases_cell_barcode == 0 ? 0 : (float)args.q30_bases_cell_barcode/(args.bases_cell_barcode+1)*100);
         fprintf(args.report_fp, "Q30 bases in Sample Barcode,%.1f%%\n", args.bases_sample_barcode == 0 ? 0 : (float)args.q30_bases_sample_barcode/(args.bases_sample_barcode+1)*100);

@@ -23,7 +23,7 @@ struct reads_summary {
     uint64_t n_reads, n_mapped, n_pair_map, n_pair_all, n_pair_good;
     uint64_t n_sgltn, n_read1, n_read2;
     uint64_t n_diffchr, n_pstrand, n_mstrand;
-    uint64_t n_qual;
+    // uint64_t n_qual;
     uint64_t n_mito;
     //uint64_t n_usable;
     uint64_t n_failed_to_parse;
@@ -54,7 +54,7 @@ static struct reads_summary *merge_reads_summary(struct reads_summary **rs, int 
         s->n_diffchr   += s0->n_diffchr;
         s->n_pstrand   += s0->n_pstrand;
         s->n_mstrand   += s0->n_mstrand;
-        s->n_qual      += s0->n_qual;
+        // s->n_qual      += s0->n_qual;
         s->n_mito      += s0->n_mito;
         //s->n_usable    += s0->n_usable;
     }
@@ -89,10 +89,10 @@ static struct args {
 
     int fixmate_flag; // if set, fix the mate relationship of paired reads first
 
-    int qual_thres; // mapping quality threshold to filter
+    // int qual_thres; // mapping quality threshold to filter
 
     int mito_id;
-    int PE_flag;
+    //int PE_flag;
 //    int keep_all;
 } args = {
     .input_fname = NULL,
@@ -119,9 +119,9 @@ static struct args {
     .thread_data = NULL,
 
     .fixmate_flag = 0,
-    .qual_thres = 10,
+    // .qual_thres = 10,
     .mito_id = -2,
-    .PE_flag = 0,
+    // .PE_flag = 0,
     //  .keep_all = 0,
 };
 
@@ -253,8 +253,9 @@ static void write_out(struct sam_pool *p)
     for (i = 0; i < p->n; ++i) {
         if (p->bam[i] == NULL) continue;
 
+        /* do NOT filter any records, edited 2020/04/04
         if (p->flag[i] == FLG_FLT) continue; // filter this alignment for low map quality
-        
+        */
         if (p->flag[i] == FLG_MITO && opts->fp_mito != NULL) {
             if (bam_write1(opts->fp_mito, p->bam[i]) == -1) error("Failed to write.");
         }
@@ -278,7 +279,7 @@ static void summary_report(struct args *opts)
         fprintf(opts->fp_report,"Paired reads map on diff chr,%"PRIu64"\n", summary->n_diffchr);
         fprintf(opts->fp_report,"Plus strand,%"PRIu64"\n", summary->n_pstrand);
         fprintf(opts->fp_report,"Minus strand,%"PRIu64"\n", summary->n_mstrand);
-        fprintf(opts->fp_report,"Mapping quals above %d,%"PRIu64"\n", opts->qual_thres, summary->n_qual);
+        // fprintf(opts->fp_report,"Mapping quals above %d,%"PRIu64"\n", opts->qual_thres, summary->n_qual);
         if (opts->mito_id != -1)
             fprintf(opts->fp_report,"Mitochondria ratio,%.2f%%\n", (float)summary->n_mito/summary->n_mapped*100);
         // fprintf(opts->fp_report,"Usable reads (ratio),%"PRIu64" (%.2f%%)\n", summary->n_usable, (float)summary->n_usable/summary->n_reads*100);
@@ -337,12 +338,14 @@ static void sam_stat_reads(bam1_t *b, struct reads_summary *s, int *flag, struct
     bam1_core_t *c = &b->core;
     s->n_reads++;
 
+    /*
     if (c->qual >= opts->qual_thres) s->n_qual++;
     else {
         *flag = FLG_FLT; // filter low mapping quality
         return;
     }
-            
+    */
+    
     if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY || c->flag & BAM_FUNMAP) return; // unmapped
 
 
@@ -372,11 +375,9 @@ static void sam_stat_reads(bam1_t *b, struct reads_summary *s, int *flag, struct
             s->n_pair_map++;
             if (c->mtid != c->tid) {
                 s->n_diffchr++;
-                // *flag = FLG_FLT; // no matter -p set or not, skip reads mapped to diff chroms
-            }
+                }
         }    
-    }
-    //if (*flag == FLG_USABLE) s->n_usable++;
+    }    
 }
 static void *sam_name_parse(void *_p, int idx)
 {
@@ -384,19 +385,21 @@ static void *sam_name_parse(void *_p, int idx)
     struct args *opts = p->opts;
     struct reads_summary *summary = opts->thread_data[idx];    
     bam_hdr_t *h = opts->hdr;
-    if (opts->PE_flag == 0) {
-        int i;
-        for (i = 0; i < p->n; ++i) {
-            parse_name_str(p->str[i]);
-            if (sam_parse1(p->str[i], h, p->bam[i])) {
-                warnings ("Failed to parse SAM., %s", bam_get_qname(p->bam[i]));
-                summary->n_failed_to_parse++;
-                p->bam[i] = NULL;
-                continue;
-            }
-            sam_stat_reads(p->bam[i], summary, &p->flag[i], opts);
+    // if (opts->PE_flag == 0) {
+    int i;
+    for (i = 0; i < p->n; ++i) {
+        parse_name_str(p->str[i]);
+        if (sam_parse1(p->str[i], h, p->bam[i])) {
+            warnings ("Failed to parse SAM., %s", bam_get_qname(p->bam[i]));
+            summary->n_failed_to_parse++;
+            p->bam[i] = NULL;
+            continue;
         }
+        sam_stat_reads(p->bam[i], summary, &p->flag[i], opts);
     }
+   
+
+    /*
     else { // PE
         
         bam1_t *b1 = NULL, *b2 = NULL;
@@ -413,7 +416,7 @@ static void *sam_name_parse(void *_p, int idx)
                     continue;
                 }
                 if (b1->core.flag&BAM_FSECONDARY || b1->core.flag&BAM_FSUPPLEMENTARY) {
-                    p->flag[i] = FLG_FLT;
+                    // p->flag[i] = FLG_FLT;
                     b1 = NULL;
                     continue;
                 }
@@ -430,24 +433,19 @@ static void *sam_name_parse(void *_p, int idx)
                     // error("Failed to parse SAM.");
                 }
                 if (b2->core.flag&BAM_FSECONDARY || b2->core.flag&BAM_FSUPPLEMENTARY) {
-                    p->flag[i] = FLG_FLT;
+                    // p->flag[i] = FLG_FLT;
                     b2 = NULL;
                     continue;
                 }
                 if (strcmp(bam_get_qname(b1), bam_get_qname(b2)) != 0) error("Inconsist paried read name. %s vs %s", bam_get_qname(b1), bam_get_qname(b2));
                 sam_stat_reads(b2, summary, &p->flag[i], opts);
                 //f2 = &p->flag[i];
-                /*
-                if (*f1 == FLG_FLT || *f2 == FLG_FLT || b1->core.tid != b2->core.tid) {
-                    *f1 = FLG_FLT;
-                    *f2 = FLG_FLT;
-                }
-                */
+                
                 b1 = NULL;
                 b2 = NULL;
-            }     
-        }
-    }
+                }     
+                }
+    */
     
     return p;
 }
@@ -470,7 +468,7 @@ static int parse_args(int argc, char **argv)
     int i;
     const char *buffer_size = NULL;
     const char *thread = NULL;
-    const char *qual_thres = NULL;
+    //const char *qual_thres = NULL;
     const char *file_th = NULL;
     
     for (i = 1; i < argc;) {
@@ -482,20 +480,22 @@ static int parse_args(int argc, char **argv)
         if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-r") == 0) var = &buffer_size;
-        else if (strcmp(a, "-q") == 0) var = &qual_thres;
+        // else if (strcmp(a, "-q") == 0) var = &qual_thres;
         else if (strcmp(a, "-mito") == 0) var = &args.mito;
         else if (strcmp(a, "-maln") == 0) var = &args.mito_fname;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
-        else if (strcmp(a, "-filter") == 0) continue; // var = &args.filter_fname;
+        // else if (strcmp(a, "-filter") == 0) continue; // var = &args.filter_fname;
         else if (strcmp(a, "-@") == 0) var = &file_th;
         else if (strcmp(a, "-k") == 0) { // -k has been removed, 2020/02/13
             // args.keep_all = 1;
             continue; 
         }
+        /*
         else if (strcmp(a, "-p") == 0) {
             args.PE_flag = 1;
             continue;
         }
+        */
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -559,11 +559,12 @@ static int parse_args(int argc, char **argv)
         args.buffer_size = str2int((char*)buffer_size);
         assert(args.buffer_size>0);
     }
+    /*
     if (qual_thres) {
         args.qual_thres = str2int((char*)qual_thres);
         assert(args.qual_thres >= 0);
     }
-
+    */
     // init thread data
     args.thread_data = malloc(args.n_thread*sizeof(struct reads_summary*));
     for (i = 0; i < args.n_thread; ++i) args.thread_data[i] = reads_summary_create();
