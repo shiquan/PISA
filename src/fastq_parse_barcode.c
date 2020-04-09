@@ -542,6 +542,7 @@ struct seqlite *extract_tag(struct bseq *b, const struct bcode_reg *r, struct BR
     stat->bases += l;
     return p;
 }
+
 // NULL on unfound, else on sequence
 char *check_whitelist(char *s, const struct bcode_reg *r, int *exact_match)
 {

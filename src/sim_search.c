@@ -295,6 +295,18 @@ int set_top_2(set_t *set)
     return i;
 }
 
+int hamming_dist_calc(uint64_t a, uint64_t b)
+{
+    char *s1 = decode64(a);
+    char *s2 = decode64(b);
+    int l = strlen(s1);
+    int i;
+    int d = 0;
+    for (i = 0; i < l; ++i)
+        if (s1[i] != s2[i]) d++;
+    return d;
+}
+
 extern size_t levenshtein_n(const char *a, const size_t length, const char *b, const size_t bLength);
 
 int levnshn_dist_calc(uint64_t a, uint64_t b)
@@ -308,6 +320,15 @@ int levnshn_dist_calc(uint64_t a, uint64_t b)
     return dist;
 }
 
+static int use_levenshtein_distance = 0;
+void set_levenshtein()
+{
+    use_levenshtein_distance = 1;    
+}
+void set_hamming()
+{
+    use_levenshtein_distance = 0;
+}
 char *ss_query(ss_t *S, char *seq, int e, int *exact)
 {
     *exact = 1; // exactly match
@@ -349,7 +370,7 @@ char *ss_query(ss_t *S, char *seq, int e, int *exact)
     
     int hit = -1;
     for (i = 0; i < set->n; ++i) {
-        int dist = levnshn_dist_calc(S->cs[set->ele[i].ele], q);
+        int dist = use_levenshtein_distance == 1 ?  levnshn_dist_calc(S->cs[set->ele[i].ele], q) : hamming_dist_calc(S->cs[set->ele[i].ele], q);
         if (dist <= e) {
             if (hit != -1) goto multi_hits;
             hit = set->ele[i].ele;
@@ -374,7 +395,7 @@ int main()
     ss_push(S,"ACTTCTATGC");
     int exact;
     char *s1 = ss_query(S, "CTTCTATGGT", 1, &exact);
-    char *s2 = ss_query(S, "CTTCTATGGT", 2, &exact);
+    char *s2 = ss_query(S, "ACTTCTATGA", 2, &exact);
     fprintf(stderr, "%s\t%s\n", s1, s2);
     return 0;
 }
