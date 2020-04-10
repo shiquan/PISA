@@ -304,6 +304,7 @@ int hamming_dist_calc(uint64_t a, uint64_t b)
     int d = 0;
     for (i = 0; i < l; ++i)
         if (s1[i] != s2[i]) d++;
+    free(s1); free(s2);
     return d;
 }
 
