@@ -549,7 +549,7 @@ char *check_whitelist(char *s, const struct bcode_reg *r, int *exact_match)
     if (r->n_wl == 0) return 0;
     int len = strlen(s);
     if (len != r->len) error("Trying to check inconsistance length sequence.");
-    
+    set_hamming();
     return ss_query(r->wl, s, r->dist, exact_match);
 }
 static void update_rname(struct bseq *b, const char *tag, char *s)

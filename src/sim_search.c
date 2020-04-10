@@ -322,6 +322,7 @@ int levnshn_dist_calc(uint64_t a, uint64_t b)
 }
 
 static int use_levenshtein_distance = 0;
+
 void set_levenshtein()
 {
     use_levenshtein_distance = 1;    
