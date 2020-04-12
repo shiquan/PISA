@@ -168,12 +168,14 @@ int bam_attr_usage()
     fprintf(stderr, " -cb       [TAG]      Cell Barcode, or other tag used for each individual.\n");
     fprintf(stderr, " -list     [file]     Cell barcode white list.\n");
     fprintf(stderr, " -tags     [TAGS]     Tags to count.\n");
-    fprintf(stderr, " -dedup                Deduplicate the atrributes in each tag.\n");
+    fprintf(stderr, " -dedup               Deduplicate the atrributes in each tag.\n");
+    fprintf(stderr, " -all-tags            Only records with all tags be count.\n");
     fprintf(stderr, " -group    [TAG]      Group tag, count all tags for each group seperately.\n");
     fprintf(stderr, " -o        [file]     Output count table.\n");
     fprintf(stderr, " -q        [INT]      Map Quality to filter bam.\n");
-    fprintf(stderr, " -no-header            Ignore header in the output.\n");
+    fprintf(stderr, " -no-header           Ignore header in the output.\n");
     fprintf(stderr, " -@        [INT]      Thread to unpack bam.\n");
+    
     fprintf(stderr, "\n");
     return 1;
 }

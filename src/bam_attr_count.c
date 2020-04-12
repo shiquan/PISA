@@ -21,6 +21,7 @@ static struct args {
     int ignore_header;
     int is_dyn_alloc;
     int file_th;
+    int all_tags;
 } args = {
     .input_fname   = NULL,
     .output_fname  = NULL,
@@ -34,6 +35,7 @@ static struct args {
     .ignore_header = 0,
     .is_dyn_alloc  = 1,
     .file_th       = 4,
+    .all_tags      = 0,
 };
 
 static int parse_args(int argc, char **argv)
@@ -57,7 +59,9 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-list") == 0) var = &args.barcode_fname;
         else if (strcmp(a, "-q") == 0) var = &qual;
         else if (strcmp(a, "-@") == 0) var = &file_th;
-        
+        else if (strcmp(a, "-all-tags") == 0) {
+            args.all_tags = 1;
+        }
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -122,6 +126,15 @@ void counts_destroy(struct counts *cnt)
 }
 int counts_push(struct counts *cnt, bam1_t *b)
 {
+    int i;
+    if (args.all_tags == 1) { // check if all tags existed
+        for (i = 0; i < args.n_tag; ++i) {
+            uint8_t *va = bam_aux_get(b, args.tags[i]);
+            if (!va) return 0;
+        }
+    }
+    
+
     uint8_t *tag = bam_aux_get(b, args.cb_tag);
     if (!tag) return 1; // skip records without cell Barcodes
 
@@ -166,7 +179,6 @@ int counts_push(struct counts *cnt, bam1_t *b)
         for (i = bc->n; i < bc->m; ++i) bc->counts[i] = NULL;
         bc->n = bc->m;
     }
-    int i;
     for (i = 0; i < args.n_tag; ++i) {
         uint8_t *va = bam_aux_get(b, args.tags[i]);
         if (!va) continue;
