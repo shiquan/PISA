@@ -95,6 +95,7 @@ int rmdup_usage()
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, "   -tag   [TAGS]       Sample tag, cell barcode tag, and/or UMI tag. RG,CB,UR\n");
     fprintf(stderr, "   -t     [INT]        Threads.\n");
+    fprintf(stderr, "   -@     [INT]        Threads to unpack BAM.\n");
     fprintf(stderr, "   -o     [BAM]        Output bam.\n");
     fprintf(stderr, "   -r     [INT]        Records per thread chunk. Default is 10000000.\n");
     fprintf(stderr, "   -k                  Keep duplicates, make flag instead of remove them.\n");

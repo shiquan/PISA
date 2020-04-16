@@ -13,6 +13,7 @@ static struct args {
     const char *output_fname;
     const char *tag_string;
     int n_thread;
+    int file_thread;
     int keep_dup;
     int bufsize;
     int n_tag;
@@ -29,8 +30,9 @@ static struct args {
     .output_fname = NULL,
     .tag_string = NULL,
     .n_thread = 5,
+    .file_thread = 1,
     .keep_dup = 0,
-    .bufsize = 1000000, // 10M
+    .bufsize = 10000, // 100K
     .last_bam = NULL,
     .n_tag = 0,
     .tags = NULL,
@@ -44,6 +46,8 @@ static int parse_args(int argc, char **argv)
     int i;
     const char *thread = NULL;
     const char *chunk_size = NULL;
+    const char *file_thread = NULL;
+    
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -52,6 +56,7 @@ static int parse_args(int argc, char **argv)
         if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-tag") == 0) var = &args.tag_string;
         else if (strcmp(a, "-t") == 0) var = &thread;
+        else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-r") == 0) var = &chunk_size;
         else if (strcmp(a, "-k") == 0) {
             args.keep_dup = 1;
@@ -79,7 +84,8 @@ static int parse_args(int argc, char **argv)
     
     if (thread) args.n_thread = str2int((char*)thread);
     if (chunk_size) args.bufsize = str2int((char*)chunk_size);
-
+    if (file_thread) args.file_thread = str2int((char*)file_thread);
+    
     kstring_t str = {0,0,0};
     kputs(args.tag_string, &str);
     int *s = ksplit(&str, ',', &args.n_tag);
@@ -100,6 +106,8 @@ static int parse_args(int argc, char **argv)
     args.hdr = sam_hdr_read(args.fp);
     CHECK_EMPTY(args.hdr, "Failed to open header.");
 
+    hts_set_threads(args.fp, args.file_thread);
+    
     args.out = bgzf_open(args.output_fname, "w");
     CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
     if (bam_hdr_write(args.out, args.hdr) == -1) error("Failed to write SAM header.");

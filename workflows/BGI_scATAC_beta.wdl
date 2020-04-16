@@ -5,6 +5,7 @@ workflow main {
   String outdir
   String ref
   String config
+  String ID
   String ?lib
   String tssFile
   String Rscript
@@ -29,6 +30,7 @@ workflow main {
     fastq=parseFastq.fastq,
     outdir=outdir,
     ref=ref,
+    ID=ID,
     root=root
   }
   call sortBam {
@@ -117,6 +119,7 @@ task sortBam {
   String bam
   String root
   String outdir
+  String ID
   String ?lib
   command {
     if [ -f ${default=abjdbashj lib} ]; then
@@ -125,9 +128,10 @@ task sortBam {
     export PATH=${root}/bin:$PATH
     
     ${root}/bin/sambamba sort -t 10 -o ${outdir}/temp/sorted.bam ${bam} && \
-    ${root}/bin/PISA rmdup -tag CB -t 10 -o ${outdir}/temp/rmdup.bam  ${outdir}/temp/sorted.bam && \
-    ${root}/bin/sambamba index -t 10 ${outdir}/temp/rmdup.bam && \
-    ${root}/bin/bap2 bam -i ${outdir}/temp/rmdup.bam -bt CB -r mm10 --mapq 20 -o ${outdir}/outs -c 20 -n sample    
+    ${root}/bin/bap2 bam -i ${outdir}/temp/sorted.bam -bt CB -r mm10 --mapq 20 -o ${outdir}/outs -c 20 -n ${ID}
+
+    #${root}/bin/sambamba index -t 10 ${outdir}/temp/rmdup.bam && \
+    #${root}/bin/PISA rmdup -tag CB -t 10 -o ${outdir}/temp/rmdup.bam  ${outdir}/temp/sorted.bam && \
   }
   output {
     String finalBam="${outdir}/outs/sample.bap.bam"
@@ -166,6 +170,5 @@ task summary {
     ${root}/bin/bamCoverage -b ${bam} -o ${outdir}/outs/final.bw --numberOfProcessors 10 -of bigwig && \
     ${root}/bin/computeMatrix reference-point -S ${outdir}/out/final.bw -R ${tssFile} -b 3000 -a 3000 --skipZeros -o ${outdir}/temp/final.matrix && \
     ${root}/bin/plotHeatmap -m ${outdir}/temp/final.matrix -out ${outdir}/report/TSS.pdf --colorMap GnBu && rm -f ${outdir}/temp/final.matrix && \
-    ${root}/bin/Rscript ${root}/script/scCAT-ATAC-Frasize.R -B ${outdir}/outs/sample.bap.bam -L sample -O ${outdir}/report/Fragsize.pdf
   }
 }
