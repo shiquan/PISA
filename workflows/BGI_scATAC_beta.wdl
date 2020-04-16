@@ -28,13 +28,13 @@ workflow main {
     fastq=parseFastq.fastq,
     outdir=outdir,
     ref=ref,
-    runID=runID,
     root=root
   }
   call sortBam {
     input:
     lib=lib,
     bam=fastq2bam.bam,
+    runID=runID,
     root=root,
     outdir=outdir
   }
