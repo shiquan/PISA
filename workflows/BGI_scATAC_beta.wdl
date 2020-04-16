@@ -5,10 +5,8 @@ workflow main {
   String outdir
   String ref
   String config
-  String ID
   String ?lib
   String tssFile
-  String Rscript
   String ?runID
   call makedir {
     input:
@@ -30,7 +28,7 @@ workflow main {
     fastq=parseFastq.fastq,
     outdir=outdir,
     ref=ref,
-    ID=ID,
+    runID=runID,
     root=root
   }
   call sortBam {
@@ -51,7 +49,6 @@ workflow main {
     input:
     lib=lib,
     tssFile=tssFile,
-    Rscript=Rscript,
     bam=sortBam.finalBam,    
     root=root,
     outdir=outdir
@@ -119,7 +116,7 @@ task sortBam {
   String bam
   String root
   String outdir
-  String ID
+  String ?runID
   String ?lib
   command {
     if [ -f ${default=abjdbashj lib} ]; then
@@ -128,7 +125,7 @@ task sortBam {
     export PATH=${root}/bin:$PATH
     
     ${root}/bin/sambamba sort -t 10 -o ${outdir}/temp/sorted.bam ${bam} && \
-    ${root}/bin/bap2 bam -i ${outdir}/temp/sorted.bam -bt CB -r mm10 --mapq 20 -o ${outdir}/outs -c 20 -n ${ID}
+    ${root}/bin/bap2 bam -i ${outdir}/temp/sorted.bam -bt CB -r mm10 --mapq 20 -o ${outdir}/outs -c 20 -n ${default=sample runID}
 
     #${root}/bin/sambamba index -t 10 ${outdir}/temp/rmdup.bam && \
     #${root}/bin/PISA rmdup -tag CB -t 10 -o ${outdir}/temp/rmdup.bam  ${outdir}/temp/sorted.bam && \
@@ -159,7 +156,6 @@ task summary {
   String bam
   String root
   String outdir
-  String Rscript
   String tssFile
   String ?lib
   command {
