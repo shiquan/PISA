@@ -15,7 +15,7 @@ int usage()
     
     fprintf(stderr, "\n--- Processing BAM\n");
     fprintf(stderr, "    sam2bam    Parse FASTQ+ read name and convert SAM to BAM.\n");
-    fprintf(stderr, "    rmdup      Remove PCR duplicates per cell barcodes and/or UMIs.\n");
+    // fprintf(stderr, "    rmdup      Remove PCR duplicates per cell barcodes and/or UMIs.\n");
     fprintf(stderr, "    pick       Pick alignments with tags.\n");
     fprintf(stderr, "    anno       Annotate functional regions or gene names.\n");
     fprintf(stderr, "    corr       Correct error prone UMIs. 1 mismatch considered in default.\n");
@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
     extern int fsort(int argc, char ** argv);
     // process BAM
     extern int sam2bam(int argc, char *argv[]);
-    extern int bam_rmdup(int argc, char *argv[]);
+    // extern int bam_rmdup(int argc, char *argv[]);
     extern int bam_anno_attr(int argc, char *argv[]);
     extern int bam_count_attr(int argc, char *argv[]);
     extern int bam_pick(int argc, char *argv[]);
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "fsort") == 0) return fsort(argc-1, argv+1);
     else if (strcmp(argv[1], "sam2bam") == 0) return sam2bam(argc-1, argv+1);
     else if (strcmp(argv[1], "bam2fq") == 0) return bam2fq(argc-1, argv+1);
-    else if (strcmp(argv[1], "rmdup") == 0) return bam_rmdup(argc-1, argv+1);
+    // else if (strcmp(argv[1], "rmdup") == 0) return bam_rmdup(argc-1, argv+1);
     else if (strcmp(argv[1], "anno") == 0) return bam_anno_attr(argc-1, argv+1);
     else if (strcmp(argv[1], "corr") == 0) return bam_corr_umi(argc-1, argv+1);
     else if (strcmp(argv[1], "attrcnt") == 0) return bam_count_attr(argc-1, argv+1);
