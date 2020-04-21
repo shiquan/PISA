@@ -515,10 +515,12 @@ struct seqlite *extract_tag(struct bseq *b, const struct bcode_reg *r, struct BR
     char *s = NULL;
     char *q = NULL;
     if (r->rd == 1) {
+        if (r->end > b->l0) error("Try to select sequence out of range. [Read length: %d, Barcode range: %d-%d. Read name: %s]", b->l0, r->start, r->end, b->n0);
         s = b->s0 + r->start -1;
         q = b->q0 ? b->q0 + r->start -1 : NULL;
     }
     else {
+        if (r->end > b->l1) error("Try to select sequence out of range. [Read length: %d, Barcode range: %d-%d. Read name: %s]", b->l1, r->start, r->end, b->n0);
         s = b->s1 + r->start -1;
         q = b->q1 ? b->q1 + r->start -1 : NULL;
     }
