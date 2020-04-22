@@ -61,6 +61,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-@") == 0) var = &file_th;
         else if (strcmp(a, "-all-tags") == 0) {
             args.all_tags = 1;
+            continue;
         }
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
