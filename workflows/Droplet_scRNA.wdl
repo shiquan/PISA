@@ -50,7 +50,6 @@ workflow main {
     bam=sortBam.anno,
     outdir=outdir,
     root=root,
-    rawlist=parseFastq.rawlist
   }    
   call cellCalling {
     input:
@@ -118,7 +117,6 @@ task cellCount {
   String bam
   String outdir
   String root
-  String rawlist
   String ?lib
   command {
     if [ -f ${default=abjdbashj lib} ]; then
@@ -126,7 +124,7 @@ task cellCount {
     fi
 
     ${root}/PISA corr -tag UB -@ 10 -tags-block CB,GN -o ${outdir}/outs/final.bam ${bam} && \
-    ${root}/PISA attrcnt -tag CB -tags UB,GN -dedup -list ${rawlist} -@ 10 -o ${outdir}/temp/cell_stat.txt -all-tags ${outdir}/outs/final.bam
+    ${root}/PISA attrcnt -tag CB -tags UB,GN -dedup -@ 10 -o ${outdir}/temp/cell_stat.txt -all-tags ${outdir}/outs/final.bam
   }
   output {
     String count="${outdir}/temp/cell_stat.txt"
@@ -165,8 +163,7 @@ task parseFastq {
     String count="${outdir}/temp/barcode_counts_raw.txt"
     String fastq="${outdir}/temp/reads.fq"
     String sequencingReport="${outdir}/report/sequencing_report.csv"
-    String rawlist="${outdir}/temp/barcode_raw_list.txt"
-  }
+      }
 }
 
 task fastq2bam {
@@ -207,6 +204,6 @@ task sortBam {
     ${root}/PISA anno -gtf ${gtf} -o ${outdir}/temp/anno.bam -report ${outdir}/report/anno_report.csv ${outdir}/temp/sorted.bam
   }
   output {
-    String anno="${outdir}/outs/anno.bam"
+    String anno="${outdir}/temp/anno.bam"
   }
 }
