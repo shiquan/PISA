@@ -255,7 +255,9 @@ static int gtf_push_to_last_gene(struct gtf_spec *G, struct gtf_lite *gl)
     
     struct gtf_lite *g0 = &G->gtf[G->n_gtf-1];
     if (g0->type != feature_gene) error("Last record is not a gene, the GTF is not properly defined.");
-    assert(g0->gene_name == gl->gene_name);
+    if (g0->gene_name != gl->gene_name) 
+        error("g0->gene_name != gl->gene_name, %s vs %s", dict_name(G->gene_name, g0->gene_name), dict_name(G->gene_name, gl->gene_name));
+    //assert(g0->gene_name == gl->gene_name);
     if (gl->type == feature_transcript) 
         gtf_push_to_record(g0, gl);
     else {
