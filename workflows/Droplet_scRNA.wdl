@@ -124,7 +124,7 @@ task cellCount {
     fi
 
     ${root}/PISA corr -tag UB -@ 10 -tags-block CB,GN -o ${outdir}/outs/final.bam ${bam} && \
-    ${root}/PISA attrcnt -tag CB -tags UB,GN -dedup -@ 10 -o ${outdir}/temp/cell_stat.txt -all-tags ${outdir}/outs/final.bam
+    ${root}/PISA attrcnt -cb CB -tags UB,GN -dedup -@ 10 -o ${outdir}/temp/cell_stat.txt -all-tags ${outdir}/outs/final.bam
   }
   output {
     String count="${outdir}/temp/cell_stat.txt"
