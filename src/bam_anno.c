@@ -472,8 +472,6 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf_lite const
     tp->trans_id = g->transcript_id;
     tp->type = type_unknown;
    
-    if (S->n > 1) splice = 1;
-
     int exon;
     int last_exon = -1;
     int i = 0;
