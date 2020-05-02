@@ -600,6 +600,7 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
                     if (n_trans) kputc(',', &trans_id);
                     char *trans = dict_name(G->transcript_id, t->trans_id);
                     kputs(trans, &trans_id);
+                    n_trans++;
                 }
             }
         }
