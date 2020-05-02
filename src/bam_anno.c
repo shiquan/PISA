@@ -452,9 +452,9 @@ static enum exon_type query_exon(int start, int end, struct gtf_lite const *G, i
             return type_exon;
         }
 
-        if (start > g0->end) continue; // check next exon
+        if (start >= g0->end) continue; // check next exon
 
-        if (end < g0->start) return type_intron;
+        if (end <= g0->start) return type_intron;
 
         if (start < g0->end && end > g0->end) return type_exon_intron;
 
