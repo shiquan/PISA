@@ -11,6 +11,8 @@ struct dict {
     char **name;
     kh_name_t *dict;
     uint32_t *count;
+    int assign_value_flag;
+    void **value;
 };
 
 struct dict *dict_init()
@@ -19,6 +21,34 @@ struct dict *dict_init()
     memset(D, 0, sizeof(*D));
     D->dict = kh_init(name);
     return D;
+}
+void dict_set_value(struct dict *D)
+{
+    if (D->assign_value_flag == 1) error("Double assign value to a dict.");
+    D->assign_value_flag = 1;
+    if (D->m > 0) {
+        D->value = malloc(D->m*sizeof(void*));
+        int i;
+        for (i = 0; i < D->m; ++i) D->value[i] = NULL;
+    }
+}
+void *dict_query_value(struct dict *D, int idx)
+{
+    if (idx < 0 || idx > D->n) return NULL;
+    return D->value[idx];
+}
+void *dict_query_value2(struct dict *D, const char *key)
+{
+    int idx = dict_query(D, key);
+    if (idx == -1) return NULL; // failed to query
+    return D->value[idx];
+}
+
+int dict_assign_value(struct dict *D, int idx, void *val)
+{
+    if (idx < 0 || idx > D->n) return 1;
+    D->value[idx] = val;
+    return 0;
 }
 
 char *dict_name(const struct dict *D, int idx)
@@ -46,13 +76,15 @@ void dict_destroy(struct dict *D)
 {
     int i;
     for (i = 0; i < D->n; ++i) free(D->name[i]);
+    // values are actually points, need free pointed values manually
+    if (D->assign_value_flag) free(D->value); 
     free(D->name);
     free(D->count);
     kh_destroy(name,D->dict);
     free(D);
 }
 
-int dict_query(const struct dict *D, char *key)
+int dict_query(const struct dict *D, char const *key)
 {
     if (key == NULL) error("Trying to query an empty key.");
     khint_t k;
@@ -61,7 +93,7 @@ int dict_query(const struct dict *D, char *key)
     return kh_val(D->dict, k);
 }
 
-int dict_push(struct dict *D, char *key)
+int dict_push(struct dict *D, char const *key)
 {
     if (key == NULL) error("Trying to push an empty key.");
     int ret;
@@ -77,6 +109,11 @@ int dict_push(struct dict *D, char *key)
         int i;
         for (i = D->n; i < D->m; ++i) D->count[i] = 0;
         D->name = realloc(D->name, sizeof(char*)*D->m);
+        if (D->assign_value_flag) {
+            D->value = realloc(D->value, sizeof(void *)*D->m);
+            int j;
+            for (j = D->n; j < D->m; ++j) D->value[j] = NULL; // reset  
+        }
     }
     D->name[D->n] = strdup(key);
     D->count[D->n]++;

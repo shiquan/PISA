@@ -18,7 +18,8 @@ include $(ZLIBDIR)/zlib.mk
 LIBZ = $(ZLIBDIR)/libz.a
 
 CC       = gcc
-CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64
+CFLAGS   = -Wall -O2 -D_FILE_OFFSET_BITS=64
+DEBUGFLAGS = -fsanitize=address -fno-omit-frame-pointer -O0 -g
 DFLAGS   =
 INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I $(FMLDIR) -I$(ZLIBDIR)
 LIBS = -lbz2 -llzma -pthread -lm -lcurl 
@@ -41,14 +42,13 @@ force:
 	@printf "Compiling $<...                               \r"
 	@$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@ || echo "Error in command: $(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $<"
 
-LIB_OBJ = src/barcode_list.o src/bed_lite.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/dict.o src/seq_merge.o src/ksa.o \
+LIB_OBJ = src/barcode_list.o src/bed.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/region_index.o src/dict.o src/seq_merge.o src/ksa.o \
 	src/bam_pool.o src/umi_corr.o src/dict.o src/read_thread.o src/read_tags.o src/sim_search.o
 
 AOBJ = src/bam_anno.o \
 	src/bam_count.o \
 	src/bam_pick.o \
 	src/sam2bam.o \
-	src/bam_rmdup.o \
 	src/bam_attr_count.o \
 	src/fastq_sort.o \
 	src/fastq_parse_barcode.o \
@@ -66,6 +66,9 @@ test: $(HTSLIB) $(HTSVERSION)
 PISA: $(HTSLIB) $(FMLLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h 
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) $(FMLLIB) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
 
+debug: $(HTSLIB) $(FMLLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h 
+	$(CC) $(DEBUGFLAGS) $(INCLUDES) -o PISA src/main.c $(AOBJ) $(FMLLIB) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
+
 src/sim_search.o: src/sim_search.c
 src/bam2fq.o: src/bam2fq.c
 src/bam_anno.o: src/bam_anno.c
@@ -78,15 +81,15 @@ src/fastq_sort.o: src/fastq_sort.c
 src/dict.o: src/dict.c
 src/sam2bam.o: src/sam2bam.c
 src/barcode_list.o: src/barcode_list.c
-src/bed_lite.o: src/bed_lite.c
+src/bed.o: src/bed.c
 src/number.o: src/number.c
 src/gtf.o: src/gtf.c
+src/region_index.o: src/region_index.c
 src/dict.o: src/dict.c
 src/fastq.o: src/fastq.c
 src/thread_pool.o: src/thread_pool.c
 src/json_config.o: src/json_config.c
 src/kson.o: src/kson.c
-src/bam_rmdup.o: src/bam_rmdup.c
 src/bam_attr_count.o: src/bam_attr_count.c
 src/read_thread.o: src/read_thread.c
 src/read_tags.o: src/read_tags.c

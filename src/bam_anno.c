@@ -8,11 +8,24 @@
 #include "htslib/khash_str2int.h"
 #include "htslib/kseq.h"
 #include "htslib/hts.h"
-#include "bed_lite.h"
 #include "bam_pool.h"
 #include "gtf.h"
+#include "bed.h"
+#include "region_index.h"
 #include "dict.h"
 #include <zlib.h>
+
+struct read_stat {
+
+    uint64_t reads_in_region;
+    uint64_t reads_in_region_diff_strand;
+    
+    // gtf
+    uint64_t reads_in_intergenic;
+    uint64_t reads_in_exon;
+    uint64_t reads_in_intron;
+    uint64_t reads_antisense;
+};
 
 static struct args {
     const char *input_fname;
@@ -38,22 +51,17 @@ static struct args {
     bam_hdr_t *hdr;
 
     FILE *fp_report;
-    struct gtf_spec *G;
 
+    // GTF
+    struct gtf_spec *G;
+    
+    // bed
+    struct bed_spec *B;
     uint64_t reads_input;
     uint64_t reads_pass_qc;
-    uint64_t reads_in_peak;
-    // gtf
-    uint64_t reads_in_gene;
-    uint64_t reads_in_exon;
-    uint64_t reads_in_intron;
-    uint64_t reads_antisense;
 
-    int qual_thres;
-    // todo: make bedaux more smart
-    struct bedaux *B;
-    struct bed_chr *last;
-    int i_bed;
+    struct dict *group_stat;
+    
 } args = {
     .input_fname     = NULL,
     .output_fname    = NULL,
@@ -66,9 +74,11 @@ static struct args {
     
     .chr_binding     = NULL,
     .btag            = NULL,
+    
     .ignore_strand   = 0,
     .splice_consider = 0,
-    .n_thread = 4,
+    
+    .n_thread = 1,
     .chunk_size = 100000,
     .fp              = NULL,
     .out             = NULL,
@@ -77,17 +87,9 @@ static struct args {
     .G               = NULL,    
     .B               = NULL,    
     
-    .last            = NULL,
-    .i_bed           = -1,
     .reads_input     = 0,
     .reads_pass_qc   = 0,
-    .reads_in_peak   = 0,
-    .reads_in_gene   = 0,
-    .reads_in_exon   = 0,
-    .reads_in_intron = 0,
-    .reads_antisense = 0,
-
-    .qual_thres      = 0,
+    .group_stat      = 0
 };
 
 static char **chr_binding(const char *fname, bam_hdr_t *hdr)
@@ -128,6 +130,13 @@ static char **chr_binding(const char *fname, bam_hdr_t *hdr)
     return ret;
 }
 
+// default tags,
+// TX for transcript name,
+// GN for gene name,
+// GX for gene id,
+// AN for transcript name but read mapped on antisense,
+// RE for region type
+//
 static char TX_tag[2] = "TX";
 static char AN_tag[2] = "AN";
 static char GN_tag[2] = "GN";
@@ -138,7 +147,6 @@ static int parse_args(int argc, char **argv)
 {
     int i;
     const char *tags = NULL;
-    const char *qual = NULL;
     const char *thread = NULL;
     const char *chunk = NULL;
     const char *file_thread = NULL;
@@ -146,20 +154,15 @@ static int parse_args(int argc, char **argv)
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
-        if (strcmp(a, "-bed") == 0) var = &args.bed_fname;
-        else if (strcmp(a, "-o") == 0 ) var = &args.output_fname;
+
+        // common options
+        if (strcmp(a, "-o") == 0 ) var = &args.output_fname;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
-        else if (strcmp(a, "-tag") == 0) var = &args.tag;
-        else if (strcmp(a, "-group") == 0) var = &args.group_tag;
         else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
-        else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
-        else if (strcmp(a, "-tags") == 0) var = &tags;
-        else if (strcmp(a, "-q") == 0) var = &qual;
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-chunk") == 0) var = &chunk;
-        else if (strcmp(a, "-chr-species") == 0) var = &args.chr_spec_fname;
-        else if (strcmp(a, "-btag") == 0) var = &args.btag;
+
         else if (strcmp(a, "-ignore-strand") == 0) {
             args.ignore_strand = 1;
             continue;
@@ -168,6 +171,22 @@ static int parse_args(int argc, char **argv)
             args.splice_consider = 1;
             continue;
         }
+
+        // group options
+        else if (strcmp(a, "-group") == 0) var = &args.group_tag;
+
+        // chrom binding
+        else if (strcmp(a, "-chr-species") == 0) var = &args.chr_spec_fname;
+        else if (strcmp(a, "-btag") == 0) var = &args.btag;
+        
+        // bed options
+        else if (strcmp(a, "-bed") == 0) var = &args.bed_fname;
+        else if (strcmp(a, "-tag") == 0) var = &args.tag;
+
+        // gtf options
+        else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
+        else if (strcmp(a, "-tags") == 0) var = &tags;
+        
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -180,27 +199,17 @@ static int parse_args(int argc, char **argv)
         }        
         error("Unknown argument: %s", a);
     }
-    // CHECK_EMPTY(args.bed_fname, "-bed must be set.");
     
     if (args.bed_fname == NULL && args.gtf_fname == NULL && args.chr_spec_fname == NULL) 
         error("-bed or -gtf or -chr-species must be set.");
     
-    if (args.bed_fname && args.gtf_fname)
-        error("-bed is conflict with -gtf, you can only choose one mode.");
-    
-    if (args.ignore_strand && args.gtf_fname == NULL)
-        error("Only set -ignore-strand with -gtf.");
-    
     CHECK_EMPTY(args.output_fname, "-o must be set.");
     CHECK_EMPTY(args.input_fname, "Input bam must be set.");
+    
     if (thread) args.n_thread = str2int((char*)thread);
     if (chunk) args.chunk_size = str2int((char*)chunk);
 
-    // Skip checking quality score, 2020/01/20
-    // if (qual) args.qual_thres = str2int((char*)qual);
-    // if (args.qual_thres < 0) args.qual_thres = 0; // no filter
-    
-    int file_th = 5;
+    int file_th = 1;
     if (file_thread)
         file_th = str2int((char*)file_thread);
     
@@ -217,11 +226,12 @@ static int parse_args(int argc, char **argv)
         args.B = bed_read(args.bed_fname);
         if (args.B == 0 || args.B->n == 0) error("Bed is empty.");
     }
-    else if (args.gtf_fname) {
+
+    if (args.gtf_fname) {
         LOG_print("Loading GTF.");
         double t_real;
         t_real = realtime();
-
+        
         args.G = gtf_read(args.gtf_fname, 1);
         LOG_print("Load time : %.3f sec", realtime() - t_real);
         
@@ -259,69 +269,21 @@ static int parse_args(int argc, char **argv)
     CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
     if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
 
-    //hts_set_threads(args.fp, file_th); 
     hts_set_threads(args.out, file_th);
+
+    args.group_stat = dict_init();
+    int idx;
+    idx = dict_push(args.group_stat, "__ALL__");
+
+    dict_set_value(args.group_stat);
+    
+    struct read_stat *stat = malloc(sizeof(*stat));
+    memset(stat, 0, sizeof(*stat));
+    dict_assign_value(args.group_stat, idx, stat);
+        
     return 0;
 }
 
-int check_is_overlapped_bed(bam_hdr_t *hdr, bam1_t *b, struct bedaux *B)
-{
-    bam1_core_t *c;
-    c = &b->core;
-    char *name = hdr->target_name[c->tid];
-    if (args.last == NULL || strcmp(B->names[args.last->id], name) != 0) {
-        int id = bed_select_chrom(B, name);
-        if (id == -1) {
-            args.last = NULL;
-            return 0;
-        }
-
-        args.last = &B->c[id];
-        args.i_bed = 0;
-    }
-    if (args.i_bed == -2) { // out range of bed
-        return 0;
-    }
-    
-    for (;;) {
-        if (args.i_bed == args.last->n) break;
-        if (args.last->b[args.i_bed].end < c->pos+1) args.i_bed++; // iter bed
-        else break;
-    }
-
-    if (args.i_bed == args.last->n) {
-        args.i_bed = -2;
-        return 0;
-    }
-    int end = bam_endpos(b);
-    
-    if (end < args.last->b[args.i_bed].start) { // read align before region
-        return 0;
-    }
-
-    kstring_t str = {0,0,0};// name buffer    
-    uint8_t *tag = bam_aux_get(b, args.tag);
-    if (tag) {
-        warnings("%s already present at line %s:%lld, skip", args.tag, hdr->target_name[c->tid], c->pos+1);
-        return 1;
-    }
-    int i;
-    for (i = args.i_bed; i < args.last->n; ++i) {
-        if (end < args.last->b[i].start) break;
-        if (str.l) kputc(';', &str);
-        if (args.last->b[args.i_bed].name == NULL) {
-            ksprintf(&str, "%s:%d-%d", B->names[args.last->id], args.last->b[i].start, args.last->b[i].end);
-        }
-        else kputs(args.last->b[i].name, &str);
-    }
-    
-    bam_aux_append(b, args.tag, 'Z', str.l+1, (uint8_t*)str.s);
-    free(str.s);
-
-    args.reads_in_peak++;
-    
-    return 0;
-}
 struct pair {
     int start;
     int end;
@@ -343,8 +305,7 @@ struct isoform *bend_sam_isoform(bam1_t *b)
         if (cig == BAM_CMATCH || cig == BAM_CEQUAL || cig == BAM_CDIFF) {
             l += ncig;
         }
-        else if (cig == BAM_CDEL)            
-        {
+        else if (cig == BAM_CDEL) {
             l += ncig;
         }
         else if (cig == BAM_CREF_SKIP) {
@@ -364,295 +325,537 @@ struct isoform *bend_sam_isoform(bam1_t *b)
     return S;    
 }
 
-// ret == 0, enclosed in exon
-// ret == -1, will reture 3, adjust to -1 thereafter
-// ret == 1, (p::start < G::start && p::end > G::start) || (p::start < G::end && p::end > G::end)
-// ret == 2, if isoform cover two or more exomes, other cases will not count here. missed isoforms will be count at match_isoform()
 
-static void query_exon(struct pair *p, struct gtf_lite const *G, int *start, int *c, int *ret)
-{
-    int i;
-    int st = -1;
-    int ed = -1;
-
-    int ic = *c;
-    
-    *ret = -2;
-    assert(G->type == feature_transcript);
-    
-    for (i = *start; i < G->n_son; ++i) {
-       
-        struct gtf_lite const *g0 = G->strand == 0 ? &G->son[i] : &G->son[G->n_son-i-1];
-        if (g0->type != feature_exon) continue;
-        ic++;
-        if (p->start >= g0->start && p->end <= g0->end) {
-            *ret = 0;
-            *c = ic;
-            break;
-        }
-
-        if (p->start > g0->end) continue;
-        
-        if (p->start > g0->start || p->end > g0->start)
-            if (st == -1) st = ic; // overlapped exome start
-
-        ed = ic;
-        
-        if (p->end < g0->start) {
-            if (st == -1) {
-                *ret = 3;
-            }
-            break;
-        }
-
-        // not break here, because isoform may cover next exome also
-        if (p->start < g0->start && p->end >g0->start) *ret = 1;
-        if (p->start > g0->end && p->end > g0->end) *ret = 1;
-        
-    }
-    *start = i;
-
-    if (st != -1 && ed != -1 && st != ed) *ret = 1; // cover two or more exomes
-    // fprintf(stderr, "%d\t%d\t%d\n",p->start,p->end,*c);
-}
-//-1 on intron, 0 on match on exon, 1 on overlap exon-intron, 2 on missed isoform at read, 3 on more isoform at read 
-int match_isoform(struct isoform *S, struct gtf_lite const *G)
-{
-    int i;
-    int ret = 0;
-    int last_c = -1; 
-    int c = 0;
-    int j = 0;
-    for (i = 0; i < S->n; ++i) {
-
-        query_exon(&S->p[i], G, &j, &c, &ret);
-
-        if (S->n == 1 && ret == 3) ret = -1;
-        if (last_c == -1) {
-            last_c = c;
-        }
-        else {
-
-            if (c == last_c) { // same exome, should not consider be this transcript. two exomes found at this regions
-                ret = 3;
-                break;
-            }
-            /*
-            else if (last_c + 1 == c) { // isoform matched, check next then
-                continue;
-            }
-            */
-            else if (last_c + 1 < c) { // skip one or more isoform at this transcript
-                ret = 2;
-                break;
-            }
-        }
-    }
-    
-    return ret;
-}
 #include "htslib/thread_pool.h"
-
-struct read_stat {
-    uint64_t reads_input;
-    uint64_t reads_pass_qc;
-    uint64_t reads_in_peak;
-    // gtf
-    uint64_t reads_in_gene;
-    uint64_t reads_in_exon;
-    uint64_t reads_in_intron;
-    uint64_t reads_antisense;
-};
-
-enum exon_type {
-    type_unknown = -1,
-    type_exon  = 0,
-    type_intron,
-    type_antisense,
-    type_splice,
-    type_ambi,
-};
-
-void bam_gtf_anno(struct bam_pool *p, struct read_stat *stat)
-{
-    kstring_t trans = {0,0,0};
-    kstring_t genes = {0,0,0};
-    kstring_t gene_id = {0,0,0};
-    bam_hdr_t *h = args.hdr;
-    struct gtf_spec const *G = args.G;    
-    
-    int last_id = -2;
-    int i;
-    for (i = 0; i < p->n; ++i) {
-        stat->reads_input++;
-        bam1_t *b = &p->bam[i];
-        bam1_core_t *c;
-        c = &b->core;
-
-        // cleanup all exist tags
-        uint8_t *data;
-        if ((data = bam_aux_get(b, TX_tag)) != NULL) bam_aux_del(b, data);
-        if ((data = bam_aux_get(b, AN_tag)) != NULL) bam_aux_del(b, data);
-        if ((data = bam_aux_get(b, GN_tag)) != NULL) bam_aux_del(b, data);
-        if ((data = bam_aux_get(b, GX_tag)) != NULL) bam_aux_del(b, data);
-        if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
-
-        if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) continue;
-        stat->reads_pass_qc++;
-
-        if (last_id == -2)
-            last_id = c->tid;
-        else if (last_id != c->tid) {
-            if (last_id > c->tid)
-                error("Input BAM is not sorted? %d:%lld",c->tid, c->pos);
-                
-            last_id = c->tid;
-        }
-
-        char *name = h->target_name[c->tid];
-        int endpos = bam_endpos(b);
-
-        struct gtf_itr *itr = gtf_query(args.G, name, c->pos+1, endpos);
-        if (itr == NULL) continue; // query failed
-        if (itr->n == 0) continue; // no hit
-        
-        stat->reads_in_gene++;
-        enum exon_type et = type_unknown;
-        struct isoform *S = bend_sam_isoform(b);
-        
-        int l;
-        int trans_novo = 0;
-
-        // reset buffer
-        trans.l = genes.l = gene_id.l = 0;
-        int gene_save = -1;
-        // exon == splice > intron > antisense        
-        for (l = 0; l < itr->n; ++l) {            
-            struct gtf_lite const *g0 = itr->gtf[l];
-            if (g0->start > c->pos+1 || endpos > g0->end) continue; // not fully covered
-            
-            if (args.ignore_strand == 0) {
-                if (c->flag & BAM_FREVERSE) {
-                    if (g0->strand == 0) {                   
-                        if (et == type_unknown)
-                            et = type_antisense;
-                        continue;
-                    }
-                }
-                else if (g0->strand == 1) {
-                    if (et == type_unknown)
-                        et = type_antisense;
-                    continue;
-                }
-            }
-
-            int i;
-            int in_gene = 0;
-            // for each transcript
-            for (i = 0; i < g0->n_son; ++i) {
-                struct gtf_lite const *g1 = &g0->son[i];
-                if (g1->type != feature_transcript) continue;
-                int ret = match_isoform(S, g1);
-                if (ret == -2) continue;
-                if (ret == 2 || ret == 3) {
-                    trans_novo = 1;
-                    gene_save = g0->gene_name;
-                    continue; // not this transcript
-                }                
-
-                if (ret == -1) {
-                    if (et == type_unknown) // if not set, set to intron
-                        et = type_intron;
-                    continue; // introns will also be filter
-                }
-                if (ret == 1) { 
-                    if (et != type_exon) 
-                        et = type_splice;
-                    if (args.splice_consider == 0) continue;
-                }
-                
-                et = type_exon;
-                
-                trans_novo = 0;
-                in_gene = 1;
-                if (trans.l) kputc(';', &trans);
-                kputs(dict_name(G->transcript_id,g1->transcript_id), &trans);
-            }
-            
-            if (in_gene) {
-                if (genes.l) kputc(';', &genes);
-                kputs(dict_name(G->gene_name,g0->gene_name), &genes);
-                if (gene_id.l) kputc(';', &gene_id);
-                kputs(dict_name(G->gene_id,g0->gene_id), &gene_id);
-            } 
-        }
-
-        // GN_tag
-        if (trans.l) { // match case
-            bam_aux_append(b, TX_tag, 'Z', trans.l+1, (uint8_t*)trans.s);
-            bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
-            bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
-            stat->reads_in_exon++;
-        }
-        else if (trans_novo) {
-            kputs(dict_name(G->gene_name, gene_save), &genes);
-            bam_aux_append(b, GN_tag, 'Z', genes.l+1, (uint8_t*)genes.s);
-            // bam_aux_update_str(b, TX_tag, 8, (uint8_t*)"UNKNOWN");            
-        }
-
-        if (et == type_exon) {
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
-        }
-        else if (et == type_antisense) {
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
-            stat->reads_antisense++;
-        }
-        else if (et == type_intron) {
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
-            stat->reads_in_intron++;
-        }
-        else if (et == type_ambi) {
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"U");
-        }
-        else if (et == type_splice) {
-            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"S");
-        }
-
-        gtf_itr_destory(itr);
-        free(S->p);
-        free(S);
-    }
-    if (trans.m) free(trans.s);
-    if (genes.m) free(genes.s);
-    if (gene_id.m) free(gene_id.s);
-}
 
 struct ret_dat {
     struct bam_pool *p;
-    struct read_stat *stat;
+    struct dict *group_stat;
+    uint64_t reads_input;
+    uint64_t reads_pass_qc;
 };
-void *run_it(void *_d)
-{    
-    struct ret_dat *dat = malloc(sizeof(struct ret_dat));
-    dat->p = (struct bam_pool*)_d;
-    dat->stat = malloc(sizeof(struct read_stat));
-    memset(dat->stat, 0, sizeof(struct read_stat));
-    
-    if (args.G) bam_gtf_anno(dat->p, dat->stat);
 
-    if (args.chr_binding) {
-        int i;
-        for (i = 0; i < dat->p->n; ++i) {
-            bam1_t *b = &dat->p->bam[i];
-            //debug_print("%d",b->core.tid);
-            if (b->core.tid == -1) continue;
-            char *v = args.chr_binding[b->core.tid];
-            if (v == NULL) continue;
-            //debug_print("%s",v);
-            bam_aux_append(b, args.btag, 'Z', strlen(v)+1, (uint8_t*)v);
+enum exon_type {
+    type_unknown = -1,  // unknown type, init state
+    type_exon  = 0,     // read full covered in exon
+    type_intron,        // read full covered in intron, with same strand of gene
+    type_exon_intron,   // read cover exon and nearby intron
+    type_antisense,     // read map on antisense
+    type_splice,        // junction read map two or more exome
+    type_not_this_trans // junction read map two or more exome but skip some isoforms
+};
+
+struct trans_type {
+    int trans_id;
+    enum exon_type type;
+};
+
+struct gene_type {
+    int gene_id;
+    int gene_name;
+    enum exon_type type; // main type
+    int n, m;
+    struct trans_type *a;
+};
+
+struct gtf_anno_type {
+    enum exon_type type;
+    int n, m;
+    struct gene_type *a;
+};
+
+static void gtf_anno_destroy(struct gtf_anno_type *ann)
+{
+    int i;
+    for (i = 0; i < ann->n; ++i)
+        if (ann->a[i].m) free(ann->a[i].a);
+    free(ann->a);
+    free(ann);
+}
+static void gtf_anno_antisense(bam1_t *b)
+{
+    bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
+}
+// type_exon == type_splice > type_exon_intron > type_not_this_trans > type_intron > type_anitisense == type_unknown
+static void gene_most_likely_type(struct gene_type *g)
+{
+    int i;
+    for (i = 0; i < g->n; ++i) {
+        struct trans_type *t = &g->a[i];
+        if (t->type == type_unknown) continue;
+        else if (t->type == type_exon) {
+            g->type = type_exon;
+            return; // exon is already the best hit
+        }
+        else if (t->type == type_intron) {
+            if (g->type == type_unknown) g->type = type_intron; // better than unknown
+        }
+        else if (t->type == type_exon_intron) {
+            if (g->type == type_unknown) g->type = type_exon_intron; // better than unknown
+            else if (g->type == type_intron) g->type = type_exon_intron; //            
+        }
+        else if (t->type == type_splice) {
+            g->type = type_splice; // same with exon
+            return;
+        }
+        else if (t->type == type_not_this_trans) {
+            if (g->type == type_unknown) g->type = type_not_this_trans; // better than unknown
+            else if (g->type == type_intron) g->type = type_not_this_trans;
         }
     }
     
+}
+static void gtf_anno_most_likely_type(struct gtf_anno_type *ann)
+{    
+    int i;
+    for (i = 0; i < ann->n; ++i) {
+        struct gene_type *g = &ann->a[i];
+        gene_most_likely_type(g);
+        if (g->type == type_unknown) continue;
+        else if (g->type == type_exon) {
+            ann->type = type_exon;
+            return; // exon is already the best hit
+        }
+        else if (g->type == type_intron) {
+            if (ann->type == type_unknown) ann->type = type_intron; 
+        }
+        else if (g->type == type_exon_intron) {
+            if (ann->type == type_unknown) ann->type = type_exon_intron;
+            else if (ann->type == type_intron) ann->type = type_exon_intron; 
+        }
+        else if (g->type == type_splice) {
+            ann->type = type_splice; // same with exon
+            return;
+        }
+        else if (g->type == type_not_this_trans) {
+            if (ann->type == type_unknown) ann->type = type_not_this_trans; // better than unknown
+            else if (ann->type == type_intron) ann->type = type_not_this_trans;
+        }
+    }
+}
+// this function return
+//  type_unknown for out of range
+//  type_exon for included in one exon
+//  type_intron for included on intron
+//  type_exon_intron for overlap with exon and intron
+static enum exon_type query_exon(int start, int end, struct gtf_lite const *G, int *exon)
+{
+    assert(G->type == feature_transcript);
+    int j = 0;
+    int i;
+    for (i = 0; i < G->n_son; ++i) {        
+        struct gtf_lite *g0 = G->strand == 0 ? &G->son[i] : &G->son[G->n_son-i-1];
+        if (g0->type != feature_exon) continue;
+        j++;
+        if (start >= g0->start && end <= g0->end) {
+            *exon = j;
+            return type_exon;
+        }
+
+        if (start > g0->end) continue; // check next exon
+
+        if (end < g0->start) return type_intron;
+
+        if (start < g0->end && end > g0->end) return type_exon_intron;
+
+        if (start < g0->start && end > g0->start) return type_exon_intron;
+
+        assert(0); // should not come here
+    }
+
+    return type_unknown; // out of range
+}
+// for each transcript, return a type of alignment record
+static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf_lite const *g)
+{
+    struct trans_type *tp = malloc(sizeof(*tp));
+    tp->trans_id = g->transcript_id;
+    tp->type = type_unknown;
+    
+    int i = 0;
+    int splice = 0;
+
+    if (S->n > 1) splice = 1;
+
+    int exon;
+    int last_exon;
+    // linear search
+    for (i = 0; i < S->n; ++i) {        
+        struct pair *p = &S->p[i];
+
+        enum exon_type t0 = query_exon(p->start, p->end, g, &exon);
+
+        if (t0 == type_unknown) {
+            if (tp->type != type_unknown)  tp->type = type_not_this_trans; // at least some part of read cover this transcript
+            break; // not covered this exon
+        }
+        else if (t0 == type_exon) {
+            if (tp->type == type_unknown) {
+                tp->type = t0;
+                last_exon = exon;
+                continue;
+            }
+            else if (tp->type == type_exon) {
+                if (last_exon +1 == exon) {
+                    tp->type = type_splice;
+                    last_exon = exon;
+                    continue;
+                }
+                else {
+                    tp->type = type_not_this_trans;
+                    break;
+                }
+            }
+        }
+        else if (t0 == type_intron) {
+            if (tp->type == type_unknown) { // intron
+                tp->type = t0;
+                break;
+            }
+            else if (tp->type == type_exon || tp->type == type_splice) { // looks like an isoform
+                tp->type = type_not_this_trans;
+                break;                
+            }
+            else {
+                // should not come here
+                assert(0);
+            }
+        }
+        else if (t0 == type_exon_intron) {
+            tp->type = t0;
+            break;
+        }
+        
+    }
+    return tp;  
+}
+// add new trans node to the tree
+void gtf_anno_push(struct trans_type *a, struct gtf_anno_type *ann, int gene_id, int gene_name)
+{
+    if (ann->n == ann->m) {
+        ann->m += 5;
+        ann->a = realloc(ann->a, ann->m*sizeof(struct gene_type));
+    }
+    int i;
+    for (i = 0; i < ann->n; ++i) {
+        struct gene_type *g0 = &ann->a[i];
+        if (gene_id == g0->gene_id) {
+            if (g0->m == g0->n) {
+                g0->m += 5;
+                g0->a = realloc(g0->a, sizeof(struct trans_type)*g0->m);
+            }
+            g0->a[g0->n].trans_id = a->trans_id;
+            g0->a[g0->n].type = a->type;
+            g0->n++;
+            return;
+        }
+    }
+
+    struct gene_type *g = &ann->a[ann->n];
+    ann->n++;
+    memset(g, 0, sizeof(*g));
+    g->gene_id = gene_id;
+    g->gene_name = gene_name;
+    g->type = type_unknown;
+    g->m = 5;
+    g->a = malloc(sizeof(struct trans_type)*g->m);
+    g->a[g->n].trans_id = a->trans_id;
+    g->a[g->n].type = a->type;
+    g->n++;
+}
+
+void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const *G)
+{
+
+    if (ann->type == type_unknown) return;
+
+    if (ann->type == type_not_this_trans) return;
+    
+    if (ann->type == type_intron) { // for intron, only annotate the type
+        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
+        return;
+    }
+
+    // only exon or splice come here
+    kstring_t gene_name = {0,0,0};
+    kstring_t gene_id   = {0,0,0};
+    kstring_t trans_id  = {0,0,0};
+    int i;
+    for (i = 0; i < ann->n; ++i) {
+        struct gene_type *g = &ann->a[i];
+        if (g->type == ann->type) {
+            char *gene = dict_name(G->gene_name, g->gene_name);
+            char *id   = dict_name(G->gene_id, g->gene_id);
+            
+            if (gene_name.l) {
+                kputc(';', &gene_name);
+                kputc(';', &gene_id);
+                kputc(';', &trans_id);
+            }
+
+            kputs(gene, &gene_name);
+            kputs(id, &gene_id);
+            int j;
+            int n_trans = 0;
+            for (j = 0; j < g->n; ++j) {
+                struct trans_type *t = &g->a[j];
+                if (t->type == g->type) {                    
+                    if (n_trans) kputc(',', &trans_id);
+                    char *trans = dict_name(G->transcript_id, t->trans_id);
+                    kputs(trans, &trans_id);
+                }
+            }
+        }
+    }
+
+    
+    if (gene_name.l) {
+        bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
+        bam_aux_append(b, GN_tag, 'Z', gene_name.l+1, (uint8_t*)gene_name.s);
+        bam_aux_append(b, TX_tag, 'Z', trans_id.l+1, (uint8_t*)trans_id.s);
+        free(gene_id.s);
+        free(gene_name.s);
+        free(trans_id.s);
+    }
+
+    if (ann->type == type_exon) 
+        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
+    else if (ann->type == type_splice)
+        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"S");
+    // intron already checked
+}
+
+
+// annotate alignment record with each transcript,
+// and group all types together, return the most likely ones
+void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
+{
+    bam_hdr_t *h = args.hdr;
+    
+    // cleanup all exist tags
+    uint8_t *data;
+    if ((data = bam_aux_get(b, TX_tag)) != NULL) bam_aux_del(b, data);
+    if ((data = bam_aux_get(b, AN_tag)) != NULL) bam_aux_del(b, data);
+    if ((data = bam_aux_get(b, GN_tag)) != NULL) bam_aux_del(b, data);
+    if ((data = bam_aux_get(b, GX_tag)) != NULL) bam_aux_del(b, data);
+    if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
+
+    bam1_core_t *c;
+    c = &b->core;
+    
+    char *name = h->target_name[c->tid];
+    int endpos = bam_endpos(b);
+
+    struct region_itr *itr = gtf_query(args.G, name, c->pos+1, endpos);
+    if (itr == NULL) {
+        stat->reads_in_intergenic++;
+        return; // query failed
+    }
+    if (itr->n == 0) {
+        stat->reads_in_intergenic++;
+        return; // no hit
+    }
+
+    struct gtf_anno_type *ann = malloc(sizeof(*ann));
+    memset(ann, 0, sizeof(*ann));
+
+    // exon == splice > intron > antisense
+    // annotation rule: https://github.com/shiquan/PISA_docs/raw/master/fig/anno.png
+
+    struct isoform *S = bend_sam_isoform(b);
+
+    int antisense = 0;
+    int i;
+    for (i = 0; i < itr->n; ++i) {
+        struct gtf_lite const *g0 = (struct gtf_lite*)itr->rets[i];
+        if (g0->start > c->pos+1 || endpos > g0->end) continue; // not fully covered
+        
+        if (args.ignore_strand == 0) {
+            if (b->core.flag & BAM_FREVERSE) {
+                if (g0->strand == 0) {
+                    antisense = 1;
+                    continue;
+                }
+            }
+            else {
+                if (g0->strand == 1) {
+                    antisense = 1;
+                    continue;
+                }
+            }
+        }
+        
+        int j;
+        for (j = 0; j < g0->n_son; ++j) {
+            struct gtf_lite const *g1 = &g0->son[i];
+            if (g1->type != feature_transcript) continue;
+            struct trans_type *a = gtf_anno_core(S, g1);
+            gtf_anno_push(a, ann, g1->gene_id, g1->gene_name);
+            free(a);
+        }
+    }
+
+    // stat type
+    gtf_anno_most_likely_type(ann);
+    
+    if (ann->type == type_unknown) {
+        if (antisense == 1) {
+            gtf_anno_antisense(b);
+            stat->reads_antisense++;            
+        }
+        else {
+            stat->reads_in_intergenic++;
+        }
+    }
+    else {
+        if (ann->type == type_exon) stat->reads_in_exon++;
+        else if (ann->type == type_splice) stat->reads_in_exon++; // reads cover two exomes
+        else if (ann->type == type_intron) stat->reads_in_intron++;
+        else if (ann->type == type_exon_intron) {
+            if (args.splice_consider == 1)  // reads cover intron and exon
+                stat->reads_in_exon++;
+            else
+                stat->reads_in_intron++;
+        }
+        // else if (ann->type == type_not_this_trans) stat->reads_in_exon++; // new transcript
+        
+        gtf_anno_string(b, ann, G);
+    }
+
+    free(S->p); free(S);
+    gtf_anno_destroy(ann);
+    region_itr_destroy(itr);
+}
+
+void bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
+{
+    bam_hdr_t *h = args.hdr;
+    
+    bam1_core_t *c;
+    c = &b->core;
+    
+    // cleanup exist tag
+    uint8_t *data;
+    if ((data = bam_aux_get(b, args.tag)) != NULL) bam_aux_del(b, data);
+    
+    char *name = h->target_name[c->tid];
+    int endpos = bam_endpos(b);
+
+    struct region_itr *itr = bed_query(args.B, name, c->pos+1, endpos);
+    if (itr == NULL) return; // query failed
+    if (itr->n == 0) return; // no hit
+
+    struct dict *val = dict_init();
+    int i;
+    kstring_t temp = {0,0,0};
+    for (i = 0; i < itr->n; ++i) {
+        struct bed const *bed = (struct bed*)itr->rets[i];
+        if (bed->start > endpos || bed->end <= c->pos) continue; // not covered
+
+        temp.l = 0;
+        
+        if (bed->name == -1) 
+            ksprintf(&temp, "%s:%d-%d", dict_name(B->seqname, bed->seqname), bed->start, bed->end);
+        else
+            kputs(dict_name(B->seqname, bed->name), &temp);
+        
+        if (bed->strand == -1)
+            stat->reads_in_region++;
+        else {
+            if (c->flag & BAM_FREVERSE) {
+                if (bed->strand == 1) 
+                    stat->reads_in_region++;               
+                else {
+                    stat->reads_in_region_diff_strand++;
+                    temp.l = 0; // reset
+                }
+            }
+            else {
+                if (bed->strand == 0)
+                    stat->reads_in_region++;               
+                else {
+                    stat->reads_in_region_diff_strand++;
+                    temp.l = 0;
+                }
+            }
+        }
+        
+        if (temp.l)
+            dict_push(val, temp.s);
+        
+    }
+
+    if (temp.m) free(temp.s);
+    
+    if (dict_size(val)) {
+        kstring_t str = {0,0,0};
+        int i;
+        for (i = 0; i < dict_size(val); ++i) {
+            if (i) kputc(',', &str);
+            kputs(dict_name(val, i), &str);
+        }
+        bam_aux_append(b, args.tag, 'Z', str.l, (uint8_t*)str.s);
+        free(str.s);
+    }
+    dict_destroy(val);
+}
+void *run_it(void *_d)
+{
+    bam_hdr_t *h = args.hdr;
+    struct ret_dat *dat = malloc(sizeof(struct ret_dat));
+    memset(dat, 0, sizeof(*dat));
+    dat->p = (struct bam_pool*)_d;
+    dat->group_stat = dict_init();
+
+    int idx;
+    idx = dict_push(dat->group_stat, "__ALL__");
+
+    dict_set_value(dat->group_stat);
+    
+    struct read_stat *stat = malloc(sizeof(*stat));
+    memset(stat, 0, sizeof(*stat));
+    dict_assign_value(dat->group_stat, idx, stat);
+    
+    int i;
+    
+    for (i = 0; i < dat->p->n; ++i) {
+        bam1_t *b = &dat->p->bam[i];
+    
+        if (args.group_tag) {
+            uint8_t *data;
+            if ((data = bam_aux_get(b, args.group_tag)) != NULL) {
+                char *tag_val = (char*)(data+1);
+                int idx = dict_query(dat->group_stat, tag_val);
+                if (idx == -1) {
+                    idx = dict_push(dat->group_stat, tag_val);
+                    struct read_stat *s = malloc(sizeof(*s));
+                    memset(s, 0, sizeof(*s));
+                    dict_assign_value(dat->group_stat, idx, s);
+                }
+                stat = dict_query_value(dat->group_stat, idx);
+            }
+        }
+
+        dat->reads_input++;
+        
+        bam1_core_t *c;
+        c = &b->core;
+
+        if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) continue;
+        dat->reads_pass_qc++;
+
+        if (args.G)
+            bam_gtf_anno(b, args.G, stat);
+
+        if (args.B)
+            bam_bed_anno(b, args.B, stat);
+        
+        if (args.chr_binding) {
+            char *v = args.chr_binding[b->core.tid];
+            if (v != NULL)        
+                bam_aux_append(b, args.btag, 'Z', strlen(v)+1, (uint8_t*)v);
+        }
+    }
     return dat;
 }
 
@@ -660,33 +863,55 @@ static void write_out(void *_d)
 {
     struct ret_dat *dat = (struct ret_dat *)_d;
     int i;
-    for (i = 0; i < dat->p->n; ++i) 
-        if (sam_write1(args.out, args.hdr, &dat->p->bam[i]) == -1) error("Failed to write SAM.");
+    for (i = 0; i < dat->p->n; ++i) {
+        if (sam_write1(args.out, args.hdr, &dat->p->bam[i]) == -1)
+            error("Failed to write SAM.");
+    }
+    
+    args.reads_input   += dat->reads_input;
+    args.reads_pass_qc += dat->reads_pass_qc;
 
-    args.reads_in_peak += dat->stat->reads_in_peak;
-    args.reads_input += dat->stat->reads_input;
-    args.reads_pass_qc += dat->stat->reads_pass_qc;
-    args.reads_in_gene += dat->stat->reads_in_gene;
-    args.reads_in_exon += dat->stat->reads_in_exon;
-    args.reads_in_intron += dat->stat->reads_in_intron;
-    args.reads_antisense += dat->stat->reads_antisense;
+    for (i = 0; i < dict_size(dat->group_stat); ++i) {
+        int idx = dict_query(args.group_stat, dict_name(dat->group_stat, i));
+        if (idx == -1) {
+            idx = dict_push(args.group_stat, dict_name(dat->group_stat, i));
+            struct read_stat *s = malloc(sizeof(*s));
+            memset(s, 0, sizeof(*s));
+            dict_assign_value(args.group_stat, idx, s);
+        }
 
+        struct read_stat *s0 = dict_query_value(args.group_stat, idx);
+        struct read_stat *s1 = dict_query_value(dat->group_stat, i);
+        s0->reads_in_region += s1->reads_in_region;
+        s0->reads_in_region_diff_strand += s1->reads_in_region_diff_strand;
+        s0->reads_in_intergenic += s1->reads_in_intergenic;
+        s0->reads_in_exon += s1->reads_in_exon;
+        s0->reads_in_intron += s1->reads_in_intron;
+        s0->reads_antisense += s1->reads_antisense;
+    }
     bam_pool_destory(dat->p);
-    free(dat->stat);
+    dict_destroy(dat->group_stat);
     free(dat);
 }
 void write_report()
 {
-    if (args.B) {
+    if (dict_size(args.group_stat) == 1) {
+        struct read_stat *s0 = (struct read_stat*)dict_query_value(args.group_stat, 0);
         fprintf(args.fp_report, "Reads Mapped Confidently to Genome,%.1f%%\n", (float)args.reads_pass_qc/args.reads_input*100);
-        fprintf(args.fp_report, "Reads Mapped Confidently to Peaks,%.1f%%\n", (float)args.reads_in_peak/args.reads_pass_qc*100);
+        
+        if (args.B) {
+            fprintf(args.fp_report, "Reads Mapped Confidently to BED regions / Peaks,%.1f%%\n", (float)s0->reads_in_region/args.reads_pass_qc*100);
+            if (s0->reads_in_region_diff_strand)
+                fprintf(args.fp_report, "Reads Mapped to BED regions but on diff strand,%.1f%%\n", (float)s0->reads_in_region_diff_strand/args.reads_pass_qc*100);
+        }
+        if (args.G) {
+            fprintf(args.fp_report, "Reads Mapped Confidently to Exonic Regions,%.1f%%\n", (float)s0->reads_in_exon/args.reads_input*100);
+            fprintf(args.fp_report, "Reads Mapped Confidently to Intronic Regions,%.1f%%\n", (float)s0->reads_in_intron/args.reads_input*100);
+            fprintf(args.fp_report, "Reads Mapped Antisense to Gene,%.1f%%\n", (float)s0->reads_antisense/args.reads_input*100);
+            fprintf(args.fp_report, "Reads Mapped Confidently to Intergenic Regions,%.1f%%\n", (float)s0->reads_in_intergenic/args.reads_input*100);
+        }
     }
-    if (args.G) {
-        fprintf(args.fp_report, "Reads Mapped Confidently to Genome,%.1f%%\n", (float)args.reads_pass_qc/args.reads_input*100);
-        fprintf(args.fp_report, "Reads Mapped Confidently to Gene,%.1f%%\n", (float)args.reads_in_gene/args.reads_input*100);
-        fprintf(args.fp_report, "Reads Mapped Confidently to Exonic Regions,%.1f%%\n", (float)args.reads_in_exon/args.reads_input*100);
-        fprintf(args.fp_report, "Reads Mapped Confidently to Intronic Regions,%.1f%%\n", (float)args.reads_in_intron/args.reads_input*100);
-        fprintf(args.fp_report, "Reads Mapped Antisense to Gene,%.1f%%\n", (float)args.reads_antisense/args.reads_input*100);
+    else {
     }
 }
 static void memory_release()
@@ -694,8 +919,8 @@ static void memory_release()
     bam_hdr_destroy(args.hdr);
     sam_close(args.fp);
     sam_close(args.out);
-    if (args.B) bed_destroy(args.B);
-    else if (args.G) gtf_destory(args.G);
+    if (args.B) bed_spec_destroy(args.B);
+    if (args.G) gtf_destory(args.G);
     if (args.fp_report != stderr) fclose(args.fp_report);
 }
 
@@ -708,20 +933,15 @@ int bam_anno_attr(int argc, char *argv[])
 
     if (parse_args(argc, argv)) return anno_usage();
 
-    if (args.B) { // todo: support multi-threads
-        bam1_t *b;
-        int ret;
-        b = bam_init1();
-        while ((ret = sam_read1(args.fp, args.hdr, b)) >= 0) {
-            args.reads_input++;
-            // todo: QC?
-            // if (b->core.qual < args.qual_thres) continue;
-            args.reads_pass_qc++;
-            check_is_overlapped_bed(args.hdr, b, args.B); 
-            if (sam_write1(args.out, args.hdr, b) == -1) error("Failed to write SAM.");
+    if (args.n_thread == 1) {
+        for (;;) {
+            struct bam_pool *b = bam_pool_create();
+            bam_read_pool(b, args.fp, args.hdr, args.chunk_size);
+            if (b == NULL) break;
+            if (b->n == 0) { free(b->bam); free(b); break; }
+            b = run_it(b);
+            write_out(b);
         }
-        bam_destroy1(b);
-        if (ret != -1) warnings("Truncated file?");   
     }
     else {
         // multi-thread mode

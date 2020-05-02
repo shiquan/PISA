@@ -9,9 +9,9 @@ struct dict *dict_init();
 
 void dict_destroy(struct dict *D);
 
-int dict_query(const struct dict *D, char *key);
+int dict_query(const struct dict *D, char const *key);
 
-int dict_push(struct dict *D, char *key);
+int dict_push(struct dict *D, char const *key);
 
 int dict_read(struct dict *D, const char *fname);
 
@@ -26,4 +26,10 @@ uint32_t dict_count(const struct dict *D, int idx);
 char **dict_names(struct dict *D);
 
 char *dict_most_likely_key(struct dict *D);
+
+void dict_set_value(struct dict *D);
+void *dict_query_value(struct dict *D, int idx);
+void *dict_query_value2(struct dict *D, const char *key);
+int dict_assign_value(struct dict *D, int idx, void *val);
+    
 #endif

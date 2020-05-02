@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 #include "dict.h"
-
+#include "region_index.h"
 #define EXONIC    0
 #define INTRONIC  1
 
@@ -41,12 +41,8 @@ struct gtf_lite {
     struct gtf_lite *son;
 };
 
-struct gtf_idx;
+struct _ctg_idx;
 
-struct ctg_idx {
-    int offset;
-    int idx;
-};
 struct gtf_spec {
     struct dict *name; // contig names
     struct dict *gene_name;
@@ -57,37 +53,19 @@ struct gtf_spec {
     struct dict *features;
     
     // index for contigs
-    struct ctg_idx *ctg;
+    struct _ctg_idx *ctg;
     struct gtf_idx *idx;
     
     int n_gtf, m_gtf;
     struct gtf_lite *gtf;    
 };
 
+
 const char *get_feature_name(enum feature_type type);
 struct gtf_spec *gtf_spec_init();
 void gtf_destory(struct gtf_spec *G);
 struct gtf_spec *gtf_read(const char *fname, int filter);
-/*
-struct gtf_itr {
-    int id, st;
-    struct gtf_spec *G;
-    int n;
-    // struct gtf_lite *g0;
-};
-*/
-struct gtf_itr {
-    int n;
-    struct gtf_lite **gtf;
-};
-// struct gtf_itr *gtf_itr_build(struct gtf_spec *G);
-struct gtf_itr *gtf_query(struct gtf_spec *G, char *name, int start, int end);
-void gtf_itr_destory(struct gtf_itr *i);
 
-//struct gtf_lite *gtf_overlap_gene(struct gtf_spec *G, char *name, int start, int end, int *n, int cache);
-/*
-char *gtf_get_gene_name(struct gtf_spec *G, struct gtf_lite *gl);
-char *gtf_get_gene_id(struct gtf_spec *G, struct gtf_lite *gl);
-char *gtf_get_transcript_id(struct gtf_spec *G, struct gtf_lite *gl);
-*/
+struct region_itr *gtf_query(struct gtf_spec *G, char *name, int start, int end);
+
 #endif

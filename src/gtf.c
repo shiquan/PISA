@@ -5,12 +5,14 @@
 #include "htslib/ksort.h"
 #include "dict.h"
 #include "gtf.h"
+#include "region_index.h"
 #include "number.h"
 #include <zlib.h>
 
 KSTREAM_INIT(gzFile, gzread, 8193)
 
 KHASH_MAP_INIT_INT(attr, char*)
+
 
 static const char *feature_type_names[] = {
     // The following feature types are required: "gene", "transcript"
@@ -30,6 +32,11 @@ static const char *feature_type_names[] = {
     "three_prime_utr",
     "Selenocysteine"
     // All other features will be ignored. The types must have the correct capitalization shown here.
+};
+
+struct _ctg_idx {
+    int offset;
+    int idx;
 };
 
 const char *get_feature_name(enum feature_type type)
@@ -74,6 +81,7 @@ static int cmpfunc1 (const void *_a, const void *_b)
     return a->end - b->end;
 }
 
+/*
 struct binlist {
     int n, m;
     struct gtf_lite **a;
@@ -115,24 +123,28 @@ static void idx_bin_push(struct gtf_idx *idx, uint32_t start, uint32_t end, stru
     }
     l->a[l->n++] = gl;
 }
+*/
+struct gtf_idx {
+    struct region_index *idx;
+};
+
 static void gtf_build_index(struct gtf_spec *G)
 {
     qsort(G->gtf, G->n_gtf, sizeof(struct gtf_lite), cmpfunc);
-    G->ctg = malloc(dict_size(G->name)*sizeof(struct ctg_idx));
-    memset(G->ctg, 0, sizeof(struct ctg_idx)*dict_size(G->name));
+    G->ctg = malloc(dict_size(G->name)*sizeof(struct _ctg_idx));
+    memset(G->ctg, 0, sizeof(struct _ctg_idx)*dict_size(G->name));
     G->idx = malloc(dict_size(G->name)*sizeof(struct gtf_idx));    
     
     int i;
     for (i = 0; i < dict_size(G->name); ++i)
-        G->idx[i].idx = kh_init(bin);
+        G->idx[i].idx = region_index_build();
     
     for (i = 0; i < G->n_gtf; ++i) {
         struct gtf_lite *gl = &G->gtf[i];        
-        // G->idx[i] = (uint64_t)gl->start<<32|gl->end;
         G->ctg[gl->seqname].offset++;    
         if (G->ctg[gl->seqname].idx == 0) G->ctg[gl->seqname].idx = i+1;
 
-        idx_bin_push(&G->idx[gl->seqname], gl->start, gl->end, gl);
+        index_bin_push(G->idx[gl->seqname].idx, gl->start, gl->end, gl);
     }
     for (i = 0; i < dict_size(G->name); ++i) G->ctg[i].idx -= 1; // convert to 0 based
 }
@@ -156,12 +168,7 @@ void gtf_destory(struct gtf_spec *G)
 
     for (i = 0; i < dict_size(G->name); ++i) {
         struct gtf_idx *idx = &G->idx[i];
-        khint_t k;
-        for (k = kh_begin(idx->idx); k != kh_end(idx->idx); ++k) {
-            if (kh_exist(idx->idx, k)) 
-                if (kh_val(idx->idx, k).m) free(kh_val(idx->idx, k).a);
-        }
-        kh_destroy(bin,idx->idx);
+        region_index_destroy(idx->idx);
     }
     free(G->idx);
     free(G->ctg);
@@ -380,6 +387,7 @@ struct gtf_spec *gtf_read(const char *fname, int filter)
     return G;
 }
 
+/*
 #define MAX_BIN 37450 // =(8^6-1)/7+1
 
 static inline int reg2bins(uint32_t beg, uint32_t end, uint16_t list[MAX_BIN])
@@ -402,9 +410,9 @@ void gtf_itr_destory(struct gtf_itr *itr)
     free(itr->gtf);
     free(itr);
 }
+*/
 
-// TODO: improve performance here
-struct gtf_itr*gtf_query(struct gtf_spec *G, char *name, int start, int end)
+struct region_itr *gtf_query(struct gtf_spec *G, char *name, int start, int end)
 {
     int id = dict_query(G->name, name);
     if (id == -1) return NULL;
@@ -415,36 +423,12 @@ struct gtf_itr*gtf_query(struct gtf_spec *G, char *name, int start, int end)
     int st = G->ctg[id].idx;
     if (end < G->gtf[st].start) return NULL; // out of range
 
-    int n=0, i, n_bin;
-    khint_t k;
-    struct gtf_idx *idx = &G->idx[id];
-    uint16_t *bins  = (uint16_t*)calloc(MAX_BIN, 2);
-    n_bin = reg2bins(start, end, bins);
+    struct region_index *idx = G->idx[id].idx;
 
-    for (i = 0; i < n_bin; ++i) 
-        if ((k = kh_get(bin, idx->idx, bins[i])) != kh_end(idx->idx))
-            n += kh_val(idx->idx, k).n;
-
-    if (n == 0) {
-        free(bins);
-        return NULL;
-    }
-
-    struct gtf_itr *itr = malloc(sizeof(*itr));
-    itr->n = n;
-    itr->gtf = malloc(sizeof(void*)*n);
-    int l = 0;
-    for (i = 0; i < n_bin; ++i)
-        if ((k = kh_get(bin, idx->idx, bins[i])) != kh_end(idx->idx)) {
-            int j;
-            struct binlist *list = &kh_val(idx->idx, k);
-            for (j = 0; j < list->n; ++j)
-                itr->gtf[l++] = list->a[j];                
-        }
-
-    free(bins);
-    qsort(itr->gtf, itr->n, sizeof(struct gtf_lite*), cmpfunc1);
-
+    struct region_itr *itr = region_query(idx, start, end);
+    
+    qsort((struct gtf_lite**)itr->rets, itr->n, sizeof(struct gtf_lite*), cmpfunc1);
+    
     return itr;
 }
 
