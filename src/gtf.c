@@ -309,7 +309,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
     gtf.attr_dict = kh_init(attr);
     char *attr = str->s+s[8];
     
-    int n0, i;
+    int i;
     struct attr_pair *pair = bend_pair(attr, &n0);
     for (i = 0; i < n0; ++i) {
         struct attr_pair *pp = &pair[i];

@@ -460,7 +460,7 @@ static enum exon_type query_exon(int start, int end, struct gtf_lite const *G, i
 
         if (start < g0->start && end > g0->start) return type_exon_intron;
 
-        assert(0); // should not come here
+        debug_print("start : %d, end : %d, %d-%d", start, end, g0->start, g0->end);
     }
 
     return type_unknown; // out of range
@@ -471,14 +471,12 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf_lite const
     struct trans_type *tp = malloc(sizeof(*tp));
     tp->trans_id = g->transcript_id;
     tp->type = type_unknown;
-    
-    int i = 0;
-    int splice = 0;
-
+   
     if (S->n > 1) splice = 1;
 
     int exon;
-    int last_exon;
+    int last_exon = -1;
+    int i = 0;
     // linear search
     for (i = 0; i < S->n; ++i) {        
         struct pair *p = &S->p[i];
@@ -496,6 +494,7 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf_lite const
                 continue;
             }
             else if (tp->type == type_exon) {
+                assert(last_exon != -1);
                 if (last_exon +1 == exon) {
                     tp->type = type_splice;
                     last_exon = exon;
