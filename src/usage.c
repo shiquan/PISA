@@ -187,7 +187,8 @@ int bam_extract_usage()
     fprintf(stderr, "bam_extract_tags[options] in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -tags     [TAGS]     Tags to be extracted.\n");
-    fprintf(stderr, " -o        [file]     output file. tsv format\n");
+    fprintf(stderr, " -o        [file]     Output file. tsv format\n");
+    fprintf(stderr, " -n                   Print read name.\n");
     fprintf(stderr, "\n");
     return 1;
 }

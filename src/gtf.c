@@ -130,6 +130,7 @@ struct gtf_idx {
 
 static void gtf_build_index(struct gtf_spec *G)
 {
+    // sort gene by coordinate
     qsort(G->gtf, G->n_gtf, sizeof(struct gtf_lite), cmpfunc);
     G->ctg = malloc(dict_size(G->name)*sizeof(struct _ctg_idx));
     memset(G->ctg, 0, sizeof(struct _ctg_idx)*dict_size(G->name));
@@ -147,6 +148,18 @@ static void gtf_build_index(struct gtf_spec *G)
         index_bin_push(G->idx[gl->seqname].idx, gl->start, gl->end, gl);
     }
     for (i = 0; i < dict_size(G->name); ++i) G->ctg[i].idx -= 1; // convert to 0 based
+
+    // from v0.4, sort transcript and exon record in case GTF is not properly defined
+    for (i = 0; i < G->n_gtf; ++i) {
+        struct gtf_lite *g0 = &G->gtf[i]; // each gene
+        qsort(g0->son, g0->n_son, sizeof(struct gtf_lite), cmpfunc);
+        int j;
+        for (j = 0; j < g0->n_son; ++j) { // each transcript
+            struct gtf_lite *g1 = &g0->son[j];
+            if (g1->n_son > 1) 
+                qsort(g1->son, g1->n_son, sizeof(struct gtf_lite), cmpfunc);
+        }
+    }
 }
 static void gtf_lite_clean(struct gtf_lite *g)
 {

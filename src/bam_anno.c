@@ -61,7 +61,8 @@ static struct args {
     uint64_t reads_pass_qc;
 
     struct dict *group_stat;
-    
+
+    int debug_mode;
 } args = {
     .input_fname     = NULL,
     .output_fname    = NULL,
@@ -89,7 +90,8 @@ static struct args {
     
     .reads_input     = 0,
     .reads_pass_qc   = 0,
-    .group_stat      = 0
+    .group_stat      = 0,
+    .debug_mode      = 0
 };
 
 static char **chr_binding(const char *fname, bam_hdr_t *hdr)
@@ -162,7 +164,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-chunk") == 0) var = &chunk;
-
+        else if (strcmp(a, "-debug") == 0) {
+            args.debug_mode = 1;
+            continue;
+        }
         else if (strcmp(a, "-ignore-strand") == 0) {
             args.ignore_strand = 1;
             continue;
@@ -335,9 +340,12 @@ struct ret_dat {
     uint64_t reads_pass_qc;
 };
 
+static char *exon_type_names[] = {
+    "Unknown", "Exon", "Intron", "ExonIntron", "Antisense", "Splice", "NotThisTrans"
+};
 enum exon_type {
-    type_unknown = -1,  // unknown type, init state
-    type_exon  = 0,     // read full covered in exon
+    type_unknown = 0,  // unknown type, init state
+    type_exon,     // read full covered in exon
     type_intron,        // read full covered in intron, with same strand of gene
     type_exon_intron,   // read cover exon and nearby intron
     type_antisense,     // read map on antisense
@@ -372,6 +380,18 @@ static void gtf_anno_destroy(struct gtf_anno_type *ann)
     free(ann->a);
     free(ann);
 }
+static void gtf_anno_print(struct gtf_anno_type *ann, struct gtf_spec const *G)
+{
+    fprintf(stderr, "Type : %s\n", exon_type_names[ann->type]);
+    int i;
+    for (i = 0; i < ann->n; ++i) {
+        struct gene_type *g = &ann->a[i];
+        fprintf(stderr, "Gene : %s, %s\n", dict_name(G->gene_name, g->gene_name),  exon_type_names[g->type]); 
+        int j;
+        for (j = 0; j < g->n; ++j)
+            fprintf(stderr, "  Trans : %s, %s\n", dict_name(G->transcript_id, g->a[j].trans_id), exon_type_names[g->a[j].type]);       
+    }
+}
 static void gtf_anno_antisense(bam1_t *b)
 {
     bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
@@ -400,17 +420,22 @@ static void gene_most_likely_type(struct gene_type *g)
         }
         else if (t->type == type_not_this_trans) {
             if (g->type == type_unknown) g->type = type_not_this_trans; // better than unknown
-            else if (g->type == type_intron) g->type = type_not_this_trans;
+            else if (g->type == type_intron) g->type = type_not_this_trans; // should not happen?
         }
     }
     
 }
 static void gtf_anno_most_likely_type(struct gtf_anno_type *ann)
-{    
+{
+
     int i;
-    for (i = 0; i < ann->n; ++i) {
+    for (i = 0; i < ann->n; ++i) { // refresh type of each gene first
         struct gene_type *g = &ann->a[i];
         gene_most_likely_type(g);
+    }
+    
+    for (i = 0; i < ann->n; ++i) {
+        struct gene_type *g = &ann->a[i];
         if (g->type == type_unknown) continue;
         else if (g->type == type_exon) {
             ann->type = type_exon;
@@ -443,12 +468,14 @@ static enum exon_type query_exon(int start, int end, struct gtf_lite const *G, i
     assert(G->type == feature_transcript);
     int j = 0;
     int i;
-    for (i = 0; i < G->n_son; ++i) {        
-        struct gtf_lite *g0 = G->strand == 0 ? &G->son[i] : &G->son[G->n_son-i-1];
+    for (i = 0; i < G->n_son; ++i) {
+        // from v0.4, transcript and exon in GTF_Spec struct will be sorted by coordinate
+        //struct gtf_lite *g0 = G->strand == 0 ? &G->son[i] : &G->son[G->n_son-i-1];
+        struct gtf_lite *g0 = &G->son[i];
         if (g0->type != feature_exon) continue;
         j++;
         if (start >= g0->start && end <= g0->end) {
-            *exon = j;
+            *exon = j<<2 | (start==g0->start)<<1 | (end == g0->end);            
             return type_exon;
         }
 
@@ -483,6 +510,7 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf_lite const
 
         if (t0 == type_unknown) {
             if (tp->type != type_unknown)  tp->type = type_not_this_trans; // at least some part of read cover this transcript
+            if (i > 0) tp->type = type_not_this_trans;
             break; // not covered this exon
         }
         else if (t0 == type_exon) {
@@ -491,17 +519,20 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf_lite const
                 last_exon = exon;
                 continue;
             }
-            else if (tp->type == type_exon) {
+            else if (tp->type == type_exon || tp->type == type_splice) {
                 assert(last_exon != -1);
-                if (last_exon +1 == exon) {
+                if ((exon>>2)-(last_exon >> 2)>1) {  // check the exon number
+                    tp->type = type_not_this_trans;
+                    break;
+                }
+
+                if ((last_exon & 0x1) && (exon & 0x2)) { // check the edge
                     tp->type = type_splice;
                     last_exon = exon;
                     continue;
                 }
-                else {
-                    tp->type = type_not_this_trans;
-                    break;
-                }
+                tp->type = type_not_this_trans;
+                break;
             }
         }
         else if (t0 == type_intron) {
@@ -563,7 +594,6 @@ void gtf_anno_push(struct trans_type *a, struct gtf_anno_type *ann, int gene_id,
 
 void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const *G)
 {
-
     if (ann->type == type_unknown) return;
 
     if (ann->type == type_not_this_trans) return;
@@ -573,6 +603,18 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
         return;
     }
 
+    if (ann->type == type_exon_intron) {
+        if (args.splice_consider == 0) {
+            bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"C");
+            return;
+        }
+    }
+
+    if (ann->type == type_not_this_trans) {
+        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"V");
+        return;
+    }
+    
     // only exon or splice come here
     kstring_t gene_name = {0,0,0};
     kstring_t gene_id   = {0,0,0};
@@ -618,6 +660,8 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
 
     if (ann->type == type_exon) 
         bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
+    else if (ann->type == type_exon_intron)  // splice_consider already be set
+        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"C");
     else if (ann->type == type_splice)
         bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"S");
     // intron already checked
@@ -627,7 +671,7 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
 // annotate alignment record with each transcript,
 // and group all types together, return the most likely ones
 void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
-{
+{    
     bam_hdr_t *h = args.hdr;
     
     // cleanup all exist tags
@@ -658,10 +702,10 @@ void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     memset(ann, 0, sizeof(*ann));
 
     // exon == splice > intron > antisense
-    // annotation rule: https://github.com/shiquan/PISA_docs/raw/master/fig/anno.png
+    // https://github.com/shiquan/PISA/wiki/4.-Annotate-alignment-records-with-GTF-or-BED
 
     struct isoform *S = bend_sam_isoform(b);
-
+    
     int antisense = 0;
     int i;
     for (i = 0; i < itr->n; ++i) {
@@ -685,7 +729,7 @@ void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
         
         int j;
         for (j = 0; j < g0->n_son; ++j) {
-            struct gtf_lite const *g1 = &g0->son[i];
+            struct gtf_lite const *g1 = &g0->son[j];
             if (g1->type != feature_transcript) continue;
             struct trans_type *a = gtf_anno_core(S, g1);
             gtf_anno_push(a, ann, g1->gene_id, g1->gene_name);
@@ -720,6 +764,10 @@ void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
         gtf_anno_string(b, ann, G);
     }
 
+    if (args.debug_mode) {
+        fprintf(stderr, "%s   ", b->data);
+        gtf_anno_print(ann, G);
+    }
     free(S->p); free(S);
     gtf_anno_destroy(ann);
     region_itr_destroy(itr);
@@ -895,18 +943,18 @@ void write_report()
 {
     if (dict_size(args.group_stat) == 1) {
         struct read_stat *s0 = (struct read_stat*)dict_query_value(args.group_stat, 0);
-        fprintf(args.fp_report, "Reads Mapped Confidently to Genome,%.1f%%\n", (float)args.reads_pass_qc/args.reads_input*100);
+        fprintf(args.fp_report, "Reads Mapped to Genome,%.1f%%\n", (float)args.reads_pass_qc/args.reads_input*100);
         
         if (args.B) {
-            fprintf(args.fp_report, "Reads Mapped Confidently to BED regions / Peaks,%.1f%%\n", (float)s0->reads_in_region/args.reads_pass_qc*100);
+            fprintf(args.fp_report, "Reads Mapped to BED regions / Peaks,%.1f%%\n", (float)s0->reads_in_region/args.reads_pass_qc*100);
             if (s0->reads_in_region_diff_strand)
                 fprintf(args.fp_report, "Reads Mapped to BED regions but on diff strand,%.1f%%\n", (float)s0->reads_in_region_diff_strand/args.reads_pass_qc*100);
         }
         if (args.G) {
-            fprintf(args.fp_report, "Reads Mapped Confidently to Exonic Regions,%.1f%%\n", (float)s0->reads_in_exon/args.reads_input*100);
-            fprintf(args.fp_report, "Reads Mapped Confidently to Intronic Regions,%.1f%%\n", (float)s0->reads_in_intron/args.reads_input*100);
+            fprintf(args.fp_report, "Reads Mapped to Exonic Regions,%.1f%%\n", (float)s0->reads_in_exon/args.reads_input*100);
+            fprintf(args.fp_report, "Reads Mapped to Intronic Regions,%.1f%%\n", (float)s0->reads_in_intron/args.reads_input*100);
             fprintf(args.fp_report, "Reads Mapped Antisense to Gene,%.1f%%\n", (float)s0->reads_antisense/args.reads_input*100);
-            fprintf(args.fp_report, "Reads Mapped Confidently to Intergenic Regions,%.1f%%\n", (float)s0->reads_in_intergenic/args.reads_input*100);
+            fprintf(args.fp_report, "Reads Mapped to Intergenic Regions,%.1f%%\n", (float)s0->reads_in_intergenic/args.reads_input*100);
         }
     }
     else {
