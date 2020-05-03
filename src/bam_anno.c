@@ -936,6 +936,13 @@ static void write_out(void *_d)
         s0->reads_antisense += s1->reads_antisense;
     }
     bam_pool_destory(dat->p);
+
+    // free assign memory manually
+    for (i = 0; i < dict_size(dat->group_stat); ++i) {
+        void *v = dict_query_value(dat->group_stat, i);
+        if (v) free(v);
+    }
+
     dict_destroy(dat->group_stat);
     free(dat);
 }
@@ -965,6 +972,11 @@ static void memory_release()
     bam_hdr_destroy(args.hdr);
     sam_close(args.fp);
     sam_close(args.out);
+    int i;
+    for (i = 0; i < dict_size(args.group_stat); ++i) {
+        void *v = dict_query_value(args.group_stat, i);
+        if (v) free(v);
+    }
     dict_destroy(args.group_stat);
     if (args.B) bed_spec_destroy(args.B);
     if (args.G) gtf_destory(args.G);
