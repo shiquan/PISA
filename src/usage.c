@@ -201,10 +201,10 @@ int bam_count_usage()
     fprintf(stderr, " -tag      [TAG]      Cell barcode tag.\n");
     fprintf(stderr, " -anno-tag [TAG]      Annotation tag, gene or peak.\n");
     fprintf(stderr, " -list     [file]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
-    fprintf(stderr, " -tab                  Output in three column format. Name\\tCB\\tCount\n");
+    fprintf(stderr, " -tab                 Output in three column format. Name\\tCB\\tCount\n");
     fprintf(stderr, " -o        [file]     Output matrix.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
-    fprintf(stderr, " -dis-corr             Disable correct UMIs.\n");
+    fprintf(stderr, " -corr                Enable correct UMIs.\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. Default is 20.\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");
     fprintf(stderr,"\n");
@@ -216,8 +216,8 @@ int bam2fq_usage()
     fprintf(stderr, "* Convert BAM into fastq.\n");
     fprintf(stderr, "bam2fq -tag CB,UY in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -filter               Filter this record if not all tags existed.\n");
-    fprintf(stderr, " -fa                   Output fasta instead of fastq.\n");
+    fprintf(stderr, " -filter              Filter this record if not all tags existed.\n");
+    fprintf(stderr, " -fa                  Output fasta instead of fastq.\n");
     fprintf(stderr, " -o        [fastq]    Output file.\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");
     fprintf(stderr, "\n");

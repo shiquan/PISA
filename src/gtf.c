@@ -401,31 +401,6 @@ struct gtf_spec *gtf_read(const char *fname, int filter)
     return G;
 }
 
-/*
-#define MAX_BIN 37450 // =(8^6-1)/7+1
-
-static inline int reg2bins(uint32_t beg, uint32_t end, uint16_t list[MAX_BIN])
-{
-	int i = 0, k;
-	if (beg >= end) return 0;
-	if (end >= 1u<<29) end = 1u<<29;
-	--end;
-	list[i++] = 0;
-	for (k =    1 + (beg>>26); k <=    1 + (end>>26); ++k) list[i++] = k;
-	for (k =    9 + (beg>>23); k <=    9 + (end>>23); ++k) list[i++] = k;
-	for (k =   73 + (beg>>20); k <=   73 + (end>>20); ++k) list[i++] = k;
-	for (k =  585 + (beg>>17); k <=  585 + (end>>17); ++k) list[i++] = k;
-	for (k = 4681 + (beg>>14); k <= 4681 + (end>>14); ++k) list[i++] = k;
-	return i;
-}
-
-void gtf_itr_destory(struct gtf_itr *itr)
-{
-    free(itr->gtf);
-    free(itr);
-}
-*/
-
 struct region_itr *gtf_query(struct gtf_spec *G, char *name, int start, int end)
 {
     int id = dict_query(G->name, name);
@@ -440,7 +415,12 @@ struct region_itr *gtf_query(struct gtf_spec *G, char *name, int start, int end)
     struct region_index *idx = G->idx[id].idx;
 
     struct region_itr *itr = region_query(idx, start, end);
-    
+
+    if (itr==NULL) return NULL;
+    if (itr->n == 0) {
+        free(itr);
+        return NULL;
+    }
     qsort((struct gtf_lite**)itr->rets, itr->n, sizeof(struct gtf_lite*), cmpfunc1);
     
     return itr;
