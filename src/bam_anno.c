@@ -796,10 +796,7 @@ void bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
     kstring_t temp = {0,0,0};
     for (i = 0; i < itr->n; ++i) {
         struct bed *bed = (struct bed*)itr->rets[i];
-        if (bed->start > endpos || bed->end <= c->pos) {
-            free(bed);
-            continue; // not covered
-        }
+        if (bed->start > endpos || bed->end <= c->pos) continue; // not covered
         temp.l = 0;
         
         if (bed->name == -1) 
@@ -830,7 +827,7 @@ void bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
         
         if (temp.l)
             dict_push(val, temp.s);
-        free(bed);
+        
     }
     region_itr_destroy(itr);
 
