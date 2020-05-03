@@ -965,6 +965,7 @@ static void memory_release()
     bam_hdr_destroy(args.hdr);
     sam_close(args.fp);
     sam_close(args.out);
+    dict_destroy(args.group_stat);
     if (args.B) bed_spec_destroy(args.B);
     if (args.G) gtf_destory(args.G);
     if (args.fp_report != stderr) fclose(args.fp_report);
