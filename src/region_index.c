@@ -29,6 +29,7 @@ void region_index_destroy(struct region_index *idx)
             if (kh_val(idx->idx, k).m) free(kh_val(idx->idx, k).a);
     }
     kh_destroy(bin,idx->idx);
+    free(idx);
 }
 
 // copied from tabix/index.c
