@@ -802,7 +802,7 @@ void bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
         if (bed->name == -1) 
             ksprintf(&temp, "%s:%d-%d", dict_name(B->seqname, bed->seqname), bed->start, bed->end);
         else
-            kputs(dict_name(B->seqname, bed->name), &temp);
+            kputs(dict_name(B->name, bed->name), &temp);
         
         if (bed->strand == -1)
             stat->reads_in_region++;
@@ -837,10 +837,11 @@ void bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
         kstring_t str = {0,0,0};
         int i;
         for (i = 0; i < dict_size(val); ++i) {
-            if (i) kputc(',', &str);
+            if (i) kputc(';', &str);
             kputs(dict_name(val, i), &str);
         }
-        bam_aux_append(b, args.tag, 'Z', str.l, (uint8_t*)str.s);
+
+        bam_aux_append(b, args.tag, 'Z', str.l+1, (uint8_t*)str.s);
         free(str.s);
     }
     dict_destroy(val);
