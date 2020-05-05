@@ -72,7 +72,7 @@ debug: $(HTSLIB) $(FMLLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h
 src/sim_search.o: src/sim_search.c
 src/bam2fq.o: src/bam2fq.c
 src/bam_anno.o: src/bam_anno.c
-src/bam_count.o: src/bam_count.c
+src/bam_count.o: src/bam_count.c pisa_version.h
 src/bam_pick.o: src/bam_pick.c
 src/bam_tag_corr.o: src/bam_tag_corr.c
 src/umi_corr.o: src/umi_corr.c

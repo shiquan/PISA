@@ -143,7 +143,7 @@ int anno_usage()
     fprintf(stderr, "   AN : Same with TX but set only if read mapped to antisense strand of transcript.\n");
     fprintf(stderr, "   GN : Gene name.\n");
     fprintf(stderr, "   GX : Gene ID.\n");
-    fprintf(stderr, "   RE : Region type, should E(exon), N(intron)\n");
+    fprintf(stderr, "   RE : Region type, should E (exon), N (intron), S (junction reads cover isoforms), V (juctions reads cover unknown isoforms)\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -201,10 +201,9 @@ int bam_count_usage()
     fprintf(stderr, " -tag      [TAG]      Cell barcode tag.\n");
     fprintf(stderr, " -anno-tag [TAG]      Annotation tag, gene or peak.\n");
     fprintf(stderr, " -list     [file]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
-    fprintf(stderr, " -tab                 Output in three column format. Name\\tCB\\tCount\n");
     fprintf(stderr, " -o        [file]     Output matrix.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
-    fprintf(stderr, " -corr                Enable correct UMIs.\n");
+    //fprintf(stderr, " -corr                Enable correct UMIs.\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. Default is 20.\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");
     fprintf(stderr,"\n");

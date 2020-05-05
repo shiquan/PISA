@@ -4,6 +4,7 @@
 #include <zlib.h>
 
 KHASH_MAP_INIT_STR(name, int)
+    
 KSTREAM_INIT(gzFile, gzread, 8193);
 
 struct dict {
@@ -37,11 +38,23 @@ void *dict_query_value(struct dict *D, int idx)
     if (idx < 0 || idx > D->n) return NULL;
     return D->value[idx];
 }
+
 void *dict_query_value2(struct dict *D, const char *key)
 {
     int idx = dict_query(D, key);
     if (idx == -1) return NULL; // failed to query
     return D->value[idx];
+}
+
+static char bit32[4];
+
+void *dict_query_valueInt(struct dict *D, int key)
+{
+    bit32[0] = (key >> 24) & 0xFF;
+    bit32[1] = (key >> 16) & 0xFF;
+    bit32[2] = (key >> 8) & 0xFF;
+    bit32[3] = key & 0xFF;
+    return dict_query_value2(D, bit32);
 }
 
 int dict_assign_value(struct dict *D, int idx, void *val)
@@ -55,6 +68,20 @@ char *dict_name(const struct dict *D, int idx)
 {
     assert(idx >= 0 && idx < D->n);
     return D->name[idx];
+}
+int dict_nameInt(const struct dict *D, int idx)
+{
+    assert(idx >= 0 && idx < D->n);
+    char *name= D->name[idx];
+    int x = 0;
+    x = x | (name[0] &0xFF);
+    x = x << 8;
+    x = x | (name[1] &0xFF);
+    x = x << 8;
+    x = x | (name[2] &0xFF);
+    x = x << 8;
+    x = x | (name[3] &0xFF);
+    return x;
 }
 
 int dict_size(const struct dict *D)
@@ -93,7 +120,21 @@ int dict_query(const struct dict *D, char const *key)
     return kh_val(D->dict, k);
 }
 
-int dict_push(struct dict *D, char const *key)
+
+int dict_queryInt(const struct dict *D, int key)
+{
+    bit32[0] = (key >> 24) & 0xFF;
+    bit32[1] = (key >> 16) & 0xFF;
+    bit32[2] = (key >> 8) & 0xFF;
+    bit32[3] = key & 0xFF;
+
+    khint_t k;
+    k = kh_get(name, D->dict, bit32);
+    if (k == kh_end(D->dict)) return -1;
+    return kh_val(D->dict, k);
+}
+
+int dict_push0(struct dict *D, char const *key)
 {
     if (key == NULL) error("Trying to push an empty key.");
     int ret;
@@ -116,11 +157,44 @@ int dict_push(struct dict *D, char const *key)
         }
     }
     D->name[D->n] = strdup(key);
-    D->count[D->n]++;
     khint_t k;
     k = kh_put(name, D->dict, D->name[D->n], &ret);
     kh_val(D->dict, k) = D->n;
+    return -1;
+}
+
+int dict_push(struct dict *D, char const *key)
+{
+    int ret;
+    ret = dict_push0(D, key);
+    if (ret != -1) return ret; // already present
+    D->count[D->n]++;
     return D->n++;
+}
+// push new key without increase count
+int dict_push1(struct dict *D, char const *key)
+{
+    int ret;
+    ret = dict_push0(D, key);
+    if (ret != -1) return ret;
+    return D->n++;
+}
+
+int dict_pushInt(struct dict *D, int key)
+{
+    bit32[0] = (key >> 24) & 0xFF;
+    bit32[1] = (key >> 16) & 0xFF;
+    bit32[2] = (key >> 8) & 0xFF;
+    bit32[3] = key & 0xFF;
+    return dict_push(D, bit32);
+}
+int dict_pushInt1(struct dict *D, int key)
+{
+    bit32[0] = (key >> 24) & 0xFF;
+    bit32[1] = (key >> 16) & 0xFF;
+    bit32[2] = (key >> 8) & 0xFF;
+    bit32[3] = key & 0xFF;
+    return dict_push1(D, bit32);
 }
 
 int dict_read(struct dict *D, const char *fname)
@@ -134,12 +208,15 @@ int dict_read(struct dict *D, const char *fname)
     while (ks_getuntil(ks, 2, &str, &ret)>=0){
         if (str.l == 0) continue;
         if (str.s[0] == '#') continue;
-        if (strcmp(str.s, "Barcode") == 0) continue; // emit header
+        if (strcmp(str.s, "Barcode") == 0) {
+            warnings("\"Barcode\" in %s looks like a title, skip it. ", fname);
+            continue; // emit header
+        }
         char *p = str.s;
         char *e = str.s + str.l;
         while (p < e && !isspace(*p)) p++;
         *p = '\0';
-        dict_push(D, str.s);
+        dict_push1(D, str.s); // v0.4, init whitelist but not increase count
     }
     if (str.m) free(str.s);
     ks_destroy(ks);
@@ -151,6 +228,7 @@ char **dict_names(struct dict *D)
 {
     return D->name;
 }
+// hamming distance
 static int check_similar(char *a, char *b, int mis)
 {
     int l0, l1;

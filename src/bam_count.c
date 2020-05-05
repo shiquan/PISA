@@ -1,83 +1,92 @@
 // count reads/fragments matrix for single-cell datasets
 #include "utils.h"
 #include "number.h"
-#include "barcode_list.h"
+#include "dict.h"
 #include "htslib/khash.h"
 #include "htslib/kstring.h"
 #include "htslib/sam.h"
-
-KHASH_MAP_INIT_STR(name, int)
-
-typedef uint32_t count_t;
-
-struct cell_barcode_counts {
-    // int idx;
-    uint32_t nUMI;
-    uint32_t nGene;
-    uint32_t raw_UMI;
-};
+#include "htslib/bgzf.h"
+#include <sys/stat.h>
+#include "pisa_version.h" // mex output
 
 static struct args {
     const char *input_fname;
-    const char *bed_fname;
-    const char *tag; // cell barcode tag
-    const char *anno_tag;
     const char *whitelist_fname;
     const char *output_fname;
+    const char *outdir; // v0.4, support Market Exchange Format (MEX) for sparse matrices
+        
+    const char *tag; // cell barcode tag
+    const char *anno_tag; // feature tag
     const char *umi_tag;
-    const char *count_fname; // umi per cell barcode
-    int mtx_fmt;
+
+    struct dict *features;
+    struct dict *barcodes;
+    
     int mapq_thres;
-    int dis_corr_umi;
-    int file_thread;
-    struct cell_barcode_counts *CBC;
+    int use_dup;
+    int enable_corr_umi;
+    int n_thread;
+
+    htsFile *fp_in;
+    bam_hdr_t *hdr;
+
+    uint64_t n_record;
 } args = {
-    .input_fname = NULL,
-    .bed_fname = NULL,
-    .tag = NULL,
-    .anno_tag = NULL,
+    .input_fname     = NULL,
     .whitelist_fname = NULL,
-    .output_fname = NULL,
-    .umi_tag = NULL,
-    .mapq_thres = 20,
-    .dis_corr_umi = 0,
-    .file_thread = 5,
-    .count_fname = NULL,
-    .CBC = NULL,
-    .mtx_fmt=1,
+    .output_fname    = NULL,
+    .outdir          = NULL,
+    .tag             = NULL,
+    .anno_tag        = NULL,
+    .umi_tag         = NULL,
+
+    .barcodes        = NULL,
+    .features        = NULL,
+    
+    .mapq_thres      = 20,
+    .use_dup         = 0,
+    .enable_corr_umi = 0,
+    .n_thread     = 5,
+    .fp_in           = NULL,
+    .hdr             = NULL,
+    .n_record        = 0
 };
-// if not set white list, dynamic allocate barcodes list
-static int no_white_list = 0;
 
-
+static void memory_release()
+{
+    bam_hdr_destroy(args.hdr);
+    sam_close(args.fp_in);
+}
+    
 extern int bam_count_usage();
 
 static int parse_args(int argc, char **argv)
 {
     int i;
     const char *mapq = NULL;
-    const char *file_thread = NULL;
+    const char *n_thread = NULL;
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
         const char **var = 0;
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         if (strcmp(a, "-tag") == 0) var = &args.tag;
-        else if (strcmp(a, "-anno-tag") == 0 || strcmp(a, "-anno_tag") == 0) var = &args.anno_tag;
+        else if (strcmp(a, "-anno-tag") == 0) var = &args.anno_tag;
         else if (strcmp(a, "-list") == 0) var = &args.whitelist_fname;
         else if (strcmp(a, "-umi") == 0) var = &args.umi_tag;
-        else if (strcmp(a, "-tab") == 0) {
-            args.mtx_fmt = 0;
-            continue;
-        }
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
+        else if (strcmp(a, "-outdir") == 0) var = &args.outdir;
         else if (strcmp(a, "-q") == 0) var = &mapq;
-        else if (strcmp(a, "-@") == 0) var = &file_thread;
-        else if (strcmp(a, "-dis-corr") == 0||strcmp(a, "-dis_corr")==0) {
-            args.dis_corr_umi = 1;
+        else if (strcmp(a, "-@") == 0) var = &n_thread;
+        else if (strcmp(a, "-dup") == 0) {
+            args.use_dup = 1;
             continue;
         }
-        else if (strcmp(a, "-count") == 0) var = &args.count_fname;
-        
+        /*
+        else if (strcmp(a, "-corr") == 0) {
+            args.enable_corr_umi = 1;
+            continue;
+        }
+        */
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -91,381 +100,314 @@ static int parse_args(int argc, char **argv)
         error("Unknown argument, %s", a);
     }
     if (args.input_fname == 0) error("No input bam.");
-    // if (args.output_fname == 0) error("No output file specified.");
+    if (args.output_fname) {
+        warnings("PISA now support MEX format. Old cell X gene expression format is very poor performance. Try -outdir instead of -o.");
+    }
+    
     if (args.tag == 0) error("No cell barcode specified.");
     if (args.anno_tag == 0) error("No anno tag specified.");
-    // if (args.whitelist_fname == 0) error("No barcode list specified.");
-    if (file_thread) args.file_thread = str2int((char*)file_thread);
+
+    if (n_thread) args.n_thread = str2int((char*)n_thread);
+
+    if (args.outdir) {
+         struct stat sb;
+         if (stat(args.outdir, &sb) != 0) error("Directory %s is not exists.", args.outdir);
+         if (S_ISDIR(sb.st_mode) == 0)  error("%s does not look like a directory.", args.outdir);
+    }
+    
+    args.fp_in = hts_open(args.input_fname, "r");
+    CHECK_EMPTY(args.fp_in, "%s : %s.", args.input_fname, strerror(errno));
+    htsFormat type = *hts_get_format(args.fp_in);
+    if (type.format != bam && type.format != sam)
+        error("Unsupported input format, only support BAM/SAM/CRAM format.");
+
+    hts_set_threads(args.fp_in, args.n_thread);
+    
+    args.hdr = sam_hdr_read(args.fp_in);
+    CHECK_EMPTY(args.hdr, "Failed to open header.");
+   
+    args.features = dict_init();
+    dict_set_value(args.features);
+    
+    args.barcodes = dict_init();
+
+    if (args.whitelist_fname) {
+        dict_read(args.barcodes, args.whitelist_fname);
+        if (dict_size(args.barcodes) == 0) error("Barcode list is empty?");
+    }
+    
     return 0;
 }
-struct mtx_counts {
-    // int *v;
-    int c; // counts
-    int n, m;
-    char **bcodes;
-    kh_name_t *uhash;
+
+struct counts {
+    uint32_t count;
+    struct dict *umi;
 };
-struct mtx_counts_v {
-    int n;
-    struct mtx_counts **v; // if no UMI, v == NULL
+
+struct feature_counts {
+    struct dict *features;
 };
-static void mtx_counts_arr_init(struct mtx_counts_v *v, int n)
+
+int count_matrix_core(bam1_t *b)
 {
-    v->n = n;
-    v->v = malloc(n*sizeof(void*));
-    memset(v->v, 0, n*sizeof(void*));
-    /*
-    int i;
-    for (i = 0; i < n; ++i) {
-        struct mtx_counts *m0 = &m[i];
-        memset(m0, 0, sizeof(*m0));
-        // m0->uhash = kh_init(name);
+    bam1_core_t *c;
+    c = &b->core;
+    uint8_t *tag = bam_aux_get(b, args.tag);
+    if (!tag) return 1;
+        
+    uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
+    if (!anno_tag) return 1;
+
+    int cell_id;
+    if (args.whitelist_fname) {
+        cell_id = dict_query(args.barcodes, (char*)(tag+1));
+        if (cell_id == -1) return 1;
     }
-    */
-}
-static void enlarge_v(struct mtx_counts_v *v, int n)
-{
-    if (v == NULL) mtx_counts_arr_init(v, n);
     else {
-        if (v->n < n) {
-            v->v = realloc(v->v, sizeof(void*)*n);
-            //memset(v->v+v->n, 0, (n-v->n)*sizeof(void*));
-            int i;
-            for (i = v->n; i < n; ++i) v->v[i] = NULL;
-            v->n = n;
+        cell_id = dict_push(args.barcodes, (char*)(tag+1));
+    }
+    
+    // for each feature
+    kstring_t str = {0,0,0};
+    kputs((char*)(anno_tag+1), &str);
+    int n_gene;
+    int *s = ksplit(&str, ';', &n_gene); // seperator ; or ,
+    int i;
+    for (i = 0; i < n_gene; ++i) {
+        // Features (Gene or Region)
+        char *val = str.s + s[i];
+        
+        int idx = dict_query(args.features, val);
+        if (idx == -1) idx = dict_push(args.features, val);
+
+        struct feature_counts *v = dict_query_value(args.features, idx);
+
+        if (v == NULL) {
+            v = malloc(sizeof(struct feature_counts));
+            memset(v, 0, sizeof(*v));
+            dict_assign_value(args.features, idx, v);
+        }
+    
+
+        if (v->features == NULL) {
+            v->features = dict_init();
+            dict_set_value(v->features);
+        }
+
+        // not store cell barcode for each hash, use id number instead to reduce memory
+        int idx0 = dict_queryInt(v->features, cell_id);
+        if (idx0 == -1) idx0 = dict_pushInt(v->features, cell_id);
+        
+        struct counts *vv = dict_query_value(v->features, idx0);
+        if (vv == NULL) {
+            vv = malloc(sizeof(*vv));
+            dict_assign_value(v->features, idx0, vv);
+        }
+        
+        if (args.umi_tag) {
+            uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
+            if (!umi_tag) {
+                warnings("No UMI tag found at record. %s", b->data); 
+                continue;
+            }
+            char *val = (char*)(umi_tag+1);
+            
+            if (vv->umi == NULL) vv->umi = dict_init();
+            dict_push(vv->umi, val);
+        }
+        else {
+            vv->count++;
         }
     }
-}
-static void mtx_counts_memset(struct mtx_counts *m)
-{    
-    if (m->uhash) {
-        int j;
-        for (j = 0; j < m->n; ++j) free(m->bcodes[j]);
-        if (m->bcodes) free(m->bcodes);
-        kh_destroy(name, m->uhash);
-        m->uhash = NULL;
-    }
-}
-static void mtx_counts_v_clean(struct mtx_counts_v *v)
-{    
-    int i;
-    for (i = 0; i < v->n; ++i) {
-        if (v->v[i] == NULL) continue;
-        mtx_counts_memset(v->v[i]);
-        free(v->v[i]);
-    }
-    free(v->v);
-}
-static int check_similar(char *a, char *b)
-{
-    int l1, l2;
-    l1 = strlen(a);
-    l2 = strlen(b);
-    if (l1 == 0 || l2 == 0) error("Try to compare an empty string");
-    if (l1 != l2) error("Try to compare two unequal string.");
-    int i, m = 0;
-    for (i = 0; i < l1; ++i) {
-        if (a[i] != b[i]) m++;
-        if (m > 1) break;
-    }
-    if (m > 1) return 1;
+    free(str.s);
+    free(s);
     return 0;
 }
-static int get_val(struct mtx_counts *m, char *str)
-{
-    khint_t k = kh_get(name, m->uhash, str);
-    assert (k != kh_end(m->uhash));
-    return kh_val(m->uhash, k);
-}
 
-static int frezeen = 0;
-
-static void update_counts_core(struct mtx_counts_v *v)
+static void update_counts()
 {
-    int j;
-    for (j = 0; j < v->n; ++j) {
-        struct mtx_counts *m = v->v[j];
-        if (m == NULL) continue;
-        if (args.dis_corr_umi == 1) {
-            m->c = m->n;
-            mtx_counts_memset(m);
-            continue;
+    int n_feature = dict_size(args.features);
+    int i;
+    for (i = 0; i < n_feature; ++i) {
+        struct feature_counts *v = dict_query_value(args.features, i);
+        int j;
+        int n_cell = dict_size(v->features);
+        for (j = 0; j < n_cell; ++j) {
+            struct counts *count = dict_query_value(v->features, j);
+            assert(count);
+            if (count->umi)
+                count->count = dict_size(count->umi);
+            assert(count->count>0);
         }
-        int *flag = malloc(m->n*sizeof(int));
-        memset(flag, 0, m->n*sizeof(int));
+        args.n_record += n_cell;
+    }
+}
+static void write_outs()
+{
+    int n_barcode = dict_size(args.barcodes);
+    int n_feature = dict_size(args.features);
 
-        int i0, i1;
-        for (i0 = 0; i0 < m->n; ++i0) {
-            if (flag[i0] == 1) continue;
-            for (i1 = i0 + 1; i1 < m->n; ++i1) {
-                if (flag[i1] == 1) continue;
-                if (check_similar(m->bcodes[i0], m->bcodes[i1]) == 0) {
-                    int v0 = get_val(m, m->bcodes[i0]);
-                    int v1 = get_val(m, m->bcodes[i1]);
-                    if (v0 > v1) flag[i1] = 1;
-                    else flag[i0] = 1;                        
-                }
+    if (n_barcode == 0) error("No barcode found.");
+    if (n_feature == 0) error("No feature found.");
+    if (args.n_record == 0) {
+        warnings("No anntated record found.");
+        return;
+    }
+    
+    if (args.outdir) {
+        kstring_t barcode_str = {0,0,0};
+        kstring_t feature_str = {0,0,0};
+        kstring_t mex_str = {0,0,0};
+        kputs(args.outdir, &barcode_str);
+        kputs(args.outdir, &feature_str);
+        kputs(args.outdir, &mex_str);
+
+        if (args.outdir[strlen(args.outdir)-1] != '/') {
+            kputc('/', &barcode_str);
+            kputc('/', &feature_str);
+            kputc('/', &mex_str);
+        }
+
+        kputs("barcodes.tsv.gz", &barcode_str);
+        kputs("features.tsv.gz", &feature_str);
+        kputs("matrix.mtx.gz", &mex_str);
+        
+        BGZF *barcode_fp = bgzf_open(barcode_str.s, "w");
+        bgzf_mt(barcode_fp, args.n_thread, 256);
+        CHECK_EMPTY(barcode_fp, "%s : %s.", barcode_str.s, strerror(errno));
+        
+        int i;
+
+        kstring_t str = {0,0,0};
+        
+        for (i = 0; i < n_barcode; ++i) {
+            kputs(dict_name(args.barcodes, i), &str);
+            kputc('\n', &str);
+        }
+        int l = bgzf_write(barcode_fp, str.s, str.l);
+        if (l != str.l) error("Failed to write.");
+        bgzf_close(barcode_fp);
+
+        str.l = 0;
+        BGZF *feature_fp = bgzf_open(feature_str.s, "w");
+        bgzf_mt(feature_fp, args.n_thread, 256);
+        CHECK_EMPTY(feature_fp, "%s : %s.", feature_str.s, strerror(errno));
+        for (i = 0; i < n_feature; ++i) {
+            kputs(dict_name(args.features,i), &str);
+            kputc('\n', &str);
+        }
+        l = bgzf_write(feature_fp, str.s, str.l);
+        if (l != str.l) error("Failed to write.");
+        
+        bgzf_close(feature_fp);
+
+        str.l = 0;
+
+        BGZF *mex_fp = bgzf_open(mex_str.s, "w");
+        CHECK_EMPTY(mex_fp, "%s : %s.", mex_str.s, strerror(errno));
+        
+        bgzf_mt(mex_fp, args.n_thread, 256);
+        kputs("%%MatrixMarket matrix coordinate integer general\n", &str);
+        kputs("% Generated by PISA ", &str);
+        kputs(PISA_VERSION, &str);
+        kputc('\n', &str);
+        ksprintf(&str, "%d\t%d\t%lld\n", n_feature, n_barcode, args.n_record);
+
+        for (i = 0; i < n_feature; ++i) {
+            struct feature_counts *v = dict_query_value(args.features, i);
+            int j;
+            int n_cell = dict_size(v->features);
+            for (j = 0; j < n_cell; ++j) {
+                struct counts *count = dict_query_value(v->features, j);
+                ksprintf(&str, "%d\t%d\t%u\n", i, j, count->count);
+            }
+
+            if (str.l > 100000000) {
+                int l = bgzf_write(mex_fp, str.s, str.l);
+                if (l != str.l) error("Failed to write file.");
+                str.l = 0;
             }
         }
-        for (i0 = 0; i0 < m->n; ++i0) {                
-            if (flag[i0] == 0) m->c++;
-            // debug_print("%s\t%d", m1->bcodes[i0], flag[i0]);
+
+        if (str.l) {
+            l = bgzf_write(mex_fp, str.s, str.l);
+            if (l != str.l) error("Failed to wirte.");
         }
-        free(flag);
-        mtx_counts_memset(m);
+
+        free(str.s);
+        free(mex_str.s);
+        free(barcode_str.s);
+        free(feature_str.s);
+        bgzf_close(mex_fp);
     }
+    
+    // header
+    if (args.output_fname) {
+        int i;
+        FILE *out = fopen(args.output_fname, "w");
+        CHECK_EMPTY(out, "%s : %s.", args.output_fname, strerror(errno));
+        fputs("ID", out);
+        
+        for (i = 0; i < n_barcode; ++i)
+            fprintf(out, "\t%s", dict_name(args.barcodes, i));
+        fprintf(out, "\n");
+        uint32_t *temp = malloc(n_barcode*sizeof(int));        
+        for (i = 0; i < n_feature; ++i) {
+            struct feature_counts *v = dict_query_value(args.features, i);
+            int j;
+            int n_cell = dict_size(v->features);
+            memset(temp, 0, sizeof(int)*n_barcode);
+            fputs(dict_name(args.features, i), out);
+            for (j = 0; j < n_cell; ++j) {
+                int idx = dict_nameInt(v->features, j);
+                struct counts *count = dict_query_value(v->features, j);
+                temp[idx] = count->count;
+            }
+
+            for (j = 0; j < n_barcode; ++j)
+                fprintf(out, "\t%u", temp[j]);
+            fputc('\n', out);
+        }
+        fclose(out);
+        free(temp);
+    }
+
 }
 
-// l for gene number
-// n for barcode count
-// all: 1 for update all matrix, 0 for update old records
-static void update_counts(struct mtx_counts_v *v, int l, int all)
-{
-    int i;
-    if (all) {
-        for (i = frezeen; i < l; ++i) update_counts_core(&v[i]);
-    }
-    else if (l - 1000 > frezeen) {    
-        for (i = frezeen; i < l-500; ++i) {
-            update_counts_core(&v[i]);
-        }
-        frezeen = l - 500;
-    }
-}
-int rank_cmp(const void *va, const void *vb)
-{
-    struct cell_barcode_counts *a = (struct cell_barcode_counts*)va;
-    struct cell_barcode_counts *b = (struct cell_barcode_counts*)vb;
-    return a->nUMI > b->nUMI;              
-}
 int count_matrix(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
     if (parse_args(argc, argv)) return bam_count_usage();
-
-    struct barcode_list *lb = barcode_init();
-    if (args.whitelist_fname) {
-        if (barcode_read(lb, args.whitelist_fname)) error("Empty white list.");
-    }
-    else no_white_list = 1;
-    
-    htsFile *fp = hts_open(args.input_fname, "r");
-    CHECK_EMPTY(fp, "%s : %s.", args.input_fname, strerror(errno));
-    htsFormat type = *hts_get_format(fp);
-    if (type.format != bam && type.format != sam)
-        error("Unsupported input format, only support BAM/SAM/CRAM format.");
-
-    hts_set_threads(fp, args.file_thread);
-    
-    bam_hdr_t *hdr = sam_hdr_read(fp);
-    CHECK_EMPTY(hdr, "Failed to open header.");
-   
-    FILE *out = NULL;
-    if (args.output_fname) {
-        out = fopen(args.output_fname, "w");
-        CHECK_EMPTY(out, "%s : %s.", args.output_fname, strerror(errno));
-    }
-
-    kh_name_t *hash = kh_init(name); 
-    int n=0, m=100;
-    char **reg = malloc(m*sizeof(char*));
-    struct mtx_counts_v *v = malloc(sizeof(struct mtx_counts_v)*m);
-    memset(v, 0, sizeof(struct mtx_counts_v)*m);
-    //int k0;
-    //for (k0 = 0; k0 < 100; ++k0) memset(&v[k0], 0, sizeof(struct mtx_counts_v));
-    
+        
     bam1_t *b;
-    bam1_core_t *c;
+
     int ret;
     b = bam_init1();
-    c = &b->core;
-    int id;
-    khint_t k;
     
-    while ((ret = sam_read1(fp, hdr, b)) >= 0) {
-       
-        uint8_t *tag = bam_aux_get(b, args.tag);
-        if (!tag) {
-            // warnings("Tag %s not found at line %s:%d", args.tag, hdr->target_name[c->tid], c->pos+1);
-            continue;
-        }
-        
-        uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
-        if (!anno_tag) continue;
-
-        if (no_white_list) {
-            id = barcode_push(lb, (char*)(tag+1));
-        }
-        else {
-            id = barcode_select(lb, (char*)(tag+1));
-            if (id == -1) continue;
-        }
-
-        kstring_t str = {0,0,0};
-        kputs((char*)(anno_tag+1), &str);
-        int n_gene;
-        int *s = ksplit(&str, ';', &n_gene);
-        int ig;
-        for (ig = 0; ig < n_gene; ++ig) {
-        // Gene or Region
-            char *val = str.s + s[ig];
-            k = kh_get(name, hash, val);
-            int r;
-            if (k == kh_end(hash)) {
-                if (m == n) {
-                    int i = m;
-                    m = m *2;
-                    reg = realloc(reg, m*sizeof(char*));
-                    v = realloc(v, m*sizeof(struct mtx_counts_v));                
-                    //for (; i<m; ++i) memset(&v[i], 0, sizeof(struct mtx_counts_v));
-                    memset(v+i, 0, sizeof(struct mtx_counts_v)*i);
-                }
-                reg[n] = strdup(val);
-                k = kh_put(name, hash, reg[n], &r);
-                kh_val(hash, k) = n;
-                // v[n] = calloc(lb->n, sizeof(int));
-                // v[n] = mtx_counts_arr_init(lb->n);
-                n++;
-            }
-            
-            // gene or region id
-            int row = kh_val(hash, k);
-            
-            // enlarge vec
-            struct mtx_counts_v *v0 = &v[row];
-            enlarge_v(v0, lb->n);
-        
-            if (args.umi_tag) {
-                uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
-                if (!umi_tag) {
-                    // disable warnings
-                    // warnings("No UMI tag found at record. %s:%d", hdr->target_name[c->tid], c->pos+1); 
-                    continue;
-                }
-            
-                char *val = (char*)(umi_tag+1);
+    for (;;) {
+        ret = sam_read1(args.fp_in, args.hdr, b);
+        if (ret < 0) break;
                 
-                if (v0->v[id] == NULL) {
-                    v0->v[id] = malloc(sizeof(struct mtx_counts));
-                    memset(v0->v[id], 0, sizeof(struct mtx_counts));
-                }
-                struct mtx_counts *t = v0->v[id];
-            
-                if (t->uhash == NULL) t->uhash = kh_init(name);
-                /*
-                  if (t->c != 0) {
-                  warnings("%s is duplicate, already present in pervious regions.", val);
-                  continue;
-                  }
-                */
-                k = kh_get(name, t->uhash, val);
-                if (k == kh_end(t->uhash)) {
-                    if (t->n == t->m) {
-                        t->m = t->m + 10;
-                        t->bcodes = realloc(t->bcodes, t->m*sizeof(char*));
-                    }
-                    t->bcodes[t->n] = strdup(val);
-                    k = kh_put(name, t->uhash, t->bcodes[t->n], &r);
-                    kh_val(t->uhash, k) = 0;
-                    t->n++;
-                    // t->v[id]++;
-                }
-                else {
-                    kh_val(t->uhash, k)++;
-                }
-            
-            // Cache all records will exhaust memory, freeze and release old records
-            // update_counts(v, n, 0);
-            }
-            else {
-                if (v0->v[id] == NULL) {
-                    v0->v[id] = malloc(sizeof(struct mtx_counts));
-                    memset(v0->v[id], 0, sizeof(struct mtx_counts));
-                }
-                v0->v[id]->c++;
-            }
-        }
-        free(str.s);
-    }
-    
-    if (args.umi_tag) 
-        update_counts(v, n, 1);
+        bam1_core_t *c;
+        c = &b->core;
 
-    FILE *count = NULL;
-    if (args.count_fname) {
-        count = fopen(args.count_fname, "w");
-        CHECK_EMPTY(count, "%s : %s.", args.count_fname, strerror(errno));
-        args.CBC = malloc(lb->n*sizeof(struct cell_barcode_counts));
-        memset(args.CBC, 0, sizeof(struct cell_barcode_counts)*lb->n);
-        //}
-    
-//    if (count != NULL) {
-        int i, j;
-        for (i = 0; i < n; ++i) {
-            struct mtx_counts_v *v0 = &v[i];
-            for (j = 0; j < v0->n; ++j) {
-                struct cell_barcode_counts *C = &args.CBC[j];
-                // C->idx = j;
-                if (v0->v[j] && v0->v[j]->c) {
-                    C->nUMI += v0->v[j]->c;
-                    C->nGene++;
-                    C->raw_UMI += v0->v[j]->n;
-                }
-            }
-        }
-
-        // qsort(args.CBC, lb->n, sizeof(struct cell_barcode_counts), rank_cmp);
-        
-        fprintf(count, "CELL_BARCODE\tnUMI\tnGene\tSaturation\n");
-        for (i = 0; i < lb->n; ++i) {
-            if (args.CBC[i].nUMI > 0) 
-                fprintf(count, "%s\t%d\t%d\t%.4f\n", lb->b[i].s, args.CBC[i].nUMI, args.CBC[i].nGene, 1.0-((float)args.CBC[i].nUMI/args.CBC[i].raw_UMI));
-        }
-
-        free(args.CBC);
+        if (c->tid <= -1 || c->tid > args.hdr->n_targets || (c->flag & BAM_FUNMAP)) continue;
+        if (c->qual < args.mapq_thres) continue;
+        if (args.use_dup == 0 && c->flag & BAM_FDUP) continue;
+        count_matrix_core(b);
     }
     
     bam_destroy1(b);
-    bam_hdr_destroy(hdr);
-    sam_close(fp);
-    if (count) fclose(count);
     
     if (ret != -1) warnings("Truncated file?");   
 
-    // header
-    if (out) {
-        if (args.mtx_fmt == 1) {
-            int i, j;
-            fputs("ID", out);
-            for (j = 0; j < lb->n; ++j) 
-                fprintf(out, "\t%s",lb->b[j].s);
-            fputc('\n', out);
-            for (i = 0; i < n; ++i) {
-                fprintf(out, "%s", reg[i]);
-                for (j = 0; j < lb->n; ++j)   fprintf(out, "\t%d", v[i].n <= j || v[i].v[j] == NULL ? 0 : v[i].v[j]->c);
-                fputc('\n', out);
-            }
-        }
-        else {
-            int i, j;
-            for (i = 0; i < n; ++i) {
-                for (j = 0; j < lb->n; ++j) {
-                    if (v[i].v[j] != NULL && v[i].v[j]->c > 0)
-                        fprintf(out, "%s\t%s\t%d\n",reg[i],lb->b[j].s, v[i].v[j]->c);
-                }
-            }
-        }
-        fclose(out);
-    }
-    kh_destroy(name,hash);
-    int i;
-    for (i = 0; i < n; ++i) {
-        free(reg[i]);
-        mtx_counts_v_clean(&v[i]);
-    }
-    free(reg); free(v);
-    barcode_destory(lb);
+    update_counts();
+
+    write_outs();
+    
+    memory_release();
+    
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     return 0;
 }
