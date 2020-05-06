@@ -46,7 +46,7 @@ static struct args {
     .mapq_thres      = 20,
     .use_dup         = 0,
     .enable_corr_umi = 0,
-    .n_thread     = 5,
+    .n_thread        = 5,
     .fp_in           = NULL,
     .hdr             = NULL,
     .n_record        = 0
@@ -166,7 +166,7 @@ int count_matrix_core(bam1_t *b)
     else {
         cell_id = dict_push(args.barcodes, (char*)(tag+1));
     }
-    
+
     // for each feature
     kstring_t str = {0,0,0};
     kputs((char*)(anno_tag+1), &str);

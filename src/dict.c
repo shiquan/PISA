@@ -46,15 +46,13 @@ void *dict_query_value2(struct dict *D, const char *key)
     return D->value[idx];
 }
 
-static char bit32[4];
+static char bit32[5];
 
 void *dict_query_valueInt(struct dict *D, int key)
 {
-    bit32[0] = (key >> 24) & 0xFF;
-    bit32[1] = (key >> 16) & 0xFF;
-    bit32[2] = (key >> 8) & 0xFF;
-    bit32[3] = key & 0xFF;
-    return dict_query_value2(D, bit32);
+    int idx = dict_queryInt(D, key);
+    if (idx == -1) return NULL;
+    return D->value[idx];
 }
 
 int dict_assign_value(struct dict *D, int idx, void *val)
@@ -69,19 +67,38 @@ char *dict_name(const struct dict *D, int idx)
     assert(idx >= 0 && idx < D->n);
     return D->name[idx];
 }
+static void encodeInt(int key)
+{
+    bit32[0] = key & 0x7F;
+    bit32[1] = (key >> 7) & 0x7F;
+    bit32[2] = (key >> 14) & 0x7F;
+    bit32[3] = (key >> 21) & 0x7F;
+    bit32[4] = (key >> 28) & 0x7F;
+    bit32[0] |= 0x80;
+    bit32[1] |= 0x80;
+    bit32[2] |= 0x80;
+    bit32[3] |= 0x80;
+    bit32[4] |= 0x80;
+}
+static int decodeInt(const char *name)
+{
+    int x = 0;
+    x = x | (name[4] & 0x7F);
+    x = x << 7;
+    x = x | (name[3] & 0x7F);
+    x = x << 7;
+    x = x | (name[2] & 0x7F);
+    x = x << 7;
+    x = x | (name[1] & 0x7F);
+    x = x << 7;
+    x = x | (name[0] & 0x7F);
+    return x;
+}
 int dict_nameInt(const struct dict *D, int idx)
 {
     assert(idx >= 0 && idx < D->n);
     char *name= D->name[idx];
-    int x = 0;
-    x = x | (name[0] &0xFF);
-    x = x << 8;
-    x = x | (name[1] &0xFF);
-    x = x << 8;
-    x = x | (name[2] &0xFF);
-    x = x << 8;
-    x = x | (name[3] &0xFF);
-    return x;
+    return decodeInt(name);
 }
 
 int dict_size(const struct dict *D)
@@ -120,14 +137,9 @@ int dict_query(const struct dict *D, char const *key)
     return kh_val(D->dict, k);
 }
 
-
 int dict_queryInt(const struct dict *D, int key)
 {
-    bit32[0] = (key >> 24) & 0xFF;
-    bit32[1] = (key >> 16) & 0xFF;
-    bit32[2] = (key >> 8) & 0xFF;
-    bit32[3] = key & 0xFF;
-
+    encodeInt(key);
     khint_t k;
     k = kh_get(name, D->dict, bit32);
     if (k == kh_end(D->dict)) return -1;
@@ -182,18 +194,12 @@ int dict_push1(struct dict *D, char const *key)
 
 int dict_pushInt(struct dict *D, int key)
 {
-    bit32[0] = (key >> 24) & 0xFF;
-    bit32[1] = (key >> 16) & 0xFF;
-    bit32[2] = (key >> 8) & 0xFF;
-    bit32[3] = key & 0xFF;
+    encodeInt(key);
     return dict_push(D, bit32);
 }
 int dict_pushInt1(struct dict *D, int key)
 {
-    bit32[0] = (key >> 24) & 0xFF;
-    bit32[1] = (key >> 16) & 0xFF;
-    bit32[2] = (key >> 8) & 0xFF;
-    bit32[3] = key & 0xFF;
+    encodeInt(key);
     return dict_push1(D, bit32);
 }
 
