@@ -160,7 +160,7 @@ struct region_itr *bed_query(struct bed_spec *B, char *name, int start, int end)
         return NULL;
     }
 
-    int st = B->ctg[id].idx;
+    int st = B->ctg[id].idx-1; // 0 based
     if (end < B->bed[st].start) return NULL; // out of range
 
     struct region_index *idx = B->idx[id].idx;
