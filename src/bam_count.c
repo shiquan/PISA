@@ -177,6 +177,12 @@ int count_matrix_core(bam1_t *b)
     uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
     if (!anno_tag) return 1;
 
+            
+    if (args.umi_tag) {
+        uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
+        if (!umi_tag) return 1;
+    }
+
     int cell_id;
     if (args.whitelist_fname) {
         cell_id = dict_query(args.barcodes, (char*)(tag+1));
@@ -226,10 +232,7 @@ int count_matrix_core(bam1_t *b)
         
         if (args.umi_tag) {
             uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
-            if (!umi_tag) {
-                warnings("No UMI tag found at record. %s", b->data); 
-                continue;
-            }
+            assert(umi_tag);
             char *val = (char*)(umi_tag+1);
             if (vv->umi == NULL) vv->umi = dict_init();
             dict_push(vv->umi, val);
