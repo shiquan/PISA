@@ -66,6 +66,7 @@ static void memory_release()
 {
     bam_hdr_destroy(args.hdr);
     sam_close(args.fp_in);
+    
     int i;
     int n_feature;
     n_feature = dict_size(args.features);
@@ -151,7 +152,10 @@ static int parse_args(int argc, char **argv)
     
     args.hdr = sam_hdr_read(args.fp_in);
     CHECK_EMPTY(args.hdr, "Failed to open header.");
-   
+
+    if (mapq) {
+        args.mapq_thres = str2int(mapq);        
+    }
     args.features = dict_init();
     dict_set_value(args.features);
     
