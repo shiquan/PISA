@@ -201,6 +201,7 @@ int count_matrix_core(bam1_t *b)
         struct counts *vv = dict_query_value(v->features, idx0);
         if (vv == NULL) {
             vv = malloc(sizeof(*vv));
+            memset(vv, 0, sizeof(*vv));
             dict_assign_value(v->features, idx0, vv);
         }
         
@@ -211,7 +212,6 @@ int count_matrix_core(bam1_t *b)
                 continue;
             }
             char *val = (char*)(umi_tag+1);
-            
             if (vv->umi == NULL) vv->umi = dict_init();
             dict_push(vv->umi, val);
         }
