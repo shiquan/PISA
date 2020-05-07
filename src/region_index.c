@@ -79,7 +79,7 @@ static inline int reg2bins(uint32_t beg, uint32_t end, uint16_t list[MAX_BIN])
 	for (k = 4681 + (beg>>14); k <= 4681 + (end>>14); ++k) list[i++] = k;
 	return i;
 }
-
+// start is 0 based, end is 1 based
 struct region_itr *region_query(struct region_index *idx, int start, int end)
 {
     if (start < 0) start = 0;
