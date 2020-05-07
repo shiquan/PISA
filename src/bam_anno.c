@@ -688,7 +688,7 @@ void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     char *name = h->target_name[c->tid];
     int endpos = bam_endpos(b);
 
-    struct region_itr *itr = gtf_query(args.G, name, c->pos+1, endpos);
+    struct region_itr *itr = gtf_query(args.G, name, c->pos, endpos);
     if (itr == NULL) {
         stat->reads_in_intergenic++;
         return; // query failed
@@ -787,7 +787,7 @@ void bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
     char *name = h->target_name[c->tid];
     int endpos = bam_endpos(b);
 
-    struct region_itr *itr = bed_query(args.B, name, c->pos+1, endpos);
+    struct region_itr *itr = bed_query(args.B, name, c->pos, endpos);
     if (itr == NULL) return; // query failed
     if (itr->n == 0) return; // no hit
 
