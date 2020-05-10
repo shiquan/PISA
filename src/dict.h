@@ -7,6 +7,8 @@ struct dict;
 
 struct dict *dict_init();
 
+struct dict *dict_copy(struct dict*);
+
 void dict_destroy(struct dict *D);
 
 int dict_query(const struct dict *D, char const *key);
@@ -37,6 +39,4 @@ int dict_assign_value(struct dict *D, int idx, void *val);
 
 int dict_pushInt(struct dict *D, int key);
 int dict_pushInt1(struct dict *D, int key);
-
-
 #endif

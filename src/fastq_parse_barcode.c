@@ -21,7 +21,7 @@ struct bcount {
 };
 
 struct bcode_reg {
-    int rd; // read 1 or 2
+    int rd; // read 1, 2, 3 or 4
     int start;
     int end;
     int dist;
@@ -76,11 +76,12 @@ struct fq_data {
 #define FQ_FLAG_SAMPLE_FAIL   4
 
 static struct args {
-    const char *r1_fname;
-    const char *r2_fname;
+    int n_file;
+    int m_file;
+    char **read_fname;
+    char **out_fname;
     const char *config_fname;
-    const char *out1_fname;
-    const char *out2_fname;
+
     const char *run_code;
     const char *cbdis_fname;
     const char *report_fname;
@@ -88,11 +89,7 @@ static struct args {
 
     int qual_thres;
     
-    // int n_thread;
-    int chunk_size;
     int cell_number;
-
-    int bgiseq_filter;
     int smart_pair;
 
     int dropN;
@@ -110,20 +107,14 @@ static struct args {
 
     // file handler
     // inputs could be gzipped fastq or unzipped
-    gzFile r1_fp;
-    gzFile r2_fp;
+    gzFile *fp_in;
+
     // All outputs will be unzipped for performance
-    FILE *out1_fp;
-    FILE *out2_fp;
+    FILE **fp_out;
     FILE *cbdis_fp;
     FILE *report_fp; // report handler
-    // FILE *html_report_fp;
     FILE *barcode_dis_fp;
-    
-    // hold thread safe data
-    // struct thread_hold **hold;
-    
-    // input file streaming
+
     struct fastq_handler *fastq;
 
     // stats of reads

@@ -23,6 +23,27 @@ struct dict *dict_init()
     D->dict = kh_init(name);
     return D;
 }
+struct dict *dict_copy(struct dict *D)
+{
+    struct dict *C = dict_init();
+    C->n = D->n;
+    C->m = D->m;
+    C->name = malloc(C->m*sizeof(void*));
+    C->count = malloc(C->m*sizeof(uint32_t));
+    int i;
+    for (i = 0; i < C->m; ++i) {
+        C->name[i] = strdup(D->name[i]);
+        C->count[i] = D->count[i];
+    }
+
+    C->assign_value_flag = D->assign_value_flag;
+    if (C->assign_value_flag) {
+        C->value = malloc(C->m*sizeof(void*));
+        for (i = 0; i < C->n; ++i)
+            C->value[i] = D->value[i];
+    }
+    return C;   
+}
 void dict_set_value(struct dict *D)
 {
     if (D->assign_value_flag == 1) error("Double assign value to a dict.");

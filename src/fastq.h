@@ -3,8 +3,8 @@
 
 #include "utils.h"
 #include "dict.h"
-#include<zlib.h>
-
+#include <zlib.h>
+/*
 struct qc_report {
     uint64_t all_fragments;
     uint64_t qc_failed;
@@ -15,39 +15,60 @@ struct qc_report {
 #define FQ_QC_FAIL  1
 #define FQ_BC_FAIL  2
 #define FQ_DUP      3
-
+*/
+struct bseq_core {
+    int length;
+    char *seq;
+    char *qual;
+}
+    
 struct bseq {
-    int flag; // flag for skip reasons
-    // read 1
-    char *n0;
-    char *s0, *q0;
-    int l0;
-    // read 2
-    char *s1, *q1;
-    int l1;
-
-    void *data; // extend data, should be freed manually
+    int flag; //reserved flag    
+    int n;
+    struct bseq_core *b;
+    struct dict *extend_tags;
+    uint8_t *data;
+    int l_data;
+    int m_data;
 };
+
+struct input;
 
 struct bseq_pool {
     int n, m;
     struct bseq *s;
-    void *opts; // used to point thread safe structure
+    void *data;
 };
 
 struct fastq_handler {
-    int n_file;    
-    int curr; // curr file
-    char **read_1;
-    char **read_2;
-    gzFile r1;
-    gzFile r2;
-    void *k1;
-    void *k2;
-    int smart_pair;
-    int chunk_size;
+    int n_file;
+    struct input *input;
+    int input_smart_pair;
+    struct bseq *buf;
 };
 
+extern struct fastq_handler *fastq_handler_init(char **input_fname, int n);
+void fastq_handler_destroy(struct fastq_handler *fq);
+
+struct bseq_pool *fastq_read(struct fastq_handler *fq, int n_record, int max_mem);
+
+void bseq_pool_destroy(struct bseq_pool *p);
+void bseq_pool_push(struct bseq_pool *p, struct bseq *b);
+void bseq_destroy(struct bseq *b);
+int bseq_pool_dedup(struct bseq_pool *p);
+
+void *fastq_tag_value(struct bseq *b, const char *tag);
+char *fastq_tags(struct bseq *b, struct dict *tags);
+
+void fastq_tag_push(struct bseq *b, const char *tag, int type, void *data);
+
+char *fastq_select_seq(struct bseq *b, int rd, int start, int end);
+char *fastq_select_qual(struct bseq *b, int rd, int start, int end);
+int fastq_mean_qual(struct bseq *b);
+
+char *compact_long_DNA(char *seq);
+
+/*
 #define FH_SE 1
 #define FH_PE 2
 #define FH_SMART_PAIR 3
@@ -65,8 +86,6 @@ void bseq_pool_destroy(struct bseq_pool *p);
 // fastq handler must be inited before call fastq_read
 void *fastq_read(void *h, void *opts);
 
-extern struct fastq_handler *fastq_handler_init(const char *r1, const char *r2, int smart, int chunk_size);
-
 extern int fastq_handler_state(struct fastq_handler*);
 
 extern void fastq_handler_destory(struct fastq_handler *h);
@@ -76,3 +95,4 @@ extern int bseq_pool_dedup(struct bseq_pool *p);
 
 extern size_t levenshtein_n(const char *a, const size_t length, const char *b, const size_t bLength);
 #endif
+*/
