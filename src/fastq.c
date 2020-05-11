@@ -6,19 +6,6 @@
 
 KSEQ_INIT(gzFile, gzread)
 
-int check_name(char *s1, char *s2)
-{
-    int l1 = strlen(s1);
-    int l2 = strlen(s2);
-    if ( l1 != l2 ) return 1;
-
-    size_t n;
-    for(n = 0; n < l1; ++n, ++s1, ++s2)
-        if (*s1 != *s2) return 1;
-    
-    return 0;
-}
-
 struct bseq_pool *bseq_pool_init()
 {
     struct bseq_pool *p = malloc(sizeof(*p));
@@ -26,9 +13,13 @@ struct bseq_pool *bseq_pool_init()
     return p;
 }
 
-void trim_read_tail(char *s, int l)
+int trim_read_tail(char *s, int l)
 {
-    if ( l > 2 && s[l-2] == '/' ) s[l-2] = '\0';    
+    if ( l > 2 && s[l-2] == '/' && (s[l-1] == '1' || s[l-1] == '2')) {
+        l -= 2;
+        s[l] = '\0';
+    }
+    return l;
 }
 
 void bseq_clean(struct bseq *b)
@@ -187,12 +178,14 @@ void tag_destroy(struct dict *tag)
     dict_destroy(tag);
 }
 // this function will change input string
-struct dict *fastq_extend_name_parse(char *name, int *len)
+struct dict *fastq_name_parse(char *name, int *len)
 {
     int l;
     l = strlen(name);
     if (l == 0) return NULL;
 
+    l = trim_read_tai(name, l);
+    
     uint8_t *data = malloc(l);
     struct dict *extend = dict_init();
     dict_set_value(extend);

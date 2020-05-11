@@ -4,18 +4,7 @@
 #include "utils.h"
 #include "dict.h"
 #include <zlib.h>
-/*
-struct qc_report {
-    uint64_t all_fragments;
-    uint64_t qc_failed;
-    uint64_t unknown_barcodes;
-};
 
-#define FQ_PASS     0
-#define FQ_QC_FAIL  1
-#define FQ_BC_FAIL  2
-#define FQ_DUP      3
-*/
 struct bseq_core {
     int length;
     char *seq;
@@ -23,7 +12,7 @@ struct bseq_core {
 }
     
 struct bseq {
-    int flag; //reserved flag    
+    int flag; 
     int n;
     struct bseq_core *b;
     struct dict *extend_tags;
@@ -67,32 +56,3 @@ char *fastq_select_qual(struct bseq *b, int rd, int start, int end);
 int fastq_mean_qual(struct bseq *b);
 
 char *compact_long_DNA(char *seq);
-
-/*
-#define FH_SE 1
-#define FH_PE 2
-#define FH_SMART_PAIR 3
-#define FH_NOT_ALLOC 4
-#define FH_NOT_INIT 5
-
-extern int check_name(char *s1, char *s2);
-
-struct bseq_pool *bseq_pool_init();
-
-void bseq_pool_clean(struct bseq_pool *p);
-
-void bseq_pool_destroy(struct bseq_pool *p);
-
-// fastq handler must be inited before call fastq_read
-void *fastq_read(void *h, void *opts);
-
-extern int fastq_handler_state(struct fastq_handler*);
-
-extern void fastq_handler_destory(struct fastq_handler *h);
-extern void bseq_pool_push(struct bseq *b, struct bseq_pool *p);
-//extern int levenshtein(char *a, char *b, int l);
-extern int bseq_pool_dedup(struct bseq_pool *p);
-
-extern size_t levenshtein_n(const char *a, const size_t length, const char *b, const size_t bLength);
-#endif
-*/

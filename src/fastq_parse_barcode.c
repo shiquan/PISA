@@ -76,10 +76,12 @@ struct fq_data {
 #define FQ_FLAG_SAMPLE_FAIL   4
 
 static struct args {
-    int n_file;
-    int m_file;
-    char **read_fname;
-    char **out_fname;
+    int n_input;
+    int m_input;
+    char **input_fname;
+    int n_output;
+    int m_output;
+    char **output_fname;
     const char *config_fname;
 
     const char *run_code;
@@ -101,19 +103,19 @@ static struct args {
     strhash_t *cbhash;
 
     // Background
+    /*
     struct name_count_pair *bgnames;
     int n_bg, m_bg;
     strhash_t *bghash;
-
+    */
     // file handler
     // inputs could be gzipped fastq or unzipped
-    gzFile *fp_in;
+    // gzFile *fp_in;
 
     // All outputs will be unzipped for performance
     FILE **fp_out;
     FILE *cbdis_fp;
     FILE *report_fp; // report handler
-    FILE *barcode_dis_fp;
 
     struct fastq_handler *fastq;
 
@@ -133,36 +135,30 @@ static struct args {
     uint64_t bases_umi;
     uint64_t bases_reads;    
 } args = {
-    .r1_fname = NULL,
-    .r2_fname = NULL,
+    .n_input = 0,
+    .m_input = 0,
+    .input_fname = NULL,
+    .n_output = 0,
+    .m_output = 0,
+    .output_fname = NULL,
+
     .config_fname = NULL,
-    .out1_fname = NULL,
-    .out2_fname = NULL,
+
     .run_code = NULL,
     .cbdis_fname = NULL,
     .report_fname = NULL,
     .dis_fname = NULL,
     .qual_thres = 0,
-    //.n_thread = 4,
-    .chunk_size = 10000,
+
     .cell_number = 10000,
     .smart_pair = 0,
-    .bgiseq_filter = 0,
     .dropN = 0,
-    .names = NULL,
-    .n_name = 0,
-    .m_name = 0,
-    .cbhash = NULL,
 
-    .r1_fp = NULL,
-    .r2_fp = NULL,
-    .out1_fp = NULL,
-    .out2_fp = NULL,
+    .fp_out = NULL,
     .cbdis_fp = NULL,
     .report_fp = NULL,
-    // .html_report_fp = NULL,
     .barcode_dis_fp = NULL,
-    // .hold = NULL,
+
     .fastq = NULL,
 
     .raw_reads = 0,
@@ -182,9 +178,6 @@ static struct args {
 };
     
 static struct config {
-    // const char *platform;
-    // const char *version;
-    // consistant with white list if set
     char *cell_barcode_tag; 
     char *sample_barcode_tag;
 
@@ -207,8 +200,6 @@ static struct config {
     struct bcode_reg *read_1; 
     struct bcode_reg *read_2;  // for single ends, read2 == NULL
 } config = {
-    // .platform = NULL,
-    // .version = NULL,
     .cell_barcode_tag = NULL,
     .sample_barcode_tag = NULL,
     .raw_cell_barcode_tag = NULL,
