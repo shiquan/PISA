@@ -61,6 +61,64 @@ struct feature_counts {
     struct dict *features;
 };
 
+static uint8_t encode0(char a)
+{
+    switch(a) {
+        case 'A':
+        case 'a':
+            return 0x0;
+        case 'C':
+        case 'c':
+            return 0x1;
+
+        case 'G':
+        case 'g':
+            return 0x2;
+
+        case 'T':
+        case 't':
+            return 0x3;
+
+        default:
+            error("Try to encode non ACGT.");
+    }
+}
+static char *encode(char *s, int l)
+{
+    int length = (l+3)/4 + 1;
+    char *s0 = malloc(length);
+    memset(s0, 0, length);
+    int i;
+    int j = 0;
+    for (i = 0; i < l;) {
+        int x = 0, y=0;
+        if (i < l) y = encode0(s[i++]);
+        x |= (y & 0x3);
+        x=x<<2;
+        if (i < l) y = encode0(s[i++]);
+        x |= (y & 0x3);
+        x=x<<2;
+        if (i < l) y = encode0(s[i++]);
+        x |= (y & 0x3);
+        x=x<<2;
+        if (i < l) y = encode0(s[i++]);
+        x |= (y & 0x3);
+        x=x<<2;
+        s0[j++] = x;
+    }
+    return s0;
+}
+
+static char *compactDNA(char *a)
+{
+    int i, l;
+    l = strlen(a);
+    for (i = 0; i < l; ++i)
+        if (a[i] != 'a' && a[i] != 'A' && a[i] != 'C' && a[i] != 'c' &&
+            a[i] != 'G' && a[i] != 'g' && a[i] != 'T' && a[i] != 't')
+            error("UMI contain non [ACGT] base ? %s", a);
+    return encode(a, l);
+}
 
 static void memory_release()
 {
@@ -235,7 +293,9 @@ int count_matrix_core(bam1_t *b)
             assert(umi_tag);
             char *val = (char*)(umi_tag+1);
             if (vv->umi == NULL) vv->umi = dict_init();
-            dict_push(vv->umi, val);
+            char *new_val = compactDNA(val); // reduce memory use
+            dict_push(vv->umi, new_val);
+            free(new_val);
         }
         else {
             vv->count++;
