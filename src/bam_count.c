@@ -284,7 +284,6 @@ int count_matrix_core(bam1_t *b)
             uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
             assert(umi_tag);
             char *val = (char*)(umi_tag+1);
-            if (vv->umi == NULL) vv->umi = dict_init();
             char *new_val = compactDNA(val); // reduce memory use
             if (new_val == NULL) break; // UMI contains N
         }
@@ -301,6 +300,7 @@ int count_matrix_core(bam1_t *b)
         }
         
         if (args.umi_tag) {
+            if (vv->umi == NULL) vv->umi = dict_init();
             dict_push(vv->umi, new_val);
             free(new_val);
         }
