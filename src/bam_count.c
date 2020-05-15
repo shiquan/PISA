@@ -113,10 +113,12 @@ static char *compactDNA(char *a)
 {
     int i, l;
     l = strlen(a);
-    for (i = 0; i < l; ++i)
+    for (i = 0; i < l; ++i) {
+        if (a[i] == 'N') return NULL;
         if (a[i] != 'a' && a[i] != 'A' && a[i] != 'C' && a[i] != 'c' &&
             a[i] != 'G' && a[i] != 'g' && a[i] != 'T' && a[i] != 't')
             error("UMI contain non [ACGT] base ? %s", a);
+    }
     return encode(a, l);
 }
 
@@ -294,8 +296,10 @@ int count_matrix_core(bam1_t *b)
             char *val = (char*)(umi_tag+1);
             if (vv->umi == NULL) vv->umi = dict_init();
             char *new_val = compactDNA(val); // reduce memory use
-            dict_push(vv->umi, new_val);
-            free(new_val);
+            if (new_val) {
+                dict_push(vv->umi, new_val);
+                free(new_val);
+            }
         }
         else {
             vv->count++;
