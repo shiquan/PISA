@@ -237,10 +237,13 @@ int count_matrix_core(bam1_t *b)
     uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
     if (!anno_tag) return 1;
 
-            
-    if (args.umi_tag) {
+    char *new_val = NULL;
+    if (args.umi_tag) { // here check UMI before init dict, so that no empty val will be stored.
         uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
         if (!umi_tag) return 1;
+        char *val = (char*)(umi_tag+1);
+        char *new_val = compactDNA(val); // reduce memory use
+        if (new_val == NULL) return 1; // UMI contains N
     }
 
     int cell_id;
@@ -272,20 +275,10 @@ int count_matrix_core(bam1_t *b)
             memset(v, 0, sizeof(*v));
             dict_assign_value(args.features, idx, v);
         }
-    
 
         if (v->features == NULL) {
             v->features = dict_init();
             dict_set_value(v->features);
-        }
-
-        char *new_val = NULL;
-        if (args.umi_tag) { // here check UMI before init dict, so that no empty val will be stored.
-            uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
-            assert(umi_tag);
-            char *val = (char*)(umi_tag+1);
-            char *new_val = compactDNA(val); // reduce memory use
-            if (new_val == NULL) break; // UMI contains N
         }
 
         // not store cell barcode for each hash, use id number instead to reduce memory
@@ -302,12 +295,12 @@ int count_matrix_core(bam1_t *b)
         if (args.umi_tag) {
             if (vv->umi == NULL) vv->umi = dict_init();
             dict_push(vv->umi, new_val);
-            free(new_val);
         }
         else {
             vv->count++;
         }
     }
+    if (new_val) free(new_val);
     free(str.s);
     free(s);
     return 0;
