@@ -56,3 +56,6 @@ char *fastq_select_qual(struct bseq *b, int rd, int start, int end);
 int fastq_mean_qual(struct bseq *b);
 
 char *compact_long_DNA(char *seq);
+
+
+#endif

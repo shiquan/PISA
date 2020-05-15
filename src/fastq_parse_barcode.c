@@ -176,7 +176,188 @@ static struct args {
     .bases_sample_barcode = 0,
     .bases_reads = 0,
 };
+static int new_fastq_file(const char *fname)
+{
+    if (args.n_input == args.m_input) {
+        args.m_input += 2;
+        args.input_fname = realloc(args.input_fname, args.m_input*sizeof(void*));
+    }
+
+    args.input_fname[args.n_input++] = fname;
+    return 0;
+}
+
+struct barcode_segment {
+    char *tag_name;
+    char *tag_raw;
+    char *tag_qual;
+    struct dict *wl;
+    int rd;
+    int start;
+    int end;
+    uint64_t exact;
+    uint64_t count;
+    // if has more than one segment
+    int n_segment;
+    int m_segment;
+    struct barcode_segment *segments;
+};
+
+struct read_segment {
+    int rd;
+    int start;
+    int end;
+};
+
+static struct config {
+    int n_barcode;
+    int m_barcode;
+    struct barcode_segment *barcodes;
+    int n_read;
+    int m_read;
+    struct read_segment *reads;
+};
+
+static void memory_release()
+{
+    if (args.r1_fp) gzclose(args.r1_fp);
+    if (args.r2_fp) gzclose(args.r2_fp);
+    if (args.out1_fp) fclose(args.out1_fp);
+    if (args.out2_fp) fclose(args.out2_fp);
+    if (args.barcode_dis_fp) fclose(args.barcode_dis_fp);
+    fastq_handler_destory(args.fastq);
+    //int i;
+    //for (i = 0; i < args.n_thread; ++i) thread_hold_destroy(args.hold[i]);
+    //free(args.hold);    
+}
+static int parse_args(int argc, char **argv)
+{
+    if ( argc == 1 ) return 1;
+
+    const char *thread = NULL;
+    const char *chunk_size = NULL;
     
+    int i;
+    const char *qual_thres = NULL;
+    for (i = 1; i < argc;) {
+        const char *a = argv[i++];
+        const char **var = 0;
+        if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
+        
+        if (strcmp(a, "-1") == 0) var = &args.out1_fname;
+        else if (strcmp(a, "-2") == 0) var = &args.out2_fname;
+        else if (strcmp(a, "-config") == 0) var = &args.config_fname;
+        else if (strcmp(a, "-cbdis") == 0) var = &args.cbdis_fname;
+        else if (strcmp(a, "-t") == 0) var = &thread; // skip
+        else if (strcmp(a, "-r") == 0) var = &chunk_size; // skip
+        else if (strcmp(a, "-run") == 0) var = &args.run_code;
+        else if (strcmp(a, "-report") == 0) var = &args.report_fname;
+        else if (strcmp(a, "-dis") == 0) var = &args.dis_fname;
+        else if (strcmp(a, "-q") == 0) var = &qual_thres;
+        else if (strcmp(a, "-f") == 0) {
+            args.bgiseq_filter = 1;
+            continue;
+        }
+        else if (strcmp(a, "-p") == 0) {
+            args.smart_pair = 1;
+            continue;
+        }
+        else if (strcmp(a, "-dropN") == 0) {
+            args.dropN = 1;
+            continue;
+        }
+        if (var != 0) {
+            if (i == argc) error("Miss an argument after %s.", a);
+            *var = argv[i++];
+            continue;
+        }
+        if (a[0] == '-' && a[1]) error("Unknown parameter %s.", a);
+
+        if (new_fastq_file(a) == 0) continue;
+        
+        error("Unknown argument: %s, use -h see help information.", a);
+    }
+
+    if (args.config_fname == NULL) error("Option -config is required.");
+    config_init(args.config_fname);
+    LOG_print("Configure file inited.");
+    
+    // if (thread) args.n_thread = str2int((char*)thread);
+    if (chunk_size) args.chunk_size = str2int((char*)chunk_size);
+    // assert(args.n_thread >= 1 && args.chunk_size >= 1);
+    if (qual_thres) {
+        args.qual_thres = str2int((char*)qual_thres);
+        LOG_print("Average quality below %d will be drop.", args.qual_thres);
+    }
+
+    if (args.r1_fname == NULL && (!isatty(fileno(stdin)))) args.r1_fname = "-";
+    if (args.r1_fname == NULL) error("Fastq file(s) must be set.");
+        
+    if (args.report_fname) {
+        args.report_fp = fopen(args.report_fname, "w");
+        CHECK_EMPTY(args.report_fp, "%s : %s.", args.report_fname, strerror(errno));
+    }
+
+    if (args.out1_fname) {
+        args.out1_fp = fopen(args.out1_fname, "w");
+        if (args.out1_fp == NULL) error("%s: %s.", args.out1_fname, strerror(errno));
+        if (args.out2_fname) {
+            args.out2_fp = fopen(args.out2_fname,"w");
+            if (args.out2_fp == NULL) error("%s: %s.", args.out2_fname, strerror(errno));
+        }
+    }
+    
+    args.fastq = fastq_handler_init(args.r1_fname, args.r2_fname, args.smart_pair, args.chunk_size);
+    if (args.fastq == NULL) error("Failed to init input fastq.");
+
+    if (args.cbdis_fname) {
+        args.cbdis_fp = fopen(args.cbdis_fname, "w");
+        if (args.cbdis_fp == NULL) error("%s : %s.", args.cbdis_fname, strerror(errno));
+        args.cbhash = kh_init(str);
+        args.bghash = kh_init(str);
+    } 
+        
+    // if (args.run_code == NULL) args.run_code = strdup("1");
+
+    if (args.dis_fname != NULL) {
+        args.barcode_dis_fp = fopen(args.dis_fname, "w");
+        CHECK_EMPTY(args.barcode_dis_fp, "%s : %s.", args.dis_fname, strerror(errno));
+    }
+    
+    return 0;
+}
+
+extern int fastq_parse_usage();
+
+int fastq_prase_barcodes(int argc, char **argv)
+{
+    double t_real;
+    t_real = realtime();
+    
+    if (parse_args(argc, argv)) return fastq_parse_usage();
+
+    for (;;) {
+        struct bseq_pool *b = fastq_read(args.fastq, 0, 100000000);
+        if (b == NULL) break;
+        b = run_it(b, 0);
+        write_out(b);
+    }
+    
+    cell_barcode_count_pair_write();
+
+    report_write();
+    // todo: html report
+    full_details();
+    
+    memory_release();
+
+    config_destory();
+    LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());    
+    return 0;
+}
+
+
+/*
 static struct config {
     char *cell_barcode_tag; 
     char *sample_barcode_tag;
@@ -1017,183 +1198,4 @@ void full_details()
     }
     */
 
-}
-static void memory_release()
-{
-    if (args.r1_fp) gzclose(args.r1_fp);
-    if (args.r2_fp) gzclose(args.r2_fp);
-    if (args.out1_fp) fclose(args.out1_fp);
-    if (args.out2_fp) fclose(args.out2_fp);
-    if (args.barcode_dis_fp) fclose(args.barcode_dis_fp);
-    fastq_handler_destory(args.fastq);
-    //int i;
-    //for (i = 0; i < args.n_thread; ++i) thread_hold_destroy(args.hold[i]);
-    //free(args.hold);    
-}
-static int parse_args(int argc, char **argv)
-{
-    if ( argc == 1 ) return 1;
-
-    int i;
-    const char *thread = NULL;
-    const char *chunk_size = NULL;    
-    const char *qual_thres = NULL;
-    for (i = 1; i < argc;) {
-        const char *a = argv[i++];
-        const char **var = 0;
-        if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
-
-        if (strcmp(a, "-1") == 0) var = &args.out1_fname;
-        else if (strcmp(a, "-2") == 0) var = &args.out2_fname;
-        else if (strcmp(a, "-config") == 0) var = &args.config_fname;
-        else if (strcmp(a, "-cbdis") == 0) var = &args.cbdis_fname;
-        else if (strcmp(a, "-t") == 0) var = &thread; // skip
-        else if (strcmp(a, "-r") == 0) var = &chunk_size; // skip
-        else if (strcmp(a, "-run") == 0) var = &args.run_code;
-        else if (strcmp(a, "-report") == 0) var = &args.report_fname;
-        else if (strcmp(a, "-dis") == 0) var = &args.dis_fname;
-        else if (strcmp(a, "-q") == 0) var = &qual_thres;       
-        else if (strcmp(a, "-f") == 0) {
-            args.bgiseq_filter = 1;
-            continue;
-        }
-        else if (strcmp(a, "-p") == 0) {
-            args.smart_pair = 1;
-            continue;
-        }
-        else if (strcmp(a, "-dropN") == 0) {
-            args.dropN = 1;
-            continue;
-        }
-        if (var != 0) {
-            if (i == argc) error("Miss an argument after %s.", a);
-            *var = argv[i++];
-            continue;
-        }
-        if (a[0] == '-' && a[1]) error("Unknown parameter %s.", a);
-        if (args.r1_fname == 0) {
-            args.r1_fname = a;
-            continue;
-        }
-        if (args.r2_fname == 0) {
-            args.r2_fname = a;
-            continue;
-        }
-        error("Unknown argument: %s, use -h see help information.", a);
-    }
-
-    if (args.config_fname == NULL) error("Option -config is required.");
-    config_init(args.config_fname);
-    LOG_print("Configure file inited.");
-    
-    // if (thread) args.n_thread = str2int((char*)thread);
-    if (chunk_size) args.chunk_size = str2int((char*)chunk_size);
-    // assert(args.n_thread >= 1 && args.chunk_size >= 1);
-    if (qual_thres) {
-        args.qual_thres = str2int((char*)qual_thres);
-        LOG_print("Average quality below %d will be drop.", args.qual_thres);
-    }
-
-    if (args.r1_fname == NULL && (!isatty(fileno(stdin)))) args.r1_fname = "-";
-    if (args.r1_fname == NULL) error("Fastq file(s) must be set.");
-        
-    if (args.report_fname) {
-        args.report_fp = fopen(args.report_fname, "w");
-        CHECK_EMPTY(args.report_fp, "%s : %s.", args.report_fname, strerror(errno));
-    }
-
-    if (args.out1_fname) {
-        args.out1_fp = fopen(args.out1_fname, "w");
-        if (args.out1_fp == NULL) error("%s: %s.", args.out1_fname, strerror(errno));
-        if (args.out2_fname) {
-            args.out2_fp = fopen(args.out2_fname,"w");
-            if (args.out2_fp == NULL) error("%s: %s.", args.out2_fname, strerror(errno));
-        }
-    }
-    
-    args.fastq = fastq_handler_init(args.r1_fname, args.r2_fname, args.smart_pair, args.chunk_size);
-    if (args.fastq == NULL) error("Failed to init input fastq.");
-
-    if (args.cbdis_fname) {
-        args.cbdis_fp = fopen(args.cbdis_fname, "w");
-        if (args.cbdis_fp == NULL) error("%s : %s.", args.cbdis_fname, strerror(errno));
-        args.cbhash = kh_init(str);
-        args.bghash = kh_init(str);
-    } 
-        
-    // if (args.run_code == NULL) args.run_code = strdup("1");
-
-    if (args.dis_fname != NULL) {
-        args.barcode_dis_fp = fopen(args.dis_fname, "w");
-        CHECK_EMPTY(args.barcode_dis_fp, "%s : %s.", args.dis_fname, strerror(errno));
-    }
-    
-    return 0;
-}
-
-extern int fastq_parse_usage();
-
-int fastq_prase_barcodes(int argc, char **argv)
-{
-    double t_real;
-    t_real = realtime();
-    
-    if (parse_args(argc, argv)) return fastq_parse_usage();
-
-    // int nt = args.n_thread;
-    //if (nt == 1) {
-    for (;;) {
-        struct bseq_pool *b = fastq_read(args.fastq, &args);
-        if (b == NULL) break;
-        b = run_it(b, 0);
-        write_out(b);
-    }
-    /*
-
-      TODO: the multi-threads mode usually get stuck, delete it at 20200204
-    }
-    else {
-        
-        struct thread_pool *p = thread_pool_init(nt);
-        struct thread_pool_process *q = thread_pool_process_init(p, nt*2, 0);
-        struct thread_pool_result *r;
-
-        for (;;) {
-            struct bseq_pool *b = fastq_read(args.fastq, &args);
-            if (b == NULL) break;
-            int block;
-            do {
-                block = thread_pool_dispatch2(p, q, run_it, b, 0);
-                if ((r = thread_pool_next_result(q))) {
-                    struct bseq_pool *d = (struct bseq_pool *)r->data;
-                    write_out(d);
-                }
-                thread_pool_delete_result(r, 0);
-            }
-            while (block == -1);
-        }
-        thread_pool_process_flush(q);
-        
-        while ((r = thread_pool_next_result(q))) {
-            struct bseq_pool *d = (struct bseq_pool*)r->data;
-            write_out(d);
-            thread_pool_delete_result(r, 0);
-        }
-
-        thread_pool_process_destroy(q);
-        thread_pool_destroy(p);
-    }
-    */
-    
-    cell_barcode_count_pair_write();
-
-    report_write();
-    // todo: html report
-    full_details();
-    
-    memory_release();
-
-    config_destory();
-    LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());    
-    return 0;
 }
