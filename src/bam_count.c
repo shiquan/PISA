@@ -92,18 +92,14 @@ static char *encode(char *s, int l)
     int j = 0;
     for (i = 0; i < l;) {
         int x = 0, y=0;
-        if (i < l) y = encode0(s[i++]);
-        x |= (y & 0x3);
-        x=x<<2;
-        if (i < l) y = encode0(s[i++]);
-        x |= (y & 0x3);
-        x=x<<2;
-        if (i < l) y = encode0(s[i++]);
-        x |= (y & 0x3);
-        x=x<<2;
-        if (i < l) y = encode0(s[i++]);
-        x |= (y & 0x3);
-        x=x<<2;
+        int offset;
+        for (offset=0; offset<4; ++offset) {
+            if (i < l) {
+                y = encode0(s[i++]);
+                x |= (y & 0x3);            
+                x=x<<2;
+            }
+        }
         s0[j++] = x;
     }
     return s0;
