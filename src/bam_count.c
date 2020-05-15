@@ -60,24 +60,55 @@ struct counts {
 struct feature_counts {
     struct dict *features;
 };
-
+static char decode0(uint8_t a)
+{
+    switch(a) {
+        case 0x1:
+            return 'A';
+        case 0x2:
+            return 'C';
+        case 0x4:
+            return 'G';
+        case 0x8:
+            return 'T';
+        case 0x0:
+            return '\0';
+        default:
+            error("Unknown code. %d",a);
+    }
+}
+static char *unpackDNA(char *a)
+{
+    if (a == NULL) return NULL;
+    int l;
+    l = strlen(a);
+    char *s = malloc(l*2+1);
+    memset(s, 0, l*2+1);
+    int i;
+    int j = 0;
+    for (i = 0; i < l; ++i) {
+        s[j++] = decode0((a[i] >> 4) & 0xf);
+        s[j++] = decode0(a[i] &0xf);
+    }
+    return s;
+}
 static uint8_t encode0(char a)
 {
     switch(a) {
         case 'A':
         case 'a':
-            return 0x0;
+            return 0x1;
         case 'C':
         case 'c':
-            return 0x1;
+            return 0x2;
 
         case 'G':
         case 'g':
-            return 0x2;
+            return 0x4;
 
         case 'T':
         case 't':
-            return 0x3;
+            return 0x8;
 
         default:
             error("Try to encode non ACGT.");
@@ -85,20 +116,21 @@ static uint8_t encode0(char a)
 }
 static char *encode(char *s, int l)
 {
-    int length = (l+3)/4 + 1;
+    int length = (l+1)/2 + 1;
     char *s0 = malloc(length);
     memset(s0, 0, length);
     int i;
     int j = 0;
     for (i = 0; i < l;) {
-        int x = 0, y=0;
+        uint8_t x = 0, y=0;
         int offset;
-        for (offset=0; offset<4; ++offset) {
+        for (offset=0; offset<2; ++offset) {
             if (i < l) {
                 y = encode0(s[i++]);
-                x |= (y & 0x3);            
-                x=x<<2;
+                if (offset) x=x<<4;
+                x |= (y & 0xf);                
             }
+           
         }
         s0[j++] = x;
     }
@@ -117,7 +149,6 @@ static char *compactDNA(char *a)
     }
     return encode(a, l);
 }
-
 static void memory_release()
 {
     bam_hdr_destroy(args.hdr);
@@ -288,7 +319,7 @@ int count_matrix_core(bam1_t *b)
             dict_assign_value(v->features, idx0, vv);
         }
         
-        if (args.umi_tag) {
+        if (args.umi_tag && new_val) {
             if (vv->umi == NULL) vv->umi = dict_init();
             dict_push(vv->umi, new_val);
         }
