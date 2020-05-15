@@ -279,6 +279,16 @@ int count_matrix_core(bam1_t *b)
             dict_set_value(v->features);
         }
 
+        char *new_val = NULL;
+        if (args.umi_tag) { // here check UMI before init dict, so that no empty val will be stored.
+            uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
+            assert(umi_tag);
+            char *val = (char*)(umi_tag+1);
+            if (vv->umi == NULL) vv->umi = dict_init();
+            char *new_val = compactDNA(val); // reduce memory use
+            if (new_val == NULL) break; // UMI contains N
+        }
+
         // not store cell barcode for each hash, use id number instead to reduce memory
         int idx0 = dict_queryInt(v->features, cell_id);
         if (idx0 == -1) idx0 = dict_pushInt(v->features, cell_id);
@@ -291,15 +301,8 @@ int count_matrix_core(bam1_t *b)
         }
         
         if (args.umi_tag) {
-            uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
-            assert(umi_tag);
-            char *val = (char*)(umi_tag+1);
-            if (vv->umi == NULL) vv->umi = dict_init();
-            char *new_val = compactDNA(val); // reduce memory use
-            if (new_val) {
-                dict_push(vv->umi, new_val);
-                free(new_val);
-            }
+            dict_push(vv->umi, new_val);
+            free(new_val);
         }
         else {
             vv->count++;
