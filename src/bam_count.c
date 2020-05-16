@@ -26,7 +26,7 @@ static struct args {
     int use_dup;
     int enable_corr_umi;
     int n_thread;
-
+    int one_hit;
     htsFile *fp_in;
     bam_hdr_t *hdr;
 
@@ -42,7 +42,8 @@ static struct args {
 
     .barcodes        = NULL,
     .features        = NULL,
-    
+
+    .one_hit         = 0,
     .mapq_thres      = 20,
     .use_dup         = 0,
     .enable_corr_umi = 0,
@@ -195,6 +196,10 @@ static int parse_args(int argc, char **argv)
             args.use_dup = 1;
             continue;
         }
+        else if (strcmp(a, "-one-hit") == 0) {
+            args.one_hit = 1;
+            continue;
+        }
         /*
         else if (strcmp(a, "-corr") == 0) {
             args.enable_corr_umi = 1;
@@ -263,15 +268,20 @@ int count_matrix_core(bam1_t *b)
         
     uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
     if (!anno_tag) return 1;
-
+    
     char *new_val = NULL;
     if (args.umi_tag) { // here check UMI before init dict, so that no empty val will be stored.
         uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
         if (!umi_tag) return 1;
-        char *val = (char*)(umi_tag+1);
-        char *new_val = compactDNA(val); // reduce memory use
+        char *val = (char*)(umi_tag+1);       
+        char *new_val = compactDNA(val); // reduce memory 
         if (new_val == NULL) return 1; // UMI contains N
     }
+    /*
+    char *un = unpackDNA(new_val);
+    debug_print("%s", un);
+    free(un);
+    */
 
     int cell_id;
     if (args.whitelist_fname) {
@@ -282,11 +292,17 @@ int count_matrix_core(bam1_t *b)
         cell_id = dict_push(args.barcodes, (char*)(tag+1));
     }
 
+    
     // for each feature
     kstring_t str = {0,0,0};
     kputs((char*)(anno_tag+1), &str);
     int n_gene;
     int *s = ksplit(&str, ';', &n_gene); // seperator ; or ,
+    if (args.one_hit==1 && n_gene > 1) {
+        free(s);
+        free(str.s);
+        return 1;
+    }
     int i;
     for (i = 0; i < n_gene; ++i) {
         // Features (Gene or Region)
@@ -349,7 +365,7 @@ static void update_counts()
                 dict_destroy(count->umi);
                 count->umi = NULL;
             }
-            // assert(count->count>0); umi may contain N, skipped
+            assert(count->count>0); 
         }
         args.n_record += n_cell;
     }
@@ -430,9 +446,10 @@ static void write_outs()
             int j;
             int n_cell = dict_size(v->features);
             for (j = 0; j < n_cell; ++j) {
+                int cell_id = dict_nameInt(v->features, j);
                 struct counts *count = dict_query_value(v->features, j);
                 if (count->count >0) 
-                    ksprintf(&str, "%d\t%d\t%u\n", i+1, j+1, count->count);
+                    ksprintf(&str, "%d\t%d\t%u\n", i+1, cell_id+1, count->count);
             }
 
             if (str.l > 100000000) {
@@ -494,7 +511,7 @@ int count_matrix(int argc, char **argv)
     if (parse_args(argc, argv)) return bam_count_usage();
         
     bam1_t *b;
-
+    
     int ret;
     b = bam_init1();
     
@@ -509,6 +526,7 @@ int count_matrix(int argc, char **argv)
         if (c->qual < args.mapq_thres) continue;
         if (args.use_dup == 0 && c->flag & BAM_FDUP) continue;
         count_matrix_core(b);
+            
     }
     
     bam_destroy1(b);

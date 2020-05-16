@@ -203,6 +203,7 @@ int bam_count_usage()
     fprintf(stderr, " -list     [file]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
     fprintf(stderr, " -o        [file]     Output matrix.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
+    fprintf(stderr, " -one-hit             Skip if a read hits more than 1 gene or peak.\n");
     //fprintf(stderr, " -corr                Enable correct UMIs.\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. Default is 20.\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");
