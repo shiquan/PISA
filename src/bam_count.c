@@ -150,6 +150,26 @@ static char *compactDNA(char *a)
     }
     return encode(a, l);
 }
+
+static int *name_split(kstring_t *str, int *_n)
+{
+    *_n = 0;
+    int n = 0, m = 0;
+    int *s = NULL;
+    int i;
+    for (i = 0; i < str->l; ++i) {
+        if (str->s[i] == ',' || str->s[i] == ';') {
+            if (n == m) {
+                m += 2;
+                s = realloc(s, sizeof(m*sizeof(int)));
+            }
+            s[n++] = i+1;
+            str->s[i] = '\0';
+        }
+    }
+    *_n = n;
+    return s;
+}
 static void memory_release()
 {
     bam_hdr_destroy(args.hdr);
@@ -297,7 +317,7 @@ int count_matrix_core(bam1_t *b)
     kstring_t str = {0,0,0};
     kputs((char*)(anno_tag+1), &str);
     int n_gene;
-    int *s = ksplit(&str, ';', &n_gene); // seperator ; or ,
+    int *s = name_split(&str, &n_gene); // seperator ; or ,
     if (args.one_hit==1 && n_gene > 1) {
         free(s);
         free(str.s);

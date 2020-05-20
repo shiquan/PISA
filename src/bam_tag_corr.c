@@ -13,7 +13,7 @@ static struct args {
     const char *output_fname;
 
     const char *tag;
-    
+    const char *new_tag;
     int n_block;
     char **blocks;
     
@@ -29,17 +29,18 @@ static struct args {
 
     int chunk_size;
 } args = {
-    .input_fname = NULL,
+    .input_fname  = NULL,
     .output_fname = NULL,
-    .tag = NULL,
-    .n_block = 0,
-    .blocks = NULL,
-    .hdr = NULL,
-    .n_thread = 5,
-    .file_th = 4,
-    .Cindex = NULL,
+    .tag          = NULL,
+    .new_tag      = NULL,
+    .n_block      = 0,
+    .blocks       = NULL,
+    .hdr          = NULL,
+    .n_thread     = 5,
+    .file_th      = 4,
+    .Cindex       = NULL,
     .update_count = 0,
-    .chunk_size = 1000000, //1M
+    .chunk_size   = 1000000, //1M
 };
 
 static int parse_args(int argc, char **argv)
@@ -61,7 +62,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-tags-block") == 0) var = &block_tags;
         else if (strcmp(a, "-@") == 0) var = &file_th;
         else if (strcmp(a, "-t") == 0) var = &thread;
-
+        else if (strcmp(a, "-new-tag") == 0) var = &args.new_tag;
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -231,7 +232,13 @@ static void *run_it(void *data)
         char *new_tag = corr_tag_retrieve(args.Cindex, str.s, old_tag);
         if (new_tag == NULL) continue;
         if (strcmp(old_tag, new_tag) == 0) continue;
-        memcpy(tag+1, new_tag, strlen(new_tag)); // since it is equal length, just reset the memory..
+        if (args.new_tag) {
+            debug_print("%s", new_tag);
+            bam_aux_append(b, args.new_tag, 'Z', strlen(new_tag)+1, (uint8_t*)new_tag);
+        }
+        else {
+            memcpy(tag+1, new_tag, strlen(new_tag)); // since it is equal length, just reset the memory..
+        }
         c++;
     }
 

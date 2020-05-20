@@ -1,4 +1,4 @@
-#!/usr/bin/env Rscropt
+#!/usr/bin/env Rscript
 
 suppressMessages({
     library(ggplot2)

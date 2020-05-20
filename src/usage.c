@@ -155,6 +155,7 @@ int bam_corr_usage()
     fprintf(stderr, "\nOptions:\n");
     fprintf(stderr, " -o        [BAM]       Output bam.\n");
     fprintf(stderr, " -tag      [TAG]       Tag to correct.\n");
+    fprintf(stderr, " -new-tag  [TAG]       Create a new tag for corrected barcodes.\n");
     fprintf(stderr, " -tags-block  [TAGS]   Tags to define each block. Reads in one block will be corrected by frequency.\n");
     fprintf(stderr, " -@        [INT]       Thread to compress BAM file.\n");
     fprintf(stderr, "\n");
