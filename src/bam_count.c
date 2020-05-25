@@ -384,8 +384,9 @@ static void write_outs()
             int j;
             int n_cell = dict_size(v->features);
             for (j = 0; j < n_cell; ++j) {
+                int idx = dict_nameInt(v->features, j);                
                 struct counts *count = dict_query_value(v->features, j);
-                ksprintf(&str, "%d\t%d\t%u\n", i+1, j+1, count->count);
+                ksprintf(&str, "%d\t%d\t%u\n", i+1, idx+1, count->count);
             }
 
             if (str.l > 100000000) {
