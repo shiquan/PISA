@@ -26,7 +26,7 @@ static struct args {
     int use_dup;
     int enable_corr_umi;
     int n_thread;
-    int one_hit;
+
     htsFile *fp_in;
     bam_hdr_t *hdr;
 
@@ -42,8 +42,7 @@ static struct args {
 
     .barcodes        = NULL,
     .features        = NULL,
-
-    .one_hit         = 0,
+    
     .mapq_thres      = 20,
     .use_dup         = 0,
     .enable_corr_umi = 0,
@@ -61,115 +60,8 @@ struct counts {
 struct feature_counts {
     struct dict *features;
 };
-static char decode0(uint8_t a)
-{
-    switch(a) {
-        case 0x1:
-            return 'A';
-        case 0x2:
-            return 'C';
-        case 0x4:
-            return 'G';
-        case 0x8:
-            return 'T';
-        case 0x0:
-            return '\0';
-        default:
-            error("Unknown code. %d",a);
-    }
-}
-static char *unpackDNA(char *a)
-{
-    if (a == NULL) return NULL;
-    int l;
-    l = strlen(a);
-    char *s = malloc(l*2+1);
-    memset(s, 0, l*2+1);
-    int i;
-    int j = 0;
-    for (i = 0; i < l; ++i) {
-        s[j++] = decode0((a[i] >> 4) & 0xf);
-        s[j++] = decode0(a[i] &0xf);
-    }
-    return s;
-}
-static uint8_t encode0(char a)
-{
-    switch(a) {
-        case 'A':
-        case 'a':
-            return 0x1;
-        case 'C':
-        case 'c':
-            return 0x2;
 
-        case 'G':
-        case 'g':
-            return 0x4;
 
-        case 'T':
-        case 't':
-            return 0x8;
-
-        default:
-            error("Try to encode non ACGT.");
-    }
-}
-static char *encode(char *s, int l)
-{
-    int length = (l+1)/2 + 1;
-    char *s0 = malloc(length);
-    memset(s0, 0, length);
-    int i;
-    int j = 0;
-    for (i = 0; i < l;) {
-        uint8_t x = 0, y=0;
-        int offset;
-        for (offset=0; offset<2; ++offset) {
-            if (i < l) {
-                y = encode0(s[i++]);
-                if (offset) x=x<<4;
-                x |= (y & 0xf);                
-            }
-           
-        }
-        s0[j++] = x;
-    }
-    return s0;
-}
-
-static char *compactDNA(char *a)
-{
-    int i, l;
-    l = strlen(a);
-    for (i = 0; i < l; ++i) {
-        if (a[i] == 'N') return NULL;
-        if (a[i] != 'a' && a[i] != 'A' && a[i] != 'C' && a[i] != 'c' &&
-            a[i] != 'G' && a[i] != 'g' && a[i] != 'T' && a[i] != 't')
-            error("UMI contain non [ACGT] base ? %s", a);
-    }
-    return encode(a, l);
-}
-
-static int *name_split(kstring_t *str, int *_n)
-{
-    *_n = 0;
-    int n = 0, m = 0;
-    int *s = NULL;
-    int i;
-    for (i = 0; i < str->l; ++i) {
-        if (str->s[i] == ',' || str->s[i] == ';') {
-            if (n == m) {
-                m += 2;
-                s = realloc(s, sizeof(m*sizeof(int)));
-            }
-            s[n++] = i+1;
-            str->s[i] = '\0';
-        }
-    }
-    *_n = n;
-    return s;
-}
 static void memory_release()
 {
     bam_hdr_destroy(args.hdr);
@@ -216,16 +108,10 @@ static int parse_args(int argc, char **argv)
             args.use_dup = 1;
             continue;
         }
-        else if (strcmp(a, "-one-hit") == 0) {
-            args.one_hit = 1;
-            continue;
-        }
-        /*
         else if (strcmp(a, "-corr") == 0) {
             args.enable_corr_umi = 1;
             continue;
         }
-        */
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -281,6 +167,22 @@ static int parse_args(int argc, char **argv)
     return 0;
 }
 
+static int check_similar(char *a, char *b)
+{
+    int l1, l2;
+    l1 = strlen(a);
+    l2 = strlen(b);
+    if (l1 == 0 || l2 == 0) error("Try to compare an empty string");
+    if (l1 != l2) error("Try to compare two unequal string.");
+    int i, m = 0;
+    for (i = 0; i < l1; ++i) {
+        if (a[i] != b[i]) m++;
+        if (m > 1) break;
+    }
+    if (m > 1) return 1;
+    return 0;
+}
+
 int count_matrix_core(bam1_t *b)
 {
     uint8_t *tag = bam_aux_get(b, args.tag);
@@ -288,20 +190,12 @@ int count_matrix_core(bam1_t *b)
         
     uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
     if (!anno_tag) return 1;
-    
-    char *new_val = NULL;
-    if (args.umi_tag) { // here check UMI before init dict, so that no empty val will be stored.
+
+            
+    if (args.umi_tag) {
         uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
         if (!umi_tag) return 1;
-        char *val = (char*)(umi_tag+1);       
-        char *new_val = compactDNA(val); // reduce memory 
-        if (new_val == NULL) return 1; // UMI contains N
     }
-    /*
-    char *un = unpackDNA(new_val);
-    debug_print("%s", un);
-    free(un);
-    */
 
     int cell_id;
     if (args.whitelist_fname) {
@@ -312,17 +206,11 @@ int count_matrix_core(bam1_t *b)
         cell_id = dict_push(args.barcodes, (char*)(tag+1));
     }
 
-    
     // for each feature
     kstring_t str = {0,0,0};
     kputs((char*)(anno_tag+1), &str);
     int n_gene;
-    int *s = name_split(&str, &n_gene); // seperator ; or ,
-    if (args.one_hit==1 && n_gene > 1) {
-        free(s);
-        free(str.s);
-        return 1;
-    }
+    int *s = ksplit(&str, ';', &n_gene); // seperator ; or ,
     int i;
     for (i = 0; i < n_gene; ++i) {
         // Features (Gene or Region)
@@ -338,6 +226,7 @@ int count_matrix_core(bam1_t *b)
             memset(v, 0, sizeof(*v));
             dict_assign_value(args.features, idx, v);
         }
+    
 
         if (v->features == NULL) {
             v->features = dict_init();
@@ -355,15 +244,17 @@ int count_matrix_core(bam1_t *b)
             dict_assign_value(v->features, idx0, vv);
         }
         
-        if (args.umi_tag && new_val) {
+        if (args.umi_tag) {
+            uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
+            assert(umi_tag);
+            char *val = (char*)(umi_tag+1);
             if (vv->umi == NULL) vv->umi = dict_init();
-            dict_push(vv->umi, new_val);
+            dict_push(vv->umi, val);
         }
         else {
             vv->count++;
         }
     }
-    if (new_val) free(new_val);
     free(str.s);
     free(s);
     return 0;
@@ -381,11 +272,38 @@ static void update_counts()
             struct counts *count = dict_query_value(v->features, j);
             assert(count);
             if (count->umi) {
-                count->count = dict_size(count->umi);
+                int size = dict_size(count->umi);
+                if (args.enable_corr_umi == 1) { // do correction
+                    int *flag = malloc(size*sizeof(int));
+                    memset(flag, 0, size*sizeof(int));
+                    count->count = 0;
+                    int i0, i1;
+                    for (i0 = 0; i0 < size; ++i0) {
+                        if (flag[i0] == 1) continue;
+                        for (i1 = i0 + 1; i1 < size; ++i1) {
+                            if (flag[i1] == 1) continue;
+                            char *a = dict_name(count->umi, i0);
+                            char *b = dict_name(count->umi, i1);
+                            if (check_similar(a, b) == 0) {
+                                int v0 = dict_count(count->umi, i0);
+                                int v1 = dict_count(count->umi, i1);
+                                if (v0 > v1) flag[i1] = 1;
+                                else flag[i0] = 1;                        
+                            }
+                        }
+                    }
+                    for (i0 = 0; i0 < size; ++i0) {                
+                        if (flag[i0] == 0) count->count++;
+                    }
+                    free(flag);
+                }
+                else { 
+                    count->count = size;
+                }
                 dict_destroy(count->umi);
                 count->umi = NULL;
             }
-            assert(count->count>0); 
+            assert(count->count>0);
         }
         args.n_record += n_cell;
     }
@@ -458,7 +376,7 @@ static void write_outs()
         kputs("%%MatrixMarket matrix coordinate integer general\n", &str);
         kputs("% Generated by PISA ", &str);
         kputs(PISA_VERSION, &str);
-        kputc('\n', &str);       
+        kputc('\n', &str);
         ksprintf(&str, "%d\t%d\t%llu\n", n_feature, n_barcode, args.n_record);
 
         for (i = 0; i < n_feature; ++i) {
@@ -466,10 +384,8 @@ static void write_outs()
             int j;
             int n_cell = dict_size(v->features);
             for (j = 0; j < n_cell; ++j) {
-                int cell_id = dict_nameInt(v->features, j);
                 struct counts *count = dict_query_value(v->features, j);
-                if (count->count >0) 
-                    ksprintf(&str, "%d\t%d\t%u\n", i+1, cell_id+1, count->count);
+                ksprintf(&str, "%d\t%d\t%u\n", i+1, j+1, count->count);
             }
 
             if (str.l > 100000000) {
@@ -531,7 +447,7 @@ int count_matrix(int argc, char **argv)
     if (parse_args(argc, argv)) return bam_count_usage();
         
     bam1_t *b;
-    
+
     int ret;
     b = bam_init1();
     
@@ -546,7 +462,6 @@ int count_matrix(int argc, char **argv)
         if (c->qual < args.mapq_thres) continue;
         if (args.use_dup == 0 && c->flag & BAM_FDUP) continue;
         count_matrix_core(b);
-            
     }
     
     bam_destroy1(b);
