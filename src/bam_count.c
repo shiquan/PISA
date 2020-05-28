@@ -190,9 +190,10 @@ static int check_similar(char *a, char *b)
 }
 int *str_split(kstring_t *str, int *_n)
 {
-    int m=0, n=0;
+    int m=1, n=0;
     int i;
-    int *s = NULL;
+    int *s = malloc(1*sizeof(int));
+    s[n++] = 0;
     for (i = 0; i < str->l; ++i) {
         if (str->s[i] == ',' || str->s[i] == ';') {
             if (m == n) {
@@ -238,6 +239,7 @@ int count_matrix_core(bam1_t *b)
     // Sometime two or more genes or functional regions can overlapped with each other, if default PISA counts the reads for both of these regions.
     // But if -one-hit set, these reads will be filtered.
     if (args.one_hit == 1 && n_gene >1) {
+        free(str.s);
         free(s);
         return 1;
     }
