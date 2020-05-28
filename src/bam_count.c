@@ -26,7 +26,8 @@ static struct args {
     int use_dup;
     int enable_corr_umi;
     int n_thread;
-
+    int one_hit;
+    
     htsFile *fp_in;
     bam_hdr_t *hdr;
 
@@ -46,6 +47,7 @@ static struct args {
     .mapq_thres      = 20,
     .use_dup         = 0,
     .enable_corr_umi = 0,
+    .one_hit         = 0,
     .n_thread        = 5,
     .fp_in           = NULL,
     .hdr             = NULL,
@@ -106,6 +108,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-@") == 0) var = &n_thread;
         else if (strcmp(a, "-dup") == 0) {
             args.use_dup = 1;
+            continue;
+        }
+        else if (strcmp(a, "-one-hit") == 0) {
+            args.one_hit = 1;
             continue;
         }
         else if (strcmp(a, "-corr") == 0) {
@@ -182,7 +188,24 @@ static int check_similar(char *a, char *b)
     if (m > 1) return 1;
     return 0;
 }
-
+int *str_split(kstring_t *str, int *_n)
+{
+    int m=0, n=0;
+    int i;
+    int *s = NULL;
+    for (i = 0; i < str->l; ++i) {
+        if (str->s[i] == ',' || str->s[i] == ';') {
+            if (m == n) {
+                m += 2;
+                s = realloc(s, sizeof(int)*m);
+            }
+            s[n++] = i+1;
+            str->s[i] = '\0';
+        }
+    }
+    *_n = n;
+    return s;
+}
 int count_matrix_core(bam1_t *b)
 {
     uint8_t *tag = bam_aux_get(b, args.tag);
@@ -210,7 +233,15 @@ int count_matrix_core(bam1_t *b)
     kstring_t str = {0,0,0};
     kputs((char*)(anno_tag+1), &str);
     int n_gene;
-    int *s = ksplit(&str, ';', &n_gene); // seperator ; or ,
+    int *s = str_split(&str, &n_gene); // seperator ; or ,
+
+    // Sometime two or more genes or functional regions can overlapped with each other, if default PISA counts the reads for both of these regions.
+    // But if -one-hit set, these reads will be filtered.
+    if (args.one_hit == 1 && n_gene >1) {
+        free(s);
+        return 1;
+    }
+    
     int i;
     for (i = 0; i < n_gene; ++i) {
         // Features (Gene or Region)
