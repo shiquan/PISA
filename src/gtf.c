@@ -64,6 +64,11 @@ struct gtf_spec *gtf_spec_init()
         
     return G;
 }
+void gtf_reset(struct gtf *gtf)
+{
+    memset(gtf, 0, sizeof(struct gtf));
+    gtf->seqname = gtf->source = gtf->start = gtf->end = gtf->gene_id = gtf->gene_name = gtf->transcript_id = -1;
+}
 static int cmpfunc (const void *_a, const void *_b)
 {
     struct gtf_lite *a = (struct gtf_lite*)_a;
@@ -81,49 +86,6 @@ static int cmpfunc1 (const void *_a, const void *_b)
     return a->end - b->end;
 }
 
-/*
-struct binlist {
-    int n, m;
-    struct gtf_lite **a;
-};
-
-KHASH_MAP_INIT_INT(bin, struct binlist)
-
-struct gtf_idx {
-    khash_t(bin) *idx;
-};
-// copied from tabix/index.c
-static inline int ti_reg2bin(uint32_t beg, uint32_t end)
-{
-	--end;
-	if (beg>>14 == end>>14) return 4681 + (beg>>14);
-	if (beg>>17 == end>>17) return  585 + (beg>>17);
-	if (beg>>20 == end>>20) return   73 + (beg>>20);
-	if (beg>>23 == end>>23) return    9 + (beg>>23);
-	if (beg>>26 == end>>26) return    1 + (beg>>26);
-	return 0;
-}
-
-static void idx_bin_push(struct gtf_idx *idx, uint32_t start, uint32_t end, struct gtf_lite *gl)
-{
-    khint_t k;
-    int ret;
-    struct binlist *l;
-    int bin = ti_reg2bin(start, end);
-    //    debug_print("BIN : %d", bin);
-    k = kh_put(bin, idx->idx, bin, &ret);
-    l = &kh_val(idx->idx, k);
-    if (ret) { // not present
-        l->m = 1; l->n = 0;
-        l->a = (struct gtf_lite**)calloc(1, sizeof(void*));
-    }
-    if (l->m == l->n) {
-        l->m <<=1;
-        l->a = (struct gtf_lite**)realloc(l->a, l->m*sizeof(void*));
-    }
-    l->a[l->n++] = gl;
-}
-*/
 struct gtf_idx {
     struct region_index *idx;
 };
@@ -174,7 +136,7 @@ static void gtf_lite_clean(struct gtf_lite *g)
     }
     kh_destroy(attr, hash);
 }
-void gtf_destory(struct gtf_spec *G)
+void gtf_destroy(struct gtf_spec *G)
 {
     int i;
     for (i = 0; i < G->n_gtf; ++i) gtf_lite_clean(&G->gtf[i]);
@@ -287,10 +249,6 @@ static int gtf_push_to_last_gene(struct gtf_spec *G, struct gtf_lite *gl)
     return 0;
 }
 
-/*
-1	ensembl_havana	gene	3205901	3671498	.	-	.	gene_id "ENSMUSG00000051951"; gene_version "5"; gene_name "Xkr4"; gene_source "ensembl_havana"; gene_biotype "protein_coding"
-1	havana	transcript	3205901	3216344	.	-	.	gene_id "ENSMUSG00000051951"; gene_version "5"; transcript_id "ENSMUST00000162897"; transcript_version "1"; gene_name "Xkr4"; gene_source "ensembl_havana"; gene_biotype "protein_coding"; transcript_name "Xkr4-203"; transcript_source "havana"; transcript_biotype "processed_transcript"; transcript_support_level "1"
- */
 static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
 {
     int n;
@@ -319,7 +277,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
     gtf.end = str2int(str->s+s[4]);
     char *strand = str->s+s[6];
     gtf.strand = strand[0] == '+' ? 0 : 1;
-    gtf.attr_dict = kh_init(attr);
+    gtf.attr_dict = kh_init(attr);    
     char *attr = str->s+s[8];
     
     int i;
@@ -343,7 +301,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
         }
         free(pp->key);
         if (pp->val) free(pp->val);
-    }    
+    }
 
     free(pair);
     free(s);
@@ -363,6 +321,240 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
     
     return 0;
 }
+
+static kstring_t cache ={0,0,0};
+static void reset_cache()
+{
+    cache.l = 0;
+}
+static void free_cache()
+{
+    free(cache.s);
+}
+
+static int gtf_push(struct gtf_spec2 *G, struct gtf_ctg *ctg, struct gtf *gtf, int feature)
+{
+    int gene_idx = dict_pushInt(ctg->gene_idx, gtf->gene_id);
+    
+    struct gtf *gene_gtf = dict_query_value(ctg->gene_idx, gene_idx);
+
+    if (feature == feature_gene && gene_gtf != NULL) {
+        warnings("Duplicated gene record? %s", dict_name(G->gene_name, gtf->gene_name));
+        return 1;
+    }
+    
+    if (gene_gtf == NULL) { // set new gene record
+        if (ctg->n_gtf == ctg->m_gtf) {
+            ctg->m_gtf = ctg->m_gtf == 0 ? 1000 : ctg->m_gtf*2;
+            ctg->gtf = realloc(ctg->gtf, sizeof(struct gtf)*ctg->m_gtf);
+        }
+        
+        gene_gtf = &ctg->gtf[ctg->n_gtf++];
+
+        gtf_reset(gene_gtf);
+        
+        memcpy(gene_gtf, gtf, sizeof(struct gtf));
+
+        gene_gtf->query = dict_init();
+        dict_set_value(gene_gtf->query);
+        dict_assign_value(ctg->gene_idx, gene_idx, gene_gtf);
+        if (feature == feature_gene) return 0;
+    }
+
+    if (gtf->transcript_id == -1) error("No transcript found.");
+    
+    // no gene record
+    if (gene_gtf->query == NULL) {
+        gene_gtf->query = dict_init();
+        dict_set_value(gene_gtf->query);
+    }
+
+    if (gene_gtf->gene_id == -1) 
+        gene_gtf->gene_id = gtf->gene_id;
+    if (gene_gtf->gene_name == -1)
+        gene_gtf->gene_name = gtf->gene_name;
+    
+    int trans_idx = dict_pushInt(gene_gtf->query, gtf->transcript_id);
+    struct gtf *tx_gtf = dict_query_value(gene_gtf->query, trans_idx);
+
+    if (feature == feature_transcript && tx_gtf != NULL) {
+        warnings("Duplicated transcript record? %s", dict_name(G->transcript_id, gtf->transcript_id));
+        return 1;
+    }
+
+    // setup transcript record
+    if (tx_gtf == NULL) {
+        if (gene_gtf->n_gtf == gene_gtf->m_gtf) {
+            //gene_gtf->m_gtf = gene_gtf->m_gtf == 0? 4 : gene_gtf->m_gtf*2;
+            if (gene_gtf->m_gtf == 0) {
+                gene_gtf->m_gtf = 4;
+                gene_gtf->gtf = malloc(4*sizeof(struct gtf));
+            }
+            else {
+                gene_gtf->m_gtf *=2;
+                gene_gtf->gtf = realloc(gene_gtf->gtf, gene_gtf->m_gtf *sizeof(struct gtf));
+            }
+        }
+        tx_gtf = &gene_gtf->gtf[gene_gtf->n_gtf++];
+        gtf_reset(tx_gtf);
+        memcpy(tx_gtf, gtf, sizeof(struct gtf));
+        dict_assign_value(gene_gtf->query, trans_idx, tx_gtf);
+        if (feature == feature_transcript) return 0; // trans record end here
+    }
+    
+    // exon, cds, UTRs etc.
+    reset_cache();
+    kputs(feature_type_names[feature], &cache); kputc(':', &cache);
+    kputw(gtf->start, &cache); kputc('-', &cache);
+    kputw(gtf->end, &cache);
+    if (tx_gtf->query == NULL) {
+        tx_gtf->query = dict_init();
+        dict_set_value(tx_gtf->query);
+    }
+    int idx = dict_push(tx_gtf->query, cache.s);
+    struct gtf *exon_gtf = dict_query_value(tx_gtf->query, idx);
+    if (exon_gtf != NULL) {
+        warnings("Duplicated record? %s", cache.s);
+        return 1;
+    }
+    if (tx_gtf->n_gtf == tx_gtf->m_gtf) {
+        if (tx_gtf->m_gtf == 0) {
+            tx_gtf->m_gtf = 4;
+            tx_gtf->gtf = malloc(tx_gtf->m_gtf*sizeof(struct gtf));
+        }
+        else {
+            tx_gtf->m_gtf *= 2;
+            tx_gtf->gtf = realloc(tx_gtf->gtf, tx_gtf->m_gtf*sizeof(struct gtf));
+        }    
+    }
+    exon_gtf = &tx_gtf->gtf[tx_gtf->n_gtf++];
+    memcpy(exon_gtf, gtf, sizeof(struct gtf));
+    dict_assign_value(tx_gtf->query, idx, exon_gtf);
+
+    return 0;
+}
+
+static int parse_str2(struct gtf_spec2 *G, kstring_t *str, int filter)
+{
+    int n;
+    int *s = ksplit(str, '\t', &n);
+    if (n != 9) error("Unknown format. %s", str->s);
+
+    char *feature = str->s + s[2];
+
+    int qry = dict_query(G->features, feature);
+    if (qry == -1) {
+        free(s);
+        return 1;
+    }
+    
+    if (filter &&
+        qry != feature_gene &&
+        qry != feature_exon &&
+        qry != feature_transcript &&
+        qry != feature_CDS &&
+        qry != feature_5UTR &&
+        qry != feature_3UTR) {
+        free(s);
+        return 0;
+    }
+    
+    struct gtf gtf;
+    gtf_reset(&gtf);
+    gtf.seqname = dict_push(G->name, str->s + s[0]);
+    gtf.source = dict_push(G->sources, str->s + s[1]);
+    gtf.type = qry;
+    gtf.start = str2int(str->s+s[3]);
+    gtf.end = str2int(str->s+s[4]);
+    char *strand = str->s+s[6];
+    gtf.strand = strand[0] == '+' ? 0 : 1;
+    char *attr = str->s+s[8];
+
+    struct gtf_ctg *ctg = dict_query_value(G->name, gtf.seqname);
+    if (ctg == NULL) { // init contig value
+        ctg = malloc(sizeof(struct gtf_ctg));
+        memset(ctg, 0, sizeof(struct gtf_ctg));
+        ctg->gene_idx = dict_init();
+        dict_set_value(ctg->gene_idx);
+        dict_assign_value(G->name, gtf.seqname, ctg);
+    }
+
+    int i;
+    int n0=0;
+    struct attr_pair *pair = bend_pair(attr, &n0);
+    for (i = 0; i < n0; ++i) {
+        struct attr_pair *pp = &pair[i];
+        if (strcmp(pp->key, "gene_id") == 0)
+            gtf.gene_id = dict_push(G->gene_id, pp->val);       
+        else if (strcmp(pp->key, "gene_name") == 0) 
+            gtf.gene_name = dict_push(G->gene_name, pp->val);
+        else if (strcmp(pp->key, "transcript_id") == 0) 
+            gtf.transcript_id = dict_push(G->transcript_id, pp->val);
+        else { // todo: update to dict structure
+            int attr_id = dict_push(G->attrs, pp->key);
+            if (gtf.attr == NULL) {
+                gtf.attr = dict_init();
+                dict_set_value(gtf.attr);
+            }
+            int idx = dict_pushInt(gtf.attr, attr_id);
+            if (pp->val != NULL) {
+                char *val = strdup(pp->val);
+                dict_assign_value(gtf.attr, idx, val);
+            }
+        }
+        free(pp->key);
+        if (pp->val) free(pp->val);
+    }
+        
+    free(pair);
+    free(s);
+
+    if (gtf.gene_id == -1)
+        return 1; // no gene id
+
+    gtf_push(G, ctg, &gtf, qry);
+
+    return 0;
+}
+static void gtf_sort(struct gtf *gtf)
+{
+    int i;
+    for (i = 0; i < gtf->n_gtf; ++i) 
+        gtf_sort(&gtf->gtf[i]);
+    if (gtf->n_gtf) {
+        dict_destroy(gtf->query); // destroy query dict
+        gtf->query = NULL;
+        qsort((struct gtf*)gtf->gtf, gtf->n_gtf, sizeof(struct gtf), cmpfunc);
+        int j;
+        for (j = 0; j < gtf->n_gtf; ++j) {
+            if (gtf->start > gtf->gtf[j].start) gtf->start = gtf->gtf[j].start;
+            if (gtf->end < gtf->gtf[j].end) gtf->end = gtf->gtf[j].end;
+        }
+    }
+}
+static struct region_index *ctg_build_idx(struct gtf_ctg *ctg)
+{
+    struct region_index *idx = region_index_build();
+    int i;
+    for (i = 0; i < ctg->n_gtf; ++i) 
+        index_bin_push(idx, ctg->gtf[i].start, ctg->gtf[i].end, &ctg->gtf[i]);
+    return idx;
+}
+static void gtf_build_index2(struct gtf_spec2 *G)
+{
+    // update gene and transcript start and end record
+    int i;
+    for (i = 0; i < dict_size(G->name); ++i) {
+        struct gtf_ctg *ctg = dict_query_value(G->name,i);
+        assert(ctg);
+        int j;
+        for (j = 0; j < ctg->n_gtf; ++j) {
+            gtf_sort(&ctg->gtf[j]); // sort gene
+            ctg->idx = ctg_build_idx(ctg);
+        }
+    }
+}
+
 // key names: gene_id, gene_name, transcript_id,
 // if filter == 1, only keep genes, transcripts and exons
 struct gtf_spec *gtf_read(const char *fname, int filter)
@@ -392,7 +584,7 @@ struct gtf_spec *gtf_read(const char *fname, int filter)
     ks_destroy(ks);
     
     if (G->n_gtf == 0) {
-        gtf_destory(G);
+        gtf_destroy(G);
         return NULL;
     }
 
@@ -424,6 +616,123 @@ struct region_itr *gtf_query(struct gtf_spec *G, char *name, int start, int end)
     qsort((struct gtf_lite**)itr->rets, itr->n, sizeof(struct gtf_lite*), cmpfunc1);
     
     return itr;
+}
+
+struct gtf_spec2 *gtf_spec_init2()
+{
+    struct gtf_spec2 *G = malloc(sizeof(*G));
+    memset(G, 0, sizeof(*G));
+    G->name            = dict_init();
+    G->gene_name       = dict_init();
+    G->gene_id         = dict_init();
+    G->transcript_id   = dict_init();
+    G->sources         = dict_init();
+    G->attrs           = dict_init();
+    G->features        = dict_init();
+
+    dict_set_value(G->name);
+    int i;
+    int l;
+    l = sizeof(feature_type_names)/sizeof(feature_type_names[0]);
+    for (i = 0; i < l; ++i) 
+        dict_push(G->features, (char*)feature_type_names[i]);
+    
+    return G;
+}
+struct gtf_spec2 *gtf_read2(const char *fname, int f)
+{
+    gzFile fp;
+    fp = gzopen(fname, "r");
+    CHECK_EMPTY(fp, "%s : %s.", fname, strerror(errno));
+
+    kstream_t *ks = ks_init(fp);
+    kstring_t str = {0,0,0};
+    int ret;
+    int line = 0;
+    struct gtf_spec2 *G = gtf_spec_init2();
+    
+    while (ks_getuntil(ks, 2, &str, &ret)>=0) {
+        line++;
+        if (str.l == 0) {
+            warnings("Line %d is empty. Skip.", line);
+            continue;
+        }
+        if (str.s[0] == '#') continue;
+        parse_str2(G, &str, f); //warnings("Skip line %d, %s", line, str.s);
+    }
+    free(str.s);
+    gzclose(fp);
+    ks_destroy(ks);
+    
+    if (dict_size(G->name) == 0) {
+        gtf_destroy2(G);
+        return NULL;
+    }
+
+    gtf_build_index2(G);
+
+    free_cache();
+    return G;
+
+}
+
+struct region_itr *gtf_query2(struct gtf_spec2 *G, char *name, int start, int end)
+{
+    int id = dict_query(G->name, name);
+    if (id == -1) return NULL;
+
+    if (start < 0) start = 0;
+    if (end < start) return NULL;
+
+    struct gtf_ctg *ctg = dict_query_value(G->name, id);
+    if (ctg->n_gtf == 0) return NULL; // empty, should not happen?
+    if (end < ctg->gtf[0].start) return NULL; // out of range
+
+    struct region_index *idx = ctg->idx;
+
+    struct region_itr *itr = region_query(idx, start, end);
+
+    if (itr==NULL) return NULL;
+    if (itr->n == 0) {
+        free(itr);
+        return NULL;
+    }
+    qsort((struct gtf**)itr->rets, itr->n, sizeof(struct gtf*), cmpfunc1);
+    
+    return itr;
+}
+void gtf_clear(struct gtf *gtf)
+{
+    int i;
+    for (i = 0; i < gtf->n_gtf; ++i)
+        gtf_clear(&gtf->gtf[i]);
+    if (gtf->n_gtf) free(gtf->gtf);
+
+    if (gtf->attr != NULL) {
+        int i;
+        for (i = 0; i < dict_size(gtf->attr); ++i) {
+            char *val = dict_query_value(gtf->attr, i);
+            if (val) free(val);
+        }
+        dict_destroy(gtf->attr);
+    }
+    if (gtf->query)
+        dict_destroy(gtf->query);
+        
+}
+void gtf_destroy2(struct gtf_spec2 *G)
+{
+    int i;
+    for (i = 0; i < dict_size(G->name); ++i) {
+        struct gtf_ctg *ctg = dict_query_value(G->name, i);
+        if (ctg->gene_idx) dict_destroy(ctg->gene_idx);
+        region_index_destroy(ctg->idx);
+        int j;
+        for (j = 0; j < ctg->n_gtf; ++j)
+            gtf_clear(&ctg->gtf[j]);
+        free(ctg->gtf);
+    }
+    free(G);
 }
 
 #ifdef GTF_MAIN
