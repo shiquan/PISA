@@ -6,9 +6,9 @@
 
 KSEQ_INIT(gzFile, gzread)
 
-struct bseq_pool *bseq_pool_init()
+struct fastq_pool *fastq_pool_init()
 {
-    struct bseq_pool *p = malloc(sizeof(*p));
+    struct fastq_pool *p = malloc(sizeof(*p));
     memset(p, 0, sizeof(*p));
     return p;
 }
@@ -22,31 +22,33 @@ int trim_read_tail(char *s, int l)
     return l;
 }
 
-void bseq_clean(struct bseq *b)
+void fastq_clean(struct fastq *b)
 {
     int i;
     for (i = 0; i < b->n; ++i) {
-        free(b->b[i].seq);
-        if (b->b[i].qual) free(b->b[i].qual);
+        free(b->fastq[i].seq);
+        if (b->fastq[i].qual) free(b->fastq[i].qual);
     }
-    dict_destroy(b->extand_tags);
-    free(b->data);
+    if (b->m_idx) free(b->idx);
+    if (b->extend_tags) dict_destroy(b->extand_tags);
+    if (b->data) free(b->data);
+    if (b->fastq) free(b->fastq);
 }
-void bseq_destroy(struct bseq *b)
+void fastq_destroy(struct fastq *b)
 {
-    bseq_clean(b);
+    fastq_clean(b);
     free(b);
 }
-void bseq_pool_destroy(struct bseq_pool *p)
+void fastq_pool_destroy(struct fastq_pool *p)
 {
     int i;
     for (i = 0; i < p->n; ++i)
-        bseq_clean(&p->s[i]);
-    free(p->s);
+        fastq_clean(&p->fastq[i]);
+    free(p->fastq);
     free(p);
 }
 
-static void bseq_copy(struct bseq *a, struct bseq *b)
+static void fastq_copy(struct fastq *a, struct fastq *b)
 {
     // assume a is empty
     memset(a, 0, sizeof(*a));
@@ -68,14 +70,14 @@ static void bseq_copy(struct bseq *a, struct bseq *b)
         a->b[i].qual = b->b[i].qual == NULL ? NULL : strdup(b->b[i].qual);
     }
 }
-void bseq_pool_push(struct bseq_pool *p, struct bseq *b)
+void fastq_pool_push(struct fastq_pool *p, struct fastq *b)
 {
     if (p->n == p->m) {
         p->m = p->m == 0 ? 1024 : p->m<<1;
         p->s = realloc(p->s, p->m*sizeof(struct bseq));
     }
-    struct bseq *a = &p->s[p->n++];
-    bseq_copy(a, b);
+    struct fastq *a = &p->s[p->n++];
+    fastq_copy(a, b);
 }
 static char **split_multi_files(const char *fname, int *n)
 {
@@ -108,9 +110,9 @@ struct input {
     struct ifile *in;
 };
 
-struct fastq_handler *fastq_handler_init(char **input_fname, int n_file)
+struct fastq_spec *fastq_spec_init(char **input_fname, int n_file)
 {
-    struct fastq_handler *h = malloc(sizeof(*h));
+    struct fastq_spec *h = malloc(sizeof(*h));
     memset(h, 0, sizeof(*h));
     h->n_file = n_file;
     h->input = malloc(h->n_file*sizeof(struct input));
@@ -147,7 +149,7 @@ struct fastq_handler *fastq_handler_init(char **input_fname, int n_file)
     
     return h;
 }
-void fastq_handler_destroy(struct fastq_handler *h)
+void fastq_spec_destroy(struct fastq_spec *h)
 {
     assert(h->buf == NULL); // make sure buf is empty before destroy 
     int i;
@@ -224,7 +226,7 @@ struct dict *fastq_name_parse(char *name, int *len)
 // -1 on inconsistance read name
 // 0 on success merged
 // 1-N for new tags added
-int bseq_check_name(struct bseq *a, char *name)
+int fastq_check_name(struct fastq *a, char *name)
 {
     char *new = strdup(name);
     int len = 0;
@@ -277,22 +279,22 @@ int bseq_check_name(struct bseq *a, char *name)
     }
     return new_tag;
 }
-struct bseq_pool *fastq_read(struct fastq_handler *fq, int n_record, int max_mem)
+struct fastq_pool *fastq_read(struct fastq_spec *fq, int n_record, int max_mem)
 {
     assert(fq);
     
-    struct bseq_pool *p;
+    struct fastq_pool *p;
     p = malloc(sizeof(*p));
     memset(p, 0, malloc(sizeof(*p)));
     
     for (;;) { // loop reads
-        struct bseq *b = malloc(sizeof(*b));
+        struct fastq *b = malloc(sizeof(*b));
         memset(b, 0, sizeof(*b));
         b->n = fq->n_file;
         b->b = malloc(b->n*sizeof(struct bseq_core));
         int i;
         for (i = 0; i < fq->n_file; ++i) { // read 1, 2 .., each time read one record
-            struct bseq_core *c = &b->b[i];
+            struct fastq_core *c = &b->b[i];
             memset(c, 0, sizeof(*c));
             
             struct input *in = &fq->input[i];
@@ -315,7 +317,7 @@ struct bseq_pool *fastq_read(struct fastq_handler *fq, int n_record, int max_mem
                     }
                 }
                 
-                ret = bseq_check_name(b, ks->name.s);
+                ret = fastq_check_name(b, ks->name.s);
                 if (ret < 0) error("Inconstance read name. %s vs %s", (char*)b->data, ks->name.s);
                 c->length = ks->seq.l;
                 c->seq = strdup(ks->seq.s);
@@ -334,8 +336,8 @@ struct bseq_pool *fastq_read(struct fastq_handler *fq, int n_record, int max_mem
             if (fq->n != 1) error("Only accept 1 input file for smart pairing mode.");
             if (fq->buf) {
                 if (strcmp((char*)fp->buf->data, (char*)b->data) == 0) {
-                    bseq_merge(b, fp->buf);
-                    bseq_destroy(fp->buf);
+                    fastq_merge(b, fp->buf);
+                    fastq_destroy(fp->buf);
                 }
             }
             else {
@@ -343,18 +345,18 @@ struct bseq_pool *fastq_read(struct fastq_handler *fq, int n_record, int max_mem
                 continue;
             }
         }
-        int mem = bseq_pool_push(b, p);
+        int mem = fastq_pool_push(b, p);
         if (n_record > 0 && p->n >= n_record) break;
         if (max_mem > 0 && max >= mem) break;
     }
 
     return p;
 }
-int bseq_pool_dedup(struct bseq_pool *p)
+int fastq_pool_dedup(struct fastq_pool *p)
 {
 }
 
-void *fastq_tag_value(struct bseq *b, const char *tag)
+void *fastq_tag_value(struct fastq *b, const char *tag)
 {
     if (b->extend == NULL) return NULL;
     int idx = dict_query(b->extend, tag);
@@ -362,7 +364,7 @@ void *fastq_tag_value(struct bseq *b, const char *tag)
     struct tag_pos *pos = dict_query_value(b->extend, idx);
     return b->data+pos->pos+2;
 }
-char *fastq_tags(struct bseq *b, struct dict *tags)
+char *fastq_tags(struct fastq *b, struct dict *tags)
 {
     int i;
     kstring_t str = {0,0,0};
@@ -374,7 +376,7 @@ char *fastq_tags(struct bseq *b, struct dict *tags)
     return str.s;
 }
 
-int fastq_tag_push(struct bseq *b, const char *tag, char type, char *data)
+int fastq_tag_push(struct fastq *b, const char *tag, char type, char *data)
 {
     if (b->extend==NULL) {
         b->extend = dict_init();
@@ -400,10 +402,10 @@ int fastq_tag_push(struct bseq *b, const char *tag, char type, char *data)
     return idx;
 }
 
-char *fastq_select_seq(struct bseq *b, int rd, int start, int end)
+char *fastq_select_seq(struct fastq *b, int rd, int start, int end)
 {
     assert(rd < b->n);
-    struct bseq_core *c = &b->b[rd];
+    struct fastq_core *c = &b->b[rd];
     if (start > c->length || end > c->length) return NULL; // out of range
 
     kstring_t str = {0,0,0};
@@ -412,10 +414,10 @@ char *fastq_select_seq(struct bseq *b, int rd, int start, int end)
     kputs("", &str);
     return str.s;
 }
-char *fastq_select_qual(struct bseq *b, int rd, int start, int end)
+char *fastq_select_qual(struct fastq *b, int rd, int start, int end)
 {
     assert(rd < b->n);
-    struct bseq_core *c = &b->b[rd];
+    struct fastq_core *c = &b->b[rd];
     if (start > c->length || end > c->length) return NULL; // out of range
     if (c->qual == NULL) return NULL; // for fasta
 
@@ -425,13 +427,13 @@ char *fastq_select_qual(struct bseq *b, int rd, int start, int end)
     kputs("", &str);
     return str.s;
 }
-int fastq_mean_qual(struct bseq *b)
+int fastq_mean_qual(struct fastq *b)
 {
     int qual = 0;
     int length = 0;
     int i, j;
     for (i = 0; i < b->n; ++i) {
-        struct bseq_core *c = &b->b[i];
+        struct fastq_core *c = &b->b[i];
         for (j = 0; j < c->length; ++j) {
             if (c->qual) return -1;
             qual += c->qual[j] - 33;
@@ -445,11 +447,11 @@ int fastq_mean_qual(struct bseq *b)
 
 /*
 
-void bseq_pool_clean(struct bseq_pool *p)
+void fastq_pool_clean(struct fastq_pool *p)
 {
     int i;
     for ( i = 0; i < p->n; ++i ) {
-        struct bseq *b = &p->s[i];
+        struct fastq *b = &p->s[i];
         if (b->l0) {
             free(b->n0);
             free(b->s0);
@@ -463,15 +465,15 @@ void bseq_pool_clean(struct bseq_pool *p)
     }
     if (p->m > 0) free(p->s);
 }
-void bseq_pool_destroy(struct bseq_pool *p)
+void fastq_pool_destroy(struct fastq_pool *p)
 {
-    bseq_pool_clean(p);
+    fastq_pool_clean(p);
     free(p);
 }
 
-static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_size)
+static struct fastq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_size)
 {
-    struct bseq_pool *p = bseq_pool_init();
+    struct fastq_pool *p = fastq_pool_init();
     int size = 0;
     int ret1= -1;
     do {
@@ -492,10 +494,10 @@ static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_siz
 
         kseq_t *ks = h->k1;
         
-        struct bseq *s;
+        struct fastq *s;
         if (p->n >= p->m ) {
             p->m = p->m ? p->m*2 : 256;
-            p->s = realloc(p->s, p->m*sizeof(struct bseq));
+            p->s = realloc(p->s, p->m*sizeof(struct fastq));
         }
         s = &p->s[p->n];
         memset(s, 0, sizeof(*s));
@@ -518,17 +520,17 @@ static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_siz
         if ( size >= chunk_size ) break;
     } while (1);
     if ( p->n == 0 ) {
-        bseq_pool_destroy(p);
+        fastq_pool_destroy(p);
         return NULL;
    }
     return p;
 }
-static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size, int pe)
+static struct fastq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size, int pe)
 {
 
     // k1 and k2 already load one record when come here
 
-    struct bseq_pool *p = bseq_pool_init();
+    struct fastq_pool *p = fastq_pool_init();
     int ret1, ret2 = -1;
     
     if ( pe == 0 ) {
@@ -549,9 +551,9 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
 
             if (p->n >= p->m) {
                 p->m = p->m ? p->m<<1 : 256;
-                p->s = realloc(p->s, p->m*sizeof(struct bseq));
+                p->s = realloc(p->s, p->m*sizeof(struct fastq));
             }
-            struct bseq *s = &p->s[p->n];
+            struct fastq *s = &p->s[p->n];
             kseq_t *k1 = h->k1;
             memset(s, 0, sizeof(*s));
             trim_read_tail(k1->name.s, k1->name.l);
@@ -596,10 +598,10 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
             if ( check_name(k1->name.s, k2->name.s) ) error("Inconsistance paired read names. %s vs %s.", k1->name.s, k2->name.s);
             //if ( k1->seq.l != k2->seq.l ) error("Inconsistant PE read length, %s.", k1->name.s);
             
-            struct bseq *s;
+            struct fastq *s;
             if (p->n >= p->m) {
                 p->m = p->m ? p->m<<1 : 256;
-                p->s = realloc(p->s, p->m*sizeof(struct bseq));
+                p->s = realloc(p->s, p->m*sizeof(struct fastq));
             }
             s = &p->s[p->n];
             memset(s, 0, sizeof(*s));
@@ -619,7 +621,7 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
         while(1);
     }
     if ( p->n == 0 ) {
-        bseq_pool_destroy(p);
+        fastq_pool_destroy(p);
         return NULL;
     }
     return p;
@@ -697,7 +699,7 @@ void *fastq_read(void *_h, void *opts)
 
     int state = fastq_handler_state(h);
 
-    struct bseq_pool *b;
+    struct fastq_pool *b;
     
     switch(state) {
         case FH_SE:
@@ -728,11 +730,11 @@ void *fastq_read(void *_h, void *opts)
     return b;
 }
 
-int fastq_process(struct bseq_pool *pool, void *(*func)(void *data))
+int fastq_process(struct fastq_pool *pool, void *(*func)(void *data))
 {
     int i;
     for ( i = 0; i < pool->n; ++i ) {
-        struct bseq *s = &pool->s[i];
+        struct fastq *s = &pool->s[i];
         s = func(s);
     }
     return 0;
@@ -752,15 +754,15 @@ KHASH_MAP_INIT_STR(key, struct hvals*)
 //
 // Process fastq block...
 // stash
-void bseq_pool_push(struct bseq *b, struct bseq_pool *p)
+void fastq_pool_push(struct fastq *b, struct fastq_pool *p)
 {
     assert(p);
     if (p->n == p->m) {
         p->m = p->m == 0 ? 10 : p->m<<1;
-        p->s = realloc(p->s, sizeof(struct bseq)*p->m);               
+        p->s = realloc(p->s, sizeof(struct fastq)*p->m);               
     }
-    struct bseq *c = &p->s[p->n++];
-    memcpy(c, b, sizeof(struct bseq));
+    struct fastq *c = &p->s[p->n++];
+    memcpy(c, b, sizeof(struct fastq));
     //debug_print("c %d, b %d", c->l0, b->l0);
     // free(b);
 }
@@ -841,7 +843,7 @@ static char *reverse_seq(char *s, int l)
     }
     return r;
 }
-static int check_dup(struct bseq *r, struct bseq *q, int strand)
+static int check_dup(struct fastq *r, struct fastq *q, int strand)
 {
     if (strand == -1) error("Unknown strand.");
 
@@ -897,7 +899,7 @@ static int check_dup(struct bseq *r, struct bseq *q, int strand)
 #define DEDUP_SEED 16
 // require all sequence should greater than 16bp, and equal length
 // the function will destroy all the flags marked before
-int bseq_pool_dedup(struct bseq_pool *p)
+int fastq_pool_dedup(struct fastq_pool *p)
 {
     if (p->n == 1) return 0;
     
@@ -913,7 +915,7 @@ int bseq_pool_dedup(struct bseq_pool *p)
     kstring_t rseed = {0,0,0};
     
     for (i = 0; i < p->n; ++i) {
-        struct bseq *b = &p->s[i];
+        struct fastq *b = &p->s[i];
         if (b->l0 < DEDUP_SEED) error("Read length is too short. %d", b->l0);
             
         // todo:: convert mark to bits
@@ -971,7 +973,7 @@ int bseq_pool_dedup(struct bseq_pool *p)
                 v = kh_val(hash, k);
                 for (j = 0; j < v->n; ++j) {
                     struct hval *v1 = &v->v[j];
-                    struct bseq *r = &p->s[v1->idx];
+                    struct fastq *r = &p->s[v1->idx];
                     if (check_dup(r, b, strand)) {
                         //debug_print("%s\t%s\t%d", r->s0, b->s0, v1->idx);
                         if (qual > v1->qual) {
@@ -1051,7 +1053,7 @@ int bseq_pool_dedup(struct bseq_pool *p)
 
 struct fastq_buffer {
     uint32_t n, m;
-    struct bseq *s;
+    struct fastq *s;
     int paired;
     uint32_t l_buf, m_buf;
     uint8_t *buf;
