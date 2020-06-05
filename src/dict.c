@@ -35,7 +35,9 @@ void dict_set_value(struct dict *D)
 }
 void *dict_query_value(struct dict *D, int idx)
 {
-    if (idx < 0 || idx > D->n) return NULL;
+    if (idx < 0 || idx >= D->n) return NULL;
+    if (D->value == NULL) return NULL;
+    
     return D->value[idx];
 }
 
@@ -121,7 +123,7 @@ void dict_destroy(struct dict *D)
     int i;
     for (i = 0; i < D->n; ++i) free(D->name[i]);
     // values are actually points, need free pointed values manually
-    if (D->assign_value_flag) free(D->value); 
+    if (D->assign_value_flag && D->value) free(D->value); 
     free(D->name);
     free(D->count);
     kh_destroy(name,D->dict);

@@ -51,6 +51,9 @@ struct gtf {
     int gene_id;
     int gene_name;
     int transcript_id;
+
+    int free;
+    
     struct dict *attr; // attributions
     struct dict *query; // used to fast access gtf
     int n_gtf, m_gtf;

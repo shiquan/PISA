@@ -162,11 +162,59 @@ struct attr_pair {
     char *key;
     char *val;
 };
-static struct attr_pair *bend_pair(char *s, int *n)
+
+static struct attr_pair *split_gff(kstring_t *str, int *_n)
 {
+    int i=0;
+    int n =0, m = 0;
+    struct attr_pair *pair = NULL;
+
+    for (;;) {
+        if (i >= str->l) break;
+        if (n == m) {
+            m += 4;
+            pair = realloc(pair, sizeof(struct attr_pair)*m);
+        }
+        kstring_t name = {0,0,0};
+        kstring_t val = {0,0,0};
+        while (!isspace(str->s[i]) && str->s[i] != ';') {
+            kputc(str->s[i], &name);
+            ++i;
+        }
+
+        while (isspace(str->s[i]) || str->s[i] == ';') ++i;
+        
+        if (str->s[i] == '"')  {
+            ++i; // skip comma
+            for (;i < str->l-1;) {
+                if (str->s[i] == '"' && str->s[i+1] == ';') {
+                    i++; // skip ;
+                    i++; // next record
+                    break;
+                }
+                kputc(str->s[i], &val);
+                i++;
+            }
+        }
+
+        while (isspace(str->s[i])) ++i; // emit ends
+        pair[n].key = name.s;
+        pair[n].val = val.s;
+        n++;
+    }
+    *_n = n;
+    return pair;
+}
+static struct attr_pair *bend_pair(char *s, int *n)
+{    
     if (s == NULL) return NULL;
     kstring_t str = {0,0,0};    
     kputs(s, &str);
+
+    struct attr_pair *p = split_gff(&str, n);
+    free(str.s);
+    return p;
+    /*
     int *t = ksplit(&str, ';', n);
     struct attr_pair *pp = malloc(*n*sizeof(struct attr_pair));
     int i;
@@ -209,6 +257,7 @@ static struct attr_pair *bend_pair(char *s, int *n)
     free(key.s);
     free(t);
     return pp;
+    */
 }
 
 static int gtf_push_new_gene(struct gtf_spec *G, struct gtf_lite *gl)
@@ -385,15 +434,8 @@ static int gtf_push(struct gtf_spec2 *G, struct gtf_ctg *ctg, struct gtf *gtf, i
     // setup transcript record
     if (tx_gtf == NULL) {
         if (gene_gtf->n_gtf == gene_gtf->m_gtf) {
-            //gene_gtf->m_gtf = gene_gtf->m_gtf == 0? 4 : gene_gtf->m_gtf*2;
-            if (gene_gtf->m_gtf == 0) {
-                gene_gtf->m_gtf = 4;
-                gene_gtf->gtf = malloc(4*sizeof(struct gtf));
-            }
-            else {
-                gene_gtf->m_gtf *=2;
-                gene_gtf->gtf = realloc(gene_gtf->gtf, gene_gtf->m_gtf *sizeof(struct gtf));
-            }
+            gene_gtf->m_gtf = gene_gtf->m_gtf == 0? 4 : gene_gtf->m_gtf*2;
+            gene_gtf->gtf = realloc(gene_gtf->gtf, gene_gtf->m_gtf *sizeof(struct gtf));
         }
         tx_gtf = &gene_gtf->gtf[gene_gtf->n_gtf++];
         gtf_reset(tx_gtf);
@@ -418,14 +460,8 @@ static int gtf_push(struct gtf_spec2 *G, struct gtf_ctg *ctg, struct gtf *gtf, i
         return 1;
     }
     if (tx_gtf->n_gtf == tx_gtf->m_gtf) {
-        if (tx_gtf->m_gtf == 0) {
-            tx_gtf->m_gtf = 4;
-            tx_gtf->gtf = malloc(tx_gtf->m_gtf*sizeof(struct gtf));
-        }
-        else {
-            tx_gtf->m_gtf *= 2;
-            tx_gtf->gtf = realloc(tx_gtf->gtf, tx_gtf->m_gtf*sizeof(struct gtf));
-        }    
+        tx_gtf->m_gtf = tx_gtf->m_gtf == 0 ? 4 : tx_gtf->m_gtf*2;
+        tx_gtf->gtf = realloc(tx_gtf->gtf, tx_gtf->m_gtf*sizeof(struct gtf));
     }
     exon_gtf = &tx_gtf->gtf[tx_gtf->n_gtf++];
     memcpy(exon_gtf, gtf, sizeof(struct gtf));
@@ -467,7 +503,7 @@ static int parse_str2(struct gtf_spec2 *G, kstring_t *str, int filter)
     gtf.start = str2int(str->s+s[3]);
     gtf.end = str2int(str->s+s[4]);
     char *strand = str->s+s[6];
-    gtf.strand = strand[0] == '+' ? 0 : 1;
+    gtf.strand = strand[0] == '-' ? 1 : 0;
     char *attr = str->s+s[8];
 
     struct gtf_ctg *ctg = dict_query_value(G->name, gtf.seqname);
@@ -486,7 +522,9 @@ static int parse_str2(struct gtf_spec2 *G, kstring_t *str, int filter)
         struct attr_pair *pp = &pair[i];
         if (strcmp(pp->key, "gene_id") == 0)
             gtf.gene_id = dict_push(G->gene_id, pp->val);       
-        else if (strcmp(pp->key, "gene_name") == 0) 
+        else if (strcmp(pp->key, "gene_name") == 0)
+            gtf.gene_name = dict_push(G->gene_name, pp->val);
+        else if (strcmp(pp->key, "gene") == 0) // some gtf use gene instead of gene_name
             gtf.gene_name = dict_push(G->gene_name, pp->val);
         else if (strcmp(pp->key, "transcript_id") == 0) 
             gtf.transcript_id = dict_push(G->transcript_id, pp->val);
@@ -707,7 +745,8 @@ void gtf_clear(struct gtf *gtf)
     for (i = 0; i < gtf->n_gtf; ++i)
         gtf_clear(&gtf->gtf[i]);
     if (gtf->n_gtf) free(gtf->gtf);
-
+    warnings("%s\t%d\t%d",feature_type_names[gtf->type], gtf->start, gtf->end);
+    if (gtf->free == 1) warnings("Double freed");
     if (gtf->attr != NULL) {
         int i;
         for (i = 0; i < dict_size(gtf->attr); ++i) {
@@ -716,9 +755,11 @@ void gtf_clear(struct gtf *gtf)
         }
         dict_destroy(gtf->attr);
     }
-    if (gtf->query)
+
+    if (gtf->query) // usually already freed during indexing
         dict_destroy(gtf->query);
-        
+
+    gtf->free = 1;
 }
 void gtf_destroy2(struct gtf_spec2 *G)
 {
@@ -730,8 +771,17 @@ void gtf_destroy2(struct gtf_spec2 *G)
         int j;
         for (j = 0; j < ctg->n_gtf; ++j)
             gtf_clear(&ctg->gtf[j]);
+
         free(ctg->gtf);
+        free(ctg);
     }
+    dict_destroy(G->name);
+    dict_destroy(G->gene_name);
+    dict_destroy(G->gene_id);
+    dict_destroy(G->transcript_id);
+    dict_destroy(G->sources);
+    dict_destroy(G->attrs);
+    dict_destroy(G->features);
     free(G);
 }
 
