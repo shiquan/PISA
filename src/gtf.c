@@ -400,14 +400,13 @@ static int gtf_push(struct gtf_spec2 *G, struct gtf_ctg *ctg, struct gtf *gtf, i
         
         gene_gtf = &ctg->gtf[ctg->n_gtf++];
 
-        gtf_reset(gene_gtf);
-        
-        memcpy(gene_gtf, gtf, sizeof(struct gtf));
+        gtf_reset(gene_gtf);        
 
         gene_gtf->query = dict_init();
         dict_set_value(gene_gtf->query);
+        dict_assign_value(ctg->gene_idx, gene_idx, gene_gtf);
         if (feature == feature_gene) {
-            dict_assign_value(ctg->gene_idx, gene_idx, gene_gtf);
+            memcpy(gene_gtf, gtf, sizeof(struct gtf));
             return 0;
         }
     }
