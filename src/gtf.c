@@ -406,8 +406,10 @@ static int gtf_push(struct gtf_spec2 *G, struct gtf_ctg *ctg, struct gtf *gtf, i
 
         gene_gtf->query = dict_init();
         dict_set_value(gene_gtf->query);
-        dict_assign_value(ctg->gene_idx, gene_idx, gene_gtf);
-        if (feature == feature_gene) return 0;
+        if (feature == feature_gene) {
+            dict_assign_value(ctg->gene_idx, gene_idx, gene_gtf);
+            return 0;
+        }
     }
 
     if (gtf->transcript_id == -1) error("No transcript found.");
@@ -439,9 +441,11 @@ static int gtf_push(struct gtf_spec2 *G, struct gtf_ctg *ctg, struct gtf *gtf, i
         }
         tx_gtf = &gene_gtf->gtf[gene_gtf->n_gtf++];
         gtf_reset(tx_gtf);
-        memcpy(tx_gtf, gtf, sizeof(struct gtf));
         dict_assign_value(gene_gtf->query, trans_idx, tx_gtf);
-        if (feature == feature_transcript) return 0; // trans record end here
+        if (feature == feature_transcript) {
+            memcpy(tx_gtf, gtf, sizeof(struct gtf));
+            return 0; // trans record end here
+        }
     }
     
     // exon, cds, UTRs etc.
@@ -578,10 +582,11 @@ static struct region_index *ctg_build_idx(struct gtf_ctg *ctg)
         index_bin_push(idx, ctg->gtf[i].start, ctg->gtf[i].end, &ctg->gtf[i]);
     return idx;
 }
-static void gtf_build_index2(struct gtf_spec2 *G)
+static int gtf_build_index2(struct gtf_spec2 *G)
 {
     // update gene and transcript start and end record
     int i;
+    int total_gene = 0;
     for (i = 0; i < dict_size(G->name); ++i) {
         struct gtf_ctg *ctg = dict_query_value(G->name,i);
         assert(ctg);
@@ -590,7 +595,9 @@ static void gtf_build_index2(struct gtf_spec2 *G)
             gtf_sort(&ctg->gtf[j]); // sort gene
             ctg->idx = ctg_build_idx(ctg);
         }
+        total_gene+=ctg->n_gtf;
     }
+    return total_gene;
 }
 
 // key names: gene_id, gene_name, transcript_id,
@@ -707,8 +714,8 @@ struct gtf_spec2 *gtf_read2(const char *fname, int f)
         return NULL;
     }
 
-    gtf_build_index2(G);
-
+    int n_gene = gtf_build_index2(G);
+    LOG_print("Load %d genes.", n_gene);
     free_cache();
     return G;
 
@@ -745,8 +752,7 @@ void gtf_clear(struct gtf *gtf)
     for (i = 0; i < gtf->n_gtf; ++i)
         gtf_clear(&gtf->gtf[i]);
     if (gtf->n_gtf) free(gtf->gtf);
-    warnings("%s\t%d\t%d",feature_type_names[gtf->type], gtf->start, gtf->end);
-    if (gtf->free == 1) warnings("Double freed");
+
     if (gtf->attr != NULL) {
         int i;
         for (i = 0; i < dict_size(gtf->attr); ++i) {
@@ -758,8 +764,6 @@ void gtf_clear(struct gtf *gtf)
 
     if (gtf->query) // usually already freed during indexing
         dict_destroy(gtf->query);
-
-    gtf->free = 1;
 }
 void gtf_destroy2(struct gtf_spec2 *G)
 {
