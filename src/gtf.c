@@ -777,10 +777,11 @@ void gtf_destroy2(struct gtf_spec2 *G)
         struct gtf_ctg *ctg = dict_query_value(G->name, i);
         if (ctg->gene_idx) dict_destroy(ctg->gene_idx);
         region_index_destroy(ctg->idx);
+        
         int j;
         for (j = 0; j < ctg->n_gtf; ++j)
             gtf_clear(&ctg->gtf[j]);
-
+        
         free(ctg->gtf);
         free(ctg);
     }
