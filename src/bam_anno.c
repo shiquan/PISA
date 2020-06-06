@@ -794,7 +794,14 @@ void gtf_anno_string2(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec2 con
     for (i = 0; i < ann->n; ++i) {
         struct gene_type *g = &ann->a[i];
         if (g->type == ann->type) {
-            char *gene = dict_name(G->gene_name, g->gene_name);
+            char *gene;
+            if (g->gene_name == -1) {
+                gene = dict_name(G->gene_id, g->gene_id);
+            }
+            else {
+                gene = dict_name(G->gene_name, g->gene_name);
+            }
+            
             char *id   = dict_name(G->gene_id, g->gene_id);
             
             if (gene_name.l) {

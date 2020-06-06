@@ -550,8 +550,14 @@ static int parse_str2(struct gtf_spec2 *G, kstring_t *str, int filter)
     free(pair);
     free(s);
 
-    if (gtf.gene_id == -1)
-        return 1; // no gene id
+    if (gtf.gene_id == -1 && gtf.gene_name == -1) {
+        warnings("Record %s:%s:%d-%d has no gene_name and gene_id. Skip.", dict_name(G->name, gtf.seqname), feature_type_names[qry], gtf.start, gtf.end);
+        return 1;
+    }
+    if (gtf.gene_id == -1) {
+        warnings("Record %s:%s:%d-%d has no gene_id use gene_name instead.", dict_name(G->name, gtf.seqname), feature_type_names[qry], gtf.start, gtf.end);
+        gtf.gene_id = dict_push(G->gene_id, dict_name(G->gene_name, gtf.gene_name));
+    }
 
     gtf_push(G, ctg, &gtf, qry);
 
@@ -720,7 +726,7 @@ struct gtf_spec2 *gtf_read2(const char *fname, int f)
 
 }
 
-struct region_itr *gtf_query2(struct gtf_spec2 *G, char *name, int start, int end)
+struct region_itr *gtf_query2(struct gtf_spec2 const *G, char *name, int start, int end)
 {
     int id = dict_query(G->name, name);
     if (id == -1) return NULL;

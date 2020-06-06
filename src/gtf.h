@@ -100,7 +100,7 @@ struct gtf_spec *gtf_read(const char *fname, int filter);
 struct region_itr *gtf_query(struct gtf_spec *G, char *name, int start, int end);
 
 struct gtf_spec2 *gtf_read2(const char *fname, int filter);
-struct region_itr *gtf_query2(struct gtf_spec2 *G, char *name, int start, int end);
+struct region_itr *gtf_query2(struct gtf_spec2 const *G, char *name, int start, int end);
 void gtf_destroy2(struct gtf_spec2 *G);
 
 #endif
