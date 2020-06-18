@@ -192,8 +192,8 @@ static struct attr_pair *split_gff(kstring_t *str, int *_n)
         
         if (str->s[i] == '"')  {
             ++i; // skip comma
-            for (;i < str->l-1;) {
-                if (str->s[i] == '"' && i +1 == str->l) {
+            for (;i < str->l;) {
+                if (str->s[i] == '"' || i+1 == str->l) {
                     i++; // skip ;
                     i++; // next record
                     break;
@@ -203,7 +203,7 @@ static struct attr_pair *split_gff(kstring_t *str, int *_n)
             }
         }
 
-        while (isspace(str->s[i])) ++i; // emit ends
+        while (i < str->l && isspace(str->s[i])) ++i; // emit ends
         pair[n].key = name.s;
         pair[n].val = val.s;
         n++;
@@ -417,7 +417,7 @@ static int gtf_push(struct gtf_spec2 *G, struct gtf_ctg *ctg, struct gtf *gtf, i
         }
     }
 
-    if (gtf->transcript_id == -1) error("No transcript found.");
+    if (gtf->transcript_id == -1) error("No transcript found. %s:%s:%d:%d", feature_type_names[feature], dict_name(G->name, gtf->seqname), gtf->start, gtf->end);
     
     // no gene record
     if (gene_gtf->query == NULL) {
