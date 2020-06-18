@@ -13,27 +13,6 @@ KSTREAM_INIT(gzFile, gzread, 8193)
 
 KHASH_MAP_INIT_INT(attr, char*)
 
-
-static const char *feature_type_names[] = {
-    // The following feature types are required: "gene", "transcript"
-    "gene",
-    "transcript",
-    // The features "CDS", "start_codon", "stop_codon", "5UTR", "3UTR", "inter", "inter_CNS", "intron_CNS" and "exon" are optional.
-    "CDS",
-    "start_codon",
-    "stop_codon",
-    "5UTR",
-    "3UTR",
-    "inter",
-    "inter_CNS",
-    "intron_CNS",
-    "exon",
-    "five_prime_utr",
-    "three_prime_utr",
-    "Selenocysteine"
-    // All other features will be ignored. The types must have the correct capitalization shown here.
-};
-
 struct _ctg_idx {
     int offset;
     int idx;
@@ -415,6 +394,7 @@ static int gtf_push(struct gtf_spec2 *G, struct gtf_ctg *ctg, struct gtf *gtf, i
             memcpy(gene_gtf, gtf, sizeof(struct gtf));
             return 0;
         }
+        gene_gtf->type = feature_gene;
     }
 
     if (gtf->transcript_id == -1) error("No transcript found. %s:%s:%d:%d", feature_type_names[feature], dict_name(G->name, gtf->seqname), gtf->start, gtf->end);
@@ -425,6 +405,7 @@ static int gtf_push(struct gtf_spec2 *G, struct gtf_ctg *ctg, struct gtf *gtf, i
         dict_set_value(gene_gtf->query);
     }
 
+    // inhert gene name
     if (gene_gtf->gene_id == -1) 
         gene_gtf->gene_id = gtf->gene_id;
     if (gene_gtf->gene_name == -1)
@@ -432,12 +413,12 @@ static int gtf_push(struct gtf_spec2 *G, struct gtf_ctg *ctg, struct gtf *gtf, i
     
     int trans_idx = dict_pushInt(gene_gtf->query, gtf->transcript_id);
     struct gtf *tx_gtf = dict_query_value(gene_gtf->query, trans_idx);
-
+    
     if (feature == feature_transcript && tx_gtf != NULL) {
         warnings("Duplicated transcript record? %s", dict_name(G->transcript_id, gtf->transcript_id));
         return 1;
     }
-
+    
     // setup transcript record
     if (tx_gtf == NULL) {
         if (gene_gtf->n_gtf == gene_gtf->m_gtf) {
@@ -451,7 +432,13 @@ static int gtf_push(struct gtf_spec2 *G, struct gtf_ctg *ctg, struct gtf *gtf, i
             memcpy(tx_gtf, gtf, sizeof(struct gtf));
             return 0; // trans record end here
         }
+        tx_gtf->type = feature_transcript;
     }
+
+    // inhert gene and transcript name 
+    if (tx_gtf->gene_id == -1) tx_gtf->gene_id = gtf->gene_id;
+    if (tx_gtf->gene_name == -1) tx_gtf->gene_name = gtf->gene_name;
+    if (tx_gtf->transcript_id == -1) tx_gtf->transcript_id = gtf->transcript_id;
     
     // exon, cds, UTRs etc.
     reset_cache();
@@ -580,9 +567,11 @@ static void gtf_sort(struct gtf *gtf)
         qsort((struct gtf*)gtf->gtf, gtf->n_gtf, sizeof(struct gtf), cmpfunc);
         int j;
         for (j = 0; j < gtf->n_gtf; ++j) {
-            if (gtf->start > gtf->gtf[j].start) gtf->start = gtf->gtf[j].start;
+            if (gtf->start < 0) gtf->start = gtf->gtf[j].start;
+            else if (gtf->start > gtf->gtf[j].start) gtf->start = gtf->gtf[j].start;
             if (gtf->end < gtf->gtf[j].end) gtf->end = gtf->gtf[j].end;
         }
+        assert(gtf->start < gtf->end);
     }
 }
 static struct region_index *ctg_build_idx(struct gtf_ctg *ctg)

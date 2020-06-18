@@ -491,8 +491,6 @@ static enum exon_type query_exon(int start, int end, struct gtf_lite const *G, i
         if (start < g0->end && end > g0->end) return type_exon_intron;
 
         if (start < g0->start && end > g0->start) return type_exon_intron;
-
-        debug_print("start : %d, end : %d, %d-%d", start, end, g0->start, g0->end);
     }
 
     return type_unknown; // out of range
@@ -521,8 +519,6 @@ static enum exon_type query_exon2(int start, int end, struct gtf const *G, int *
         if (start < g0->end && end > g0->end) return type_exon_intron;
 
         if (start < g0->start && end > g0->start) return type_exon_intron;
-
-        debug_print("start : %d, end : %d, %d-%d", start, end, g0->start, g0->end);
     }
 
     return type_unknown; // out of range
@@ -798,15 +794,10 @@ void gtf_anno_string2(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec2 con
     for (i = 0; i < ann->n; ++i) {
         struct gene_type *g = &ann->a[i];
         if (g->type == ann->type) {
-            char *gene;
-            if (g->gene_name == -1) {
-                gene = dict_name(G->gene_id, g->gene_id);
-            }
-            else {
-                gene = dict_name(G->gene_name, g->gene_name);
-            }
-            
-            char *id   = dict_name(G->gene_id, g->gene_id);
+            char *gene = NULL;
+            char *id = NULL;
+            if (g->gene_name != -1) gene = dict_name(G->gene_name, g->gene_name);
+            if (g->gene_id != -1) id = dict_name(G->gene_id, g->gene_id);
             
             if (gene_name.l) {
                 kputc(';', &gene_name);
@@ -814,6 +805,9 @@ void gtf_anno_string2(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec2 con
                 kputc(';', &trans_id);
             }
 
+            if (gene == NULL && id == NULL) error("No gene name or gene id in gtf? %s", (char*)b->data);
+            if (gene == NULL) id = gene;
+            if (id == NULL) gene = id;
             kputs(gene, &gene_name);
             kputs(id, &gene_id);
             int j;
