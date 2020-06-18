@@ -134,7 +134,8 @@ int anno_usage()
     fprintf(stderr, " -gtf      [GTF]       GTF annotation file. -gtf is conflict with -bed, if set strand will be consider.\n");
     fprintf(stderr, " -tags     [TAGS]      Attribute names. Default is TX,AN,GN,GX,RE.\n");
     fprintf(stderr, " -ignore-strand        Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be count.\n");
-    fprintf(stderr, " -splice-consider      Reads covered exon-intron edge will also be count.\n");
+    fprintf(stderr, " -splice               Reads covered exon-intron edge will also be count.\n");
+    fprintf(stderr, " -intron               Reads covered intron regions will be count.\n");
     fprintf(stderr, " -t        [INT]       Threads to annotate.\n");
     fprintf(stderr, " -chunk    [INT]       Chunk size per thread.\n");
     fprintf(stderr, "\nNotice :\n");
