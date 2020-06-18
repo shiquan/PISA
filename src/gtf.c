@@ -175,19 +175,25 @@ static struct attr_pair *split_gff(kstring_t *str, int *_n)
             m += 4;
             pair = realloc(pair, sizeof(struct attr_pair)*m);
         }
+
+        int j = str->l -1;
+        while (isspace(str->s[j]) || str->s[j] == ';') j--;
+        str->l = j+1;
+        str->s[str->l] = '\0';
+        
         kstring_t name = {0,0,0};
         kstring_t val = {0,0,0};
-        while (!isspace(str->s[i]) && str->s[i] != ';') {
+        while (i < str->l && !isspace(str->s[i]) && str->s[i] != ';') {
             kputc(str->s[i], &name);
             ++i;
         }
 
-        while (isspace(str->s[i]) || str->s[i] == ';') ++i;
+        while (i < str->l && isspace(str->s[i]) || str->s[i] == ';') ++i;
         
         if (str->s[i] == '"')  {
             ++i; // skip comma
             for (;i < str->l-1;) {
-                if (str->s[i] == '"' && str->s[i+1] == ';') {
+                if (str->s[i] == '"' && i +1 == str->l) {
                     i++; // skip ;
                     i++; // next record
                     break;
