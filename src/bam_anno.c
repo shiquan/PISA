@@ -63,6 +63,7 @@ static struct args {
     uint64_t reads_input;
     uint64_t reads_pass_qc;
 
+    int map_qual;
     struct dict *group_stat;
 
     int debug_mode;
@@ -81,7 +82,8 @@ static struct args {
     
     .ignore_strand   = 0,
     .splice_consider = 0,
-    
+    .intron_consider = 0,
+    .map_qual        = 0,
     .n_thread = 1,
     .chunk_size = 100000,
     .fp              = NULL,
@@ -155,7 +157,7 @@ static int parse_args(int argc, char **argv)
     const char *thread = NULL;
     const char *chunk = NULL;
     const char *file_thread = NULL;
-    
+    const char *map_qual = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -167,6 +169,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-chunk") == 0) var = &chunk;
+        else if (strcmp(a, "-q") == 0) var = &map_qual;
         else if (strcmp(a, "-debug") == 0) {
             args.debug_mode = 1;
             continue;
@@ -183,6 +186,7 @@ static int parse_args(int argc, char **argv)
             args.intron_consider = 1;
             continue;
         }
+        
         // group options
         else if (strcmp(a, "-group") == 0) var = &args.group_tag;
 
@@ -219,7 +223,9 @@ static int parse_args(int argc, char **argv)
     
     if (thread) args.n_thread = str2int((char*)thread);
     if (chunk) args.chunk_size = str2int((char*)chunk);
-
+    if (map_qual) args.map_qual = str2int((char*)map_qual);
+    if (args.map_qual < 0) args.map_qual = 0;
+    
     int file_th = 1;
     if (file_thread)
         file_th = str2int((char*)file_thread);
@@ -1155,6 +1161,7 @@ void *run_it(void *_d)
         c = &b->core;
 
         if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) continue;
+        if (c->qual <= args.map_qual) continue;
         dat->reads_pass_qc++;
 
         if (args.G)
@@ -1218,7 +1225,7 @@ void write_report()
 {
     if (dict_size(args.group_stat) == 1) {
         struct read_stat *s0 = (struct read_stat*)dict_query_value(args.group_stat, 0);
-        fprintf(args.fp_report, "Reads Mapped to Genome,%.1f%%\n", (float)args.reads_pass_qc/args.reads_input*100);
+        fprintf(args.fp_report, "Reads Mapped to Genome (Map Quality > %d),%.1f%%\n", args.map_qual, (float)args.reads_pass_qc/args.reads_input*100);
         
         if (args.B) {
             fprintf(args.fp_report, "Reads Mapped to BED regions / Peaks,%.1f%%\n", (float)s0->reads_in_region/args.reads_pass_qc*100);

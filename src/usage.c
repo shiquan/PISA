@@ -124,6 +124,7 @@ int anno_usage()
     fprintf(stderr, " -o        [BAM]       Output bam file.\n");
     fprintf(stderr, " -report   [csv]       Summary report.\n");
     fprintf(stderr, " -@        [INT]       Threads to compress bam file.\n");
+    fprintf(stderr, " -q        [0]         Map Quality Score cutoff. MapQ smaller and equal to this value will not be annotated.\n");
     fprintf(stderr, "\nOptions for BED file :\n");
     fprintf(stderr, " -bed      [BED]       Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
     fprintf(stderr, " -tag      [TAG]       Attribute tag name. Set with -bed.\n");
@@ -131,11 +132,11 @@ int anno_usage()
     fprintf(stderr, " -chr-species  [file]  Chromosome name and related species binding list.\n");
     fprintf(stderr, " -btag     [TAG]       Species tag name. Set with -chr-species.\n");
     fprintf(stderr, "\nOptions for GTF file :\n");
-    fprintf(stderr, " -gtf      [GTF]       GTF annotation file. -gtf is conflict with -bed, if set strand will be consider.\n");
+    fprintf(stderr, " -gtf      [GTF]       GTF annotation file. gene_id,transcript_id is required for each record.\n");
     fprintf(stderr, " -tags     [TAGS]      Attribute names. Default is TX,AN,GN,GX,RE.\n");
-    fprintf(stderr, " -ignore-strand        Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be count.\n");
-    fprintf(stderr, " -splice               Reads covered exon-intron edge will also be count.\n");
-    fprintf(stderr, " -intron               Reads covered intron regions will be count.\n");
+    fprintf(stderr, " -ignore-strand        Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be annotated.\n");
+    fprintf(stderr, " -splice               Reads covered exon-intron edge will also be annotated.\n");
+    fprintf(stderr, " -intron               Reads covered intron regions will be annotated.\n");
     fprintf(stderr, " -t        [INT]       Threads to annotate.\n");
     fprintf(stderr, " -chunk    [INT]       Chunk size per thread.\n");
     fprintf(stderr, "\nNotice :\n");
@@ -144,7 +145,7 @@ int anno_usage()
     fprintf(stderr, "   AN : Same with TX but set only if read mapped to antisense strand of transcript.\n");
     fprintf(stderr, "   GN : Gene name.\n");
     fprintf(stderr, "   GX : Gene ID.\n");
-    fprintf(stderr, "   RE : Region type, should E (exon), N (intron), S (junction reads cover isoforms), V (juctions reads cover unknown isoforms)\n");
+    fprintf(stderr, "   RE : Region type, E (Exon), I (Intron), C (Exon and Intron), S (junction reads cover isoforms properly), V (ambiguous reads, junction reads cover isoforms unproperly)\n");
     fprintf(stderr, "\n");
     return 1;
 }
