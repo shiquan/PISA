@@ -188,7 +188,7 @@ static struct attr_pair *split_gff(kstring_t *str, int *_n)
             ++i;
         }
 
-        while (i < str->l && isspace(str->s[i]) || str->s[i] == ';') ++i;
+        while (isspace(str->s[i]) || str->s[i] == ';') ++i;
         
         if (str->s[i] == '"')  {
             ++i; // skip comma
