@@ -746,7 +746,6 @@ enum exon_type bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G)
 void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
 {
     enum exon_type type = bam_gtf_anno_core(b, G);
-
     bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)RE_tags[type]);
     
     if (type == type_exon) stat->reads_in_exon++;
