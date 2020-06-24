@@ -355,7 +355,9 @@ struct ret_dat {
 static char *exon_type_names[] = {
     "Unknown", "Exon", "Intron", "ExonIntron", "Antisense", "Splice", "Ambiguous", "Intergenic"
 };
-
+static char *RE_tags[] = {
+    "U", "E", "N", "C", "A", "S", "V", "I",
+};
 enum exon_type {
     type_unknown = 0,  // unknown type, init state
     type_exon,     // read full covered in exon
@@ -406,10 +408,7 @@ static void gtf_anno_print(struct gtf_anno_type *ann, struct gtf_spec const *G)
             fprintf(stderr, "  Trans : %s, %s\n", dict_name(G->transcript_id, g->a[j].trans_id), exon_type_names[g->a[j].type]);       
     }
 }
-static void gtf_anno_antisense(bam1_t *b)
-{
-    bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"A");
-}
+
 // type_exon == type_splice > type_exon_intron > type_ambiguous > type_intron > type_anitisense == type_unknown
 static void gene_most_likely_type(struct gene_type *g)
 {
@@ -602,29 +601,11 @@ void gtf_anno_push(struct trans_type *a, struct gtf_anno_type *ann, int gene_id,
 }
 void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const *G)
 {
+    // 
     if (ann->type == type_unknown) return;
-    
-    else if (ann->type == type_intron) { 
-        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"I");
-        if (args.intron_consider == 0) return;  // for default, only annotate intron type 
-    }
-
-    else if (ann->type == type_exon_intron) {
-        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"C");
-        if (args.splice_consider == 0 && args.intron_consider == 0) return; // 
-    }
-
-    else if (ann->type == type_ambiguous) {
-        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"V");
-        return;
-    }
-
-    else if (ann->type == type_exon) 
-        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"E");
-    else if (ann->type == type_exon_intron)  // splice_consider already be set
-        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"C");
-    else if (ann->type == type_splice)
-        bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)"S");
+    else if (ann->type == type_intron && args.intron_consider == 0) return;  // for default, only annotate intron type 
+    else if (ann->type == type_exon_intron && args.splice_consider == 0 && args.intron_consider == 0) return; // 
+    else if (ann->type == type_ambiguous) return;
 
     // only exon or splice come here
     kstring_t gene_name = {0,0,0};
@@ -672,10 +653,9 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
         free(gene_name.s);
         free(trans_id.s);
     }
-
 }
 
-enum exon_type bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
+enum exon_type bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G)
 {
     bam_hdr_t *h = args.hdr;
     
@@ -743,13 +723,8 @@ enum exon_type bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_sta
     // stat type
     gtf_anno_most_likely_type(ann);
     if (ann->type == type_unknown) {
-        if (antisense == 1) {
-            gtf_anno_antisense(b);
-            ret_type = type_antisense;
-        }
-        else { // not fully convered
-            ret_type = type_intergenic;
-        }
+        if (antisense == 1) ret_type = type_antisense;
+        else ret_type = type_intergenic; // not fully convered
     }
     else {
 
@@ -767,6 +742,21 @@ enum exon_type bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_sta
     region_itr_destroy(itr);
 
     return ret_type;
+}
+void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
+{
+    enum exon_type type = bam_gtf_anno_core(b, G);
+
+    bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)RE_tags[type]);
+    
+    if (type == type_exon) stat->reads_in_exon++;
+    else if (type == type_splice) stat->reads_in_exon++; // reads cover two exomes
+    else if (type == type_intron) stat->reads_in_intron++;
+    else if (type == type_exon_intron) stat->reads_in_exonintron++;
+    else if (type == type_ambiguous) stat->reads_ambiguous++; // new transcript
+    else if (type == type_intergenic) stat->reads_in_intergenic++;
+    else if (type == type_antisense) stat->reads_antisense++;
+    else error("Unknown type? %s", exon_type_names[type]);
 }
 
 void bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
@@ -889,20 +879,8 @@ void *run_it(void *_d)
 
         dat->reads_pass_qc++;
 
-        if (args.G) {
-            enum exon_type type = bam_gtf_anno(b, args.G, stat);
-
-            if (type == type_exon) stat->reads_in_exon++;
-            else if (type == type_splice) stat->reads_in_exon++; // reads cover two exomes
-            else if (type == type_intron) stat->reads_in_intron++;
-            else if (type == type_exon_intron) stat->reads_in_exonintron++;
-            else if (type == type_ambiguous) stat->reads_ambiguous++; // new transcript
-            else if (type == type_intergenic) stat->reads_in_intergenic++;
-            else if (type == type_antisense) stat->reads_antisense++;
-            else error("Unknown type? %s", exon_type_names[type]);
-            
-        }
-
+        if (args.G) 
+            bam_gtf_anno(b, args.G, stat);
 
         if (args.B)
             bam_bed_anno(b, args.B, stat);
