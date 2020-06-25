@@ -874,7 +874,7 @@ void *run_it(void *_d)
         c = &b->core;
         // QC
         if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) continue;
-        if (c->qual <= args.map_qual) continue;
+        if (c->qual < args.map_qual) continue;
 
         dat->reads_pass_qc++;
 
@@ -940,7 +940,7 @@ void write_report()
 {
     if (dict_size(args.group_stat) == 1) {
         struct read_stat *s0 = (struct read_stat*)dict_query_value(args.group_stat, 0);
-        fprintf(args.fp_report, "Reads Mapped to Genome (Map Quality > %d),%.1f%%\n", args.map_qual, (float)args.reads_pass_qc/args.reads_input*100);
+        fprintf(args.fp_report, "Reads Mapped to Genome (Map Quality >= %d),%.1f%%\n", args.map_qual, (float)args.reads_pass_qc/args.reads_input*100);
         
         if (args.B) {
             fprintf(args.fp_report, "Reads Mapped to BED regions / Peaks,%.1f%%\n", (float)s0->reads_in_region/args.reads_pass_qc*100);
