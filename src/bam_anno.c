@@ -620,9 +620,9 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
     }
 }
 
-struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G)
+struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam_hdr_t *h)
 {
-    bam_hdr_t *h = args.hdr;
+    //bam_hdr_t *h = args.hdr;
     bam1_core_t *c;
     c = &b->core;
     
@@ -707,7 +707,7 @@ void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     if ((data = bam_aux_get(b, GX_tag)) != NULL) bam_aux_del(b, data);
     if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
 
-    struct gtf_anno_type *ann = bam_gtf_anno_core(b, G);
+    struct gtf_anno_type *ann = bam_gtf_anno_core(b, G, args.hdr);
     
     bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)RE_tags[ann->type]);
 

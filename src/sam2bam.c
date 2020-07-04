@@ -352,7 +352,7 @@ static void sam_stat_reads(bam1_t *b, struct summary *s, int *flag, struct args 
         }    
     }    
 }
-extern struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G);
+extern struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam_hdr_t *h);
 
 // return 0 on not correct, 1 on corrected
 int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
@@ -363,7 +363,7 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
     for (i = 0; i < n; ++i) {
         bam1_t *bam = b[i];
         bam1_core_t *c = &bam->core;
-        struct gtf_anno_type *ann = bam_gtf_anno_core(bam, G);
+        struct gtf_anno_type *ann = bam_gtf_anno_core(bam, G, args.hdr);
         // read mapped in exon will be selected
         if (ann->type != type_exon &&
             ann->type != type_splice &&
@@ -435,7 +435,7 @@ int bam_pool_qual_corr(struct sam_pool *p)
         bam1_t **b = malloc(n*sizeof(void*));
         
         int j;
-        for (j = 0; j < ed-st+1; ++j) b[j] = b[st+j];
+        for (j = 0; j < ed-st+1; ++j) b[j] = p->bam[st+j];
         corred += bam_map_qual_corr(b, n, args.G, args.qual_corr);
 
         i = ed+1; // jump to next read
