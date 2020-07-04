@@ -389,6 +389,10 @@ struct gtf_spec *gtf_spec_init()
 }
 struct gtf_spec *gtf_read(const char *fname, int f)
 {
+    LOG_print("GTF loading..");
+    double t_real;
+    t_real = realtime();
+
     gzFile fp;
     fp = gzopen(fname, "r");
     CHECK_EMPTY(fp, "%s : %s.", fname, strerror(errno));
@@ -420,6 +424,7 @@ struct gtf_spec *gtf_read(const char *fname, int f)
     int n_gene = gtf_build_index(G);
     LOG_print("Load %d genes.", n_gene);
     free_cache();
+    LOG_print("Load time : %.3f sec", realtime() - t_real);
     return G;
 
 }

@@ -247,13 +247,8 @@ static int parse_args(int argc, char **argv)
     }
 
     if (args.gtf_fname) {
-        LOG_print("Loading GTF.");
-        double t_real;
-        t_real = realtime();
-        
+
         args.G = gtf_read(args.gtf_fname, 1);
-        LOG_print("Load time : %.3f sec", realtime() - t_real);
-        
         if (args.G == NULL) error("GTF is empty.");
         if (tags) {
             kstring_t str = {0,0,0};
