@@ -44,7 +44,6 @@ static struct args {
     // file names
     const char *input_fname;  // alignment input, only SAM format is required
     const char *output_fname; // BAM output, only support BAM format, default is stdout
-    //const char *filter_fname; // if filter BAM file is set, filtered reads will output in this file
     const char *report_fname; // summary report for whole file
 
     const char *mito; // mitochrondria name, the mito ratio will export in the summary report
@@ -369,6 +368,7 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
             ann->type != type_splice &&
             ann->type != type_exon_intron) continue;
         if (c->flag & BAM_FSECONDARY) best_bam = i;
+        best_hits++;
     }
     // only one secondary alignment hit exonic region
     if (best_hits > 1) return 0;
@@ -382,9 +382,9 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
             int flag = BAM_FSECONDARY;            
             c->flag &= ~flag;
             c->qual = qual;
-            uint8_t *f=NULL;
-            *f = 1;
-            bam_aux_append(bam, "MM", 'i', 1, f);
+            //uint8_t *f=NULL;
+            //*f = 1;
+            //bam_aux_append(bam, "MM", 'i', 1, f);
         }
         else {
             c->flag |= BAM_FSECONDARY;
