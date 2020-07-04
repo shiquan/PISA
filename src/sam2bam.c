@@ -1,15 +1,18 @@
 // Convert SAM records to BAM and parse barcode tag from read name to SAM attributions
 #include "utils.h"
-#include "thread_pool.h"
 #include "number.h"
-#include "barcode_list.h"
+#include "htslib/thread_pool.h"
 #include "htslib/hts.h"
 #include "htslib/sam.h"
 #include "htslib/kstring.h"
 #include "htslib/khash.h"
 #include "htslib/kseq.h"
 #include "htslib/bgzf.h"
+#include "thread_pool_internal.h"
 #include <zlib.h>
+#include <pthread.h>
+#include "gtf.h"
+#include "read_anno.h"
 
 KSTREAM_INIT(gzFile, gzread, 16384)
 
@@ -19,7 +22,7 @@ KSTREAM_INIT(gzFile, gzread, 16384)
 #define FLG_FLT  2
 
 // summary structure for final report
-struct reads_summary {
+struct summary {
     uint64_t n_reads, n_mapped, n_pair_map, n_pair_all, n_pair_good;
     uint64_t n_sgltn, n_read1, n_read2;
     uint64_t n_diffchr, n_pstrand, n_mstrand;
@@ -27,37 +30,13 @@ struct reads_summary {
     uint64_t n_mito;
     //uint64_t n_usable;
     uint64_t n_failed_to_parse;
+    uint64_t n_adj;
+    uint64_t n_corr; // mapq corrected
 };
-static struct reads_summary *reads_summary_create()
+static struct summary *summary_create()
 {
-    struct reads_summary *s = malloc(sizeof(*s));
+    struct summary *s = malloc(sizeof(*s));
     memset(s, 0, sizeof(*s));
-    return s;
-}
-static struct reads_summary *merge_reads_summary(struct reads_summary **rs, int n)
-{
-    struct reads_summary *s = reads_summary_create();
-
-    int i;
-    for (i = 0; i < n; ++i) {
-
-        struct reads_summary *s0 = rs[i];
-
-        s->n_reads     += s0->n_reads;
-        s->n_mapped    += s0->n_mapped;
-        s->n_pair_map  += s0->n_pair_map;
-        s->n_pair_all  += s0->n_pair_all;
-        s->n_pair_good += s0->n_pair_good;
-        s->n_sgltn     += s0->n_sgltn;
-        s->n_read1     += s0->n_read1;
-        s->n_read2     += s0->n_read2;
-        s->n_diffchr   += s0->n_diffchr;
-        s->n_pstrand   += s0->n_pstrand;
-        s->n_mstrand   += s0->n_mstrand;
-        // s->n_qual      += s0->n_qual;
-        s->n_mito      += s0->n_mito;
-        //s->n_usable    += s0->n_usable;
-    }
     return s;
 }
 
@@ -70,6 +49,12 @@ static struct args {
 
     const char *mito; // mitochrondria name, the mito ratio will export in the summary report
     const char *mito_fname; // if set, mitochrondria reads passed QC will be exported in this file
+
+    const char *gtf_fname; // gtf is required if -adjust-mapq set
+
+    int qual_corr;
+    int enable_corr;
+    struct gtf_spec *G;
     
     int n_thread;
     int buffer_size;  // buffered records in each chunk
@@ -77,7 +62,7 @@ static struct args {
     gzFile fp;        // input file handler
     kstream_t *ks;    // input streaming
     htsFile *fp_out;     // output file handler
-    //BGZF *fp_filter;  // filtered reads file handler
+
     BGZF *fp_mito;    // if not set, mito reads will be treat at filtered reads
     FILE *fp_report;  // report file handler
     
@@ -85,45 +70,35 @@ static struct args {
 
     char *preload_record;
 
-    struct reads_summary **thread_data; // summary data for each thread
-
-    int fixmate_flag; // if set, fix the mate relationship of paired reads first
-
-    // int qual_thres; // mapping quality threshold to filter
+    struct summary *summary;
 
     int mito_id;
-    //int PE_flag;
-//    int keep_all;
-} args = {
-    .input_fname = NULL,
-    .output_fname = NULL,
-    //.filter_fname = NULL,
-    .report_fname = NULL,
-    //.btable_fname = NULL,
-    .mito = "chrM",
-    .mito_fname = NULL,
-    
-    .n_thread = 1,
-   .buffer_size = 1000000, // 1M
-    .file_th  = 1,
-    .fp = NULL,
-    .ks = NULL,
-    .fp_out = NULL,
-    //.fp_filter = NULL,
-    .fp_mito = NULL,
-    .fp_report = NULL,
-    
-    .hdr = NULL,
-    .preload_record = NULL,
-    
-    .thread_data = NULL,
 
-    .fixmate_flag = 0,
-    // .qual_thres = 10,
-    .mito_id = -2,
-    // .PE_flag = 0,
-    //  .keep_all = 0,
+} args = {
+    .input_fname       = NULL,
+    .output_fname      = NULL,
+    .report_fname      = NULL,
+    .gtf_fname         = NULL,
+    .mito              = "chrM",
+    .mito_fname        = NULL,
+    .qual_corr         = 255,
+    .enable_corr       = 0,
+    .G                 = NULL,
+    .n_thread          = 1,
+    .buffer_size       = 1000000, // 1M
+    .file_th           = 1,
+    .fp                = NULL,
+    .ks                = NULL,
+    .fp_out            = NULL,
+    .fp_mito           = NULL,
+    .fp_report         = NULL,
+    .hdr               = NULL,
+    .preload_record    = NULL,
+    .summary           = NULL,
+    .mito_id           = -2,
 };
+
+pthread_mutex_t global_data_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Buffer input and output records in a memory pool per thread
 struct sam_pool {
@@ -267,7 +242,7 @@ static void write_out(struct sam_pool *p)
 }
 static void summary_report(struct args *opts)
 {
-    struct reads_summary *summary = merge_reads_summary(opts->thread_data, opts->n_thread);
+    struct summary *summary = opts->summary;
     if (opts->fp_report) {
         fprintf(opts->fp_report,"Raw reads,%"PRIu64"\n", summary->n_reads);
         fprintf(opts->fp_report,"Mapped reads,%"PRIu64" (%.2f%%)\n", summary->n_mapped, (float)summary->n_mapped/summary->n_reads*100);
@@ -286,8 +261,6 @@ static void summary_report(struct args *opts)
         if (summary->n_failed_to_parse > 0)
             fprintf(opts->fp_report,"Failed to parse reads,%"PRIu64"\n", summary->n_failed_to_parse);
     }
-
-    free(summary);
 }
 
 static int parse_name_str(kstring_t *s)
@@ -333,7 +306,7 @@ static int parse_name_str(kstring_t *s)
 
     return 0;
 }
-static void sam_stat_reads(bam1_t *b, struct reads_summary *s, int *flag, struct args *opts)
+static void sam_stat_reads(bam1_t *b, struct summary *s, int *flag, struct args *opts)
 {
     bam1_core_t *c = &b->core;
     s->n_reads++;
@@ -375,78 +348,142 @@ static void sam_stat_reads(bam1_t *b, struct reads_summary *s, int *flag, struct
             s->n_pair_map++;
             if (c->mtid != c->tid) {
                 s->n_diffchr++;
-                }
+            }
         }    
     }    
 }
-static void *sam_name_parse(void *_p, int idx)
+extern struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G);
+
+// return 0 on not correct, 1 on corrected
+int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
+{
+    int i;
+    int best_hits = 0;
+    int best_bam  = -1;    
+    for (i = 0; i < n; ++i) {
+        bam1_t *bam = b[i];
+        bam1_core_t *c = &bam->core;
+        struct gtf_anno_type *ann = bam_gtf_anno_core(bam, G);
+        // read mapped in exon will be selected
+        if (ann->type != type_exon &&
+            ann->type != type_splice &&
+            ann->type != type_exon_intron) continue;
+        if (c->flag & BAM_FSECONDARY) best_bam = i;
+    }
+    // only one secondary alignment hit exonic region
+    if (best_hits > 1) return 0;
+    if (best_bam == -1) return 0; 
+
+    // update the mapping quality and flag
+    for (i = 0; i < n; ++i) {
+        bam1_t *bam = b[i];
+        bam1_core_t *c = &bam->core;
+        if (i == best_bam) {
+            int flag = BAM_FSECONDARY;            
+            c->flag &= ~flag;
+            c->qual = qual;
+            uint8_t *f=NULL;
+            *f = 1;
+            bam_aux_append(bam, "MM", 'i', 1, f);
+        }
+        else {
+            c->flag |= BAM_FSECONDARY;
+            c->qual = 0;
+        }
+    }
+    return 1;
+}
+// return 0 on same read, 1 on differnt name
+int bam_same(bam1_t *a, bam1_t *b)
+{
+    if (strcmp((char*)a->data, (char*)b->data) == 1) return 1;
+    if ((a->core.flag & BAM_FREAD1) && (b->core.flag & BAM_FREAD2)) return 1;
+    if ((a->core.flag & BAM_FREAD2) && (b->core.flag & BAM_FREAD1)) return 1;
+    return 0;
+}
+int bam_pool_qual_corr(struct sam_pool *p)
+{
+    int i;
+    int corred = 0;
+    for (i = 0; i < p->n; ) {
+        bam1_t *bam = p->bam[i];
+        if (bam == NULL) {
+            i++;continue;
+        }
+        
+        bam1_core_t *c = &bam->core;
+
+        // only correct multi-hits        
+        if (!(c->flag & BAM_FSECONDARY)) {
+            i++; continue;
+        }
+
+        int st,ed;
+        for (st = i-1; st >= 0; --st) 
+            if (bam_same(bam, p->bam[st]) != 0) break;
+       
+        st++; // move point back to same record
+        
+        for (ed = i+1; ed < p->n; ++ed)
+            if (bam_same(bam, p->bam[ed]) != 0) break;
+
+        ed--; // move point back
+        
+        if (ed-st==0) break; // only one record, no need to corr
+        
+        int n = ed-st+1;
+        bam1_t **b = malloc(n*sizeof(void*));
+        
+        int j;
+        for (j = 0; j < ed-st+1; ++j) b[j] = b[st+j];
+        corred += bam_map_qual_corr(b, n, args.G, args.qual_corr);
+
+        i = ed+1; // jump to next read
+    }
+    return corred;
+}
+
+static void *sam_name_parse(void *_p)
 {
     struct sam_pool *p = (struct sam_pool*)_p;
     struct args *opts = p->opts;
-    struct reads_summary *summary = opts->thread_data[idx];    
+    struct summary *s0 = summary_create();
     bam_hdr_t *h = opts->hdr;
-    // if (opts->PE_flag == 0) {
+
     int i;
     for (i = 0; i < p->n; ++i) {
         parse_name_str(p->str[i]);
         if (sam_parse1(p->str[i], h, p->bam[i])) {
             warnings ("Failed to parse SAM., %s", bam_get_qname(p->bam[i]));
-            summary->n_failed_to_parse++;
+            s0->n_failed_to_parse++;
             p->bam[i] = NULL;
-            continue;
         }
-        sam_stat_reads(p->bam[i], summary, &p->flag[i], opts);
     }
-   
-
-    /*
-    else { // PE
-        
-        bam1_t *b1 = NULL, *b2 = NULL;
-        //int *f1 = NULL, *f2 = NULL;
-        int i;
-        for (i = 0; i < p->n; ++i) {
-            parse_name_str(p->str[i]);
-            if (b1 == NULL) {
-                b1 = p->bam[i];
-                if (sam_parse1(p->str[i], h, b1)) {
-                    warnings ("Failed to parse SAM., %s", bam_get_qname(p->bam[i]));
-                    summary->n_failed_to_parse++;
-                    p->bam[i] = NULL;
-                    continue;
-                }
-                if (b1->core.flag&BAM_FSECONDARY || b1->core.flag&BAM_FSUPPLEMENTARY) {
-                    // p->flag[i] = FLG_FLT;
-                    b1 = NULL;
-                    continue;
-                }
-                sam_stat_reads(b1, summary, &p->flag[i], opts);
-                //f1 = &p->flag[i];
-            }
-            else {
-                b2 = p->bam[i];
-                if (sam_parse1(p->str[i], h, b2)) {
-                    warnings ("Failed to parse SAM., %s", bam_get_qname(p->bam[i]));
-                    summary->n_failed_to_parse++;
-                    p->bam[i] = NULL;
-                    continue;
-                    // error("Failed to parse SAM.");
-                }
-                if (b2->core.flag&BAM_FSECONDARY || b2->core.flag&BAM_FSUPPLEMENTARY) {
-                    // p->flag[i] = FLG_FLT;
-                    b2 = NULL;
-                    continue;
-                }
-                if (strcmp(bam_get_qname(b1), bam_get_qname(b2)) != 0) error("Inconsist paried read name. %s vs %s", bam_get_qname(b1), bam_get_qname(b2));
-                sam_stat_reads(b2, summary, &p->flag[i], opts);
-                //f2 = &p->flag[i];
-                
-                b1 = NULL;
-                b2 = NULL;
-                }     
-                }
-    */
+    int n_corr = 0;
+    if (args.enable_corr) 
+        n_corr = bam_pool_qual_corr(p);
     
+    for (i = 0; i < p->n; ++i) 
+        sam_stat_reads(p->bam[i], s0, &p->flag[i], opts);
+
+    pthread_mutex_lock(&global_data_mutex);
+    struct summary *s = opts->summary;
+    s->n_reads     += s0->n_reads;
+    s->n_mapped    += s0->n_mapped;
+    s->n_pair_map  += s0->n_pair_map;
+    s->n_pair_all  += s0->n_pair_all;
+    s->n_pair_good += s0->n_pair_good;
+    s->n_sgltn     += s0->n_sgltn;
+    s->n_read1     += s0->n_read1;
+    s->n_read2     += s0->n_read2;
+    s->n_diffchr   += s0->n_diffchr;
+    s->n_pstrand   += s0->n_pstrand;
+    s->n_mstrand   += s0->n_mstrand;
+    s->n_mito      += s0->n_mito;
+    s->n_adj       += s0->n_adj;
+    s->n_corr      += n_corr;
+    pthread_mutex_unlock(&global_data_mutex);
+        
     return p;
 }
 static int sam_name_parse_light()
@@ -455,7 +492,7 @@ static int sam_name_parse_light()
         struct sam_pool *p = sam_pool_read(args.ks, args.buffer_size);
         if (p == NULL) break;
         p->opts = &args;
-        p = sam_name_parse(p, 0);
+        p = sam_name_parse(p);
         write_out(p);
     }
     return 0;
@@ -468,7 +505,7 @@ static int parse_args(int argc, char **argv)
     int i;
     const char *buffer_size = NULL;
     const char *thread = NULL;
-    //const char *qual_thres = NULL;
+    const char *qual_corr = NULL;
     const char *file_th = NULL;
     
     for (i = 1; i < argc;) {
@@ -480,22 +517,21 @@ static int parse_args(int argc, char **argv)
         if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-r") == 0) var = &buffer_size;
-        // else if (strcmp(a, "-q") == 0) var = &qual_thres;
         else if (strcmp(a, "-mito") == 0) var = &args.mito;
         else if (strcmp(a, "-maln") == 0) var = &args.mito_fname;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
-        // else if (strcmp(a, "-filter") == 0) continue; // var = &args.filter_fname;
         else if (strcmp(a, "-@") == 0) var = &file_th;
+        else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
+        else if (strcmp(a, "-qual") == 0) var = &qual_corr;
         else if (strcmp(a, "-k") == 0) { // -k has been removed, 2020/02/13
             // args.keep_all = 1;
             continue; 
         }
-        /*
-        else if (strcmp(a, "-p") == 0) {
-            args.PE_flag = 1;
+        else if (strcmp(a, "-adjust-mapq") == 0) {
+            args.enable_corr = 1;
             continue;
         }
-        */
+        
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -529,52 +565,47 @@ static int parse_args(int argc, char **argv)
         if (args.file_th <1) args.file_th = 1;
         hts_set_threads(args.fp_out, args.file_th);
     }
+
+    if (args.enable_corr) {
+        if (args.gtf_fname == NULL) error("-gtf is required if mapping quality correction eabled.");
+        args.G = gtf_read(args.gtf_fname, 1);
+        if (args.G == NULL) error("GTF is empty.");
+    }
     
     if (args.report_fname) {
         args.fp_report = fopen(args.report_fname, "w");
         if (args.fp_report == NULL) error("%s : %s.", args.report_fname, strerror(errno));
     }
-    /*
-    if (args.filter_fname) {
-        if (args.keep_all == 1) error("-k is conflict with -filter");
-        args.fp_filter = bgzf_open(args.filter_fname, "w");
-        if (args.fp_filter == NULL) error("%s : %s.", args.filter_fname, strerror(errno));
-    }
-    */
     if (args.mito_fname) {
-        // if (args.keep_all == 1) error("-k is conflict with -maln");
         args.fp_mito = bgzf_open(args.mito_fname, "w");
         if (args.fp_mito == NULL) error("%s : %s.", args.mito_fname, strerror(errno));
     }
-    // init parameters
 
-    // the bottleneck happens at compress BAM, not processing sam records, so we delete the multi-thread mode, 2019/11/14
-    /*
     if (thread) {
         args.n_thread = str2int((char*)thread);
         assert(args.n_thread > 0);
     }
-    */
+
     if (buffer_size) {
         args.buffer_size = str2int((char*)buffer_size);
         assert(args.buffer_size>0);
     }
-    /*
-    if (qual_thres) {
-        args.qual_thres = str2int((char*)qual_thres);
-        assert(args.qual_thres >= 0);
+    if (qual_corr) {
+        args.qual_corr = str2int((char*)qual_corr);
+        assert(args.qual_corr >= 0);
     }
-    */
+
+
+    
     // init thread data
-    args.thread_data = malloc(args.n_thread*sizeof(struct reads_summary*));
-    for (i = 0; i < args.n_thread; ++i) args.thread_data[i] = reads_summary_create();
-        
+
+    args.summary = summary_create();
+    
     // init bam header and first bam record
     kstring_t str = {0,0,0}; // cache first record
     args.hdr = sam_parse_header(args.ks, &str);
     if (args.hdr == NULL) error("Failed to parse header. %s", args.input_fname);
     if (sam_hdr_write(args.fp_out, args.hdr)) error("Failed to write header.");
-    // if (args.fp_filter && bam_hdr_write(args.fp_filter, args.hdr)) error("Failed to write header.");
     if (args.fp_mito && bam_hdr_write(args.fp_mito, args.hdr)) error("Failed to write header.");
 
     // init mitochondria id
@@ -585,31 +616,8 @@ static int parse_args(int argc, char **argv)
     }
 
     // check if there is a BAM record
-    if (str.s[0] != '@') {        
-        args.preload_record = strndup(str.s, str.l);
-        /*
-          parse_name_str(&str);        
-        bam1_t *b = bam_init1();
-        if (sam_parse1(&str, args.hdr, b)) error("Failed to parse SAM.");
-
-        int flag = 0;        
-        sam_stat_reads(b, args.thread_data[0], &flag, &args);
-        
-        if (flag == FLG_USABLE) {
-            if (bam_write1(args.fp_out, b) == -1) error("Failed to write BAM.");
-        }
-        else if (flag == FLG_MITO && args.fp_mito != NULL) {
-            if (bam_write1(args.fp_mito, b) == -1) error("Failed to write BAM.");
-        }
-        else if (args.fp_filter != NULL) {
-            if (bam_write1(args.fp_filter, b) == -1) error("Failed to write BAM.");
-        }
-        else {
-
-        }
-        bam_destroy1(b);
-        */
-    }
+    if (str.s[0] != '@')
+        args.preload_record = strndup(str.s, str.l);    
     free(str.s);
     return 0;
 }
@@ -620,13 +628,10 @@ static void memory_release()
     ks_destroy(args.ks);
     gzclose(args.fp);
     bam_hdr_destroy(args.hdr);
-
-    //if (args.fp_filter) bgzf_close(args.fp_filter);
+    free(args.summary);    
     if (args.fp_mito) bgzf_close(args.fp_mito);
     if (args.fp_report) fclose(args.fp_report);
-    int i;
-    for (i = 0; i < args.n_thread; ++i) free(args.thread_data[i]);
-    free(args.thread_data);
+    if (args.enable_corr) gtf_destroy(args.G);
 }
 
 int sam2bam(int argc, char **argv)
@@ -643,9 +648,9 @@ int sam2bam(int argc, char **argv)
 
         int nt = args.n_thread;
 
-        struct thread_pool *p = thread_pool_init(nt);
-        struct thread_pool_process *q = thread_pool_process_init(p, nt*2, 0);
-        struct thread_pool_result *r;
+        hts_tpool *p = hts_tpool_init(nt);
+        hts_tpool_process *q = hts_tpool_process_init(p, nt*2, 0);
+        hts_tpool_result *r;
 
         for (;;) {
 
@@ -657,26 +662,26 @@ int sam2bam(int argc, char **argv)
 
             do {
 
-                block = thread_pool_dispatch2(p, q, sam_name_parse, b, 0);
+                block = hts_tpool_dispatch2(p, q, sam_name_parse, b, 0);
 
-                if ((r = thread_pool_next_result(q))) {
+                if ((r = hts_tpool_next_result(q))) {
                     struct sam_pool *d = (struct sam_pool*)r->data;
                     write_out(d);
                 }
-                //thread_pool_delete_result(r, 1);
+                //hts_tpool_delete_result(r, 1);
             }
             while (block == -1);
         }
         
-        thread_pool_process_flush(q);
+        hts_tpool_process_flush(q);
 
-        while ((r = thread_pool_next_result(q))) {
+        while ((r = hts_tpool_next_result(q))) {
             struct sam_pool *d = (struct sam_pool *)r->data;
             write_out(d);
         }
 
-        thread_pool_process_destroy(q);
-        thread_pool_destroy(p);
+        hts_tpool_process_destroy(q);
+        hts_tpool_destroy(p);
         
     }
 

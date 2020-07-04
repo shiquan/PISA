@@ -1,7 +1,8 @@
 // annotate Gene or Peak to SAM attribution
 #include "utils.h"
 #include "number.h"
-#include "thread_pool.h"
+#include "htslib/thread_pool.h"
+#include "thread_pool_internal.h"
 #include "htslib/khash.h"
 #include "htslib/kstring.h"
 #include "htslib/sam.h"
@@ -12,6 +13,7 @@
 #include "gtf.h"
 #include "bed.h"
 #include "region_index.h"
+#include "read_anno.h"
 #include "dict.h"
 #include <zlib.h>
 
@@ -352,40 +354,8 @@ struct ret_dat {
     uint64_t reads_pass_qc;
 };
 
-static char *exon_type_names[] = {
-    "Unknown", "Exon", "Intron", "ExonIntron", "Antisense", "Splice", "Ambiguous", "Intergenic"
-};
 static char *RE_tags[] = {
     "U", "E", "N", "C", "A", "S", "V", "I",
-};
-enum exon_type {
-    type_unknown = 0,  // unknown type, init state
-    type_exon,     // read full covered in exon
-    type_intron,        // read full covered in intron, with same strand of gene
-    type_exon_intron,   // read cover exon and nearby intron
-    type_antisense,     // read map on antisense
-    type_splice,        // junction read map two or more exome
-    type_ambiguous,     // junction read map to isoform(s) but skip some isoforms between, or map to intron
-    type_intergenic,
-};
-
-struct trans_type {
-    int trans_id;
-    enum exon_type type;
-};
-
-struct gene_type {
-    int gene_id;
-    int gene_name;
-    enum exon_type type; // main type
-    int n, m;
-    struct trans_type *a;
-};
-
-struct gtf_anno_type {
-    enum exon_type type;
-    int n, m;
-    struct gene_type *a;
 };
 
 static void gtf_anno_destroy(struct gtf_anno_type *ann)
@@ -655,34 +625,29 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
     }
 }
 
-enum exon_type bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G)
+struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G)
 {
     bam_hdr_t *h = args.hdr;
-    
-    // cleanup all exist tags
-    uint8_t *data;
-    if ((data = bam_aux_get(b, TX_tag)) != NULL) bam_aux_del(b, data);
-    if ((data = bam_aux_get(b, AN_tag)) != NULL) bam_aux_del(b, data);
-    if ((data = bam_aux_get(b, GN_tag)) != NULL) bam_aux_del(b, data);
-    if ((data = bam_aux_get(b, GX_tag)) != NULL) bam_aux_del(b, data);
-    if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
-
     bam1_core_t *c;
     c = &b->core;
     
     char *name = h->target_name[c->tid];
     int endpos = bam_endpos(b);
 
+        
+    struct gtf_anno_type *ann = malloc(sizeof(*ann));
+    memset(ann, 0, sizeof(*ann));
+    ann->type = type_unknown;
+    
     struct region_itr *itr = gtf_query(G, name, c->pos, endpos);
 
     // non-overlap, intergenic
-    if (itr == NULL) return type_intergenic; // query failed
-    if (itr->n == 0) return type_intergenic; // no hit
+    if (itr == NULL || itr->n == 0) {
+        ann->type = type_intergenic;
+        return ann; // no hit
+    }
 
-    enum exon_type ret_type = type_unknown;
-    
-    struct gtf_anno_type *ann = malloc(sizeof(*ann));
-    memset(ann, 0, sizeof(*ann));
+    // enum exon_type ret_type = type_unknown;
 
     // exon == splice > intron > antisense
     // https://github.com/shiquan/PISA/wiki/4.-Annotate-alignment-records-with-GTF-or-BED
@@ -719,43 +684,49 @@ enum exon_type bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G)
             free(a);
         }
     }
-
+    
     // stat type
     gtf_anno_most_likely_type(ann);
     if (ann->type == type_unknown) {
-        if (antisense == 1) ret_type = type_antisense;
-        else ret_type = type_intergenic; // not fully convered
+        if (antisense == 1) ann->type = type_antisense;
+        else ann->type = type_intergenic; // not fully convered
     }
-    else {
-
-        ret_type = ann->type;
-                
-        gtf_anno_string(b, ann, G);
-    }
-
+    
     if (args.debug_mode) {
         fprintf(stderr, "%s   ", b->data);
         gtf_anno_print(ann, G);
     }
     free(S->p); free(S);
-    gtf_anno_destroy(ann);
+
     region_itr_destroy(itr);
 
-    return ret_type;
+    return ann;
 }
 void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
 {
-    enum exon_type type = bam_gtf_anno_core(b, G);
-    bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)RE_tags[type]);
+    // cleanup all exist tags
+    uint8_t *data;
+    if ((data = bam_aux_get(b, TX_tag)) != NULL) bam_aux_del(b, data);
+    if ((data = bam_aux_get(b, AN_tag)) != NULL) bam_aux_del(b, data);
+    if ((data = bam_aux_get(b, GN_tag)) != NULL) bam_aux_del(b, data);
+    if ((data = bam_aux_get(b, GX_tag)) != NULL) bam_aux_del(b, data);
+    if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
+
+    struct gtf_anno_type *ann = bam_gtf_anno_core(b, G);
     
-    if (type == type_exon) stat->reads_in_exon++;
-    else if (type == type_splice) stat->reads_in_exon++; // reads cover two exomes
-    else if (type == type_intron) stat->reads_in_intron++;
-    else if (type == type_exon_intron) stat->reads_in_exonintron++;
-    else if (type == type_ambiguous) stat->reads_ambiguous++; // new transcript
-    else if (type == type_intergenic) stat->reads_in_intergenic++;
-    else if (type == type_antisense) stat->reads_antisense++;
-    else error("Unknown type? %s", exon_type_names[type]);
+    bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)RE_tags[ann->type]);
+
+    gtf_anno_string(b, ann, G);
+    gtf_anno_destroy(ann);
+    
+    if (ann->type == type_exon) stat->reads_in_exon++;
+    else if (ann->type == type_splice) stat->reads_in_exon++; // reads cover two exomes
+    else if (ann->type == type_intron) stat->reads_in_intron++;
+    else if (ann->type == type_exon_intron) stat->reads_in_exonintron++;
+    else if (ann->type == type_ambiguous) stat->reads_ambiguous++; // new transcript
+    else if (ann->type == type_intergenic) stat->reads_in_intergenic++;
+    else if (ann->type == type_antisense) stat->reads_antisense++;
+    else error("Unknown type? %s", exon_type_names[ann->type]);
 }
 
 void bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
@@ -874,6 +845,7 @@ void *run_it(void *_d)
         c = &b->core;
         // QC
         if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) continue;
+        if (c->flag & BAM_FSECONDARY) continue;
         if (c->qual < args.map_qual) continue;
 
         dat->reads_pass_qc++;

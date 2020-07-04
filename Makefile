@@ -42,7 +42,7 @@ force:
 	@printf "Compiling $<...                               \r"
 	@$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@ || echo "Error in command: $(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $<"
 
-LIB_OBJ = src/barcode_list.o src/bed.o src/number.o src/fastq.o src/thread_pool.o src/kson.o src/json_config.o src/gtf.o src/region_index.o src/dict.o src/seq_merge.o src/ksa.o \
+LIB_OBJ = src/barcode_list.o src/bed.o src/number.o src/fastq.o src/kson.o src/json_config.o src/gtf.o src/region_index.o src/dict.o src/seq_merge.o src/ksa.o \
 	src/bam_pool.o src/umi_corr.o src/dict.o src/read_thread.o src/read_tags.o src/sim_search.o
 
 AOBJ = src/bam_anno.o \
@@ -87,7 +87,6 @@ src/gtf.o: src/gtf.c
 src/region_index.o: src/region_index.c
 src/dict.o: src/dict.c
 src/fastq.o: src/fastq.c
-src/thread_pool.o: src/thread_pool.c
 src/json_config.o: src/json_config.c
 src/kson.o: src/kson.c
 src/bam_attr_count.o: src/bam_attr_count.c

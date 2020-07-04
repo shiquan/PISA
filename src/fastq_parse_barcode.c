@@ -1,6 +1,7 @@
 // parse barcode sequence from reads, rename read name with barcode tags
 #include "utils.h"
-#include "thread_pool.h"
+#include "htslib/thread_pool.h"
+#include "thread_pool_internal.h"
 #include "json_config.h"
 #include "ksort.h"
 #include "fastq.h"

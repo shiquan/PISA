@@ -81,13 +81,23 @@ int sam2bam_usage()
     fprintf(stderr, " -o       [BAM]       Output file [stdout].\n");
     fprintf(stderr, " -mito    [string]    Mitochondria name. Used to stat ratio of mitochondria reads.\n");
     fprintf(stderr, " -maln    [BAM]       Export mitochondria reads into this file instead of standard output file.\n");
-    // fprintf(stderr, " -r       [INT]       Records per chunk. Default is 1000000.\n");    
     fprintf(stderr, " -@       [INT]       Threads to compress bam file.\n");
     fprintf(stderr, " -report  [csv]       Alignment report.\n");
+    // fprintf(stderr, " -skip-sec            Skip secondary alignments in the output.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Note :\n");
+    fprintf(stderr, "* Reads map to multiple loci usually be marked as low quality and be filter at downstream analysis.\n");
+    fprintf(stderr, "  But for RNAseq library, if reads map to a exonic locus but also align to 1 or more non exonic loci,\n");
+    fprintf(stderr, "  the exonic locus can be prioritized as primary alignments, and mapping quality adjust to 255. Tag\n");
+    fprintf(stderr, "  MM:i:1 will also be added for this record. Following options used to adjust mapping quality.\n");
+    fprintf(stderr, "* Input SAM need be sorted by read name, and aligner should output all hits of a read in this SAM.\n");
+    fprintf(stderr, " -adjust-mapq         Enable adjust mapping quality score.\n");
+    fprintf(stderr, " -gtf     [GTF]       GTF annotation file. This file is required to check the exonic regions.\n");
+    fprintf(stderr, " -qual    [255]       Updated quality score.\n");
     fprintf(stderr, "\n");
     return 1;    
 }
-
+/*
 int rmdup_usage()
 {
     fprintf(stderr, "* Deduplicate PCR reads based on read position and barcodes.\n");
@@ -102,7 +112,7 @@ int rmdup_usage()
     fprintf(stderr, "\n");
     return 1;
 }
-
+*/
 int pick_usage()
 {
     fprintf(stderr, "* Pick alignment records within barcode list.\n");
