@@ -475,7 +475,7 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g)
     int last_exon = -1;
     int i = 0;
     // linear search
-    for (i = 0; i < S->n; ++i) {        
+    for (i = 0; i < S->n; ++i) {
         struct pair *p = &S->p[i];
 
         enum exon_type t0 = query_exon(p->start, p->end, g, &exon);
@@ -712,8 +712,7 @@ void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)RE_tags[ann->type]);
 
     gtf_anno_string(b, ann, G);
-    gtf_anno_destroy(ann);
-    
+
     if (ann->type == type_exon) stat->reads_in_exon++;
     else if (ann->type == type_splice) stat->reads_in_exon++; // reads cover two exomes
     else if (ann->type == type_intron) stat->reads_in_intron++;
@@ -722,6 +721,8 @@ void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     else if (ann->type == type_intergenic) stat->reads_in_intergenic++;
     else if (ann->type == type_antisense) stat->reads_antisense++;
     else error("Unknown type? %s", exon_type_names[ann->type]);
+
+    gtf_anno_destroy(ann);
 }
 
 void bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)

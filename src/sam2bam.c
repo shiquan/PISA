@@ -10,7 +10,6 @@
 #include "htslib/bgzf.h"
 #include "thread_pool_internal.h"
 #include <zlib.h>
-#include <pthread.h>
 #include "gtf.h"
 #include "read_anno.h"
 
@@ -243,12 +242,14 @@ static void summary_report(struct args *opts)
     struct summary *summary = opts->summary;
     fprintf(opts->fp_report,"Raw reads,%"PRIu64"\n", summary->n_reads);
     fprintf(opts->fp_report,"Mapped reads,%"PRIu64" (%.2f%%)\n", summary->n_mapped, (float)summary->n_mapped/summary->n_reads*100);
-    fprintf(opts->fp_report,"Mapped reads (paired),%"PRIu64"\n", summary->n_pair_map);
-    fprintf(opts->fp_report,"Properly paired reads,%"PRIu64"\n", summary->n_pair_good);
-    fprintf(opts->fp_report,"Singleton reads,%"PRIu64"\n", summary->n_sgltn);
-    fprintf(opts->fp_report,"Read 1,%"PRIu64"\n", summary->n_read1);
-    fprintf(opts->fp_report,"Read 2,%"PRIu64"\n", summary->n_read2);
-    fprintf(opts->fp_report,"Paired reads map on diff chr,%"PRIu64"\n", summary->n_diffchr);
+    if (summary->n_pair_map > 0) {
+        fprintf(opts->fp_report,"Mapped reads (paired),%"PRIu64"\n", summary->n_pair_map);
+        fprintf(opts->fp_report,"Properly paired reads,%"PRIu64"\n", summary->n_pair_good);
+        fprintf(opts->fp_report,"Singleton reads,%"PRIu64"\n", summary->n_sgltn);
+        fprintf(opts->fp_report,"Read 1,%"PRIu64"\n", summary->n_read1);
+        fprintf(opts->fp_report,"Read 2,%"PRIu64"\n", summary->n_read2);
+        fprintf(opts->fp_report,"Paired reads map on diff chr,%"PRIu64"\n", summary->n_diffchr);
+    }
     fprintf(opts->fp_report,"Plus strand,%"PRIu64"\n", summary->n_pstrand);
     fprintf(opts->fp_report,"Minus strand,%"PRIu64"\n", summary->n_mstrand);
     if (opts->mito_id != -1)
@@ -641,7 +642,7 @@ int sam2bam(int argc, char **argv)
             struct sam_pool *b = sam_pool_read(args.ks, args.buffer_size);
             if (b == NULL) break;
             b->opts = &args;
-            
+
             int block;
 
             do {
@@ -666,7 +667,7 @@ int sam2bam(int argc, char **argv)
 
         hts_tpool_process_destroy(q);
         hts_tpool_destroy(p);
-        
+
     }
 
     summary_report(&args);
