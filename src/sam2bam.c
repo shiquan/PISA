@@ -14,6 +14,9 @@
 #include "gtf.h"
 #include "read_anno.h"
 
+static char *corr_tag = "MM";
+static uint8_t corr_flag[1] = {1};
+
 KSTREAM_INIT(gzFile, gzread, 16384)
 
 // flag to skip
@@ -232,34 +235,31 @@ static void write_out(struct sam_pool *p)
         */
         if (p->flag[i] == FLG_MITO && opts->fp_mito != NULL) {
             if (bam_write1(opts->fp_mito, p->bam[i]) == -1) error("Failed to write.");
+            continue;
         }
-        else {
-            if (sam_write1(opts->fp_out, opts->hdr, p->bam[i]) == -1) error("Failed to write.");
-        }
+        if (sam_write1(opts->fp_out, opts->hdr, p->bam[i]) == -1) error("Failed to write.");
     }
     sam_pool_destroy(p);
 }
 static void summary_report(struct args *opts)
 {
     struct summary *summary = opts->summary;
-    if (opts->fp_report) {
-        fprintf(opts->fp_report,"Raw reads,%"PRIu64"\n", summary->n_reads);
-        fprintf(opts->fp_report,"Mapped reads,%"PRIu64" (%.2f%%)\n", summary->n_mapped, (float)summary->n_mapped/summary->n_reads*100);
-        fprintf(opts->fp_report,"Mapped reads (paired),%"PRIu64"\n", summary->n_pair_map);
-        fprintf(opts->fp_report,"Properly paired reads,%"PRIu64"\n", summary->n_pair_good);
-        fprintf(opts->fp_report,"Singleton reads,%"PRIu64"\n", summary->n_sgltn);
-        fprintf(opts->fp_report,"Read 1,%"PRIu64"\n", summary->n_read1);
-        fprintf(opts->fp_report,"Read 2,%"PRIu64"\n", summary->n_read2);
-        fprintf(opts->fp_report,"Paired reads map on diff chr,%"PRIu64"\n", summary->n_diffchr);
-        fprintf(opts->fp_report,"Plus strand,%"PRIu64"\n", summary->n_pstrand);
-        fprintf(opts->fp_report,"Minus strand,%"PRIu64"\n", summary->n_mstrand);
-        // fprintf(opts->fp_report,"Mapping quals above %d,%"PRIu64"\n", opts->qual_thres, summary->n_qual);
-        if (opts->mito_id != -1)
-            fprintf(opts->fp_report,"Mitochondria ratio,%.2f%%\n", (float)summary->n_mito/summary->n_mapped*100);
-        // fprintf(opts->fp_report,"Usable reads (ratio),%"PRIu64" (%.2f%%)\n", summary->n_usable, (float)summary->n_usable/summary->n_reads*100);
-        if (summary->n_failed_to_parse > 0)
-            fprintf(opts->fp_report,"Failed to parse reads,%"PRIu64"\n", summary->n_failed_to_parse);
-    }
+    fprintf(opts->fp_report,"Raw reads,%"PRIu64"\n", summary->n_reads);
+    fprintf(opts->fp_report,"Mapped reads,%"PRIu64" (%.2f%%)\n", summary->n_mapped, (float)summary->n_mapped/summary->n_reads*100);
+    fprintf(opts->fp_report,"Mapped reads (paired),%"PRIu64"\n", summary->n_pair_map);
+    fprintf(opts->fp_report,"Properly paired reads,%"PRIu64"\n", summary->n_pair_good);
+    fprintf(opts->fp_report,"Singleton reads,%"PRIu64"\n", summary->n_sgltn);
+    fprintf(opts->fp_report,"Read 1,%"PRIu64"\n", summary->n_read1);
+    fprintf(opts->fp_report,"Read 2,%"PRIu64"\n", summary->n_read2);
+    fprintf(opts->fp_report,"Paired reads map on diff chr,%"PRIu64"\n", summary->n_diffchr);
+    fprintf(opts->fp_report,"Plus strand,%"PRIu64"\n", summary->n_pstrand);
+    fprintf(opts->fp_report,"Minus strand,%"PRIu64"\n", summary->n_mstrand);
+    if (opts->mito_id != -1)
+        fprintf(opts->fp_report,"Mitochondria ratio,%.2f%%\n", (float)summary->n_mito/summary->n_mapped*100);
+    if (summary->n_failed_to_parse > 0)
+        fprintf(opts->fp_report,"Failed to parse reads,%"PRIu64"\n", summary->n_failed_to_parse);
+    if (opts->enable_corr)
+        fprintf(opts->fp_report, "Mapping quality corrected reads,%"PRIu64"\n", summary->n_corr);
 }
 
 static int parse_name_str(kstring_t *s)
@@ -310,14 +310,6 @@ static void sam_stat_reads(bam1_t *b, struct summary *s, int *flag, struct args 
     bam1_core_t *c = &b->core;
     s->n_reads++;
 
-    /*
-    if (c->qual >= opts->qual_thres) s->n_qual++;
-    else {
-        *flag = FLG_FLT; // filter low mapping quality
-        return;
-    }
-    */
-    
     if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY || c->flag & BAM_FUNMAP) return; // unmapped
 
 
@@ -384,7 +376,7 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
             c->qual = qual;
             uint8_t f[1];
             f[0]=1;
-            bam_aux_append(bam, "MM", 'i', 1, f);
+            bam_aux_append(bam, corr_tag, 'i', 1, corr_flag);
             LOG_print("%s corrected.", (char*)bam->data);
         }
         else {
@@ -429,6 +421,8 @@ int bam_pool_qual_corr(struct sam_pool *p)
             if (bam_same(bam, p->bam[ed]) != 0) break;
 
         ed--; // move point back
+
+        i = ed+1; // jump to next read
         
         if (ed-st==0) break; // only one record, no need to corr
         
@@ -438,8 +432,7 @@ int bam_pool_qual_corr(struct sam_pool *p)
         int j;
         for (j = 0; j < ed-st+1; ++j) b[j] = p->bam[st+j];
         corred += bam_map_qual_corr(b, n, args.G, args.qual_corr);
-
-        i = ed+1; // jump to next read
+        free(b); // free stack
     }
     return corred;
 }
@@ -569,7 +562,7 @@ static int parse_args(int argc, char **argv)
 
     if (args.enable_corr) {
         if (args.gtf_fname == NULL) error("-gtf is required if mapping quality correction eabled.");
-        args.G = gtf_read(args.gtf_fname, 1);
+        args.G = gtf_read_lite(args.gtf_fname, 1);
         if (args.G == NULL) error("GTF is empty.");
     }
     
@@ -577,6 +570,8 @@ static int parse_args(int argc, char **argv)
         args.fp_report = fopen(args.report_fname, "w");
         if (args.fp_report == NULL) error("%s : %s.", args.report_fname, strerror(errno));
     }
+    else args.fp_report = stdout;
+    
     if (args.mito_fname) {
         args.fp_mito = bgzf_open(args.mito_fname, "w");
         if (args.fp_mito == NULL) error("%s : %s.", args.mito_fname, strerror(errno));
@@ -631,7 +626,7 @@ static void memory_release()
     bam_hdr_destroy(args.hdr);
     free(args.summary);    
     if (args.fp_mito) bgzf_close(args.fp_mito);
-    if (args.fp_report) fclose(args.fp_report);
+    if (args.fp_report != stdout) fclose(args.fp_report);
     if (args.enable_corr) gtf_destroy(args.G);
 }
 

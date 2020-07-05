@@ -227,6 +227,9 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
     return 0;
 }
 
+#define FILTER_ATTRS  2
+#define FILTER_TRANS  1
+
 static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
 {
     int n;
@@ -241,7 +244,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
         return 1;
     }
     
-    if (filter &&
+    if (filter > 0 &&
         qry != feature_gene &&
         qry != feature_exon &&
         qry != feature_transcript &&
@@ -285,7 +288,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
             gtf.gene_name = dict_push(G->gene_name, pp->val);
         else if (strcmp(pp->key, "transcript_id") == 0) 
             gtf.transcript_id = dict_push(G->transcript_id, pp->val);
-        else { // todo: update to dict structure
+        else if (filter != FILTER_ATTRS) { // todo: update to dict structure
             int attr_id = dict_push(G->attrs, pp->key);
             if (gtf.attr == NULL) {
                 gtf.attr = dict_init();
@@ -387,6 +390,7 @@ struct gtf_spec *gtf_spec_init()
     
     return G;
 }
+
 struct gtf_spec *gtf_read(const char *fname, int f)
 {
     LOG_print("GTF loading..");
@@ -429,6 +433,10 @@ struct gtf_spec *gtf_read(const char *fname, int f)
 
 }
 
+struct gtf_spec *gtf_read_lite(const char *fname)
+{
+    return gtf_read(fname, FILTER_ATTRS);
+}
 struct region_itr *gtf_query(struct gtf_spec const *G, char *name, int start, int end)
 {
     int id = dict_query(G->name, name);
