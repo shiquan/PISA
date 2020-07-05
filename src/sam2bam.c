@@ -382,9 +382,9 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
             int flag = BAM_FSECONDARY;            
             c->flag &= ~flag;
             c->qual = qual;
-            //uint8_t *f=NULL;
-            //*f = 1;
-            //bam_aux_append(bam, "MM", 'i', 1, f);
+            uint8_t f[1];
+            f[0]=1;
+            bam_aux_append(bam, "MM", 'i', 1, f);
         }
         else {
             c->flag |= BAM_FSECONDARY;
