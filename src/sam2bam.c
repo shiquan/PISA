@@ -389,7 +389,7 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
 // return 0 on same read, 1 on differnt name
 int bam_same(bam1_t *a, bam1_t *b)
 {
-    if (strcmp((char*)a->data, (char*)b->data) == 1) return 1;
+    if (strcmp((char*)a->data, (char*)b->data) != 0) return 1;
     if ((a->core.flag & BAM_FREAD1) && (b->core.flag & BAM_FREAD2)) return 1;
     if ((a->core.flag & BAM_FREAD2) && (b->core.flag & BAM_FREAD1)) return 1;
     return 0;
@@ -561,7 +561,7 @@ static int parse_args(int argc, char **argv)
     }
 
     if (args.enable_corr) {
-        if (args.gtf_fname == NULL) error("-gtf is required if mapping quality correction eabled.");
+        if (args.gtf_fname == NULL) error("-gtf is required if mapping quality correction enabled.");
         args.G = gtf_read_lite(args.gtf_fname);
         if (args.G == NULL) error("GTF is empty.");
     }
@@ -590,10 +590,6 @@ static int parse_args(int argc, char **argv)
         args.qual_corr = str2int((char*)qual_corr);
         assert(args.qual_corr >= 0);
     }
-
-
-    
-    // init thread data
 
     args.summary = summary_create();
     
