@@ -58,8 +58,7 @@ LIB_OBJ = src/barcode_list.o \
 	src/dict.o \
 	src/read_thread.o \
 	src/read_tags.o \
-	src/sim_search.o \
-	src/thread.o
+	src/sim_search.o
 
 AOBJ = src/bam_anno.o \
 	src/bam_count.o \
