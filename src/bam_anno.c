@@ -248,7 +248,7 @@ static int parse_args(int argc, char **argv)
 
     if (args.gtf_fname) {
 
-        args.G = gtf_read_lite(args.gtf_fname, 1);
+        args.G = gtf_read_lite(args.gtf_fname);
         if (args.G == NULL) error("GTF is empty.");
         if (tags) {
             kstring_t str = {0,0,0};

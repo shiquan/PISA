@@ -562,7 +562,7 @@ static int parse_args(int argc, char **argv)
 
     if (args.enable_corr) {
         if (args.gtf_fname == NULL) error("-gtf is required if mapping quality correction eabled.");
-        args.G = gtf_read_lite(args.gtf_fname, 1);
+        args.G = gtf_read_lite(args.gtf_fname);
         if (args.G == NULL) error("GTF is empty.");
     }
     
