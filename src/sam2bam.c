@@ -15,7 +15,7 @@
 #include "read_anno.h"
 
 static char *corr_tag = "MM";
-static uint8_t corr_flag[1] = {1};
+static uint8_t corr_flag[2] = {1,0};
 
 KSTREAM_INIT(gzFile, gzread, 16384)
 
@@ -374,7 +374,7 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
             int flag = BAM_FSECONDARY;            
             c->flag &= ~flag;
             c->qual = qual;
-            bam_aux_append(bam, corr_tag, 'i', 1, corr_flag);
+            bam_aux_append(bam, corr_tag, 'i', 2, corr_flag);
             LOG_print("%s corrected.", (char*)bam->data);
         }
         else {
