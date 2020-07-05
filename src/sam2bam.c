@@ -28,9 +28,7 @@ struct summary {
     uint64_t n_reads, n_mapped, n_pair_map, n_pair_all, n_pair_good;
     uint64_t n_sgltn, n_read1, n_read2;
     uint64_t n_diffchr, n_pstrand, n_mstrand;
-    // uint64_t n_qual;
     uint64_t n_mito;
-    //uint64_t n_usable;
     uint64_t n_failed_to_parse;
     uint64_t n_adj;
     uint64_t n_corr; // mapq corrected
@@ -374,7 +372,6 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
             c->flag &= ~flag;
             c->qual = qual;
             bam_aux_update_int(bam, corr_tag, 1);
-            LOG_print("%s corrected.", (char*)bam->data);
         }
         else {
             c->flag |= BAM_FSECONDARY;
@@ -515,7 +512,6 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
         else if (strcmp(a, "-qual") == 0) var = &qual_corr;
         else if (strcmp(a, "-k") == 0) { // -k has been removed, 2020/02/13
-            // args.keep_all = 1;
             continue; 
         }
         else if (strcmp(a, "-adjust-mapq") == 0) {
@@ -546,8 +542,7 @@ static int parse_args(int argc, char **argv)
     if (args.fp == NULL) error("%s : %s.", args.input_fname, strerror(errno));
     args.ks = ks_init(args.fp);
 
-    // init output
-    
+    // init output    
     args.fp_out = hts_open(args.output_fname, "bw");
     if (args.fp_out == NULL) error("%s : %s.", args.output_fname, strerror(errno));
 
