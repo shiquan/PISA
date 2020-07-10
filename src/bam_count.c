@@ -321,7 +321,7 @@ static void update_counts()
                                 int v0 = dict_count(count->umi, i0);
                                 int v1 = dict_count(count->umi, i1);
                                 if (v0 > v1) flag[i1] = 1;
-                                else flag[i0] = 1;                        
+                                else flag[i0] = 1;
                             }
                         }
                     }

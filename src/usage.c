@@ -163,13 +163,23 @@ int anno_usage()
 int bam_corr_usage()
 {
     fprintf(stderr, "* Correct error prone barcodes based on frequency.\n");
-    fprintf(stderr, "bam_tag_corr [options] in.bam\n");
-    fprintf(stderr, "\nOptions:\n");
+    fprintf(stderr, "PISA corr [options] in.bam\n");
+    fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -o        [BAM]       Output bam.\n");
     fprintf(stderr, " -tag      [TAG]       Tag to correct.\n");
     fprintf(stderr, " -new-tag  [TAG]       Create a new tag for corrected barcodes.\n");
-    fprintf(stderr, " -tags-block  [TAGS]   Tags to define each block. Reads in one block will be corrected by frequency.\n");
+    fprintf(stderr, " -tags-block  [TAGS]   Tags to define read group. For example, if set to GN (gene), reads in the same gene will be grouped together.\n");
+    fprintf(stderr, " -cr                   Enable CellRanger like UMI correction method.\n");
     fprintf(stderr, " -@        [INT]       Thread to compress BAM file.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Demo : \n");
+    fprintf(stderr, " // Two groups of reads have same cell barcode (CB) and gene (GN) but their UMIs (UY) differ by only one base. The UMI of less supported\n");
+    fprintf(stderr, " // is corrected to the UMI with higher support. UB save the checked or corrected UMI.\n");
+    fprintf(stderr, "* PISA corr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
+    fprintf(stderr, " // Same with above. Besides, if two or more groups of reads have same CB and UB but different GN, the GN with the most supporting reads\n");
+    fprintf(stderr, " // is kept for UMI counting, and the other read groups are discarded. In case of a tie for maximal read support, all read groups are\n");
+    fprintf(stderr, " // discarded, as the gene cannot be confidently assigned (Cell Ranger method).\n");
+    fprintf(stderr, "* PISA corr -cr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -177,7 +187,7 @@ int bam_corr_usage()
 int bam_attr_usage()
 {
     fprintf(stderr, "* Count the frequency of tag values.\n");
-    fprintf(stderr, "AttrCount in.bam\n");
+    fprintf(stderr, "PISA count in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -cb       [TAG]      Cell Barcode, or other tag used for each individual.\n");
     fprintf(stderr, " -list     [file]     Cell barcode white list.\n");
