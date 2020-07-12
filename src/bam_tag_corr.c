@@ -67,6 +67,7 @@ void bc_corr_destroy(struct dict *C)
             kh_destroy(bc,bc->val->val);
         
         dict_destroy(bc->umi_val);
+        free(bc);
     }
     dict_destroy(C);
 }
@@ -336,6 +337,7 @@ void bc_push(struct dict *bc, int cr_method, int n_tag, const char **tags, const
     char *comp = compactDNA(umi, strlen(umi));
     
     struct bc_corr *bc0 = dict_query_value2(bc, v[0]);
+    free(v);
     int id = dict_push(bc0->umi_val, comp);
     free(comp);
     char *cc = dict_name(bc0->umi_val, id); // use cached string
@@ -387,7 +389,7 @@ struct dict *build_index(const char *fn, int cr_method, int n_tag, const char **
             c->flag & BAM_FDUP) continue;
         bc_push(cell_bc, cr_method, n_tag, tags, umi_tag, b);
     }
-    
+    bam_destroy1(b);
     bam_hdr_destroy(hdr);
     sam_close(fp);
 

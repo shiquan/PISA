@@ -81,8 +81,10 @@ const char compDNA_str[] = "\0ACKGYSBTWRDMHVN";
 
 char *compactDNA(const char *a, int l)
 {
+    assert(a);
+    assert(l);
     int l0 = l/2 + 1 + (l&1);
-    char *c = malloc(l0);
+    char *c = malloc(l0); assert(c);
     memset(c, 0, l0);
     int i, j = 0;
     for (i = 0; i < l; ++i) {
