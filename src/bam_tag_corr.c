@@ -18,12 +18,21 @@ extern char *compDNA_decode(const char *a);
 
 typedef struct umi_count {
     int count; 
-    int index; // iter of hash
+    int index; // index refer to umi dict
+    int umi_index; // index to similiar UMIs group
+    int primary;
     int filter;
 } uc_t;
 
 KHASH_MAP_INIT_STR(bc, uc_t)
 
+// To correct UMI needs first cache all UMIs and grouped by predefined barcodes, such as cell and gene.
+// For example, if set -tags-block to "CB,GN", this will group reads from the same cell barcode and gene
+// annotation first, reads in one group will future be grouped by UMIs, if two subgroups have similar
+// UMIs (==1 hamming distance by default), the UMI of less supported is corrected to the UMI with higher support.
+
+// This cache structure is a dictionary structure, use cell barcode as the key and point to "struct bc_corr".
+// The "struct bc_corr" is an iterative structure, point to itself if more than 1 tag defined by -tags-block.
 // cell::bc_corr::tag::tag::UMIs
 struct tag_val {
     struct dict *bc;
@@ -31,9 +40,10 @@ struct tag_val {
 };
 
 struct bc_corr {
-    struct dict *umi_val; // UMIs
+    struct dict    *umi_val; // UMIs
     struct tag_val *val;
 };
+
 void bc_corr_destroy1(struct dict *bc)
 {
     int i;
@@ -41,10 +51,8 @@ void bc_corr_destroy1(struct dict *bc)
         struct tag_val *v = dict_query_value(bc, i);
         if (v->bc != NULL)
             bc_corr_destroy1(v->bc);
-        else {
+        else 
             kh_destroy(bc, v->val);
-        }
-        dict_destroy(v->bc);
     }
     dict_destroy(bc);
 }
@@ -55,14 +63,15 @@ void bc_corr_destroy(struct dict *C)
         struct bc_corr *bc = dict_query_value(C, i);
         if (bc->val->bc) 
             bc_corr_destroy1(bc->val->bc);
-        else {
+        else 
             kh_destroy(bc,bc->val->val);
-        }
+        
         dict_destroy(bc->umi_val);
     }
     dict_destroy(C);
 }
 
+// this function return a array of sam attributions, values of this array are actually point to SAM::data, so don't free them
 char **sam_tag_values(bam1_t *b, int n, const char **blocks)
 {
     char **v = malloc(n*sizeof(void*));
@@ -73,7 +82,7 @@ char **sam_tag_values(bam1_t *b, int n, const char **blocks)
             free(v);
             return NULL;
         }
-        v[i] = v0;
+        v[i] = v0+1; // skip the type character
     }
     return v;
 }
@@ -117,6 +126,7 @@ static struct args {
     .chunk_size   = 1000000, //1M
     .Cindex       = NULL,
 };
+
 static void memory_release()
 {
     bam_hdr_destroy(args.hdr);
@@ -127,8 +137,56 @@ static void memory_release()
     free(args.blocks);
     bc_corr_destroy(args.Cindex);
 }
+static void umi_idx_refresh(kh_bc_t *val, int old_idx, int new_idx)
+{
+    khiter_t k;
+    for (k = kh_begin(val); k != kh_end(val); ++k) {
+        if (!kh_exist(val, k)) continue;       
+        struct umi_count *cnt = &kh_val(val, k);
+        if (cnt->umi_index == old_idx) cnt->umi_index = new_idx;
+    }
+}
+static void umi_idx_correct(kh_bc_t *val)
+{
+    khiter_t k;
+    for (k = kh_begin(val); k != kh_end(val); ++k) {
+        if (!kh_exist(val, k)) continue;       
+        struct umi_count *cnt = &kh_val(val, k);
+        if (cnt->umi_index <= 0) continue; // corrected or no need to correct
 
-void build_index_core(struct tag_val *tag_val)
+        int best_umi = cnt->index;
+        int best_cnt = cnt->count;
+
+        // check the best UMI
+        khiter_t k1;
+        for (k1 = k+1; k1 != kh_end(val); ++k1) {
+            if (!kh_exist(val, k1)) continue;
+            struct umi_count *cnt1 = &kh_val(val, k1);
+            if (cnt1->umi_index != cnt->umi_index) continue; // not in same UMI group
+            if (best_cnt < cnt1->count) {
+                best_umi = cnt1->index;
+                best_cnt = cnt1->count;
+            }
+            
+        }
+
+        // update UMI index
+        for (k1 = k+1; k1 != kh_end(val); ++k1) {
+            if (!kh_exist(val, k1)) continue;
+            struct umi_count *cnt1 = &kh_val(val, k1);
+            if (cnt1->umi_index != cnt->umi_index) continue;
+            if (cnt1->index != best_umi) cnt1->primary = 0; // not primary UMI
+            cnt1->index = best_umi;
+            cnt1->umi_index = -1; // checked
+        }
+        if (cnt->index != best_umi) cnt->primary = 0;
+        cnt->index  = best_umi;
+        cnt->umi_index = -1; // checked
+
+    }
+}
+
+void build_index_core(struct tag_val *tag_val, struct dict *umi_val)
 {
     if (tag_val->bc != NULL) { //iterate next tag
         int i;
@@ -136,52 +194,46 @@ void build_index_core(struct tag_val *tag_val)
             char *name = dict_name(tag_val->bc, i);
             int id = dict_query(tag_val->bc, name);
             struct tag_val *v = dict_query_value(tag_val->bc, id);
-            build_index_core(v);
+            build_index_core(v, umi_val);
         }
         return;
     }
-    // UMI correction
-    khiter_t k;
+
+    // UMI correction, O(n^2)
     kh_bc_t *val = tag_val->val;
-    for (k = kh_begin(val); k != kh_end(val); ++k) {
-        if (!kh_exist(val, k)) continue;
-        const char *a = kh_key(val, k);
-        struct umi_count *cnt = &kh_val(val, k);
-        khiter_t k1;
-        for (k1 = k+1; k1 < kh_end(val); ++k1) {
-            if (!kh_exist(val, k1)) continue;
-            const char *b = kh_key(val, k1);
-            int e;
-            e = compDNA_hamming_distance(a, b);
-            if (e > UMI_E) continue;
-            struct umi_count *cnt1 = &kh_val(val,k1);
-            // assign index to high frequency umi
-            if (cnt->count > cnt1->count) {
-                cnt1->index  = cnt->index;
-                cnt1->count += cnt->count;
-                cnt->count   = 0; // reset
-            }
-            else {
-                cnt->index  = cnt1->index;
-                cnt->count += cnt1->count;
-                cnt1->count = 0; // reset
-            }
-        }
-    }
+    khiter_t k;
     
-    // update index
+    int umi_idx = 1;
+
     for (k = kh_begin(val); k != kh_end(val); ++k) {
         if (!kh_exist(val, k)) continue;
-        struct umi_count *uc = &kh_val(val, k);
-        struct umi_count *last_uc = uc;
-        while (uc->index != k) { // redirect to last index
-            //char *new_umi = kh_key(val,uc->index);
-            last_uc = uc;
-            uc = &kh_val(val,uc->index); // update uc point to new index
-            uc->count += last_uc->count;
-            last_uc->count = 0;
+        
+        struct umi_count *cnt = &kh_val(val, k);
+        const char *a = kh_key(val, k);
+        
+        khiter_t k1;
+        for (k1 = k+1; k1 != kh_end(val); ++k1) {
+            if (!kh_exist(val, k1)) continue;            
+            struct umi_count *cnt1 = &kh_val(val,k1);
+            if (cnt1->umi_index == cnt->umi_index && cnt->umi_index > 0) continue; // umi_idx already updated
+            if (cnt1->umi_index == umi_idx) continue; // umi_idx already updated and refreshed            
+            
+            // check similarity of two UMIs
+            const char *b = kh_key(val, k1);
+            int e = compDNA_hamming_distance(a, b);
+            if (e > UMI_E) continue;
+            
+            if (cnt->umi_index == 0) cnt->umi_index = umi_idx; // init the UMI index; if no similar UMI, umi_index == 0
+            
+            if (cnt1->umi_index == 0) cnt1->umi_index = cnt->umi_index;
+            if (cnt1->umi_index != umi_idx) // in case already point to another group
+                umi_idx_refresh(val, cnt1->umi_index, cnt->umi_index); // update idx to new index
         }
+        
+        umi_idx++; // increase the index flag
     }
+
+    umi_idx_correct(val);
 }
 // for one cell, reads with the same umi but map to more than one gene, only keep gene with higher read support.
 // in case of a tie for maximal read support, all reads are discarded.
@@ -189,67 +241,85 @@ void filter_umi_gene(struct bc_corr *bc)
 {
     assert(bc->val->bc); // check if gene exists
     dict_set_value(bc->umi_val);
-    
     struct dict *gene = bc->val->bc;
     int i;
     for (i = 0; i < dict_size(gene); ++i) {
         struct tag_val *v = dict_query_value(gene, i);
         assert(v->val);
+        
         khiter_t k;
-        for (k = kh_begin(v->val); k != kh_end(v->val); ++k) { // for each
+        for (k = kh_begin(v->val); k != kh_end(v->val); ++k) { // for each UMI in one gene
             if (!kh_exist(v->val, k)) continue;
-
-            struct umi_count *cnt = &kh_val(v->val,k);
-            if (k != cnt->index) {
-                LOG_print("%s corrected to %s", kh_key(v->val,k), kh_key(v->val, cnt->index));
-                continue;
-            }
             
-            const char *umi = kh_key(v->val, cnt->index);
-            int umi_idx = dict_query(bc->umi_val, umi);
-            struct umi_count *u = dict_query_value(bc->umi_val, umi_idx);
-            if (u == NULL) {
-                dict_assign_value(bc->umi_val, umi_idx, cnt);
-            }
+            struct umi_count *cnt = &kh_val(v->val,k);
+            if (cnt->primary == 0) continue; // skip if not primary UMI
+            
+            struct umi_count *cnt0 = dict_query_value(bc->umi_val, cnt->index);
+            if (cnt0 == NULL) 
+                dict_assign_value(bc->umi_val, cnt->index, cnt);
             else { // already present
-
+                
                 // compare the read count of two group
-                if (u->count < cnt->count) {
-                    u->filter = 1;
-                    dict_assign_value(bc->umi_val, umi_idx, cnt);
+                if (cnt0->count < cnt->count) {
+                    cnt0->filter = 1;
+                    dict_assign_value(bc->umi_val, cnt->index, cnt); // keep gene UMI with high frequency
                 }
-                else if (u->count == cnt->count) {
-                    u->filter = 1; // ambigous
+                else if (cnt0->count == cnt->count) {
+                    cnt0->filter = 1; // ambigous
                     cnt->filter = 1;
                 }
                 else {
                     cnt->filter = 1;
                 }
-                
             }
-            
         }
     }
 }
 void build_index1(struct bc_corr *bc)
 {
-    build_index_core(bc->val);
+    build_index_core(bc->val, bc->umi_val);
     if (args.cr_method)
         filter_umi_gene(bc);
 }
 
 kh_bc_t *select_umi_hash(struct dict *Cindex, int n, const char **tags)
 {
-    struct bc_corr *bc = dict_query_value2(Cindex, tags[0]);
-    if (bc->val->val != NULL) return bc->val->val;
-    struct tag_val *v;
-    int i;    
-    for (i = 1; i < n; ++i)
-        v = dict_query_value2(v->bc, tags[i]);
+    int cell_idx = dict_query(Cindex, tags[0]);
+    if (cell_idx < 0) cell_idx = dict_push(Cindex, tags[0]);
+    struct bc_corr *bc = dict_query_value(Cindex, cell_idx);
+    if (bc == NULL) {
+        bc = malloc(sizeof(struct bc_corr));
+        bc->val = malloc(sizeof(struct tag_val));
+        bc->umi_val = dict_init();
+        
+        bc->val->val = NULL;
+        bc->val->bc = NULL;
+        dict_assign_value(Cindex, cell_idx, bc);
+    }
     
+    struct tag_val *v = bc->val;
+    int i;    
+    for (i = 1; i < n; ++i) {
+        if (v->bc == NULL) {
+            v->bc = dict_init();
+            dict_set_value(v->bc);
+        }
+        int ret = dict_query(v->bc, tags[i]);
+        if (ret < 0) ret = dict_push(v->bc, tags[i]);
+        
+        struct tag_val *v0 = dict_query_value(v->bc, ret);
+        if (v0 == NULL) {
+            v0 = malloc(sizeof(*v0));
+            v0->bc = NULL;
+            v0->val = NULL;
+            dict_assign_value(v->bc, ret, v0);            
+        }
+        v = v0; // update point to next level
+    }
+
+    if (v->val == NULL) v->val = kh_init(bc);
     return v->val;
 }
-
 void bc_push(struct dict *bc, int cr_method, int n_tag, const char **tags, const char *umi_tag, bam1_t *b)
 {
     char **v = sam_tag_values(b, n_tag, tags);
@@ -259,23 +329,28 @@ void bc_push(struct dict *bc, int cr_method, int n_tag, const char **tags, const
         free(v);
         return;
     }
-    struct bc_corr *bc0 = dict_query_value2(bc, v[0]);
+
+    umi = umi+1; // emit type
     
-    kh_bc_t *uhash = select_umi_hash(bc, n_tag, (const char**)v);
-    int l = strlen(umi);
-    char *comp = compactDNA(umi, l);
+    kh_bc_t *uhash = select_umi_hash(bc, n_tag, (const char**)v); // select_umi_hash will auto init empty cell
+    char *comp = compactDNA(umi, strlen(umi));
+    
+    struct bc_corr *bc0 = dict_query_value2(bc, v[0]);
     int id = dict_push(bc0->umi_val, comp);
     free(comp);
     char *cc = dict_name(bc0->umi_val, id); // use cached string
-    khiter_t k;
+
+    khiter_t k;    
     k = kh_get(bc, uhash, cc);
     if (k == kh_end(uhash)) {
         int ret;
         k = kh_put(bc, uhash, cc, &ret);
         struct umi_count *uc = &kh_val(uhash, k);
-        uc->count = 1;
-        uc->index = k;
-        uc->filter = 0;
+        uc->count     = 1;
+        uc->index     = id; // index of umi dict
+        uc->umi_index = 0;  // init state, do NOT change it
+        uc->filter    = 0;  // init state, do NOT change it
+        uc->primary   = 1;  // any UMI is primary before check
     }
     else {
         struct umi_count *uc = &kh_val(uhash, k);
@@ -304,19 +379,26 @@ struct dict *build_index(const char *fn, int cr_method, int n_tag, const char **
     int i;
     for (;;) {
         if (sam_read1(fp, hdr, b) < 0) break;
+        bam1_core_t *c = &b->core;
+        if (c->flag & BAM_FQCFAIL ||
+            c->flag & BAM_FSECONDARY ||
+            c->flag & BAM_FSUPPLEMENTARY ||
+            c->flag & BAM_FUNMAP ||
+            c->flag & BAM_FDUP) continue;
         bc_push(cell_bc, cr_method, n_tag, tags, umi_tag, b);
     }
     
     bam_hdr_destroy(hdr);
     sam_close(fp);
 
-    struct tpool *tp = tpool_init(args.n_thread, args.n_thread*2, 1);
+    //struct tpool *tp = tpool_init(args.n_thread, args.n_thread*2, 1);
 
     for (i = 0; i < dict_size(cell_bc); ++i) {
         struct bc_corr *bc0 = dict_query_value(cell_bc, i);
-        tpool_add_work(tp, build_index1, bc0);
+        build_index1(bc0);
+        //tpool_add_work(tp, build_index1, bc0);
     }
-    tpool_destroy(tp);
+    //tpool_destroy(tp);
     LOG_print("Build time : %.3f sec", realtime() - t_real);
     return cell_bc;
 }
@@ -391,20 +473,26 @@ char *select_umi(struct dict *Cindex, int n,const char **tags, char *umi)
     assert(cu);
     kh_bc_t *v = select_umi_hash(Cindex, n, tags);
     khiter_t k;
-    k = kh_get(bc, v, umi);
+    k = kh_get(bc, v, cu);
+    assert(k != kh_end(v));
+    free(cu);
     struct umi_count *cnt = &kh_val(v,k);
     if (cnt->filter) return NULL;
-    const char *r = kh_key(v, cnt->index);
+    
+    int cell_idx = dict_query(Cindex, tags[0]);
+    struct bc_corr *bc = dict_query_value(Cindex, cell_idx);
+    const char *r = dict_name(bc->umi_val, cnt->index);
     return compDNA_decode(r);
 }
 int update_new_tag(struct dict *Cindex, int n_block, const char **blocks, const char *old_tag, const char *new_tag, bam1_t *b)
 {
-    char *umi = NULL;
+    char *umi = (char *)bam_aux_get(b, old_tag);
+    assert(umi);
     
     char **tag_vals = sam_tag_values(b, n_block, blocks);
     if (tag_vals == NULL) return 0;
     
-    char *new_umi = select_umi(Cindex, n_block, (const char **)tag_vals, umi);
+    char *new_umi = select_umi(Cindex, n_block, (const char **)tag_vals, umi+1);
    
     free(tag_vals);
     
