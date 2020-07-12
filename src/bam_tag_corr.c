@@ -65,7 +65,7 @@ void bc_corr_destroy(struct dict *C)
             bc_corr_destroy1(bc->val->bc);
         else 
             kh_destroy(bc,bc->val->val);
-        
+        free(bc->val);
         dict_destroy(bc->umi_val);
         free(bc);
     }
