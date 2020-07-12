@@ -53,6 +53,7 @@ void bc_corr_destroy1(struct dict *bc)
             bc_corr_destroy1(v->bc);
         else 
             kh_destroy(bc, v->val);
+        free(v);
     }
     dict_destroy(bc);
 }
