@@ -99,7 +99,7 @@ char *compactDNA(const char *a, int l)
             c[j] = ((c1&0xf)<<4)&0xf0;
         }
     }
-    c[++j] = 0;
+    c[l0-1] = 0;
     return c;
 }
 
