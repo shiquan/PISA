@@ -64,7 +64,6 @@ workflow main {
 
 task countMatrix {
   String root
-  String list
   String outdir
   String anno
   String ?lib
