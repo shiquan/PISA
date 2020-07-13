@@ -155,7 +155,7 @@ int anno_usage()
     fprintf(stderr, "   AN : Same with TX but set only if read mapped to antisense strand of transcript.\n");
     fprintf(stderr, "   GN : Gene name.\n");
     fprintf(stderr, "   GX : Gene ID.\n");
-    fprintf(stderr, "   RE : Region type, E (Exon), I (Intron), C (Exon and Intron), S (junction reads cover isoforms properly), V (ambiguous reads, junction reads cover isoforms unproperly)\n");
+    fprintf(stderr, "   RE : Region type, E (Exon), N (Intron), C (Exon and Intron), S (junction reads cover isoforms properly), V (ambiguous reads), I (Intergenic), A (Anitisense)\n");
     fprintf(stderr, "\n");
     return 1;
 }
