@@ -32,6 +32,7 @@ workflow main {
     fastq=parseFastq.fastq,
     outdir=outdir,
     STAR=STAR,
+    gtf=gtf,
     refdir=refdir,
     root=root
   }
@@ -49,23 +50,13 @@ workflow main {
     lib=lib,
     bam=sortBam.anno,
     outdir=outdir,
-    root=root,
+    root=root
   }    
-  call cellCalling {
-    input:
-    lib=lib,
-    root=root,
-    count=cellCount.count,
-    outdir=outdir,
-    Rscript=Rscript,
-    expectCell=expectCell,
-    forceCell=forceCell,  
-  }
+
   call countMatrix {
     input:
     lib=lib,
     root=root,
-    list=cellCalling.list,
     outdir=outdir,
     anno=sortBam.anno
   }
@@ -82,34 +73,14 @@ task countMatrix {
     if [ -f ${default=abjdbashj lib} ]; then
     source ${lib}
     fi
-
-    ${root}/PISA count -@ 10 -tag CB -anno_tag GN -umi UB -o ${outdir}/outs/gene_mtx.tsv -list ${list} ${anno}
-    gzip -f ${outdir}/outs/gene_mtx.tsv
+    mkdir -p ${outdir}/outs/raw_gene_expression
+    ${root}/PISA count -@ 10 -tag CB -anno_tag GN -umi UB -outdir ${outdir}/outs/raw_gene_expression ${anno}
+    
     echo "[`date +%F` `date +%T`] workflow end" >> ${outdir}/workflowtime.log
   }
   output {
-    String matrix = "${outdir}/outs/gene_mtx.tsv"
-    File matrix0 = "${outdir}/outs/gene_mtx.tsv"
-  }
-}
-task cellCalling {
-  String count
-  String outdir
-  String Rscript
-  String root
-  Int ?expectCell
-  Int ?forceCell
-  String ?lib
-  command {
-    if [ -f ${default=abjdbashj lib} ]; then
-    source ${lib}
-    fi
-
-    ${Rscript} ${root}/scripts/scRNA_cell_calling.R -i ${count} -o ${outdir}/outs -e ${default=0 expectCell} -f ${default=0 forceCell}
-  }
-  output {
-    String list="${outdir}/outs/cell_barcodes.txt"
-    File list0="${outdir}/outs/cell_barcodes.txt"
+    String matrix = "${outdir}/outs/raw_gene_expression/matrix.mtx.gz"
+    File matrix0 = "${outdir}/outs/raw_gene_expression/matrix.mtx.gz"
   }
 }
 
@@ -123,7 +94,6 @@ task cellCount {
     source ${lib}
     fi
 
-    ${root}/PISA corr -tag UB -@ 10 -tags-block CB,GN -o ${outdir}/outs/final.bam ${bam} && \
     ${root}/PISA attrcnt -cb CB -tags UB,GN -dedup -@ 10 -o ${outdir}/temp/cell_stat.txt -all-tags ${outdir}/outs/final.bam
   }
   output {
@@ -172,6 +142,7 @@ task fastq2bam {
   String STAR
   String refdir
   String root
+  String gtf
   String ?lib
   command {
     if [ -f ${default=abjdbashj lib} ]; then
@@ -179,8 +150,8 @@ task fastq2bam {
     fi
 
     ${STAR}  --outStd SAM --runThreadN 10 --genomeDir ${refdir} --readFilesIn ${fastq} --outFileNamePrefix ${outdir}/temp/ 1> ${outdir}/temp/aln.sam && \
-    ${root}/PISA sam2bam -o ${outdir}/temp/aln.bam -report ${outdir}/report/alignment_report.csv ${outdir}/temp/aln.sam && rm -f ${outdir}/temp/aln.sam
-    
+    ${root}/PISA sam2bam -adjust-mapq -gtf ${gtf} -o ${outdir}/temp/aln.bam -report ${outdir}/report/alignment_report.csv ${outdir}/temp/aln.sam && \
+    rm -f ${outdir}/temp/aln.sam
   }
   output {
     String bam="${outdir}/temp/aln.bam"
@@ -202,8 +173,9 @@ task sortBam {
 
     ${sambamba} sort -t 10 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam
     ${root}/PISA anno -gtf ${gtf} -o ${outdir}/temp/anno.bam -report ${outdir}/report/anno_report.csv ${outdir}/temp/sorted.bam
+    ${root}/PISA corr -tag UR -new-tag UB -cr -@ 10 -tags-block CB,GN -o ${outdir}/outs/final.bam ${bam} 
   }
   output {
-    String anno="${outdir}/temp/anno.bam"
+    String anno="${outdir}/outs/final.bam"
   }
 }
