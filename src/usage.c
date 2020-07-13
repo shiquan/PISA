@@ -224,7 +224,8 @@ int bam_count_usage()
     fprintf(stderr, " -tag      [TAG]      Cell barcode tag.\n");
     fprintf(stderr, " -anno-tag [TAG]      Annotation tag, gene or peak.\n");
     fprintf(stderr, " -list     [file]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
-    fprintf(stderr, " -o        [file]     Output matrix.\n");
+    //fprintf(stderr, " -o        [file]     Output matrix.\n");
+    fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this fold.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
     fprintf(stderr, " -one-hit             Skip if a read hits more than 1 gene or peak.\n");
     fprintf(stderr, " -corr                Enable correct UMIs. Similar UMIs defined as amming distance <= 1.\n");
