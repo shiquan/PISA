@@ -86,12 +86,12 @@ int sam2bam_usage()
     // fprintf(stderr, " -skip-sec            Skip secondary alignments in the output.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Note :\n");
-    fprintf(stderr, "* Reads map to multiple loci usually be marked as low quality and be filter at downstream analysis.\n");
-    fprintf(stderr, "  But for RNAseq library, if reads map to a exonic locus but also align to 1 or more non exonic loci,\n");
-    fprintf(stderr, "  the exonic locus can be prioritized as primary alignments, and mapping quality adjust to 255. Tag\n");
+    fprintf(stderr, "* Reads map to multiple loci usually be marked as low quality and filtered at downstream analysis.\n");
+    fprintf(stderr, "  But for RNAseq library, if reads map to an exonic locus but also align to 1 or more non-exonic loci,\n");
+    fprintf(stderr, "  the exonic locus can be prioritized as primary alignments, and mapping quality adjusts to 255. Tag\n");
     fprintf(stderr, "  MM:i:1 will also be added for this record. Following options used to adjust mapping quality.\n");
     fprintf(stderr, "* Input SAM need be sorted by read name, and aligner should output all hits of a read in this SAM.\n");
-    fprintf(stderr, " -adjust-mapq         Enable adjust mapping quality score.\n");
+    fprintf(stderr, " -adjust-mapq         Enable adjusts mapping quality score.\n");
     fprintf(stderr, " -gtf     [GTF]       GTF annotation file. This file is required to check the exonic regions.\n");
     fprintf(stderr, " -qual    [255]       Updated quality score.\n");
     fprintf(stderr, "\n");
@@ -162,7 +162,7 @@ int anno_usage()
 
 int bam_corr_usage()
 {
-    fprintf(stderr, "* Correct error prone barcodes based on frequency.\n");
+    fprintf(stderr, "* Correct similar barcodes (hamming distance == 1).\n");
     fprintf(stderr, "PISA corr [options] in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -o        [BAM]       Output bam.\n");
@@ -170,6 +170,7 @@ int bam_corr_usage()
     fprintf(stderr, " -new-tag  [TAG]       Create a new tag for corrected barcodes.\n");
     fprintf(stderr, " -tags-block  [TAGS]   Tags to define read group. For example, if set to GN (gene), reads in the same gene will be grouped together.\n");
     fprintf(stderr, " -cr                   Enable CellRanger like UMI correction method.\n");
+    fprintf(stderr, " -e                    Maximal hamming distance to define similar barcode, default is 1.\n");
     fprintf(stderr, " -@        [INT]       Thread to compress BAM file.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Demo : \n");

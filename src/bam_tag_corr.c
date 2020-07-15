@@ -111,6 +111,8 @@ static struct args {
     
     int           chunk_size;
     struct dict * Cindex;
+
+    int           e_distance;
 } args = {
     .input_fname  = NULL,
     .output_fname = NULL,
@@ -127,6 +129,7 @@ static struct args {
 
     .chunk_size   = 1000000, //1M
     .Cindex       = NULL,
+    .e_distance   = UMI_E,
 };
 
 static void memory_release()
@@ -223,7 +226,7 @@ void build_index_core(struct tag_val *tag_val, struct dict *umi_val)
             // check similarity of two UMIs
             const char *b = kh_key(val, k1);
             int e = compDNA_hamming_distance(a, b);
-            if (e > UMI_E) continue;
+            if (e > args.e_distance) continue;
             
             if (cnt->umi_index == 0) cnt->umi_index = umi_idx; // init the UMI index; if no similar UMI, umi_index == 0
             
@@ -413,6 +416,7 @@ static int parse_args(int argc, char **argv)
     const char *block_tags = NULL;
     const char *file_th = NULL;
     const char *thread = NULL;
+    const char *distance = NULL;
     
     int i;
     for (i = 1; i < argc;) {
@@ -426,10 +430,12 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-@") == 0) var = &file_th;
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-new-tag") == 0) var = &args.new_tag;
+        else if (strcmp(a, "-e") == 0) var = &distance;
         else if (strcmp(a, "-cr") == 0) {
             args.cr_method = 1;
             continue;
         }
+
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -462,7 +468,9 @@ static int parse_args(int argc, char **argv)
 
     if (file_th) args.file_th = str2int((char*)file_th);
     if (thread) args.n_thread = str2int((char*)thread);
-
+    if (distance) args.e_distance = str2int((char*)distance);
+    if (args.e_distance < 1) error("Hamming distance of similar barcodes greater than 0 is required.");
+    
     args.Cindex = build_index(args.input_fname, args.cr_method, args.n_block, (const char **)args.blocks, args.tag);
 
     if (args.Cindex == NULL) error("Failed to index.");
