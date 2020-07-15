@@ -73,7 +73,7 @@ task countMatrix {
     source ${lib}
     fi
     mkdir -p ${outdir}/outs/raw_gene_expression
-    ${root}/PISA count -@ 10 -tag CB -anno_tag GN -umi UB -outdir ${outdir}/outs/raw_gene_expression ${anno}
+    ${root}/PISA count -@ 10 -tag CB -anno-tag GN -umi UB -outdir ${outdir}/outs/raw_gene_expression ${anno}
     
     echo "[`date +%F` `date +%T`] workflow end" >> ${outdir}/workflowtime.log
   }
@@ -172,7 +172,7 @@ task sortBam {
 
     ${sambamba} sort -t 10 -o ${outdir}/temp/sorted.bam ${outdir}/temp/aln.bam
     ${root}/PISA anno -gtf ${gtf} -o ${outdir}/temp/anno.bam -report ${outdir}/report/anno_report.csv ${outdir}/temp/sorted.bam
-    ${root}/PISA corr -tag UR -new-tag UB -cr -@ 10 -tags-block CB,GN -o ${outdir}/outs/final.bam ${bam} 
+    ${root}/PISA corr -tag UR -new-tag UB -cr -@ 10 -tags-block CB,GN -o ${outdir}/outs/final.bam ${outdir}/temp/anno.bam
   }
   output {
     String anno="${outdir}/outs/final.bam"
