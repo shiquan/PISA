@@ -263,17 +263,18 @@ void fragment_pool_push0(struct frag_pool *p, int start, int end, int tid, int i
         struct frag *f0 = (struct frag*)itr->rets[i];
         if (f0->start == start && f0->end == end) {
             f0->dup++;
+            region_itr_destroy(itr);
             return; // duplication
         }
     }
-
+    if (itr) region_itr_destroy(itr);
     struct frag *f = malloc(sizeof(*f));
     memset(f, 0, sizeof(*f));
     f->start = start;
     f->end = end;
     f->tid = tid;
     f->idx = idx;
-    f->dup = 1;
+    f->dup = 1; // init, count this record once
     if (p->head && p->tail) {
         p->tail->next = f;
         p->tail = f;
@@ -282,6 +283,7 @@ void fragment_pool_push0(struct frag_pool *p, int start, int end, int tid, int i
         p->head = p->tail = f;
     }
     index_bin_push(p->idx, start, end, f);
+
     p->n++;
     p->cut_sites++;
 }
@@ -297,12 +299,12 @@ static int fragment_pool_push(struct dict *cells, bam1_t *b, const char *CB, int
     
     int start, end;
     if (b->core.isize > 0) {
-        start = b->core.pos+1;
-        end = start + b->core.isize;
+        start = b->core.pos;
+        end = start + b->core.isize+1;
     }
     else {
         end = b->core.pos+1;
-        start = end + b->core.isize;
+        start = b->core.pos + b->core.isize;
     }
 
     // Tn5 offset
