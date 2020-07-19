@@ -5,10 +5,10 @@
 
 int usage()
 {
-    fprintf(stderr, "\nPISA - a preprocessing and inference tool for single-cell data analysis\n");
-    fprintf(stderr, "Version : %s + htslib : %s\n", PISA_VERSION, HTS_VERSION_TEXT);
-    fprintf(stderr, "Contact : Quan SHI [shiquan(AT)genomics.cn]\n");
-    fprintf(stderr, "\nCommands :\n");
+    fprintf(stderr, "\nPISA - a preprocessing and interative suite for single-cell data analysis\n");
+    fprintf(stderr, "Version: %s + htslib: %s\n", PISA_VERSION, HTS_VERSION_TEXT);
+    fprintf(stderr, "Contact: Quan SHI [shiquan(AT)genomics.cn]\n");
+    fprintf(stderr, "\nCommands:\n");
     fprintf(stderr, "\n--- Processing FASTQ\n");
     fprintf(stderr, "    parse      Parse barcodes from fastq reads.\n");
     fprintf(stderr, "    fsort      Sort fastq records by barcodes.\n");
@@ -23,7 +23,7 @@ int usage()
     fprintf(stderr, "    extract    Extract tag value from BAM.\n");
     fprintf(stderr, "    count      Count matrix.\n");
     fprintf(stderr, "    bam2fq     Convert BAM to FASTQ+ file with selected tags.\n");
-    
+    fprintf(stderr, "    bam2frag   Generate fragment file.\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -33,6 +33,7 @@ int main(int argc, char *argv[])
     extern int fastq_prase_barcodes(int argc, char *argv[]);
     //extern int fastq_trim_adaptors(int argc, char *argv[]);
     extern int fsort(int argc, char ** argv);
+
     // process BAM
     extern int sam2bam(int argc, char *argv[]);
     // extern int bam_rmdup(int argc, char *argv[]);
@@ -44,7 +45,7 @@ int main(int argc, char *argv[])
     extern int count_matrix(int argc, char *argv[]);
     extern int bam2fq(int argc, char *argv[]);
     // extern int gene_cov(int argc, char **argv);
-    // extern int bam2frag(int argc, char **argv);
+    extern int bam2frag(int argc, char **argv);
 
 
     if (argc == 1) return usage();
@@ -60,7 +61,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "extract") == 0) return bam_extract_tags(argc-1, argv+1);
     else if (strcmp(argv[1], "pick") == 0) return bam_pick(argc-1, argv+1);
     // else if (strcmp(argv[1], "genecov") == 0) return gene_cov(argc-1, argv+1);
-    // else if (strcmp(argv[1], "bam2frag") == 0) return bam2frag(argc-1, argv+1);
+    else if (strcmp(argv[1], "bam2frag") == 0) return bam2frag(argc-1, argv+1);
     else if (strcmp(argv[1], "count") == 0) return count_matrix(argc-1, argv+1);
     // else if (strcmp(argv[1], "assem") == 0)  return fastq_assem(argc-1, argv+1);
     // else if (strcmp(argv[1], "segment") == 0) return fastq_segment(argc-1, argv+1);

@@ -68,7 +68,7 @@ static void bed_build_index(struct bed_spec *B)
     
     int i;
     for (i = 0; i < dict_size(B->seqname); ++i)
-        B->idx[i].idx = region_index_build();
+        B->idx[i].idx = region_index_create();
 
     for (i = 0; i < B->n; ++i) {
         struct bed *bed = &B->bed[i];

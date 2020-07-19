@@ -1,6 +1,21 @@
 #include <stdio.h>
 
 
+int fragment_usage()
+{
+    fprintf(stderr, "* Convert sam record to fragment file.");
+    fprintf(stderr, "fragment [options] in.bam\n");
+    fprintf(stderr, "\nOptions:\n");
+    fprintf(stderr, " -o       [FILE]    Output file. This file will be bgzipped and indexed.\n");
+    fprintf(stderr, " -tag     [TAG]     Cell barcode tag.\n");
+    fprintf(stderr, " -list    [FILE]    Cell barcode white list.\n");
+    fprintf(stderr, " -isize   [2000]    Skip if insert size greater than this. [2KB]\n");
+    fprintf(stderr, " -stat    [FILE]    Transposition events per cell.\n");
+    fprintf(stderr, " -@       [4]       Thread to unpack and pack files.[4]\n");
+    fprintf(stderr, " -disable-tn5       Disable Tn5 offset for each fragment.\n");
+    return 1;
+}
+
 int fastq_parse_usage()
 {
     fprintf(stderr, "* Parse cell barcode and UMI string from raw FASTQ.\n");

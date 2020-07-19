@@ -14,7 +14,7 @@ struct region_index {
     khash_t(bin) *idx;
 };
 
-struct region_index *region_index_build()
+struct region_index *region_index_create()
 {
     struct region_index *idx = malloc(sizeof(struct region_index));
     idx->idx = kh_init(bin);
