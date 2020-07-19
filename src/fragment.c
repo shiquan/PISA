@@ -7,6 +7,8 @@
 #include "dict.h"
 #include "number.h"
 #include "region_index.h"
+#include "bed.h"
+#include "bam_region.h"
 
 static struct args {
     const char *input_fname;
@@ -14,26 +16,41 @@ static struct args {
     const char *barcode_list;
     const char *sites_fname;
     const char *tag;
+    const char *bed_fname;
+    const char *black_region_fname;
     int isize;
     int file_th;
     int qual_thres;
     struct dict *cells;
+    struct bam_region_itr *target;
+    struct bed_spec *black_region;
     int disable_offset;
     int reverse_offset;
     int forward_offset;
+
+    htsFile *fp;
+    BGZF *fp_out;
+    bam_hdr_t *hdr;
 } args = {
     .input_fname    = NULL,
     .output_fname   = NULL,
     .barcode_list   = NULL,
     .sites_fname    = NULL,
     .tag            = NULL,
+    .bed_fname      = NULL,
+    .black_region_fname = NULL,
     .isize          = 2000,
     .file_th        = 4,
     .qual_thres     = 20,
     .cells          = NULL,
+    .target         = NULL,
+    .black_region   = NULL,
     .disable_offset = 0,
     .reverse_offset = -5,
     .forward_offset = 4,
+    .fp             = NULL,
+    .fp_out         = NULL,
+    .hdr            = NULL,
 };
 
 static int parse_args(int argc, char **argv)
@@ -52,6 +69,8 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-@") == 0) var = &file_th;
         else if (strcmp(a, "-isize") == 0) var = &isize;
+        else if (strcmp(a, "-bed") == 0) var = &args.bed_fname;
+        else if (strcmp(a, "-black-region") == 0) var = &args.black_region_fname;
         else if (strcmp(a, "-disable-offset") == 0) {
             args.disable_offset = 1;
             continue;
@@ -79,6 +98,33 @@ static int parse_args(int argc, char **argv)
     if (file_th) args.file_th = str2int(file_th);
     if (isize) args.isize = str2int(isize);
     if (args.isize < 0) args.isize = 2000;
+    args.fp  = hts_open(args.input_fname, "r");
+    if (args.fp == NULL)
+        error("%s : %s.", args.input_fname, strerror(errno));
+    
+    htsFormat type = *hts_get_format(args.fp);
+    if (type.format != bam && type.format != sam)
+        error("Unsupported input format, only support BAM/SAM/CRAM format.");
+
+    args.hdr = sam_hdr_read(args.fp);
+    CHECK_EMPTY(args.hdr, "Failed to open header.");
+
+    hts_set_threads(args.fp, args.file_th);
+
+    args.fp_out = bgzf_open(args.output_fname, "w");
+    if (args.fp_out == NULL) error("%s : %s.", args.output_fname, strerror(errno));
+    
+    bgzf_mt(args.fp_out, args.file_th, 256);
+    
+    if (args.bed_fname) {
+        struct bed_spec *bed = bed_read(args.bed_fname);
+        if (bed == NULL) error("Target region is empty.");
+        args.target = bri_init(args.fp, args.input_fname, bed);
+    }
+    
+    if (args.black_region_fname) {
+        args.black_region = bed_read(args.black_region_fname);
+    }
     
     args.cells = dict_init();
     dict_set_value(args.cells);
@@ -92,7 +138,6 @@ static int parse_args(int argc, char **argv)
     }
     return 0;
 }  
-
 struct frag {
     int tid;
     int start;
@@ -148,7 +193,6 @@ void fragment_flush_cache(struct dict *d, BGZF *out, bam_hdr_t *hdr)
     for (i = 0; i < dict_size(d); ++i) {
         struct frag_pool *p = dict_query_value(d, i);
         if (p == NULL) continue;
-        debug_print("%d", p->n);
         if (p->n == 0) continue;
         int j = sizes;
         sizes += p->n;
@@ -168,8 +212,6 @@ void fragment_flush_cache(struct dict *d, BGZF *out, bam_hdr_t *hdr)
     for (i = 0; i < sizes; ++i) {
         str.l = 0;
         struct frag *f = a[i];
-        //debug_print("%p",f);
-        debug_print("%d", f->tid);
         kputs(hdr->target_name[f->tid], &str); kputc('\t', &str);        
         kputw(f->start, &str); kputc('\t', &str);
         kputw(f->end, &str); kputc('\t', &str);
@@ -231,6 +273,7 @@ void fragment_pool_push0(struct frag_pool *p, int start, int end, int tid, int i
     f->end = end;
     f->tid = tid;
     f->idx = idx;
+    f->dup = 1;
     if (p->head && p->tail) {
         p->tail->next = f;
         p->tail = f;
@@ -283,6 +326,64 @@ static int fragment_pool_push(struct dict *cells, bam1_t *b, const char *CB, int
 }
 
 extern int fragment_usage();
+static int filter_bam(bam1_t *b, bam_hdr_t *hdr, struct bed_spec *bbed)
+{
+    if (args.qual_thres > 0 && b->core.qual < args.qual_thres) return 1;
+    if (b->core.tid < 0) return 1;
+    if (b->core.flag & BAM_FREAD2) return 1;
+    if (bbed == NULL) return 0;
+        
+    int start, end;
+    if (b->core.isize > 0) {
+        start = b->core.pos+1;
+        end = start + b->core.isize;
+    }
+    else {
+        end = b->core.pos+1;
+        start = end + b->core.isize;
+    }
+
+    // Tn5 offset
+    if (b->core.flag & BAM_FREVERSE) {
+        start = start + args.reverse_offset;
+        end   = end + args.reverse_offset;
+    }
+    else {
+        start = start + args.forward_offset;
+        end   = end + args.forward_offset;
+    }
+
+
+    if (bbed && bed_check_overlap(bbed, hdr->target_name[b->core.tid], start, end)) return 0;
+    return 1;
+}
+
+int read_bam(htsFile *fp, bam_hdr_t *hdr, bam1_t *b, struct bam_region_itr *bri)
+{
+    if (bri != NULL) return bri_read(fp, hdr, b, bri);
+    return sam_read1(fp, hdr, b);
+}
+
+// return last_id
+static int process_bam(htsFile *fp, bam_hdr_t *h, bam1_t *b, int last_id, BGZF *fp_out)
+{
+    // output buffered Records
+    if (last_id != b->core.tid) {
+        fragment_flush_cache(args.cells, fp_out, h);
+        last_id = b->core.tid;
+    }
+    if (last_id == -1) last_id = b->core.tid;
+    fragment_pool_push(args.cells, b, args.tag, args.barcode_list ? 1 : 0);
+    return last_id;
+}
+static void memory_release()
+{
+    if (args.target) bri_destroy(args.target);
+    bgzf_close(args.fp_out);
+    bam_hdr_destroy(args.hdr);
+    hts_close(args.fp);
+    fragment_close(args.cells);
+}
 
 int bam2frag(int argc, char **argv)
 {
@@ -291,53 +392,21 @@ int bam2frag(int argc, char **argv)
 
     if (parse_args(argc, argv)) return fragment_usage();
 
-    htsFile *fp  = hts_open(args.input_fname, "r");
-    if (fp == NULL)
-        error("%s : %s.", args.input_fname, strerror(errno));
-    
-    htsFormat type = *hts_get_format(fp);
-    if (type.format != bam && type.format != sam)
-        error("Unsupported input format, only support BAM/SAM/CRAM format.");
-
-    bam_hdr_t *hdr = sam_hdr_read(fp);
-    CHECK_EMPTY(hdr, "Failed to open header.");
-
-    hts_set_threads(fp, args.file_th);
-
-    BGZF *fp_out = bgzf_open(args.output_fname, "w");
-    if (fp_out == NULL) error("%s : %s.", args.output_fname, strerror(errno));
-    
-    bgzf_mt(fp_out, args.file_th, 256);
-
     bam1_t *b = bam_init1();
     int last_id = -1;
     int ret;
-    while ((ret = sam_read1(fp, hdr, b)) >=0) {
-        if (args.qual_thres > 0 && b->core.qual < args.qual_thres) continue;
-        if (b->core.tid < 0) continue;
-        if (b->core.flag & BAM_FREAD2) continue; 
-        if (last_id == -1) last_id = b->core.tid;
-        
-        // output buffered Records
-        if (last_id != b->core.tid) {
-            fragment_flush_cache(args.cells, fp_out, hdr);
-            last_id = b->core.tid;
-        }
-
-        fragment_pool_push(args.cells, b, args.tag, args.barcode_list ? 1 : 0);
-    } 
+    while ((ret = read_bam(args.fp, args.hdr, b, args.target)) >=0) {
+        if (filter_bam(b, args.hdr, args.black_region)) continue;
+        last_id = process_bam(args.fp, args.hdr, b, last_id, args.fp_out);
+    }
     
-    fragment_flush_cache(args.cells, fp_out, hdr);
-
+    fragment_flush_cache(args.cells, args.fp_out, args.hdr);
+    
     export_sites_stat(args.cells,args.sites_fname);
 
-    fragment_close(args.cells);    
-
-    bgzf_close(fp_out);     
     bam_destroy1(b);
-    bam_hdr_destroy(hdr);
-    hts_close(fp);
-
+    memory_release();
+    
     LOG_print("Fragment file created. Indexing..");
     // build index
     const tbx_conf_t tbx_conf_bed = { TBX_UCSC, 1, 2, 3, '#', 0 };

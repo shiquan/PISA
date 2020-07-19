@@ -10,7 +10,9 @@ int fragment_usage()
     fprintf(stderr, " -tag     [TAG]     Cell barcode tag.\n");
     fprintf(stderr, " -list    [FILE]    Cell barcode white list.\n");
     fprintf(stderr, " -isize   [2000]    Skip if insert size greater than this. [2KB]\n");
-    fprintf(stderr, " -stat    [FILE]    Transposition events per cell.\n");
+    fprintf(stderr, " -bed     [BED]     Only convert fragments overlapped with target regions.\n");
+    fprintf(stderr, " -black-region [BED] Skip convert fragments overlapped with black regions.\n");
+    fprintf(stderr, " -stat    [FILE]    Transposition events per cell.\n");   
     fprintf(stderr, " -@       [4]       Thread to unpack and pack files.[4]\n");
     fprintf(stderr, " -disable-tn5       Disable Tn5 offset for each fragment.\n");
     return 1;
