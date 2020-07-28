@@ -10,6 +10,11 @@
 #include "bed.h"
 #include "bam_region.h"
 
+// TN5 offsett
+// reads aligning to the + strand were offset by +4 bps, and reads aligning to the – strand were offset −5 bps
+#define TN5_PLUS_OFFSET   4
+#define TN5_MINUS_OFFSET -5
+
 static struct args {
     const char *input_fname;
     const char *output_fname;
@@ -46,8 +51,8 @@ static struct args {
     .target         = NULL,
     .black_region   = NULL,
     .disable_offset = 0,
-    .reverse_offset = -5,
-    .forward_offset = 4,
+    .reverse_offset = TN5_MINUS_OFFSET,
+    .forward_offset = TN5_PLUS_OFFSET,
     .fp             = NULL,
     .fp_out         = NULL,
     .hdr            = NULL,
@@ -60,6 +65,7 @@ static int parse_args(int argc, char **argv)
     int i;
     const char *file_th = NULL;
     const char *isize   = NULL;
+    const char *qual    = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -70,6 +76,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-@") == 0) var = &file_th;
         else if (strcmp(a, "-isize") == 0) var = &isize;
         else if (strcmp(a, "-bed") == 0) var = &args.bed_fname;
+        else if (strcmp(a, "-q") == 0) var = &qual;
         else if (strcmp(a, "-black-region") == 0) var = &args.black_region_fname;
         else if (strcmp(a, "-disable-offset") == 0) {
             args.disable_offset = 1;
@@ -98,6 +105,8 @@ static int parse_args(int argc, char **argv)
     if (file_th) args.file_th = str2int(file_th);
     if (isize) args.isize = str2int(isize);
     if (args.isize < 0) args.isize = 2000;
+    if (qual) args.qual_thres = str2int(qual);
+    if (args.qual_thres < 0) args.qual_thres = 0;
     args.fp  = hts_open(args.input_fname, "r");
     if (args.fp == NULL)
         error("%s : %s.", args.input_fname, strerror(errno));
@@ -180,7 +189,9 @@ static int cmpfunc(const void *_a, const void *_b)
 {
     struct frag *a = *(struct frag**)_a;
     struct frag *b = *(struct frag**)_b;
-    return a->start - b->start == 0 ? a->end - b->end : a->start - b->start;
+    if (a->tid == b->tid)
+        return a->start - b->start == 0 ? a->end - b->end : a->start - b->start;
+    return a->tid - b->tid;
 }
 
 void fragment_flush_cache(struct dict *d, BGZF *out, bam_hdr_t *hdr)
@@ -256,18 +267,20 @@ void fragment_pool_push0(struct frag_pool *p, int start, int end, int tid, int i
     if (p->idx == NULL)
         p->idx = region_index_create(); // reset
 
-    struct region_itr *itr = region_query(p->idx, start, end);
+    if (p->n > 0) {
+        struct region_itr *itr = region_query(p->idx, start, end);
     
-    int i;
-    for (i = 0; itr && i < itr->n; ++i) {
-        struct frag *f0 = (struct frag*)itr->rets[i];
-        if (f0->start == start && f0->end == end) {
-            f0->dup++;
-            region_itr_destroy(itr);
-            return; // duplication
+        int i;
+        for (i = 0; itr && i < itr->n; ++i) {
+            struct frag *f0 = (struct frag*)itr->rets[i];
+            if (f0->start == start && f0->end == end) {
+                f0->dup++;
+                region_itr_destroy(itr);
+                return; // duplication
+            }
         }
+        if (itr) region_itr_destroy(itr);
     }
-    if (itr) region_itr_destroy(itr);
     struct frag *f = malloc(sizeof(*f));
     memset(f, 0, sizeof(*f));
     f->start = start;
@@ -296,26 +309,23 @@ static int fragment_pool_push(struct dict *cells, bam1_t *b, const char *CB, int
     int ret = dict_query(cells, (char*)(val+1));
     if (wl == 1 && ret == -1) return 1;
     if (ret == -1) ret = dict_push(cells, (char*)(val+1));
-    
+
+        // Tn5 offset
     int start, end;
     if (b->core.isize > 0) {
         start = b->core.pos;
         end = start + b->core.isize+1;
+        start += args.forward_offset;
+        end -= args.forward_offset;
     }
     else {
-        end = b->core.pos+1;
-        start = b->core.pos + b->core.isize;
+        end = bam_endpos(b);
+        start = end + b->core.isize -1;
+        end += args.reverse_offset;
+        start -=  args.reverse_offset;
     }
 
-    // Tn5 offset
-    if (b->core.flag & BAM_FREVERSE) {
-        start = start + args.reverse_offset;
-        end   = end + args.reverse_offset;
-    }
-    else {
-        start = start + args.forward_offset;
-        end   = end + args.forward_offset;
-    }
+    if (start < 0) start = 0;
 
     struct frag_pool *p = dict_query_value(cells, ret);
     if (p == 0) {
@@ -326,38 +336,36 @@ static int fragment_pool_push(struct dict *cells, bam1_t *b, const char *CB, int
 
     return 0;
 }
-
+static void get_interval(bam1_t *b, int *start, int *end)
+{
+    if (b->core.isize > 0) {
+        *start  = b->core.pos;
+        *end    = *start + b->core.isize;
+        *start += args.forward_offset;
+        *end   += args.reverse_offset;
+    }
+    else {
+        *end     = bam_endpos(b);
+        *start   = *end + b->core.isize;
+        *start  += args.forward_offset;
+        *end    += args.reverse_offset;
+    }
+    if (*start < 0) *start = 0;
+}
 extern int fragment_usage();
 static int filter_bam(bam1_t *b, bam_hdr_t *hdr, struct bed_spec *bbed)
 {
     if (args.qual_thres > 0 && b->core.qual < args.qual_thres) return 1;
     if (b->core.tid < 0) return 1;
     if (b->core.flag & BAM_FREAD2) return 1;
-    if (bbed == NULL) return 0;
-        
-    int start, end;
-    if (b->core.isize > 0) {
-        start = b->core.pos+1;
-        end = start + b->core.isize;
-    }
-    else {
-        end = b->core.pos+1;
-        start = end + b->core.isize;
-    }
 
     // Tn5 offset
-    if (b->core.flag & BAM_FREVERSE) {
-        start = start + args.reverse_offset;
-        end   = end + args.reverse_offset;
-    }
-    else {
-        start = start + args.forward_offset;
-        end   = end + args.forward_offset;
-    }
+    int start, end;
+    get_interval(b, &start, &end);
+    if (end <= 0) return 1;
 
-
-    if (bbed && bed_check_overlap(bbed, hdr->target_name[b->core.tid], start, end)) return 0;
-    return 1;
+    if (bbed && bed_check_overlap(bbed, hdr->target_name[b->core.tid], start, end)) return 1;
+    return 0;
 }
 
 int read_bam(htsFile *fp, bam_hdr_t *hdr, bam1_t *b, struct bam_region_itr *bri)
@@ -371,7 +379,7 @@ static int process_bam(htsFile *fp, bam_hdr_t *h, bam1_t *b, int last_id, BGZF *
 {
     // output buffered Records
     if (last_id != b->core.tid) {
-        fragment_flush_cache(args.cells, fp_out, h);
+        //fragment_flush_cache(args.cells, fp_out, h);
         last_id = b->core.tid;
     }
     if (last_id == -1) last_id = b->core.tid;

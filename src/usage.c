@@ -9,6 +9,7 @@ int fragment_usage()
     fprintf(stderr, " -o       [FILE]    Output file. This file will be bgzipped and indexed.\n");
     fprintf(stderr, " -tag     [TAG]     Cell barcode tag.\n");
     fprintf(stderr, " -list    [FILE]    Cell barcode white list.\n");
+    fprintf(stderr, " -q       [20]      Mapping quality score to filter reads.\n");
     fprintf(stderr, " -isize   [2000]    Skip if insert size greater than this. [2KB]\n");
     fprintf(stderr, " -bed     [BED]     Only convert fragments overlapped with target regions.\n");
     fprintf(stderr, " -black-region [BED] Skip convert fragments overlapped with black regions.\n");

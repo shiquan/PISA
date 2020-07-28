@@ -12,12 +12,14 @@ KHASH_MAP_INIT_INT(bin, struct binlist)
 
 struct region_index {
     khash_t(bin) *idx;
+    int size;
 };
 
 struct region_index *region_index_create()
 {
     struct region_index *idx = malloc(sizeof(struct region_index));
     idx->idx = kh_init(bin);
+    idx->size = 0;
     return idx;
 }
 
@@ -32,6 +34,7 @@ void region_index_destroy(struct region_index *idx)
     }
     kh_destroy(bin,idx->idx);
     free(idx);
+    idx=NULL;
 }
 
 // copied from tabix/index.c
@@ -57,6 +60,7 @@ void index_bin_push(struct region_index *idx, uint32_t start, uint32_t end, void
     if (ret) { // not present
         l->m = 1; l->n = 0;
         l->a = calloc(1, sizeof(void*));
+        idx->size++;
     }
     if (l->m == l->n) {
         l->m <<=1;
@@ -86,7 +90,7 @@ struct region_itr *region_query(struct region_index *idx, int start, int end)
 {
     if (start < 0) start = 0;
     if (end < start) return NULL;
-
+    if (idx->size == 0) return NULL;
     int n=0, i, n_bin;
     khint_t k;
     uint16_t *bins  = (uint16_t*)calloc(MAX_BIN, 2);
@@ -122,4 +126,5 @@ void region_itr_destroy(struct region_itr *itr)
 {
     free(itr->rets);
     free(itr);
+    itr=NULL;
 }
