@@ -179,6 +179,10 @@ int dict_push0(struct dict *D, char const *key)
 
 int dict_push(struct dict *D, char const *key)
 {
+    if (key == NULL) {
+        warnings("Try to push empty key! Skip ..");
+        return -1;
+    }
     int ret;
     ret = dict_push0(D, key);
     if (ret != -1) return ret; // already present

@@ -345,7 +345,7 @@ static void gtf_sort(struct gtf *gtf)
 }
 static struct region_index *ctg_build_idx(struct gtf_ctg *ctg)
 {
-    struct region_index *idx = region_index_build();
+    struct region_index *idx = region_index_create();
     int i;
     for (i = 0; i < ctg->n_gtf; ++i) 
         index_bin_push(idx, ctg->gtf[i].start, ctg->gtf[i].end, &ctg->gtf[i]);

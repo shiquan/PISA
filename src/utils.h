@@ -61,7 +61,7 @@
 
 #define warnings(line, ...) do						\
     {									\
-	fprintf(stderr, "[warnings] " line "\n", ##__VA_ARGS__);	\
+        fprintf(stderr, ANSI_COLOR_YELLOW "[warnings] " line ANSI_COLOR_RESET "\n", ##__VA_ARGS__); \
     } while(0)
 
 #define debug_print(line, ...) do {\

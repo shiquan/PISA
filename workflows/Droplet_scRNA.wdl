@@ -6,13 +6,10 @@ workflow main {
   String refdir
   String STAR
   String sambamba
-  String Rscript
   String ID
   String gtf
   String config
   String ?lib
-  Int ?expectCell
-  Int ?forceCell
   call makedir {
     input:
     Dir=outdir

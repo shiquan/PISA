@@ -60,7 +60,9 @@ LIB_OBJ = src/barcode_list.o \
 	src/read_tags.o \
 	src/sim_search.o \
 	src/thread.o \
-	src/compactDNA.o
+	src/fragment.o \
+	src/compactDNA.o \
+	src/bam_region.o
 
 AOBJ = src/bam_anno.o \
 	src/bam_count.o \

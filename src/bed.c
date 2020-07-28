@@ -68,7 +68,7 @@ static void bed_build_index(struct bed_spec *B)
     
     int i;
     for (i = 0; i < dict_size(B->seqname); ++i)
-        B->idx[i].idx = region_index_build();
+        B->idx[i].idx = region_index_create();
 
     for (i = 0; i < B->n; ++i) {
         struct bed *bed = &B->bed[i];
@@ -166,12 +166,28 @@ struct region_itr *bed_query(struct bed_spec *B, char *name, int start, int end)
     struct region_index *idx = B->idx[id].idx;
     struct region_itr *itr = region_query(idx, start, end);
     if (itr == NULL) return NULL;
+    int i;
+    for (i = 0; i < itr->n;) {
+        struct bed *bed = itr->rets[i];
+        if (bed->start > end || bed->end < start) {
+            memmove(itr->rets+i, itr->rets+i+1, itr->n-i-1);
+            itr->n--;
+        }
+        else i++;
+    }
     if (itr->n == 0) {
         region_itr_destroy(itr);
         return NULL;
     }
-    
     qsort((struct bed**)itr->rets, itr->n, sizeof(struct bed*), cmpfunc1);
 
     return itr;
+}
+// return 0 on nonoverlap, 1 on overlap
+int bed_check_overlap(struct bed_spec *B, char *name, int start, int end)
+{
+    struct region_itr *itr = bed_query(B, name, start, end);
+    if (itr == NULL) return 0;
+    region_itr_destroy(itr);
+    return 1;
 }

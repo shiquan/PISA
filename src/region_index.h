@@ -9,7 +9,7 @@ struct region_itr {
     void **rets;
 };
 
-struct region_index *region_index_build();
+struct region_index *region_index_create();
 void region_index_destroy(struct region_index *idx);
 
 void index_bin_push(struct region_index *idx, uint32_t start, uint32_t end, void *new);

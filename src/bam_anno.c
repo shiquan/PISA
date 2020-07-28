@@ -654,7 +654,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
     for (i = 0; i < itr->n; ++i) {
         struct gtf const *g0 = (struct gtf*)itr->rets[i];
         if (g0->start > c->pos+1 || endpos > g0->end) continue; // not fully covered
-        
+
         if (args.ignore_strand == 0) {
             if (b->core.flag & BAM_FREVERSE) {
                 if (g0->strand == 0) {

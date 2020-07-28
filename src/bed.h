@@ -30,5 +30,5 @@ struct bed_spec *bed_spec_init();
 void bed_spec_destroy(struct bed_spec *B);
 struct bed_spec *bed_read(const char *fname);
 struct region_itr *bed_query(struct bed_spec *B, char *name, int start, int end);
-
+int bed_check_overlap(struct bed_spec *B, char *name, int start, int end);
 #endif
