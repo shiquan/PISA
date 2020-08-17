@@ -835,13 +835,17 @@ void *run_it(void *_d)
             }
         }
 
-        dat->reads_input++;
-        
         bam1_core_t *c;
         c = &b->core;
+        
+        // secondary alignment
+        if (c->flag & BAM_FSECONDARY) continue;
+        
+        dat->reads_input++;
+        
         // QC
         if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) continue;
-        if (c->flag & BAM_FSECONDARY) continue;
+
         if (c->qual < args.map_qual) continue;
 
         dat->reads_pass_qc++;
