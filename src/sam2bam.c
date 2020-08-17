@@ -431,7 +431,15 @@ int bam_pool_qual_corr(struct sam_pool *p)
     }
     return corred;
 }
-
+static int sam_safe_check(kstring_t *str)
+{
+    int i;
+    int s = 0;
+    for (i = 0; i < str->l; ++i)
+        if (isspace(str->s[i])) s++;
+    if (s < 11) return 1; // we need at least 11 columns for SAM
+    return 0;
+}
 static void *sam_name_parse(void *_p)
 {
     struct sam_pool *p = (struct sam_pool*)_p;
@@ -442,6 +450,12 @@ static void *sam_name_parse(void *_p)
     int i;
     for (i = 0; i < p->n; ++i) {
         parse_name_str(p->str[i]);
+        if (sam_safe_check(p->str[i])) {
+            warnings("Failed to parse %s", p->str[i]->s);
+            s0->n_failed_to_parse++;
+            p->bam[i] = NULL;
+            continue;
+        }
         if (sam_parse1(p->str[i], h, p->bam[i])) {
             warnings ("Failed to parse SAM., %s", bam_get_qname(p->bam[i]));
             s0->n_failed_to_parse++;
