@@ -306,9 +306,10 @@ static int parse_name_str(kstring_t *s)
 static void sam_stat_reads(bam1_t *b, struct summary *s, int *flag, struct args *opts)
 {
     bam1_core_t *c = &b->core;
+    if (c->flag & BAM_FSECONDARY) return; // skip secondary alignment
     s->n_reads++;
 
-    if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY || c->flag & BAM_FUNMAP) return; // unmapped
+    if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSUPPLEMENTARY || c->flag & BAM_FUNMAP) return; // unmapped
 
 
     // mito ratio, mito come before qc filter, so only high quality mito reads will be exported in mito.bam
