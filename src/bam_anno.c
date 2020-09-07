@@ -232,7 +232,7 @@ static int parse_args(int argc, char **argv)
     // if (qual) args.qual_thres = str2int((char*)qual);
     // if (args.qual_thres < 0) args.qual_thres = 0; // no filter
     
-    int file_th = 5;
+    int file_th = 1;
     if (file_thread)
         file_th = str2int((char*)file_thread);
     
@@ -291,8 +291,8 @@ static int parse_args(int argc, char **argv)
     CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
     if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
 
-    hts_set_threads(args.fp, file_th); 
-    //hts_set_threads(args.out, file_th);
+    // hts_set_threads(args.fp, file_th); 
+    hts_set_threads(args.out, file_th);
     return 0;
 }
 
@@ -754,40 +754,56 @@ int bam_anno_attr(int argc, char *argv[])
         if (ret != -1) warnings("Truncated file?");   
     }
     else {
-        // multi-thread mode
+        if (args.n_thread == 1) {
+            for (;;) {
+                struct bam_pool *b = bam_pool_create();
+                bam_read_pool(b, args.fp, args.hdr, args.chunk_size);
+                
+                if (b == NULL) break;
+                if (b->n == 0) { free(b->bam); free(b); break; }
 
-        hts_tpool *p = hts_tpool_init(args.n_thread);
-        hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
-        hts_tpool_result *r;
-
-        for (;;) {
-            struct bam_pool *b = bam_pool_create();
-            bam_read_pool(b, args.fp, args.hdr, args.chunk_size);
-            
-            if (b == NULL) break;
-            if (b->n == 0) { free(b->bam); free(b); break; }
-            
-            int block;
-            do {
-                block = hts_tpool_dispatch2(p, q, run_it, b, 1);
-                if ((r = hts_tpool_next_result(q))) {
-                    struct bam_pool *d = (struct bam_pool*)hts_tpool_result_data(r);
-                    write_out(d);
-                    hts_tpool_delete_result(r, 0);
-                }
+                b = run_it(b);
+                write_out(b);
+                
             }
-            while (block == -1);
+         
         }
+        else {
+            // multi-thread mode
 
-        hts_tpool_process_flush(q);
+            hts_tpool *p = hts_tpool_init(args.n_thread);
+            hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+            hts_tpool_result *r;
+            
+            for (;;) {
+                struct bam_pool *b = bam_pool_create();
+                bam_read_pool(b, args.fp, args.hdr, args.chunk_size);
+                
+                if (b == NULL) break;
+                if (b->n == 0) { free(b->bam); free(b); break; }
+                
+                int block;
+                do {
+                    block = hts_tpool_dispatch2(p, q, run_it, b, 1);
+                    if ((r = hts_tpool_next_result(q))) {
+                        struct bam_pool *d = (struct bam_pool*)hts_tpool_result_data(r);
+                        write_out(d);
+                        hts_tpool_delete_result(r, 0);
+                    }
+                }
+                while (block == -1);
+            }
 
-        while ((r = hts_tpool_next_result(q))) {
-            struct bam_pool *d = (struct bam_pool*)hts_tpool_result_data(r);
-            write_out(d);
-            hts_tpool_delete_result(r, 0);
+            hts_tpool_process_flush(q);
+            
+            while ((r = hts_tpool_next_result(q))) {
+                struct bam_pool *d = (struct bam_pool*)hts_tpool_result_data(r);
+                write_out(d);
+                hts_tpool_delete_result(r, 0);
+            }
+            hts_tpool_process_destroy(q);
+            hts_tpool_destroy(p);
         }
-        hts_tpool_process_destroy(q);
-        hts_tpool_destroy(p);
     }
 
     write_report();
