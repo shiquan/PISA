@@ -327,6 +327,8 @@ static int fragment_pool_push(struct dict *cells, bam1_t *b, const char *CB, int
 
     if (start < 0) start = 0;
 
+    if (start >= end) return 1;
+    
     struct frag_pool *p = dict_query_value(cells, ret);
     if (p == 0) {
         p = fragment_pool_create();
