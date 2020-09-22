@@ -62,17 +62,17 @@ static struct attr_pair *split_gff(kstring_t *str, int *_n)
     int n =0, m = 0;
     struct attr_pair *pair = NULL;
 
+    int j = str->l -1;
+    while (isspace(str->s[j]) || str->s[j] == ';') j--;
+    str->l = j+1;
+    str->s[str->l] = '\0';
+
     for (;;) {
         if (i >= str->l) break;
         if (n == m) {
             m += 4;
             pair = realloc(pair, sizeof(struct attr_pair)*m);
         }
-
-        int j = str->l -1;
-        while (isspace(str->s[j]) || str->s[j] == ';') j--;
-        str->l = j+1;
-        str->s[str->l] = '\0';
         
         kstring_t name = {0,0,0};
         kstring_t val = {0,0,0};
@@ -81,7 +81,7 @@ static struct attr_pair *split_gff(kstring_t *str, int *_n)
             ++i;
         }
 
-        while (isspace(str->s[i]) || str->s[i] == ';') ++i;
+        while (isspace(str->s[i]) || str->s[i] == ';') ++i; // emit middle spaces
         
         if (str->s[i] == '"')  {
             ++i; // skip comma
@@ -96,7 +96,7 @@ static struct attr_pair *split_gff(kstring_t *str, int *_n)
             }
         }
 
-        while (i < str->l && isspace(str->s[i])) ++i; // emit ends        
+        while (i < str->l && isspace(str->s[i]) && str->s[i] == ';') ++i; // emit ends        
         pair[n].key = name.s;
         pair[n].val = val.s;
         if (pair[n].key == NULL) {
