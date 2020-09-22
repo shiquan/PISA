@@ -96,13 +96,14 @@ static struct attr_pair *split_gff(kstring_t *str, int *_n)
             }
         }
 
-        while (i < str->l && isspace(str->s[i]) && str->s[i] == ';') ++i; // emit ends        
-        pair[n].key = name.s;
-        pair[n].val = val.s;
-        if (pair[n].key == NULL) {
+        while (i < str->l && (isspace(str->s[i]) || str->s[i] == ';')) ++i; // emit ends
+        if (name.n == 0) {
             warnings("Empty key. %s", str.s);
             continue;
         }
+
+        pair[n].key = name.s;
+        pair[n].val = val.s;
         n++;
     }
     *_n = n;
