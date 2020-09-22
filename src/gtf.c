@@ -96,9 +96,13 @@ static struct attr_pair *split_gff(kstring_t *str, int *_n)
             }
         }
 
-        while (i < str->l && isspace(str->s[i])) ++i; // emit ends
+        while (i < str->l && isspace(str->s[i])) ++i; // emit ends        
         pair[n].key = name.s;
         pair[n].val = val.s;
+        if (pair[n].key == NULL) {
+            warnings("Empty key. %s", str.s);
+            continue;
+        }
         n++;
     }
     *_n = n;
@@ -235,7 +239,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
     int n;
     int *s = ksplit(str, '\t', &n);
     if (n != 9) error("Unknown format. %s", str->s);
-
+    
     char *feature = str->s + s[2];
 
     int qry = dict_query(G->features, feature);
