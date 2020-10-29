@@ -7,9 +7,9 @@ include $(HTSDIR)/htslib.mk
 HTSLIB = $(HTSDIR)/libhts.a
 HTSVERSION = $(HTSDIR)/version.h
 
-FMLDIR = third_party/fermi-lite
-include $(FMLDIR)/fermi.mk
-FMLLIB = $(FMLDIR)/libfml.a
+#FMLDIR = third_party/fermi-lite
+#include $(FMLDIR)/fermi.mk
+#FMLLIB = $(FMLDIR)/libfml.a
 
 LIBA = src/liba.a
 
@@ -21,7 +21,7 @@ CC       = gcc
 CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64
 DEBUGFLAGS = -fsanitize=address -fno-omit-frame-pointer -O0 -g
 DFLAGS   =
-INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I $(FMLDIR) -I$(ZLIBDIR)
+INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I$(ZLIBDIR)
 LIBS = -lbz2 -llzma -pthread -lm -lcurl 
 
 #all:$(PROG)
@@ -30,6 +30,7 @@ LIBS = -lbz2 -llzma -pthread -lm -lcurl
 PACKAGE_VERSION := $(shell git describe --tags)
 
 pisa_version.h:
+	-rm -f pisa_version.h
 	echo '#define PISA_VERSION "$(PACKAGE_VERSION)"' > $@
 
 .SUFFIXES:.c .o
@@ -82,11 +83,11 @@ liba.a: $(LIB_OBJ)
 
 test: $(HTSLIB) $(HTSVERSION)
 
-PISA: $(HTSLIB) $(FMLLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h 
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) $(FMLLIB) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
+PISA: $(HTSLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h 
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
 
-debug: $(HTSLIB) $(FMLLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h 
-	$(CC) $(DEBUGFLAGS) $(INCLUDES) -o PISA src/main.c $(AOBJ) $(FMLLIB) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
+debug: $(HTSLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h 
+	$(CC) $(DEBUGFLAGS) $(INCLUDES) -o PISA src/main.c $(AOBJ) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
 
 src/sim_search.o: src/sim_search.c
 src/bam2fq.o: src/bam2fq.c
