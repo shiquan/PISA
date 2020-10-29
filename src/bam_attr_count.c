@@ -290,9 +290,10 @@ int bam_count_attr(int argc, char *argv[])
     b = bam_init1();
 
     while ((ret = sam_read1(fp, hdr, b)) >= 0) {
+        if (b->core.flag & BAM_FSECONDARY) continue; // filter secondary alignments
         if (b->core.tid < 0) continue;
         if (b->core.qual < args.qual_thres) continue;
-        counts_push(cnt, b);
+_push(cnt, b);
     }
 
     bam_destroy1(b);
