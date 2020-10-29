@@ -293,7 +293,7 @@ int bam_count_attr(int argc, char *argv[])
         if (b->core.flag & BAM_FSECONDARY) continue; // filter secondary alignments
         if (b->core.tid < 0) continue;
         if (b->core.qual < args.qual_thres) continue;
-_push(cnt, b);
+        counts_push(cnt, b);
     }
 
     bam_destroy1(b);
