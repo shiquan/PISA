@@ -20,16 +20,9 @@ struct qc_report {
 struct bseq {
     int flag; // flag for skip reasons
     // read 1
-    /*
-    char *n0;
-    char *s0, *q0;
-    int l0;
-    // read 2
-    char *s1, *q1;
-    int l1;
-    */
     kstring_t n0;
     kstring_t s0, q0;
+    // read 2
     kstring_t s1, q1;
     void *data; // extend data, should be freed manually
 };

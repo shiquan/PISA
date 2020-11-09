@@ -550,9 +550,7 @@ static void update_rname(struct bseq *b, const char *tag, char *s){
     kputs(tag, &str);
     kputs(":Z:", &str);
     kputs(s, &str);
-    free(b->n0.s);
     kstr_copy(&b->n0, &str);
-    //b->n0 = str.s;
 }
 
 struct BRstat *extract_barcodes(struct bseq *b,
@@ -682,16 +680,10 @@ struct BRstat *extract_reads(struct bseq *b, const struct bcode_reg *r1, const s
 
     struct seqlite *s2 = extract_tag(b, r2, stat, &dropN);
     if (args.dropN && dropN== 1) b->flag= FQ_FLAG_READ_QUAL;
-    
-    free(b->s0.s);
-    if (b->q0.l) free(b->q0.s);
+
     kstr_copy(&b->s0, s1->seq);
     kstr_copy(&b->q0, s1->qual);
     
-    //b->q0 = r1->end - r1->start + 1; 
-
-    if (b->s1.l) free(b->s1.s);
-    if (b->q1.l) free(b->q1.s);
     if (s2 && s2->seq->l) kstr_copy(&b->s1, s2->seq);
     if (s2 && s2->qual->l) kstr_copy(&b->q1, s2->qual);
 
