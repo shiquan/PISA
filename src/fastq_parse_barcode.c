@@ -551,6 +551,7 @@ static void update_rname(struct bseq *b, const char *tag, char *s){
     kputs(":Z:", &str);
     kputs(s, &str);
     kstr_copy(&b->n0, &str);
+    free(str.s);
 }
 
 struct BRstat *extract_barcodes(struct bseq *b,
