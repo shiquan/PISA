@@ -69,10 +69,11 @@ int kstr_copy(kstring_t *a, kstring_t *b)
     if (b->l == 0 || b->s == 0) {
         warnings("Try to copy an empty string.");
         return 1;
-    }    
-    a->l = b->l;
-    a->m = b->l;
-    a->s = strdup(b->s);
+    }
+    a->l = 0;
+    kputsn(b->s, b->l, a);
+    kputs("",a);
+
     return 0;
 }
 
