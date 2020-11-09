@@ -4,6 +4,7 @@
 #include "utils.h"
 #include "dict.h"
 #include<zlib.h>
+#include "htslib/kstring.h"
 
 struct qc_report {
     uint64_t all_fragments;
@@ -19,13 +20,17 @@ struct qc_report {
 struct bseq {
     int flag; // flag for skip reasons
     // read 1
+    /*
     char *n0;
     char *s0, *q0;
     int l0;
     // read 2
     char *s1, *q1;
     int l1;
-
+    */
+    kstring_t n0;
+    kstring_t s0, q0;
+    kstring_t s1, q1;
     void *data; // extend data, should be freed manually
 };
 
@@ -71,8 +76,8 @@ extern int fastq_handler_state(struct fastq_handler*);
 
 extern void fastq_handler_destory(struct fastq_handler *h);
 extern void bseq_pool_push(struct bseq *b, struct bseq_pool *p);
-//extern int levenshtein(char *a, char *b, int l);
-extern int bseq_pool_dedup(struct bseq_pool *p);
 
+extern int bseq_pool_dedup(struct bseq_pool *p);
+extern size_t hamming_n(const char *a, const size_t length, const char *b, const size_t bLength);
 extern size_t levenshtein_n(const char *a, const size_t length, const char *b, const size_t bLength);
 #endif

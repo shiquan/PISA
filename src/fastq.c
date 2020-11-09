@@ -25,21 +25,20 @@ struct bseq_pool *bseq_pool_init()
     memset(p, 0, sizeof(*p));
     return p;
 }
+void bseq_clean(struct bseq *b)
+{
+    if (b->n0.l) free(b->n0.s);
+    if (b->s0.l) free(b->s0.s);
+    if (b->q0.l) free(b->q0.s);
+    if (b->s1.l) free(b->s1.s);
+    if (b->q1.l) free(b->q1.s);
+}
 void bseq_pool_clean(struct bseq_pool *p)
 {
     int i;
     for ( i = 0; i < p->n; ++i ) {
         struct bseq *b = &p->s[i];
-        if (b->l0) {
-            free(b->n0);
-            free(b->s0);
-            if (b->q0) free(b->q0);
-        }
-        if (b->l1) {
-            // free(b->n1);
-            free(b->s1);
-            if (b->q1) free(b->q1);
-        }
+        bseq_clean(b);
     }
     if (p->m > 0) free(p->s);
 }
@@ -52,6 +51,29 @@ void bseq_pool_destroy(struct bseq_pool *p)
 void trim_read_tail(char *s, int l)
 {
     if ( l > 2 && s[l-2] == '/' ) s[l-2] = '\0';    
+}
+
+kstring_t *kstr_init()
+{
+    kstring_t *s = malloc(sizeof(*s));
+    memset(s, 0, sizeof(*s));
+    return s;
+}
+void bseq_init(struct bseq *b)
+{
+    memset(b, 0, sizeof(*b));
+}
+
+int kstr_copy(kstring_t *a, kstring_t *b)
+{
+    if (b->l == 0 || b->s == 0) {
+        warnings("Try to copy an empty string.");
+        return 1;
+    }    
+    a->l = b->l;
+    a->m = b->l;
+    a->s = strdup(b->s);
+    return 0;
 }
 
 static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_size)
@@ -83,25 +105,30 @@ static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_siz
             p->s = realloc(p->s, p->m*sizeof(struct bseq));
         }
         s = &p->s[p->n];
-        memset(s, 0, sizeof(*s));
+
         trim_read_tail(ks->name.s, ks->name.l);
-        s->n0 = strdup(ks->name.s);
-        s->s0 = strdup(ks->seq.s);
-        s->q0 = ks->qual.l? strdup(ks->qual.s) : 0;
-        s->l0 = ks->seq.l;
-        size += s->l0;
+
+        bseq_init(s);
+        
+        kstr_copy(&s->n0, &ks->name);
+        kstr_copy(&s->s0, &ks->seq);
+        kstr_copy(&s->q0, &ks->qual);
+
         if ( kseq_read(ks) < 0 ) error("Truncated input.");
 
         trim_read_tail(ks->name.s, ks->name.l);
-        // s->n1 = strdup(ks->name.s);
-        if ( check_name(s->n0, ks->name.s) ) error("Inconsistance paired read names. %s vs %s.", s->n0, ks->name.s);
-        s->s1 = strdup(ks->seq.s);
-        s->q1 = ks->qual.l? strdup(ks->qual.s) : 0;
-        s->l1 = ks->seq.l;
-        size += s->l1;
+        
+        if ( check_name(s->n0.s, ks->name.s) ) error("Inconsistance paired read names. %s vs %s.", s->n0.s, ks->name.s);
+
+        kstr_copy(&s->s1, &ks->seq);
+        kstr_copy(&s->q1, &ks->qual);
+        
+        size += s->s0.l;
+        size += s->s1.l;
         p->n++;
         if ( size >= chunk_size ) break;
     } while (1);
+    
     if ( p->n == 0 ) {
         bseq_pool_destroy(p);
         return NULL;
@@ -110,16 +137,14 @@ static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_siz
 }
 static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size, int pe)
 {
-
     // k1 and k2 already load one record when come here
-
     struct bseq_pool *p = bseq_pool_init();
     int ret1, ret2 = -1;
     
     if ( pe == 0 ) {
         do {
             ret1 = kseq_read(h->k1);
-    
+            
             if (ret1 < 0) { // come to the end of file
                 if (h->n_file > 1 && h->curr < h->n_file) {
                     gzclose(h->r1);
@@ -138,13 +163,11 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
             }
             struct bseq *s = &p->s[p->n];
             kseq_t *k1 = h->k1;
-            memset(s, 0, sizeof(*s));
             trim_read_tail(k1->name.s, k1->name.l);
-            s->n0 = strdup(k1->name.s);
-            s->s0 = strdup(k1->seq.s);
-            s->q0 = k1->qual.l? strdup(k1->qual.s) : 0;
-            s->l0 = k1->seq.l;
-            s->l1 = 0;
+            bseq_init(s);
+            kstr_copy(&s->n0, &k1->name);
+            kstr_copy(&s->s0, &k1->seq);
+            kstr_copy(&s->q0, &k1->qual);
             p->n++;
             if ( p->n >= chunk_size ) break;
         }
@@ -187,16 +210,12 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
                 p->s = realloc(p->s, p->m*sizeof(struct bseq));
             }
             s = &p->s[p->n];
-            memset(s, 0, sizeof(*s));
-            s->n0 = strdup(k1->name.s);
-            s->s0 = strdup(k1->seq.s);
-            s->q0 = k1->qual.l? strdup(k1->qual.s) : 0;
-            s->l0 = k1->seq.l;
-            //s->n1 = strdup(k2->name.s);
-            s->s1 = strdup(k2->seq.s);
-            s->q1 = k2->qual.l? strdup(k2->qual.s) : 0;
-            s->l1 = k2->seq.l;
-            
+            bseq_init(s);
+            kstr_copy(&s->n0, &k1->name);
+            kstr_copy(&s->s0, &k1->seq);
+            kstr_copy(&s->q0, &k1->qual);
+            kstr_copy(&s->s1, &k2->seq);
+            kstr_copy(&s->q1, &k2->qual);
             p->n++;
             
             if ( p->n >= chunk_size ) break;            
@@ -368,6 +387,19 @@ void bseq_pool_push(struct bseq *b, struct bseq_pool *p)
     // free(b);
 }
 
+size_t hamming_n(const char *a, const size_t length, const char *b, const size_t bLength) {
+    if (a == b) return 0;
+    if (length == 0) return bLength;
+    if (bLength == 0) return length;
+    int i;
+    int dist = 0;
+    for (i = 0; i < length && i < bLength; ++i)
+        if (a[i] != b[i]) dist++;
+    
+    if (i < length) dist += length-i;
+    if (i < bLength) dist += bLength-i;
+    return dist;
+}
 // credit to https://github.com/wooorm/levenshtein.c
 size_t levenshtein_n(const char *a, const size_t length, const char *b, const size_t bLength) {
   // Shortcut optimizations / degenerate cases.
@@ -450,43 +482,44 @@ static int check_dup(struct bseq *r, struct bseq *q, int strand)
 
     kstring_t str = {0,0,0};
     kstring_t str1 = {0,0,0};
-    if (r->l1 > 0 && q->l1 > 0) {
+    if (r->s0.l > 0 && q->s1.l > 0) {
         if (strand == 1) {
-            int l = q->l1 > r->l0 ? r->l0 : q->l1;
-            kputsn(r->s0, l, &str);
-            char *rs = reverse_seq(q->s1, q->l1);
+            int l = q->s1.l > r->s0.l ? r->s0.l : q->s1.l;
+            kputsn(r->s0.s, l, &str);
+            char *rs = reverse_seq(q->s1.s, q->s1.l);
             kputsn(rs, l, &str1);
             free(rs);
 
             // now to read 2
 
-            l = q->l0 > r->l1 ? r->l1 : q->l0;
-            kputsn(r->s1+r->l1-l, l, &str);
-            char *rs1 = reverse_seq(q->s0, q->l0);
-            kputsn(rs1+q->l1-1, l, &str1);
+            l = q->s0.l > r->s1.l ? r->s1.l : q->s0.l;
+            kputsn(r->s1.s+r->s1.l-l, l, &str);
+            char *rs1 = reverse_seq(q->s0.s, q->s0.l);
+            kputsn(rs1+q->s1.l-1, l, &str1);
             free(rs1);
         }
         else {
-            int l = q->l0 > r->l0 ? r->l0 : q->l0;
-            kputsn(q->s0, l, &str);
-            kputsn(q->s1, l, &str1);
-            l = q->l1 > r->l1 ? r->l1 : q->l1;
-            kputsn(r->s1+r->l1-l, l, &str);
-            kputsn(q->s1+q->l1-l, l, &str1);
+            int l = q->s0.l > r->s0.l ? r->s0.l : q->s0.l;
+            kputsn(q->s0.s, l, &str);
+            kputsn(q->s1.s, l, &str1);
+            l = q->s1.l > r->s1.l ? r->s1.l : q->s1.l;
+            kputsn(r->s1.s+r->s1.l-l, l, &str);
+            kputsn(q->s1.s+q->s1.l-l, l, &str1);
         }
     }
     else {
-        if (strand == 1 && q->l0 != r->l0) return 0;
-        int l = q->l0 < r->l0 ? q->l0 : r->l0;
-        kputsn(r->s0, l, &str);
-        kputsn(q->s0, l, &str1);
+        if (strand == 1 && q->s0.l != r->s0.l) return 0;
+        int l = q->s0.l < r->s0.l ? q->s0.l : r->s0.l;
+        kputsn(r->s0.s, l, &str);
+        kputsn(q->s0.s, l, &str1);
     }
 
     kputs("", &str);
     kputs("", &str1);
 
     assert(str.l == str1.l);
-    int score = levenshtein_n(str.s, str.l, str1.s, str1.l);
+    //int score = levenshtein_n(str.s, str.l, str1.s, str1.l);
+    int score = hamming_n(str.s, str.l, str1.s, str1.l);
     if (score > 2) {
         free(str.s);
         free(str1.s);
@@ -517,20 +550,20 @@ int bseq_pool_dedup(struct bseq_pool *p)
     
     for (i = 0; i < p->n; ++i) {
         struct bseq *b = &p->s[i];
-        if (b->l0 < DEDUP_SEED) error("Read length is too short. %d", b->l0);
+        if (b->s0.l < DEDUP_SEED) error("Read length is too short. %zu", b->s0.l);
             
         // todo:: convert mark to bits
         b->flag = 0; // reset all the mark
         int qual = 0;
         
-        if (b->q0) 
-            for (j = 0; j < b->l0; ++j) qual += b->q0[j]-33;
+        if (b->q0.l) 
+            for (j = 0; j < b->s0.l; ++j) qual += b->q0.s[j]-33;
         int strand = -1;
         seed.l = 0; rseed.l = 0; // reset seed string
-        kputsn(b->s0, DEDUP_SEED, &seed);
+        kputsn(b->s0.s, DEDUP_SEED, &seed);
         kputs("", &seed);
-        char *rs = b->l1 >0 ? b->s1 : b->s0;
-        int l_rs = b->l1 >0 ? b->l1 : b->l0;
+        char *rs = b->s1.l >0 ? b->s1.s : b->s0.s;
+        int l_rs = b->s1.l >0 ? b->s1.l : b->s0.l;
         for (j = 0; j < DEDUP_SEED; ++j) {
             switch(rs[l_rs-1-j]) {
                 case 'A':

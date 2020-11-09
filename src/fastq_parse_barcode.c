@@ -76,6 +76,8 @@ struct fq_data {
 #define FQ_FLAG_READ_QUAL     3
 #define FQ_FLAG_SAMPLE_FAIL   4
 
+extern int kstr_copy(kstring_t *a, kstring_t *b);
+
 static struct args {
     const char *r1_fname;
     const char *r2_fname;
@@ -192,8 +194,6 @@ static struct args {
 };
     
 static struct config {
-    // const char *platform;
-    // const char *version;
     // consistant with white list if set
     char *cell_barcode_tag; 
     char *sample_barcode_tag;
@@ -217,8 +217,6 @@ static struct config {
     struct bcode_reg *read_1; 
     struct bcode_reg *read_2;  // for single ends, read2 == NULL
 } config = {
-    // .platform = NULL,
-    // .version = NULL,
     .cell_barcode_tag = NULL,
     .sample_barcode_tag = NULL,
     .raw_cell_barcode_tag = NULL,
@@ -484,13 +482,8 @@ struct seqlite {
     kstring_t *qual;
 };
 
-kstring_t *kstr_init()
-{
-    kstring_t *str;
-    str = malloc(sizeof(kstring_t));
-    memset(str, 0, sizeof(*str));
-    return str;
-}
+extern kstring_t *kstr_init();
+
 void kstr_destory(kstring_t *str)
 {
     if (str == NULL) return;
@@ -516,27 +509,22 @@ struct seqlite *extract_tag(struct bseq *b, const struct bcode_reg *r, struct BR
     char *s = NULL;
     char *q = NULL;
     if (r->rd == 1) {
-        if (r->end > b->l0) error("Try to select sequence out of range. [Read length: %d, Barcode range: %d-%d. Read name: %s]", b->l0, r->start, r->end, b->n0);
-        s = b->s0 + r->start -1;
-        q = b->q0 ? b->q0 + r->start -1 : NULL;
+        if (r->end > b->s0.l) error("Try to select sequence out of range. [Read length: %zu, Barcode range: %d-%d. Read name: %s]", b->s0.l, r->start, r->end, b->n0.s);
+        s = b->s0.s + r->start -1;
+        q = b->q0.l ? b->q0.s + r->start -1 : NULL;
     }
     else {
-        if (r->end > b->l1) error("Try to select sequence out of range. [Read length: %d, Barcode range: %d-%d. Read name: %s]", b->l1, r->start, r->end, b->n0);
-        s = b->s1 + r->start -1;
-        q = b->q1 ? b->q1 + r->start -1 : NULL;
+        if (r->end > b->s1.l) error("Try to select sequence out of range. [Read length: %zu, Barcode range: %d-%d. Read name: %s]", b->s1.l, r->start, r->end, b->n0.s);
+        s = b->s1.s + r->start -1;
+        q = b->q1.l ? b->q1.s + r->start -1 : NULL;
     }
     int l = r->end - r->start + 1;
-    //kstring_t seq = {0,0,0};
-    //kstring_t qual = {0,0,0};
-   
     kputsn(s, l, p->seq);
     kputs("", p->seq);
     if (q){
         kputsn(q, l, p->qual);
         kputs("", p->qual);
     }
-    //p->seq = seq.s;
-    //p->qual = qual.s;
     int i;
     for (i = 0; i < l; ++i) {
         if (p->qual->s[i]-33 >= 30) stat->q30_bases++;
@@ -555,16 +543,16 @@ char *check_whitelist(char *s, const struct bcode_reg *r, int *exact_match)
     set_hamming();
     return ss_query(r->wl, s, r->dist, exact_match);
 }
-static void update_rname(struct bseq *b, const char *tag, char *s)
-{
+static void update_rname(struct bseq *b, const char *tag, char *s){
     kstring_t str = {0,0,0};
-    kputs(b->n0, &str);
+    kputs(b->n0.s, &str);
     kputs("|||", &str);
     kputs(tag, &str);
     kputs(":Z:", &str);
     kputs(s, &str);
-    free(b->n0);
-    b->n0 = str.s;
+    free(b->n0.s);
+    kstr_copy(&b->n0, &str);
+    //b->n0 = str.s;
 }
 
 struct BRstat *extract_barcodes(struct bseq *b,
@@ -695,32 +683,17 @@ struct BRstat *extract_reads(struct bseq *b, const struct bcode_reg *r1, const s
     struct seqlite *s2 = extract_tag(b, r2, stat, &dropN);
     if (args.dropN && dropN== 1) b->flag= FQ_FLAG_READ_QUAL;
     
-    free(b->s0);
-    if (b->q0) free(b->q0);
-    assert(s1->seq->l>0);
-    b->s0 = strdup(s1->seq->s);
-    if (s1->qual) b->q0 = strdup(s1->qual->s);
+    free(b->s0.s);
+    if (b->q0.l) free(b->q0.s);
+    kstr_copy(&b->s0, s1->seq);
+    kstr_copy(&b->q0, s1->qual);
+    
+    //b->q0 = r1->end - r1->start + 1; 
 
-    b->l0 = r1->end - r1->start + 1; 
-
-    if (b->s1) {
-        free(b->s1);
-        b->s1 = NULL;
-        b->l1 = 0;
-    }
-    if (b->q1) {
-        free(b->q1);
-        b->q1 = NULL;
-    }
-    if (s2 && s2->seq->l) {
-        b->s1 = strdup(s2->seq->s);
-    }
-
-    if (s2 && s2->qual->l) {
-        b->q1 = strdup(s2->qual->s);
-        b->l1 = r2->end-r2->start+1;
-        assert(s2->qual->l == b->l1);
-    }
+    if (b->s1.l) free(b->s1.s);
+    if (b->q1.l) free(b->q1.s);
+    if (s2 && s2->seq->l) kstr_copy(&b->s1, s2->seq);
+    if (s2 && s2->qual->l) kstr_copy(&b->q1, s2->qual);
 
     seqlite_destory(s1);
     if (s2) seqlite_destory(s2);
@@ -732,7 +705,6 @@ static void *run_it(void *_p, int idx)
 {
     struct bseq_pool *p = (struct bseq_pool*)_p;
     struct args *opts = p->opts;
-    //struct thread_hold *hold = opts->hold[idx];
 
     int i;
     for (i = 0; i < p->n; ++i) {
@@ -817,20 +789,20 @@ static void *run_it(void *_p, int idx)
             if (b->flag != FQ_FLAG_PASS) continue;
             
             if (opts->bgiseq_filter) {
-                if (b->q0) {
+                if (b->q0.l) {
                     int k;
                     int bad_bases = 0;
-                    for (k = 0; k < 15 && k <b->l0; ++k) {
-                        if (b->q0[k]-33<10) bad_bases++;
+                    for (k = 0; k < 15 && k <b->q0.l; ++k) {
+                        if (b->q0.s[k]-33<10) bad_bases++;
                     }
                     if (bad_bases >2) {
                         b->flag = FQ_FLAG_READ_QUAL;
                         continue;
                     }
                     else {
-                        if (b->q1) {
-                            for (k = 0; k < 15 && k <b->l1; ++k) {
-                                if (b->q1[k]-33<10) bad_bases++;
+                        if (b->q1.l) {
+                            for (k = 0; k < 15 && k <b->q1.l; ++k) {
+                                if (b->q1.s[k]-33<10) bad_bases++;
                             }
                             if (bad_bases >2) {
                                 b->flag = FQ_FLAG_READ_QUAL;
@@ -841,19 +813,19 @@ static void *run_it(void *_p, int idx)
                 }
             }
 
-            if (opts->qual_thres > 0 && b->q0) { 
+            if (opts->qual_thres > 0 && b->q0.l) { 
                 int k;
                 int ave = 0;
                 
-                for (k = 0; k < b->l0; k++) ave+=b->q0[k]-33;
+                for (k = 0; k < b->q0.l; k++) ave+=b->q0.s[k]-33;
                 if (ave/k < opts->qual_thres) {
                     b->flag = FQ_FLAG_READ_QUAL;
                     continue;
                 }
 
-                if (b->l1 > 0 && b->q1) {
+                if (b->q1.l > 0) {
                     ave = 0;
-                    for (k = 0; k < b->l1; k++) ave+=b->q1[k]-33;
+                    for (k = 0; k < b->q1.l; k++) ave+=b->q1.s[k]-33;
                     if (ave/k < opts->qual_thres) {
                         b->flag = FQ_FLAG_READ_QUAL;
                         continue;
@@ -904,11 +876,11 @@ static void write_out(void *_data)
         if (0) {
           flag_pass:
             opts->reads_pass_qc++;
-            fprintf(fp1, "%c%s\n%s\n", b->q0 ? '@' : '>', b->n0, b->s0);
-            if (b->q0) fprintf(fp1, "+\n%s\n", b->q0);
-            if (b->l1 > 0) {
-                fprintf(fp2, "%c%s\n%s\n", b->q1 ? '@' : '>', b->n0, b->s1);
-                if (b->q1) fprintf(fp2, "+\n%s\n", b->q1);
+            fprintf(fp1, "%c%s\n%s\n", b->q0.l ? '@' : '>', b->n0.s, b->s0.s);
+            if (b->q0.l) fprintf(fp1, "+\n%s\n", b->q0.s);
+            if (b->s1.l > 0) {
+                fprintf(fp2, "%c%s\n%s\n", b->q1.l ? '@' : '>', b->n0.s, b->s1.s);
+                if (b->q1.l) fprintf(fp2, "+\n%s\n", b->q1.s);
             }
 
             if (data->bc_str && opts->cbhash) {
@@ -1045,9 +1017,6 @@ static void memory_release()
     if (args.out2_fp) fclose(args.out2_fp);
     if (args.barcode_dis_fp) fclose(args.barcode_dis_fp);
     fastq_handler_destory(args.fastq);
-    //int i;
-    //for (i = 0; i < args.n_thread; ++i) thread_hold_destroy(args.hold[i]);
-    //free(args.hold);    
 }
 static int parse_args(int argc, char **argv)
 {
@@ -1159,50 +1128,13 @@ int fastq_prase_barcodes(int argc, char **argv)
     
     if (parse_args(argc, argv)) return fastq_parse_usage();
 
-    // int nt = args.n_thread;
-    //if (nt == 1) {
     for (;;) {
         struct bseq_pool *b = fastq_read(args.fastq, &args);
         if (b == NULL) break;
         b = run_it(b, 0);
         write_out(b);
     }
-    /*
-
-      TODO: the multi-threads mode usually get stuck, delete it at 20200204
-    }
-    else {
-        
-        struct thread_pool *p = thread_pool_init(nt);
-        struct thread_pool_process *q = thread_pool_process_init(p, nt*2, 0);
-        struct thread_pool_result *r;
-
-        for (;;) {
-            struct bseq_pool *b = fastq_read(args.fastq, &args);
-            if (b == NULL) break;
-            int block;
-            do {
-                block = thread_pool_dispatch2(p, q, run_it, b, 0);
-                if ((r = thread_pool_next_result(q))) {
-                    struct bseq_pool *d = (struct bseq_pool *)r->data;
-                    write_out(d);
-                }
-                thread_pool_delete_result(r, 0);
-            }
-            while (block == -1);
-        }
-        thread_pool_process_flush(q);
-        
-        while ((r = thread_pool_next_result(q))) {
-            struct bseq_pool *d = (struct bseq_pool*)r->data;
-            write_out(d);
-            thread_pool_delete_result(r, 0);
-        }
-
-        thread_pool_process_destroy(q);
-        thread_pool_destroy(p);
-    }
-    */
+    // todo: multi-threads parse
     
     cell_barcode_count_pair_write();
 
