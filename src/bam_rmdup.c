@@ -220,6 +220,12 @@ static void dump_best()
     for (i = 0; i < buf.n; ++i) {
         bam1_t *b = buf.b[i];
         bam1_core_t *c = &b->core;
+        int isize = c->isize;
+        if (isize != 0 && args.as_SE == 1) isize = 0;
+        if (isize == 0) { // update isize to read length, for SE mode
+            int endpos = bam_endpos(b);
+            isize = endpos - c->pos;
+        }
         char *bc = pick_tag_name(b, args.n_tag, args.tags);
         int idx = dict_push(reads_group, bc);
         struct rq_groups *r = dict_query_value(reads_group, idx);
@@ -230,7 +236,7 @@ static void dump_best()
                 r->n = r->m = 0;
                 r->next = NULL;
                 r->q = NULL;
-                r->isize = c->isize; // init isize
+                r->isize = isize; // init isize
                 if (last_r == NULL) // header
                     dict_assign_value(reads_group, idx, r);
                     
@@ -238,8 +244,8 @@ static void dump_best()
                     last_r->next = r;
                 last_r = r;
             }
-
-            if (c->isize != r->isize) r = r->next;
+            
+            if (isize != r->isize) r = r->next;
             else break; 
         }
         if (r->n == r->m) {
@@ -258,6 +264,10 @@ static void dump_best()
         struct rq_groups *r = dict_query_value(reads_group, i);
         assert(r);
         while (r) {
+            if (r->isize < 0) {
+                r = r->next;
+                continue;
+            }
             int j;
             int best_read = 0;
             int qual = -1;
@@ -274,7 +284,6 @@ static void dump_best()
     }
 
     // export reads
-
     for (i = 0; i < buf.n; ++i) {
         all_reads++;
         bam1_t *b = buf.b[i];
@@ -290,8 +299,6 @@ static void dump_best()
     for (i = 0; i < dict_size(reads_group); ++i) {
         struct rq_groups *r = dict_query_value(reads_group, i);
         while (r) {
-            //int j;
-            //for (j = 0; j < r->n; ++j) free(r->q[j].name);
             free(r->q);
             void *r1 = r;
             r = r->next;

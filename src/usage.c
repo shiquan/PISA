@@ -101,7 +101,6 @@ int sam2bam_usage()
     fprintf(stderr, " -maln    [BAM]       Export mitochondria reads into this file instead of standard output file.\n");
     fprintf(stderr, " -@       [INT]       Threads to compress bam file.\n");
     fprintf(stderr, " -report  [csv]       Alignment report.\n");
-    // fprintf(stderr, " -skip-sec            Skip secondary alignments in the output.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Note :\n");
     fprintf(stderr, "* Reads map to multiple loci usually be marked as low quality and filtered at downstream analysis.\n");
@@ -118,14 +117,13 @@ int sam2bam_usage()
 
 int rmdup_usage()
 {
-    fprintf(stderr, "* Deduplicate PCR reads based on read position and barcodes.\n");
+    fprintf(stderr, "* Deduplicate PCR reads with same barcodes.\n");
     fprintf(stderr, "bam_rmdup [options] in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, "   -tag   [TAGS]       Barcode tags to group reads.\n");
-    //fprintf(stderr, "   -t     [INT]        Threads.\n");
     fprintf(stderr, "   -@     [INT]        Threads to unpack BAM.\n");
     fprintf(stderr, "   -o     [BAM]        Output bam.\n");
-    //fprintf(stderr, "   -r     [INT]        Records per thread chunk. Default is 10000000.\n");
+    fprintf(stderr, "   -S                  Treat PE reads as SE.\n");
     fprintf(stderr, "   -k                  Keep duplicates, make flag instead of remove them.\n");
     fprintf(stderr, "\n");
     return 1;
@@ -197,8 +195,7 @@ int bam_corr_usage()
     fprintf(stderr, "* PISA corr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
     fprintf(stderr, " // Same with above. Besides, if two or more groups of reads have same CB and UB but different GN, the GN with the most supporting reads\n");
     fprintf(stderr, " // is kept for UMI counting, and the other read groups are discarded. In case of a tie for maximal read support, all read groups are\n");
-    fprintf(stderr, " // discarded, as the gene cannot be confidently assigned (Cell Ranger method).\n");
-    fprintf(stderr, "* PISA corr -cr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
+    fprintf(stderr, " // discarded, as the gene cannot be confidently assigned (Cell Ranger method).\n");    fprintf(stderr, "* PISA corr -cr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
     fprintf(stderr, "\n");
     return 1;
 }
