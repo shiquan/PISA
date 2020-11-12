@@ -1,51 +1,45 @@
 #include "utils.h"
+#include "dict.h"
 #include "htslib/thread_pool.h"
 #include "htslib/sam.h"
-#include "htslib/khash.h"
 #include "htslib/bgzf.h"
 #include "htslib/kstring.h"
 #include "number.h"
 
-KHASH_SET_INIT_STR(name)
-
 static struct args {
     const char *input_fname;
     const char *output_fname;
-    const char *tag_string;
-    int n_thread;
+    const char *report_fname;
+    
     int file_thread;
     int keep_dup;
-    int bufsize;
+
     int n_tag;
     char **tags;
-    
-    bam1_t *last_bam;
-
     htsFile *fp;
     BGZF *out;
+    FILE *fp_report;
     bam_hdr_t *hdr;
-    
+    int as_SE;
 } args = {
-    .input_fname = NULL,
+    .input_fname  = NULL,
     .output_fname = NULL,
-    .tag_string = NULL,
-    .n_thread = 5,
-    .file_thread = 1,
-    .keep_dup = 0,
-    .bufsize = 10000, // 100K
-    .last_bam = NULL,
-    .n_tag = 0,
-    .tags = NULL,
-    
-    .fp = NULL,
-    .out = NULL,
-    .hdr = NULL,
+    .report_fname = NULL,
+    .file_thread  = 1,
+    .keep_dup     = 0,
+    .n_tag        = 0,
+    .tags         = NULL,    
+    .fp           = NULL,
+    .out          = NULL,
+    .fp_report    = NULL,
+    .hdr          = NULL,
+    .as_SE        = 0,
 };
 static int parse_args(int argc, char **argv)
 {
     int i;
-    const char *thread = NULL;
-    const char *chunk_size = NULL;
+    
+    const char *tag_str  = NULL;
     const char *file_thread = NULL;
     
     for (i = 1; i < argc; ) {
@@ -54,21 +48,23 @@ static int parse_args(int argc, char **argv)
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         
         if (strcmp(a, "-o") == 0) var = &args.output_fname;
-        else if (strcmp(a, "-tag") == 0) var = &args.tag_string;
-        else if (strcmp(a, "-t") == 0) var = &thread;
+        else if (strcmp(a, "-report") == 0) var = &args.report_fname;
+        else if (strcmp(a, "-tag") == 0) var = &tag_str;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
-        else if (strcmp(a, "-r") == 0) var = &chunk_size;
         else if (strcmp(a, "-k") == 0) {
             args.keep_dup = 1;
             continue;
         }
-
+        else if (strcmp(a, "-S") == 0) {
+            args.as_SE = 1;
+            continue;
+        }
+        
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
             continue;
         }
-
         
         if (args.input_fname == NULL) {
             args.input_fname = a;
@@ -80,14 +76,12 @@ static int parse_args(int argc, char **argv)
 
     if (args.input_fname == NULL) error("No input BAM.");
     if (args.output_fname == NULL) error("No output BAM specified.");
-    if (args.tag_string == NULL) error("No tag specified.");
-    
-    if (thread) args.n_thread = str2int((char*)thread);
-    if (chunk_size) args.bufsize = str2int((char*)chunk_size);
+    if (tag_str == NULL) error("No tag specified.");
+
     if (file_thread) args.file_thread = str2int((char*)file_thread);
     
     kstring_t str = {0,0,0};
-    kputs(args.tag_string, &str);
+    kputs(tag_str, &str);
     int *s = ksplit(&str, ',', &args.n_tag);
     if (args.n_tag == 0) error("No tags.");
     int j;
@@ -99,6 +93,7 @@ static int parse_args(int argc, char **argv)
     
     args.fp = hts_open(args.input_fname, "r");
     CHECK_EMPTY(args.fp, "%s : %s.", args.input_fname, strerror(errno));
+    
     htsFormat type = *hts_get_format(args.fp);
     if (type.format != bam && type.format != sam)
         error("Unsupported input format, only support SAM/BAM/CRAM format.");
@@ -106,8 +101,13 @@ static int parse_args(int argc, char **argv)
     args.hdr = sam_hdr_read(args.fp);
     CHECK_EMPTY(args.hdr, "Failed to open header.");
 
-    hts_set_threads(args.fp, args.file_thread);
-    
+    if (args.file_thread > 1)
+        hts_set_threads(args.fp, args.file_thread);
+
+    if (args.report_fname) {
+        args.fp_report = fopen(args.report_fname, "w");
+        CHECK_EMPTY(args.fp_report, "%s : %s.", args.report_fname, strerror(errno));
+    }
     args.out = bgzf_open(args.output_fname, "w");
     CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
     if (bam_hdr_write(args.out, args.hdr) == -1) error("Failed to write SAM header.");
@@ -122,104 +122,12 @@ static void memory_release()
     int i;
     for (i = 0; i < args.n_tag; ++i) free(args.tags[i]);
     free(args.tags);
-}
-// todo: improve allocated and free SAM pool
-struct sam_pool {
-    int n, m;
-    bam1_t **bam;
-    struct args *opts;
-};
-static void push_sam_pool(bam1_t *b, struct sam_pool *p)
-{
-    if (p->n == p->m) {
-        p->m = p->m == 0 ? args.bufsize : p->m + 100;
-        p->bam = realloc(p->bam, p->m*sizeof(void*));
-    }
-    p->bam[p->n++] = b;
-}
-// load each read block into buffer, this design may be uneffective for high coverage data, such as wgs
-static struct sam_pool *sam_pool_read(htsFile *fp, int bufsize)
-{
-    struct sam_pool *p = malloc(sizeof(*p));
-    memset(p, 0, sizeof(*p));
-    p->opts = &args;
-    int i = 0;
-    int last_tid = -1;
-    int last_end = -1;
-    if (args.last_bam) {
-        push_sam_pool(args.last_bam, p);
-        args.last_bam = NULL; // set point to NULL
-    }
-    int ret;
-    for (;;) {
-        bam1_t *b = bam_init1();
-        bam1_core_t *c = &b->core;
-        ret = sam_read1(fp, args.hdr, b);
-        if (ret < 0) {
-            bam_destroy1(b);
-            break;
-        }
-        if (last_tid == -1) last_tid = c->tid;
-        if (last_tid != c->tid) { // for different chrom, donot put into one pool
-            last_end = -1;
-            last_tid = -1;
-            args.last_bam = b;
-            break;
-        }
-        
-        if (c->mtid >= 0 && c->mpos > c->pos && last_end < c->mpos) last_end = c->mpos;        
-
-        // debug_print("%s\t%d\t%d\t%d", args.hdr->target_name[c->tid],c->pos+1, c->isize, last_end);
-        
-        if (i >= bufsize) { // start check ends
-            if (last_end == -1) { //SE
-                args.last_bam = b;
-                break;
-            }
-            
-            if (c->pos > last_end && c->mpos > c->pos) {
-                args.last_bam = b;
-                break;
-            }
-        }
-        
-        push_sam_pool(b, p);
-        i++;
-    }
-    // debug_print("last_end: %d, p->n:%d, bufsize: %d", last_end, p->n, bufsize);
-    if (p->n == 0) {
-        free(p);
-        return NULL;
-    }
-    return p;
+    if (args.fp_report) fclose(args.fp_report);
 }
 
-static void write_out(struct sam_pool *p)
-{
-    int i;
-    struct args *opts = p->opts;
-    for (i = 0; i < p->n; ++i) {
-        bam1_t *b = p->bam[i];
-        if (b->core.flag & BAM_FDUP) {
-            if (opts->keep_dup == 1) {
-                if (bam_write1(opts->out, b) == -1) error("Failed to write.");
-            }
-        }
-        else {
-            if (bam_write1(opts->out, b) == -1) error("Failed to write.");
-        }
-        bam_destroy1(b);
-    }
-    free(p->bam);
-    free(p);
-    // debug_print("Out.");
-}
-struct sam_stack_buf {
-    int n, m;
-    bam1_t **p; // point to sam_pool::bam
-};
+static int all_reads = 0;
+static int deduplicated = 0;
 
-// credit to samtools::bam_rmdup.c
 static inline int sum_qual(const bam1_t *b)
 {
     int i, q;
@@ -239,124 +147,175 @@ static inline char *pick_tag_name(const bam1_t *b, int n_tag, char **tags)
     }
     return str.s;
 }
-static void dump_best(struct sam_stack_buf *buf, khash_t(name) *best_first, struct args *opts)
+
+static struct {
+    int n, m;
+    bam1_t **b;
+    struct dict *best_names;
+} buf = {
+    .n = 0,
+    .m = 0,
+    .b = NULL,
+    .best_names = NULL,
+};
+
+static void clean_buffer()
 {
-    // pick read id to  best_first
-    bam1_t *pp = NULL; // point to best
-    int ret;
-    khint_t k;
-    // debug_print("stack->n %d, %d", buf->n, buf->p[0]->core.pos +1);
-    if (buf->n == 0) error("Empty stack.");
-    int i, j = 0;
-    int isize = -1;
-    char *last_tag = NULL;
-    for (;;) {
-        // for reads start from same location, but has different isize or barcodes, we divide reads has same isize and barcodes into one group
-        // isize = buf->p[j]->core.isize;
-        for (i = j; i < buf->n; ++i) {
-
-            if (i==j) j = -1; // reset j in this cycle and set to iter at end of this cycle of next group
-
-            // if record has been check, set point to NULL and skip at next cycle
-            if (buf->p[i] == NULL) continue;
-
-            bam1_t *b = buf->p[i];
-            bam1_core_t *c = &b->core;
-            if (c->mpos > 0 && c->mpos < c->pos) { // mated reads check already, check best read hash
-                k = kh_get(name, best_first, bam_get_qname(b));
-                if (k == kh_end(best_first)) {
-                    c->flag |= BAM_FDUP;
-                }
-                buf->p[i] = NULL;
-            }
-            else {
-                char *tag_string = pick_tag_name(b, opts->n_tag, opts->tags);
-                if (pp == NULL) {
-                    isize = c->isize; // for SE, isize will always be 0
-                    pp = b;
-                    if (last_tag) free(last_tag);
-                    last_tag = tag_string;
-                    continue;
-                }
-                if (c->isize == isize && strcmp(last_tag, tag_string) == 0) {
-                    
-                    if (sum_qual(pp) > sum_qual(b)) {
-                        c->flag |= BAM_FDUP;
-                    }
-                    else {
-                        bam1_core_t *c1 = &pp->core;
-                        c1->flag |= BAM_FDUP;
-                        pp = b;
-                    }
-                    buf->p[i] = NULL; // no need check it again
-                }
-                else {
-                    if (j == -1) j = i;
-                }
-                free(tag_string);
-            }
-        }
-        // debug_print("j: %d, isize: %d",j, isize);
-        if (pp) {
-            k = kh_put(name, best_first, bam_get_qname(pp), &ret);
-            // debug_print("%s", bam_get_qname(pp));
-            pp = NULL;
-            free(last_tag);
-            last_tag = NULL;
-        }
-
-        if (j == -1) break; // no more groups
-    }
-
-    buf->n = 0; // clear stack
+    int i;
+    for (i = 0; i < buf.n; ++i) bam_destroy1(buf.b[i]);
+    buf.n = 0;
 }
-static void push_stack(struct sam_stack_buf *buf, bam1_t *b)
+static void clean_buffer1()
 {
-    if (buf->n == buf->m) {
-        buf->m = buf->m == 0 ? 10 : buf->m*2;
-        buf->p = realloc(buf->p, buf->m*sizeof(void*));
+    clean_buffer();
+    if (buf.best_names) dict_destroy(buf.best_names);
+    buf.best_names = NULL;
+}
+static void destroy_buffer()
+{
+    clean_buffer1();
+    if (buf.m) free(buf.b);
+}
+static void push_buffer(bam1_t *b)
+{
+    if (buf.n == buf.m) {
+        buf.m = buf.n == 0 ? 12 : buf.m * 2;
+        buf.b = realloc(buf.b, buf.m *sizeof(void*));
     }
-    buf->p[buf->n++] = b;
+    buf.b[buf.n++] = bam_dup1(b);
 }
 
-static void *run_it(void *_p)
+struct read_qual {
+    char *name; // point to read struct
+    int qual;
+};
+
+struct rq_groups {
+    struct rq_groups *next;
+    int isize;
+    int n, m;
+    struct read_qual *q;
+};
+
+static void dump_best()
 {
-    struct sam_pool *p = (struct sam_pool*)_p;
-    struct sam_stack_buf buf;
-    memset(&buf, 0, sizeof(struct sam_stack_buf));
-    struct args *opts = p->opts;
-    // debug_print("p->n: %d", p->n);
-    khash_t(name) *best_first = kh_init(name);
+    if (buf.n == 0) return;
+    if (buf.n == 1) {
+        all_reads++;
+        deduplicated++;
+        if (bam_write1(args.out, buf.b[0]) == -1) error("Failed to write.");
+        clean_buffer();
+        return;
+    }
+    //debug_print("%d", buf.n);
+    struct dict *reads_group = dict_init();
+    dict_set_value(reads_group);
+    
+    if (buf.best_names == NULL) buf.best_names = dict_init();
     
     int i;
-    //bam1_t *lbam = NULL;
-    int last_tid = -2;
-    int last_pos = -1;
-    for (i = 0; i < p->n; ++i) {
-        bam1_t *b = p->bam[i];
-        if (b == NULL)error("Try to access empty point.");
+
+    // groups reads from the same fragment
+    
+    for (i = 0; i < buf.n; ++i) {
+        bam1_t *b = buf.b[i];
         bam1_core_t *c = &b->core;
-        if (last_pos == -1) last_pos = c->pos;
-        if (last_tid == -1) last_tid = c->tid;
-        if (c->tid != last_tid || last_pos != c->pos) {
-            if (buf.n > 0) dump_best(&buf, best_first, opts);
-            last_tid = c->tid;
-            last_pos = c->pos;
+        char *bc = pick_tag_name(b, args.n_tag, args.tags);
+        int idx = dict_push(reads_group, bc);
+        struct rq_groups *r = dict_query_value(reads_group, idx);
+        struct rq_groups *last_r = NULL;
+        for (;;) {
+            if (r == NULL) {
+                r = malloc(sizeof(*r));
+                r->n = r->m = 0;
+                r->next = NULL;
+                r->q = NULL;
+                r->isize = c->isize; // init isize
+                if (last_r == NULL) // header
+                    dict_assign_value(reads_group, idx, r);
+                    
+                else 
+                    last_r->next = r;
+                last_r = r;
+            }
+
+            if (c->isize != r->isize) r = r->next;
+            else break; 
         }
+        if (r->n == r->m) {
+            r->m = r->n == 0 ? 2 : r->m *2;
+            r->q = realloc(r->q, r->m*sizeof(struct read_qual));
+        }
+        r->q[r->n].name = bam_get_qname(b);
+        r->q[r->n].qual = sum_qual(b);
 
-        // for unmapped reads, different chromosomes, singletons, append to output
-        if (c->tid == -1) break; // append to output, for sorted BAM unmapped reads only happened at end of file
-        //  if ( !(c->flag&BAM_FPAIRED) || (c->flag&(BAM_FUNMAP|BAM_FMUNMAP)) || (c->mtid >= 0 && c->tid != c->mtid)) continue;
-        if (c->mtid >= 0 && c->tid != c->mtid) continue;        
-        push_stack(&buf, b);
+        r->n++;
+        free(bc);
     }
-    if (buf.n > 0) dump_best(&buf, best_first, opts);
-    kh_destroy(name, best_first);
-    // debug_print("finished. p->n: %d", p->n);
-    free(buf.p);
-    return p;
-}
 
+    // select read name with best quality
+    for (i = 0; i < dict_size(reads_group); ++i) {
+        struct rq_groups *r = dict_query_value(reads_group, i);
+        assert(r);
+        while (r) {
+            int j;
+            int best_read = 0;
+            int qual = -1;
+            for (j = 0; j < r->n; ++j) {
+                if (qual < r->q[j].qual) {
+                    qual = r->q[j].qual;
+                    best_read = j;
+                }
+            }
+            dict_push(buf.best_names, r->q[best_read].name); // keep best read name
+            
+            r = r->next;
+        }
+    }
+
+    // export reads
+
+    for (i = 0; i < buf.n; ++i) {
+        all_reads++;
+        bam1_t *b = buf.b[i];
+        bam1_core_t *c = &b->core;
+        int idx = dict_query(buf.best_names, bam_get_qname(b));
+        if (args.keep_dup == 0 && idx < 0) continue;
+        if (idx < 0) c->flag |= BAM_FDUP;
+        else deduplicated++;
+        if (bam_write1(args.out, b) == -1) error("Failed to write.");
+    }
+
+    // free
+    for (i = 0; i < dict_size(reads_group); ++i) {
+        struct rq_groups *r = dict_query_value(reads_group, i);
+        while (r) {
+            //int j;
+            //for (j = 0; j < r->n; ++j) free(r->q[j].name);
+            free(r->q);
+            void *r1 = r;
+            r = r->next;
+            free(r1);
+        }
+    }
+    dict_destroy(reads_group);
+    clean_buffer();
+}
+static void print_unmapped(bam1_t *b)
+{
+    dump_best();
+    if (bam_write1(args.out, b) == -1)
+        error("Failed to write.");
+}
+static void summary_report()
+{
+    if (args.fp_report) {
+        fprintf(args.fp_report, "All reads,%d\n", all_reads);
+        fprintf(args.fp_report, "Deduplicated reads,%d\n", deduplicated);
+    }
+    LOG_print("All reads,%d", all_reads);
+    LOG_print("Deduplicated reads,%d", deduplicated);
+}
 extern int rmdup_usage();
 
 int bam_rmdup(int argc, char **argv)
@@ -366,56 +325,57 @@ int bam_rmdup(int argc, char **argv)
 
     if (parse_args(argc, argv)) return rmdup_usage();
 
-    if (args.n_thread == 1) {
-        for (;;) {
-            struct sam_pool *b = sam_pool_read(args.fp, args.bufsize);
-            if (b == NULL) break;
-            b = run_it(b);
-            write_out(b);
-        }
-    }
-    else {
-        hts_tpool *p = hts_tpool_init(args.n_thread);
-        hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
-        hts_tpool_result *r;
-        //struct thread_pool *p = thread_pool_init(args.n_thread);
-        //struct thread_pool_process *q = thread_pool_process_init(p, args.n_thread*2, 0);
-        //struct thread_pool_result *r;
+    bam1_t *b = bam_init1();
+    bam1_core_t *c = &b->core;
+    int ret;
+    int last_tid = -2;
+    int last_pos = -1;
 
-        for (;;) {
-            struct sam_pool *b = sam_pool_read(args.fp, args.bufsize);
-            if (b == NULL) break;
+    for (;;) {
+        ret = sam_read1(args.fp, args.hdr, b);
+        if (ret < 0) break; // end of file
+
+        // assume inputs are sorted
+
+        if (c->flag & BAM_FQCFAIL ||
+            c->flag & BAM_FSECONDARY ||
+            c->flag & BAM_FSUPPLEMENTARY ||
+            c->flag & BAM_FUNMAP) {
+            print_unmapped(b);
+            continue;
+        }
+
+
+        if (last_tid != c->tid) {
+            LOG_print("Deduplicating %s", args.hdr->target_name[c->tid]);
+            last_tid = c->tid;
+            last_pos = -1;
+            dump_best();
+            clean_buffer1();
+        }
+        
+        if (last_pos == -1) {
+            last_pos = c->pos;
+        }
+        else if (last_pos == c->pos) {
             
-            int block;
-            do {
-                // block = thread_pool_dispatch2(p, q, run_it, b, 1);
-                block = hts_tpool_dispatch2(p, q, run_it, b, 1);
-                if ((r = hts_tpool_next_result(q))) {
-                //if ((r = thread_pool_next_result(q))) {
-                    struct sam_pool *d = (struct sam_pool*)hts_tpool_result_data(r);
-                    write_out(d);
-                    // thread_pool_delete_result(r, 0);
-                    hts_tpool_delete_result(r, 0);
-                }
-            }
-            while (block == -1);
         }
-        //thread_pool_process_flush(q);
-        hts_tpool_process_flush(q);
-
-        //while ((r = thread_pool_next_result(q))) {
-        while ((r = hts_tpool_next_result(q))) {
-            struct sam_pool *d = (struct sam_pool*)hts_tpool_result_data(r);
-            write_out(d);
-            //thread_pool_delete_result(r, 0);
-            hts_tpool_delete_result(r, 0);
+        else if (last_pos < c->pos) {
+            dump_best();      
         }
-        //thread_pool_process_destroy(q);
-        //thread_pool_destroy(p);
-        hts_tpool_process_destroy(q);
-        hts_tpool_destroy(p);
+        else {
+            error("Unsorted bam?");
+        }
+        push_buffer(b);
     }
+    dump_best();
+    destroy_buffer();
+    
+    summary_report();
+    
+    bam_destroy1(b);
     memory_release();
+    
     LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
     
     return 0;

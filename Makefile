@@ -75,6 +75,7 @@ AOBJ = src/bam_anno.o \
 	src/bam_tag_corr.o \
 	src/bam2fq.o \
 	src/bam_extract_tags.o \
+	src/bam_rmdup.o\
 	src/usage.o
 
 liba.a: $(LIB_OBJ)
@@ -116,6 +117,7 @@ src/ksa.o: src/ksa.c
 src/bam_pool.o: src/bam_pool.c
 src/bam_extract_tags.o: src/bam_extract_tags.c
 src/usage.o:src/usage.c
+src/bam_rmdup.o:src/bam_rmdup.c
 
 clean: testclean
 	-rm -f gmon.out *.o *~ $(PROG) pisa_version.h 

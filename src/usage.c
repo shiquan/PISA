@@ -115,22 +115,22 @@ int sam2bam_usage()
     fprintf(stderr, "\n");
     return 1;    
 }
-/*
+
 int rmdup_usage()
 {
     fprintf(stderr, "* Deduplicate PCR reads based on read position and barcodes.\n");
     fprintf(stderr, "bam_rmdup [options] in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, "   -tag   [TAGS]       Sample tag, cell barcode tag, and/or UMI tag. RG,CB,UR\n");
-    fprintf(stderr, "   -t     [INT]        Threads.\n");
+    fprintf(stderr, "   -tag   [TAGS]       Barcode tags to group reads.\n");
+    //fprintf(stderr, "   -t     [INT]        Threads.\n");
     fprintf(stderr, "   -@     [INT]        Threads to unpack BAM.\n");
     fprintf(stderr, "   -o     [BAM]        Output bam.\n");
-    fprintf(stderr, "   -r     [INT]        Records per thread chunk. Default is 10000000.\n");
+    //fprintf(stderr, "   -r     [INT]        Records per thread chunk. Default is 10000000.\n");
     fprintf(stderr, "   -k                  Keep duplicates, make flag instead of remove them.\n");
     fprintf(stderr, "\n");
     return 1;
 }
-*/
+
 int pick_usage()
 {
     fprintf(stderr, "* Pick alignment records within barcode list.\n");
