@@ -126,7 +126,7 @@ static void memory_release()
 }
 
 static int all_reads = 0;
-static int deduplicated = 0;
+static int duplicate = 0;
 
 static inline int sum_qual(const bam1_t *b)
 {
@@ -202,7 +202,6 @@ static void dump_best()
     if (buf.n == 0) return;
     if (buf.n == 1) {
         all_reads++;
-        deduplicated++;
         if (bam_write1(args.out, buf.b[0]) == -1) error("Failed to write.");
         clean_buffer();
         return;
@@ -289,9 +288,11 @@ static void dump_best()
         bam1_t *b = buf.b[i];
         bam1_core_t *c = &b->core;
         int idx = dict_query(buf.best_names, bam_get_qname(b));
+        if (idx < 0) {
+            c->flag |= BAM_FDUP;
+            duplicate++;
+        }                
         if (args.keep_dup == 0 && idx < 0) continue;
-        if (idx < 0) c->flag |= BAM_FDUP;
-        else deduplicated++;
         if (bam_write1(args.out, b) == -1) error("Failed to write.");
     }
 
@@ -318,10 +319,12 @@ static void summary_report()
 {
     if (args.fp_report) {
         fprintf(args.fp_report, "All reads,%d\n", all_reads);
-        fprintf(args.fp_report, "Deduplicated reads,%d\n", deduplicated);
+        fprintf(args.fp_report, "Duplicate reads,%d\n", duplicate);
+        fprintf(args.fp_report, "Duplicate ratio,%.4f", (float)duplicate/all_reads);
     }
     LOG_print("All reads,%d", all_reads);
-    LOG_print("Deduplicated reads,%d", deduplicated);
+    LOG_print("Duplicate reads,%d", duplicate);
+    LOG_print("Duplicate ratio,%.4f", (float)duplicate/all_reads);
 }
 extern int rmdup_usage();
 

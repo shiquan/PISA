@@ -30,10 +30,7 @@ int fastq_parse_usage()
     fprintf(stderr, " -run     [string]  Run code, used for different library.\n");
     fprintf(stderr, " -cbdis   [file]    Read count per cell barcode.\n");
     fprintf(stderr, " -p                 Read 1 and read 2 interleaved in the input file.\n");
-    // fprintf(stderr, " -t       [INT]     Thread.\n");
-    // fprintf(stderr, " -r       [INT]     Records per chunk. [10000]\n");
-    // fprintf(stderr, " -dis     [file]    Barcode distribution count.\n");
-    fprintf(stderr, " -f                 Filter reads on DNBSEQ standard (2 bases < q10 at first 15 bases).\n");
+    //fprintf(stderr, " -f                 Filter reads on DNBSEQ standard (2 bases < q10 at first 15 bases).\n");
     fprintf(stderr, " -q       [INT]     Drop reads if average sequencing quality below this value.\n");
     fprintf(stderr, " -dropN             Drop reads if N base in sequence or barcode.\n");
     fprintf(stderr, " -report  [csv]     Summary report.\n");
