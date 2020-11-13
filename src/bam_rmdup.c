@@ -200,10 +200,16 @@ struct rq_groups {
 static void dump_best()
 {
     if (buf.n == 0) return;
+    
     if (buf.n == 1) {
-        all_reads++;
         if (bam_write1(args.out, buf.b[0]) == -1) error("Failed to write.");
         clean_buffer();
+
+        bam1_core_t *c = &buf.b[0]->core;
+        if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY)
+            return;
+        
+        all_reads++;
         return;
     }
     //debug_print("%d", buf.n);
@@ -215,10 +221,12 @@ static void dump_best()
     int i;
 
     // groups reads from the same fragment
-    
     for (i = 0; i < buf.n; ++i) {
         bam1_t *b = buf.b[i];
         bam1_core_t *c = &b->core;
+
+        if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY) continue;
+        
         int isize = c->isize;
         if (isize != 0 && args.as_SE == 1) isize = 0;
         if (isize == 0) { // update isize to read length, for SE mode
@@ -287,6 +295,10 @@ static void dump_best()
         all_reads++;
         bam1_t *b = buf.b[i];
         bam1_core_t *c = &b->core;
+        if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY) {
+            if (bam_write1(args.out, b) == -1) error("Failed to write.");
+            continue;
+        }
         int idx = dict_query(buf.best_names, bam_get_qname(b));
         if (idx < 0) {
             c->flag |= BAM_FDUP;
@@ -346,12 +358,12 @@ int bam_rmdup(int argc, char **argv)
         if (ret < 0) break; // end of file
 
         // assume inputs are sorted
-
-        if (c->flag & BAM_FQCFAIL ||
-            c->flag & BAM_FSECONDARY ||
-            c->flag & BAM_FSUPPLEMENTARY ||
-            c->flag & BAM_FUNMAP) {
+        if (c->tid == -1) {
             print_unmapped(b);
+            continue;
+        }
+        if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY) {
+            push_buffer(b);
             continue;
         }
 
@@ -377,7 +389,7 @@ int bam_rmdup(int argc, char **argv)
             error("Unsorted bam?");
         }
         push_buffer(b);
-    }
+}
     dump_best();
     destroy_buffer();
     
