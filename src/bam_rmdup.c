@@ -141,8 +141,12 @@ static inline char *pick_tag_name(const bam1_t *b, int n_tag, char **tags)
     const bam1_core_t *c = &b->core;
     int i;
     for (i = 0; i < args.n_tag; ++i) {
-        uint8_t *tag = bam_aux_get(b, args.tags[i]);
-        if (!tag) error("No %s tag at alignment. %d:%lld", args.tags[i], c->tid, c->pos+1);
+        uint8_t *tag = bam_aux_get(b, args.tags[i]);        
+        if (!tag){
+            //error("No %s tag at alignment. %d:%lld", args.tags[i], c->tid, c->pos+1);
+            if (str.l) free(str.s);
+            return NULL;
+        }
         kputs((char*)tag, &str);
     }
     return str.s;
@@ -234,6 +238,7 @@ static void dump_best()
             isize = endpos - c->pos;
         }
         char *bc = pick_tag_name(b, args.n_tag, args.tags);
+        if (bc == NULL) continue;
         int idx = dict_push(reads_group, bc);
         struct rq_groups *r = dict_query_value(reads_group, idx);
         struct rq_groups *last_r = NULL;
