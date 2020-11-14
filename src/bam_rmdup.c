@@ -138,7 +138,6 @@ static inline int sum_qual(const bam1_t *b)
 static inline char *pick_tag_name(const bam1_t *b, int n_tag, char **tags)
 {
     kstring_t str = {0,0,0};
-    const bam1_core_t *c = &b->core;
     int i;
     for (i = 0; i < args.n_tag; ++i) {
         uint8_t *tag = bam_aux_get(b, args.tags[i]);        
@@ -228,7 +227,7 @@ static void dump_best()
     for (i = 0; i < buf.n; ++i) {
         bam1_t *b = buf.b[i];
         bam1_core_t *c = &b->core;
-
+        
         if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY) continue;
         
         int isize = c->isize;
@@ -238,8 +237,11 @@ static void dump_best()
             isize = endpos - c->pos;
         }
         char *bc = pick_tag_name(b, args.n_tag, args.tags);
+
         if (bc == NULL) continue;
-        int idx = dict_push(reads_group, bc);
+        int idx = dict_query(reads_group, bc);
+
+        if (idx == -1) idx = dict_push(reads_group, bc);
         struct rq_groups *r = dict_query_value(reads_group, idx);
         struct rq_groups *last_r = NULL;
         for (;;) {
@@ -266,7 +268,7 @@ static void dump_best()
         }
         r->q[r->n].name = bam_get_qname(b);
         r->q[r->n].qual = sum_qual(b);
-
+        
         r->n++;
         free(bc);
     }
@@ -276,6 +278,7 @@ static void dump_best()
         struct rq_groups *r = dict_query_value(reads_group, i);
         assert(r);
         while (r) {
+
             if (r->isize < 0) {
                 r = r->next;
                 continue;
@@ -290,21 +293,24 @@ static void dump_best()
                 }
             }
             dict_push(buf.best_names, r->q[best_read].name); // keep best read name
-            
+            //debug_print("Best name, %s", r->q[best_read].name);
             r = r->next;
         }
     }
 
     // export reads
     for (i = 0; i < buf.n; ++i) {
-        all_reads++;
         bam1_t *b = buf.b[i];
         bam1_core_t *c = &b->core;
         if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY) {
             if (bam_write1(args.out, b) == -1) error("Failed to write.");
             continue;
         }
+
+        all_reads++;
+        
         int idx = dict_query(buf.best_names, bam_get_qname(b));
+
         if (idx < 0) {
             c->flag |= BAM_FDUP;
             duplicate++;
@@ -380,21 +386,22 @@ int bam_rmdup(int argc, char **argv)
             dump_best();
             clean_buffer1();
         }
-        
+
         if (last_pos == -1) {
             last_pos = c->pos;
         }
         else if (last_pos == c->pos) {
-            
+
         }
         else if (last_pos < c->pos) {
-            dump_best();      
+            dump_best();
         }
         else {
             error("Unsorted bam?");
         }
+        last_pos = c->pos;
         push_buffer(b);
-}
+    }
     dump_best();
     destroy_buffer();
     
