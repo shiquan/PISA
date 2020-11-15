@@ -293,7 +293,7 @@ static void dump_best()
                 }
             }
             dict_push(buf.best_names, r->q[best_read].name); // keep best read name
-            //debug_print("Best name, %s", r->q[best_read].name);
+
             r = r->next;
         }
     }
@@ -373,12 +373,6 @@ int bam_rmdup(int argc, char **argv)
             print_unmapped(b);
             continue;
         }
-        /*
-        if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY) {
-            push_buffer(b);
-            continue;
-        }
-        */
 
         if (last_tid != c->tid) {
             LOG_print("Deduplicating %s", args.hdr->target_name[c->tid]);
