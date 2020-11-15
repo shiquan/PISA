@@ -215,7 +215,7 @@ static void dump_best()
         all_reads++;
         return;
     }
-    //debug_print("%d", buf.n);
+
     struct dict *reads_group = dict_init();
     dict_set_value(reads_group);
     
@@ -314,7 +314,7 @@ static void dump_best()
         if (idx < 0) {
             c->flag |= BAM_FDUP;
             duplicate++;
-        }                
+        }             
         if (args.keep_dup == 0 && idx < 0) continue;
         if (bam_write1(args.out, b) == -1) error("Failed to write.");
     }
@@ -343,7 +343,7 @@ static void summary_report()
     if (args.fp_report) {
         fprintf(args.fp_report, "All reads,%d\n", all_reads);
         fprintf(args.fp_report, "Duplicate reads,%d\n", duplicate);
-        fprintf(args.fp_report, "Duplicate ratio,%.4f", (float)duplicate/all_reads);
+        fprintf(args.fp_report, "Duplicate ratio,%.4f\n", (float)duplicate/all_reads);
     }
     LOG_print("All reads,%d", all_reads);
     LOG_print("Duplicate reads,%d", duplicate);
@@ -373,11 +373,12 @@ int bam_rmdup(int argc, char **argv)
             print_unmapped(b);
             continue;
         }
+        /*
         if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY) {
             push_buffer(b);
             continue;
         }
-
+        */
 
         if (last_tid != c->tid) {
             LOG_print("Deduplicating %s", args.hdr->target_name[c->tid]);
@@ -391,7 +392,7 @@ int bam_rmdup(int argc, char **argv)
             last_pos = c->pos;
         }
         else if (last_pos == c->pos) {
-
+            // just push to buffer
         }
         else if (last_pos < c->pos) {
             dump_best();
