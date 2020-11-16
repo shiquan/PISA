@@ -137,7 +137,7 @@ static inline int sum_qual(const bam1_t *b)
 }
 static inline char *pick_tag_name(const bam1_t *b, int n_tag, char **tags)
 {
-    bam1_core_t *c = &buf.b[0]->core;
+    bam1_core_t *c = &b->core;
     kstring_t str = {0,0,0};
     int i;
     for (i = 0; i < args.n_tag; ++i) {
