@@ -142,9 +142,9 @@ static inline char *pick_tag_name(const bam1_t *b, int n_tag, char **tags)
     for (i = 0; i < args.n_tag; ++i) {
         uint8_t *tag = bam_aux_get(b, args.tags[i]);        
         if (!tag){
-            //error("No %s tag at alignment. %d:%lld", args.tags[i], c->tid, c->pos+1);
-            if (str.l) free(str.s);
-            return NULL;
+            error("No %s tag at alignment. %d:%lld", args.tags[i], c->tid, c->pos+1);
+            //if (str.l) free(str.s);
+            //return NULL;
         }
         kputs((char*)tag, &str);
     }
@@ -229,7 +229,7 @@ static void dump_best()
         bam1_core_t *c = &b->core;
         
         if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY) continue;
-        
+        if (c->isize < 0) continue;
         int isize = c->isize;
         if (isize != 0 && args.as_SE == 1) isize = 0;
         if (isize == 0) { // update isize to read length, for SE mode
@@ -238,7 +238,6 @@ static void dump_best()
         }
         char *bc = pick_tag_name(b, args.n_tag, args.tags);
 
-        if (bc == NULL) continue;
         int idx = dict_query(reads_group, bc);
 
         if (idx == -1) idx = dict_push(reads_group, bc);
@@ -278,11 +277,14 @@ static void dump_best()
         struct rq_groups *r = dict_query_value(reads_group, i);
         assert(r);
         while (r) {
-
-            if (r->isize < 0) {
+            assert(r->isize >=0);
+            
+            /*
+              if (r->isize < 0) {
                 r = r->next;
                 continue;
             }
+            */
             int j;
             int best_read = 0;
             int qual = -1;
