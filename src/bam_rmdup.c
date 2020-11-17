@@ -137,7 +137,7 @@ static inline int sum_qual(const bam1_t *b)
 }
 static inline char *pick_tag_name(const bam1_t *b, int n_tag, char **tags)
 {
-    bam1_core_t *c = &b->core;
+    const bam1_core_t *c = &b->core;
     kstring_t str = {0,0,0};
     int i;
     for (i = 0; i < args.n_tag; ++i) {
@@ -155,12 +155,12 @@ static inline char *pick_tag_name(const bam1_t *b, int n_tag, char **tags)
 static struct {
     int n, m;
     bam1_t **b;
-    struct dict *best_names;
+    struct dict *dups;
 } buf = {
     .n = 0,
     .m = 0,
     .b = NULL,
-    .best_names = NULL,
+    .dups = NULL,
 };
 
 static void clean_buffer()
@@ -172,8 +172,8 @@ static void clean_buffer()
 static void clean_buffer1()
 {
     clean_buffer();
-    if (buf.best_names) dict_destroy(buf.best_names);
-    buf.best_names = NULL;
+    if (buf.dups) dict_destroy(buf.dups);
+    buf.dups = NULL;
 }
 static void destroy_buffer()
 {
@@ -220,7 +220,7 @@ static void dump_best()
     struct dict *reads_group = dict_init();
     dict_set_value(reads_group);
     
-    if (buf.best_names == NULL) buf.best_names = dict_init();
+    if (buf.dups == NULL) buf.dups = dict_init();
     
     int i;
 
@@ -292,11 +292,12 @@ static void dump_best()
             for (j = 0; j < r->n; ++j) {
                 if (qual < r->q[j].qual) {
                     qual = r->q[j].qual;
-                    best_read = j;
+                    if (best_read != j) {
+                        dict_push(buf.dups, r->q[best_read].name); // keep duplicate names
+                        best_read = j;
+                    }
                 }
             }
-            dict_push(buf.best_names, r->q[best_read].name); // keep best read name
-
             r = r->next;
         }
     }
@@ -312,13 +313,13 @@ static void dump_best()
 
         all_reads++;
         
-        int idx = dict_query(buf.best_names, bam_get_qname(b));
+        int idx = dict_query(buf.dups, bam_get_qname(b));
 
-        if (idx < 0) {
+        if (idx >= 0) {
             c->flag |= BAM_FDUP;
             duplicate++;
         }             
-        if (args.keep_dup == 0 && idx < 0) continue;
+        if (args.keep_dup == 0 && idx >= 0) continue;
         if (bam_write1(args.out, b) == -1) error("Failed to write.");
     }
 
@@ -362,7 +363,7 @@ int bam_rmdup(int argc, char **argv)
     if (parse_args(argc, argv)) return rmdup_usage();
 
     bam1_t *b = bam_init1();
-    bam1_core_t *c = &b->core;
+    const bam1_core_t *c = &b->core;
     int ret;
     int last_tid = -2;
     int last_pos = -1;
