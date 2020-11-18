@@ -251,12 +251,18 @@ int bam_count_usage()
 int bam2fq_usage()
 {
     fprintf(stderr, "* Convert BAM into fastq.\n");
-    fprintf(stderr, "bam2fq -tag CB,UY in.bam\n");
+    fprintf(stderr, "bam2fq in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -filter              Filter this record if not all tags existed.\n");
+    fprintf(stderr, " -i        [TAGS]     Export tags in read name.\n");        
+    fprintf(stderr, " -f                   Filter this record if `-i` specified tags not existed.\n");
     fprintf(stderr, " -fa                  Output fasta instead of fastq.\n");
     fprintf(stderr, " -o        [fastq]    Output file.\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");
+    fprintf(stderr, "Following options are experimental. \n");
+    fprintf(stderr, "* Merge overlapped reads from same molecular.\n");
+    fprintf(stderr, " -tag      [TAGS]     Tags to group reads.\n");
+    fprintf(stderr, " -i        [TAGS]     Inhert these tags to merged reads.\n");
+    fprintf(stderr, " -strand              Only check the overlapped reads from same strand.\n");
     fprintf(stderr, "\n");
     return 1;
 }

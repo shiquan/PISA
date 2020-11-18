@@ -1,13 +1,10 @@
 // parse barcode sequence from reads, rename read name with barcode tags
 #include "utils.h"
-//#include "htslib/thread_pool.h"
-//#include "thread_pool_internal.h"
 #include "json_config.h"
 #include "ksort.h"
 #include "fastq.h"
 #include "kson.h"
 #include "number.h"
-//#include <pthread.h>
 #include "htslib/kstring.h"
 #include "htslib/khash.h"
 #include "htslib/kseq.h"
@@ -826,7 +823,7 @@ static void *run_it(void *_p, int idx)
                 }
             }
         }
-    }
+    }    
     return p;
 }
 static void write_out(void *_data)
@@ -937,6 +934,8 @@ static void write_out(void *_data)
         free(data);
     }
     bseq_pool_destroy(p);
+    fflush(fp1);
+    fflush(fp2);
 }
 static int cmpfunc (const void *a, const void *b)
 {    
