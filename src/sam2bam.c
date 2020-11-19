@@ -79,7 +79,7 @@ static struct args {
     .gtf_fname         = NULL,
     .mito              = "chrM",
     .mito_fname        = NULL,
-    .qual_corr         = 255,
+    .qual_corr         = 60,
     .enable_corr       = 0,
     .G                 = NULL,
     .n_thread          = 1,
@@ -339,20 +339,30 @@ static void sam_stat_reads(bam1_t *b, struct summary *s, int *flag, struct args 
             if (c->mtid != c->tid) {
                 s->n_diffchr++;
             }
-        }    
+        }
     }    
 }
 extern struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam_hdr_t *h);
 
+extern int sam_realloc_bam_data(bam1_t *b, size_t desired);
 // return 0 on not correct, 1 on corrected
 int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
 {
     int i;
     int best_hits = 0;
-    int best_bam  = -1;    
+    int best_bam  = -1;
+    uint8_t *data = NULL;
+    int l_data = 0;
+    int l_qseq = 0;
     for (i = 0; i < n; ++i) {
         bam1_t *bam = b[i];
         bam1_core_t *c = &bam->core;
+        if (l_data == 0 && c->l_qseq > 0) {
+            l_data = ((c->l_qseq+1)>>1)+c->l_qseq; 
+            data = malloc(l_data);
+            memcpy(data, bam->data + (c->n_cigar<<2) + c->l_qname, l_data);
+            l_qseq = c->l_qseq;
+        }
         struct gtf_anno_type *ann = bam_gtf_anno_core(bam, G, args.hdr);
         // read mapped in exon will be selected
         if (ann->type != type_exon &&
@@ -362,9 +372,14 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
         best_hits++;
     }
     // only one secondary alignment hit exonic region
-    if (best_hits > 1) return 0;
-    if (best_bam == -1) return 0; 
-
+    if (best_hits > 1) {
+        if (data) free(data);
+        return 0;
+    }
+    if (best_bam == -1) {
+        if (data) free(data);
+        return 0;
+    }
     // update the mapping quality and flag
     for (i = 0; i < n; ++i) {
         bam1_t *bam = b[i];
@@ -373,13 +388,34 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
             int flag = BAM_FSECONDARY;            
             c->flag &= ~flag;
             c->qual = qual;
+            if (c->l_qseq == 0 && l_data > 0) {
+                c->l_qseq = l_qseq;
+                int m_data = bam->l_data + l_data;
+                if (m_data > bam->m_data) {
+                    sam_realloc_bam_data(bam, m_data);
+                }
+                uint8_t *s = bam->data + (c->n_cigar<<2) + c->l_qname;
+                uint8_t *e = bam->data + bam->l_data;
+                memmove(s+l_data, s, e-s);
+                memcpy(s, data, l_data);
+                bam->l_data = m_data;
+            }
             bam_aux_update_int(bam, corr_tag, 1);
         }
         else {
             c->flag |= BAM_FSECONDARY;
             c->qual = 0;
+            if (c->l_qseq > 0) {
+                c->l_qseq = 0;
+                uint8_t *s = bam->data + (c->n_cigar<<2) + c->l_qname;
+                uint8_t *e = bam->data + bam->l_data;
+                uint8_t *r = s + l_data;
+                memmove(s, r, e-r);
+                bam->l_data = bam->l_data - l_data;
+            }
         }
     }
+    free(data);
     return 1;
 }
 // return 0 on same read, 1 on differnt name

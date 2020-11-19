@@ -107,7 +107,7 @@ int sam2bam_usage()
     fprintf(stderr, "* Input SAM need be sorted by read name, and aligner should output all hits of a read in this SAM.\n");
     fprintf(stderr, " -adjust-mapq         Enable adjusts mapping quality score.\n");
     fprintf(stderr, " -gtf     [GTF]       GTF annotation file. This file is required to check the exonic regions.\n");
-    fprintf(stderr, " -qual    [255]       Updated quality score.\n");
+    fprintf(stderr, " -qual    [60]        Updated quality score.\n");
     fprintf(stderr, "\n");
     return 1;    
 }
@@ -258,7 +258,8 @@ int bam2fq_usage()
     fprintf(stderr, " -fa                  Output fasta instead of fastq.\n");
     fprintf(stderr, " -o        [fastq]    Output file.\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");
-    fprintf(stderr, "Following options are experimental. \n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "* Following options are experimental. \n");
     fprintf(stderr, "* Merge overlapped reads from same molecular.\n");
     fprintf(stderr, " -tag      [TAGS]     Tags to group reads.\n");
     fprintf(stderr, " -i        [TAGS]     Inhert these tags to merged reads.\n");
