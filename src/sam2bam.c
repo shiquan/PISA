@@ -79,7 +79,7 @@ static struct args {
     .gtf_fname         = NULL,
     .mito              = "chrM",
     .mito_fname        = NULL,
-    .qual_corr         = 60,
+    .qual_corr         = 255,
     .enable_corr       = 0,
     .G                 = NULL,
     .n_thread          = 1,
