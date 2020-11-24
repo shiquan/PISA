@@ -28,9 +28,7 @@ void region_index_destroy(struct region_index *idx)
     khint_t k;
     for (k = kh_begin(idx->idx); k != kh_end(idx->idx); ++k) {
         if (kh_exist(idx->idx, k)) {
-            struct binlist *b = &kh_val(idx->idx, k);
-            if (b->m) free(b->a);
-            kh_del(bin,idx->idx, k);
+            free(kh_val(idx->idx, k).a);
         }
     }
     kh_destroy(bin,idx->idx);
