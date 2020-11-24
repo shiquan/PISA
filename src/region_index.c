@@ -30,6 +30,7 @@ void region_index_destroy(struct region_index *idx)
         if (kh_exist(idx->idx, k)) {
             struct binlist *b = &kh_val(idx->idx, k);
             if (b->m) free(b->a);
+            kh_del(bin,idx->idx, k);
         }
     }
     kh_destroy(bin,idx->idx);
