@@ -150,9 +150,9 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
         gene_gtf = &ctg->gtf[ctg->n_gtf++];
 
         gtf_reset(gene_gtf);     
-
-        gene_gtf->query = dict_init();
-        dict_set_value(gene_gtf->query);
+        //gene_gtf->query = dict_init();
+        //dict_set_value(gene_gtf->query);
+        
         dict_assign_value(ctg->gene_idx, gene_idx, gene_gtf);
         
         if (feature == feature_gene) {
@@ -335,9 +335,8 @@ static void gtf_sort(struct gtf *gtf)
     int i;
     for (i = 0; i < gtf->n_gtf; ++i) 
         gtf_sort(&gtf->gtf[i]);
+        
     if (gtf->n_gtf) {
-        dict_destroy(gtf->query); // destroy query dict
-        gtf->query = NULL;
         qsort((struct gtf*)gtf->gtf, gtf->n_gtf, sizeof(struct gtf), cmpfunc);
         int j;
         for (j = 0; j < gtf->n_gtf; ++j) {
@@ -347,6 +346,12 @@ static void gtf_sort(struct gtf *gtf)
         }
         assert(gtf->start < gtf->end);
     }
+
+    if (gtf->query) {
+        dict_destroy(gtf->query); // destroy query dict
+        gtf->query = NULL;
+    }
+
 }
 static struct region_index *ctg_build_idx(struct gtf_ctg *ctg)
 {
@@ -367,8 +372,8 @@ static int gtf_build_index(struct gtf_spec *G)
         int j;
         for (j = 0; j < ctg->n_gtf; ++j) {
             gtf_sort(&ctg->gtf[j]); // sort gene
-            ctg->idx = ctg_build_idx(ctg);
         }
+        ctg->idx = ctg_build_idx(ctg);
         total_gene+=ctg->n_gtf;
     }
     return total_gene;
@@ -482,7 +487,7 @@ void gtf_clear(struct gtf *gtf)
         }
         dict_destroy(gtf->attr);
     }
-
+    
     if (gtf->query) // usually already freed during indexing
         dict_destroy(gtf->query);
 }
@@ -515,9 +520,9 @@ void gtf_destroy(struct gtf_spec *G)
 int main(int argc, char **argv)
 {
     if (argc != 2) error("gtfformat in.gtf");
-    struct gtf_spec *G = gtf_read(argv[1], 1);
-    gtf_format_print_test(G);
-    gtf_destory(G);
+    struct gtf_spec *G = gtf_read_lite(argv[1]);
+    //gtf_format_print_test(G);
+    gtf_destroy(G);
     return 0;
 }
 
