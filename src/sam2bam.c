@@ -343,7 +343,7 @@ static void sam_stat_reads(bam1_t *b, struct summary *s, int *flag, struct args 
     }    
 }
 extern struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam_hdr_t *h);
-
+extern void gtf_anno_destroy(struct gtf_anno_type *ann);
 extern int sam_realloc_bam_data(bam1_t *b, size_t desired);
 // return 0 on not correct, 1 on corrected
 int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
@@ -367,9 +367,15 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
         // read mapped in exon will be selected
         if (ann->type != type_exon &&
             ann->type != type_splice &&
-            ann->type != type_exon_intron) continue;
+            ann->type != type_exon_intron) {
+            gtf_anno_destroy(ann);
+
+            continue;
+        }
+            
         if (c->flag & BAM_FSECONDARY) best_bam = i;
         best_hits++;
+        gtf_anno_destroy(ann);
     }
     // only one secondary alignment hit exonic region
     if (best_hits > 1) {

@@ -353,7 +353,7 @@ static char *RE_tags[] = {
     "U", "E", "N", "C", "A", "S", "V", "I",
 };
 
-static void gtf_anno_destroy(struct gtf_anno_type *ann)
+void gtf_anno_destroy(struct gtf_anno_type *ann)
 {
     int i;
     for (i = 0; i < ann->n; ++i)
