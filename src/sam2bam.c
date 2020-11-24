@@ -523,7 +523,7 @@ static void *sam_name_parse(void *_p)
     s->n_adj       += s0->n_adj;
     s->n_corr      += n_corr;
     pthread_mutex_unlock(&global_data_mutex);
-        
+    free(s0);
     return p;
 }
 static int sam_name_parse_light()
