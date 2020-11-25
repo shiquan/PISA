@@ -679,9 +679,13 @@ struct BRstat *extract_reads(struct bseq *b, const struct bcode_reg *r1, const s
     struct seqlite *s2 = extract_tag(b, r2, stat, &dropN);
     if (args.dropN && dropN== 1) b->flag= FQ_FLAG_READ_QUAL;
 
+    b->s0.l = 0;
+    b->q0.l = 0;
     kstr_copy(&b->s0, s1->seq);
     kstr_copy(&b->q0, s1->qual);
-    
+
+    b->s1.l = 0;
+    b->q1.l = 0;
     if (s2 && s2->seq->l) kstr_copy(&b->s1, s2->seq);
     if (s2 && s2->qual->l) kstr_copy(&b->q1, s2->qual);
 
@@ -935,7 +939,7 @@ static void write_out(void *_data)
     }
     bseq_pool_destroy(p);
     fflush(fp1);
-    fflush(fp2);
+    if (fp2 != fp1) fflush(fp2);
 }
 static int cmpfunc (const void *a, const void *b)
 {    
