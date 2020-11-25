@@ -27,11 +27,11 @@ struct bseq_pool *bseq_pool_init()
 }
 void bseq_clean(struct bseq *b)
 {
-    if (b->n0.l) free(b->n0.s);
-    if (b->s0.l) free(b->s0.s);
-    if (b->q0.l) free(b->q0.s);
-    if (b->s1.l) free(b->s1.s);
-    if (b->q1.l) free(b->q1.s);
+    if (b->n0.m) free(b->n0.s);
+    if (b->s0.m) free(b->s0.s);
+    if (b->q0.m) free(b->q0.s);
+    if (b->s1.m) free(b->s1.s);
+    if (b->q1.m) free(b->q1.s);
 }
 void bseq_pool_clean(struct bseq_pool *p)
 {
