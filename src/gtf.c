@@ -17,7 +17,6 @@ struct _ctg_idx {
     int offset;
     int idx;
 };
-
 const char *get_feature_name(enum feature_type type)
 {
     assert(type>-1);
@@ -29,7 +28,49 @@ void gtf_reset(struct gtf *gtf)
     memset(gtf, 0, sizeof(struct gtf));
     gtf->seqname = gtf->source = gtf->start = gtf->end = gtf->gene_id = gtf->gene_name = gtf->transcript_id = -1;
 }
+struct gtf *gtf_create()
+{
+    struct gtf *g = malloc(sizeof(*g));
+    gtf_reset(g);
+    return g;
+}
+void gtf_clear(struct gtf *gtf)
+{
+    int i;
+    for (i = 0; i < gtf->n_gtf; ++i) {
+        gtf_clear(gtf->gtf[i]);
+        free(gtf->gtf[i]);
+    }
+    if (gtf->n_gtf) free(gtf->gtf);
 
+    if (gtf->attr != NULL) {
+        int i;
+        for (i = 0; i < dict_size(gtf->attr); ++i) {
+            char *val = dict_query_value(gtf->attr, i);
+            if (val) free(val);
+        }
+        dict_destroy(gtf->attr);
+    }
+    
+    if (gtf->query) // usually already freed during indexing
+        dict_destroy(gtf->query);
+}
+
+void gtf_copy(struct gtf *dest, struct gtf *src)
+{
+    gtf_reset(dest);
+    dest->seqname = src->seqname;
+    dest->source = src->source;
+    dest->type = src->type;
+    dest->start = src->start;
+    dest->end = src->end;
+    dest->strand = src->strand;
+    dest->gene_id = src->gene_id;
+    dest->gene_name = src->gene_name;
+    dest->transcript_id = src->transcript_id;
+    // not copy attributes
+}
+/*
 static int cmpfunc (const void *_a, const void *_b)
 {
     struct gtf *a = (struct gtf*)_a;
@@ -38,6 +79,7 @@ static int cmpfunc (const void *_a, const void *_b)
     if (a->start != b->start) return a->start - b->start;
     return a->end - b->end;
 }
+*/
 static int cmpfunc1 (const void *_a, const void *_b)
 {
     struct gtf *a = *(struct gtf**)_a;
@@ -143,20 +185,16 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
     
     if (gene_gtf == NULL) { // set new gene record
         if (ctg->n_gtf == ctg->m_gtf) {
-            ctg->m_gtf = ctg->m_gtf == 0 ? 1000 : ctg->m_gtf*2;
-            ctg->gtf = realloc(ctg->gtf, sizeof(struct gtf)*ctg->m_gtf);
+            ctg->m_gtf = ctg->m_gtf == 0 ? 4: ctg->m_gtf*2;
+            ctg->gtf = realloc(ctg->gtf, sizeof(struct gtf*)*ctg->m_gtf);
         }
-        
-        gene_gtf = &ctg->gtf[ctg->n_gtf++];
-
-        gtf_reset(gene_gtf);     
-        //gene_gtf->query = dict_init();
-        //dict_set_value(gene_gtf->query);
-        
+        ctg->gtf[ctg->n_gtf] = gtf_create();
+        gene_gtf = ctg->gtf[ctg->n_gtf++];
         dict_assign_value(ctg->gene_idx, gene_idx, gene_gtf);
-        
+        gtf_reset(gene_gtf);     
         if (feature == feature_gene) {
-            memcpy(gene_gtf, gtf, sizeof(struct gtf));
+            //memcpy(gene_gtf, gtf, sizeof(struct gtf));
+            gtf_copy(gene_gtf, gtf);
             return 0;
         }
         gene_gtf->type = feature_gene;
@@ -181,18 +219,22 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
         warnings("Duplicated transcript record? %s", dict_name(G->transcript_id, gtf->transcript_id));
         return 1;
     }
-    
+
     // setup transcript record
     if (tx_gtf == NULL) {
         if (gene_gtf->n_gtf == gene_gtf->m_gtf) {
             gene_gtf->m_gtf = gene_gtf->m_gtf == 0? 4 : gene_gtf->m_gtf*2;
-            gene_gtf->gtf = realloc(gene_gtf->gtf, gene_gtf->m_gtf *sizeof(struct gtf));
+            gene_gtf->gtf = realloc(gene_gtf->gtf, gene_gtf->m_gtf *sizeof(struct gtf*));
         }
-        tx_gtf = &gene_gtf->gtf[gene_gtf->n_gtf++];
+        gene_gtf->gtf[gene_gtf->n_gtf] = gtf_create();
+        tx_gtf = gene_gtf->gtf[gene_gtf->n_gtf++];
+        dict_assign_value(gene_gtf->query, trans_idx,tx_gtf);
+        
         gtf_reset(tx_gtf);
-        dict_assign_value(gene_gtf->query, trans_idx, tx_gtf);
+
         if (feature == feature_transcript) {
-            memcpy(tx_gtf, gtf, sizeof(struct gtf));
+            //memcpy(tx_gtf, gtf, sizeof(struct gtf));
+            gtf_copy(tx_gtf, gtf);
             return 0; // trans record end here
         }
 
@@ -205,7 +247,11 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
     if (tx_gtf->gene_id == -1) tx_gtf->gene_id = gtf->gene_id;
     if (tx_gtf->gene_name == -1) tx_gtf->gene_name = gtf->gene_name;
     if (tx_gtf->transcript_id == -1) tx_gtf->transcript_id = gtf->transcript_id;
-    
+
+    assert(tx_gtf->gene_id == gtf->gene_id);
+    assert(tx_gtf->gene_name == gtf->gene_name);
+    assert(tx_gtf->transcript_id == gtf->transcript_id);
+
     // exon, cds, UTRs etc.
     reset_cache();
     kputs(feature_type_names[feature], &cache); kputc(':', &cache);
@@ -225,8 +271,11 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
         tx_gtf->m_gtf = tx_gtf->m_gtf == 0 ? 4 : tx_gtf->m_gtf*2;
         tx_gtf->gtf = realloc(tx_gtf->gtf, tx_gtf->m_gtf*sizeof(struct gtf));
     }
-    exon_gtf = &tx_gtf->gtf[tx_gtf->n_gtf++];
-    memcpy(exon_gtf, gtf, sizeof(struct gtf));
+    tx_gtf->gtf[tx_gtf->n_gtf] = gtf_create();
+    exon_gtf = tx_gtf->gtf[tx_gtf->n_gtf++];
+    //memcpy(exon_gtf, gtf, sizeof(struct gtf));
+    
+    gtf_copy(exon_gtf, gtf);
     dict_assign_value(tx_gtf->query, idx, exon_gtf);
 
     return 0;
@@ -325,24 +374,23 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
         warnings("Record %s:%s:%d-%d has no gene_name, use gene_id instead.", dict_name(G->name, gtf.seqname), feature_type_names[qry], gtf.start, gtf.end);
         gtf.gene_name = dict_push(G->gene_name, dict_name(G->gene_id, gtf.gene_id));
     }
-    
     gtf_push(G, ctg, &gtf, qry);
-
+    gtf_clear(&gtf);
     return 0;
 }
 static void gtf_sort(struct gtf *gtf)
 {
     int i;
     for (i = 0; i < gtf->n_gtf; ++i) 
-        gtf_sort(&gtf->gtf[i]);
+        gtf_sort(gtf->gtf[i]);
         
     if (gtf->n_gtf) {
-        qsort((struct gtf*)gtf->gtf, gtf->n_gtf, sizeof(struct gtf), cmpfunc);
+        qsort((struct gtf**)gtf->gtf, gtf->n_gtf, sizeof(struct gtf*), cmpfunc1);
         int j;
         for (j = 0; j < gtf->n_gtf; ++j) {
-            if (gtf->start < 0) gtf->start = gtf->gtf[j].start;
-            else if (gtf->start > gtf->gtf[j].start) gtf->start = gtf->gtf[j].start;
-            if (gtf->end < gtf->gtf[j].end) gtf->end = gtf->gtf[j].end;
+            if (gtf->start < 0) gtf->start = gtf->gtf[j]->start;
+            else if (gtf->start > gtf->gtf[j]->start) gtf->start = gtf->gtf[j]->start;
+            if (gtf->end < gtf->gtf[j]->end) gtf->end = gtf->gtf[j]->end;
         }
         assert(gtf->start < gtf->end);
     }
@@ -358,7 +406,7 @@ static struct region_index *ctg_build_idx(struct gtf_ctg *ctg)
     struct region_index *idx = region_index_create();
     int i;
     for (i = 0; i < ctg->n_gtf; ++i) 
-        index_bin_push(idx, ctg->gtf[i].start, ctg->gtf[i].end, &ctg->gtf[i]);
+        index_bin_push(idx, ctg->gtf[i]->start, ctg->gtf[i]->end, ctg->gtf[i]);
     return idx;
 }
 static int gtf_build_index(struct gtf_spec *G)
@@ -371,7 +419,7 @@ static int gtf_build_index(struct gtf_spec *G)
         assert(ctg);
         int j;
         for (j = 0; j < ctg->n_gtf; ++j) {
-            gtf_sort(&ctg->gtf[j]); // sort gene
+            gtf_sort(ctg->gtf[j]); // sort gene
         }
         ctg->idx = ctg_build_idx(ctg);
         total_gene+=ctg->n_gtf;
@@ -457,8 +505,8 @@ struct region_itr *gtf_query(struct gtf_spec const *G, char *name, int start, in
 
     struct gtf_ctg *ctg = dict_query_value(G->name, id);
     if (ctg->n_gtf == 0) return NULL; // empty, should not happen?
-    if (end < ctg->gtf[0].start) return NULL; // out of range
-
+    if (end < ctg->gtf[0]->start) return NULL; // out of range
+    
     struct region_index *idx = ctg->idx;
 
     struct region_itr *itr = region_query(idx, start, end);
@@ -472,25 +520,6 @@ struct region_itr *gtf_query(struct gtf_spec const *G, char *name, int start, in
     
     return itr;
 }
-void gtf_clear(struct gtf *gtf)
-{
-    int i;
-    for (i = 0; i < gtf->n_gtf; ++i)
-        gtf_clear(&gtf->gtf[i]);
-    if (gtf->n_gtf) free(gtf->gtf);
-
-    if (gtf->attr != NULL) {
-        int i;
-        for (i = 0; i < dict_size(gtf->attr); ++i) {
-            char *val = dict_query_value(gtf->attr, i);
-            if (val) free(val);
-        }
-        dict_destroy(gtf->attr);
-    }
-    
-    if (gtf->query) // usually already freed during indexing
-        dict_destroy(gtf->query);
-}
 void gtf_destroy(struct gtf_spec *G)
 {
     int i;
@@ -500,8 +529,10 @@ void gtf_destroy(struct gtf_spec *G)
         region_index_destroy(ctg->idx);
         
         int j;
-        for (j = 0; j < ctg->n_gtf; ++j)
-            gtf_clear(&ctg->gtf[j]);
+        for (j = 0; j < ctg->n_gtf; ++j) {
+            gtf_clear(ctg->gtf[j]);
+            free(ctg->gtf[j]);
+        }
         
         free(ctg->gtf);
         free(ctg);

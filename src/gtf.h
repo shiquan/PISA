@@ -58,7 +58,7 @@ struct gtf {
     struct dict *attr; // attributions
     struct dict *query; // used to fast access gtf
     int n_gtf, m_gtf;
-    struct gtf *gtf;
+    struct gtf **gtf;
 };
 
 struct _ctg_idx;
@@ -67,7 +67,7 @@ struct gtf_ctg {
     struct dict *gene_idx;
     struct region_index *idx;    
     int n_gtf, m_gtf;
-    struct gtf *gtf; 
+    struct gtf **gtf; 
 };
 struct gtf_spec {
     struct dict *name; // contig names
