@@ -270,7 +270,7 @@ static int parse_name_str(kstring_t *s)
     
     // int is_name = 1; // first key is name, next is value
 
-    if (i < n-5) { // detected
+    if (i> 0 && i < n-5) { // detected
         char *p = s->s+i;
         char *r = 0;
         char *e = s->s+n;

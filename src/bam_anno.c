@@ -444,7 +444,7 @@ static enum exon_type query_exon(int start, int end, struct gtf const *G, int *e
     for (i = 0; i < G->n_gtf; ++i) {
         // from v0.4, transcript and exon in GTF_Spec struct will be sorted by coordinate
         //struct gtf_lite *g0 = G->strand == 0 ? &G->son[i] : &G->son[G->n_son-i-1];
-        struct gtf *g0 = &G->gtf[i];
+        struct gtf *g0 = G->gtf[i];
         if (g0->type != feature_exon) continue;
         j++;
         if (start >= g0->start && end <= g0->end) {
@@ -672,7 +672,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
         
         int j;
         for (j = 0; j < g0->n_gtf; ++j) {
-            struct gtf const *g1 = &g0->gtf[j];
+            struct gtf const *g1 = g0->gtf[j];
             if (g1->type != feature_transcript) continue;
             struct trans_type *a = gtf_anno_core(S, g1);
             gtf_anno_push(a, ann, g1->gene_id, g1->gene_name);
