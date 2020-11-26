@@ -291,8 +291,13 @@ int bam_count_attr(int argc, char *argv[])
 
     while ((ret = sam_read1(fp, hdr, b)) >= 0) {
         if (b->core.flag & BAM_FSECONDARY) continue; // filter secondary alignments
-        if (b->core.tid < 0) continue;
+
+        /* For raw reads per barcode, unmapped reads also included. */
+        //if (b->core.tid < 0) continue;
+
+        // if set qual threshold, only keep confidently mapped reads
         if (b->core.qual < args.qual_thres) continue;
+        
         counts_push(cnt, b);
     }
 
