@@ -346,6 +346,22 @@ extern struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const 
 extern void gtf_anno_destroy(struct gtf_anno_type *ann);
 extern int sam_realloc_bam_data(bam1_t *b, size_t desired);
 // return 0 on not correct, 1 on corrected
+static void shrink_bam(bam1_t *bam)
+{
+    bam1_core_t *c = &bam->core;
+    if (c->flag & BAM_FSECONDARY) {
+        c->qual = 0;
+        if (c->l_qseq > 0) {
+            uint8_t *s = bam->data + (c->n_cigar<<2) + c->l_qname;
+            uint8_t *e = bam->data + bam->l_data;
+            int l_data = ((c->l_qseq+1)>>1)+c->l_qseq; 
+            uint8_t *r = s + l_data;
+            memmove(s, r, e-r);
+            bam->l_data = bam->l_data - l_data;
+            c->l_qseq = 0;
+        }
+    }
+}
 int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
 {
     int i;
@@ -380,10 +396,12 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
     // only one secondary alignment hit exonic region
     if (best_hits > 1) {
         if (data) free(data);
+        for (i = 0; i < n; ++i) shrink_bam(b[i]);
         return 0;
     }
     if (best_bam == -1) {
         if (data) free(data);
+        for (i = 0; i < n; ++i) shrink_bam(b[i]);
         return 0;
     }
     // update the mapping quality and flag
@@ -410,15 +428,7 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
         }
         else {
             c->flag |= BAM_FSECONDARY;
-            c->qual = 0;
-            if (c->l_qseq > 0) {
-                c->l_qseq = 0;
-                uint8_t *s = bam->data + (c->n_cigar<<2) + c->l_qname;
-                uint8_t *e = bam->data + bam->l_data;
-                uint8_t *r = s + l_data;
-                memmove(s, r, e-r);
-                bam->l_data = bam->l_data - l_data;
-            }
+            shrink_bam(bam);
         }
     }
     free(data);
