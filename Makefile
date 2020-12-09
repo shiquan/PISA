@@ -44,6 +44,7 @@ force:
 	@$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@ || echo "Error in command: $(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $<"
 
 LIB_OBJ = src/barcode_list.o \
+	src/bam_anno_vcf.o \
 	src/bed.o \
 	src/number.o \
 	src/fastq.o \
@@ -52,7 +53,6 @@ LIB_OBJ = src/barcode_list.o \
 	src/gtf.o \
 	src/region_index.o \
 	src/dict.o \
-	src/seq_merge.o \
 	src/ksa.o \
 	src/bam_pool.o \
 	src/umi_corr.o \
@@ -95,6 +95,7 @@ src/bam2fq.o: src/bam2fq.c
 src/bam_anno.o: src/bam_anno.c
 src/bam_count.o: src/bam_count.c pisa_version.h
 src/bam_pick.o: src/bam_pick.c
+src/bam_anno_vcf.o: src/bam_anno_vcf.c
 src/bam_tag_corr.o: src/bam_tag_corr.c
 src/umi_corr.o: src/umi_corr.c
 src/fastq_parse_barcode.o: src/fastq_parse_barcode.c

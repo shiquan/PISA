@@ -148,20 +148,28 @@ int anno_usage()
     fprintf(stderr, " -report   [csv]       Summary report.\n");
     fprintf(stderr, " -@        [INT]       Threads to compress bam file.\n");
     fprintf(stderr, " -q        [0]         Map Quality Score cutoff. MapQ smaller and equal to this value will not be annotated.\n");
+    fprintf(stderr, " -t        [INT]       Threads to annotate.\n");
+    fprintf(stderr, " -chunk    [INT]       Chunk size per thread.\n");
+
     fprintf(stderr, "\nOptions for BED file :\n");
     fprintf(stderr, " -bed      [BED]       Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
     fprintf(stderr, " -tag      [TAG]       Attribute tag name. Set with -bed.\n");
+
     fprintf(stderr, "\nOptions for mixed samples.\n");
     fprintf(stderr, " -chr-species  [file]  Chromosome name and related species binding list.\n");
     fprintf(stderr, " -btag     [TAG]       Species tag name. Set with -chr-species.\n");
+
     fprintf(stderr, "\nOptions for GTF file :\n");
     fprintf(stderr, " -gtf      [GTF]       GTF annotation file. gene_id,transcript_id is required for each record.\n");
     fprintf(stderr, " -tags     [TAGS]      Attribute names. Default is TX,AN,GN,GX,RE.\n");
     fprintf(stderr, " -ignore-strand        Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be annotated.\n");
     fprintf(stderr, " -splice               Reads covered exon-intron edge will also be annotated.\n");
     fprintf(stderr, " -intron               Reads covered intron regions will be annotated.\n");
-    fprintf(stderr, " -t        [INT]       Threads to annotate.\n");
-    fprintf(stderr, " -chunk    [INT]       Chunk size per thread.\n");
+
+    fprintf(stderr, "\nOptions for VCF file :\n");
+    fprintf(stderr, " -vcf      [VCF/BCF]   Varaints.\n");
+    fprintf(stderr, " -vtag     [TAG]       Tag name. Set with -vcf.\n");
+    
     fprintf(stderr, "\nNotice :\n");
     fprintf(stderr, " * For GTF mode, this program will set tags in default, you could also reset them by -tags.\n");
     fprintf(stderr, "   TX : Transcript id.\n");

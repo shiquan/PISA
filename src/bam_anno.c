@@ -35,6 +35,8 @@ static struct args {
     const char *input_fname;
     const char *output_fname;
     const char *bed_fname;
+    const char *vcf_fname;
+    const char *vtag; // tag name for vcf
     const char *tag; // attribute in BAM
     const char *gtf_fname;
     const char *report_fname;
@@ -62,6 +64,10 @@ static struct args {
     
     // bed
     struct bed_spec *B;
+
+    // vcf
+    struct bed_spec *V;
+    
     uint64_t reads_input;
     uint64_t reads_pass_qc;
     int map_qual;
@@ -72,7 +78,9 @@ static struct args {
 } args = {
     .input_fname     = NULL,
     .output_fname    = NULL,
-    .bed_fname       = NULL,    
+    .bed_fname       = NULL,
+    .vcf_fname       = NULL,
+    .vtag            = NULL,
     .tag             = NULL,    
     .gtf_fname       = NULL,
     .report_fname    = NULL,
@@ -94,7 +102,7 @@ static struct args {
     .fp_report       = NULL,
     .G               = NULL,    
     .B               = NULL,    
-    
+    .V               = NULL,
     .reads_input     = 0,
     .reads_pass_qc   = 0,
     .group_stat      = 0,
@@ -152,6 +160,8 @@ static char GN_tag[2] = "GN";
 static char GX_tag[2] = "GX";
 static char RE_tag[2] = "RE";
 
+extern struct bed_spec *bed_read_vcf(const char *fn);
+
 static int parse_args(int argc, char **argv)
 {
     int i;
@@ -203,6 +213,9 @@ static int parse_args(int argc, char **argv)
         // gtf options
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
         else if (strcmp(a, "-tags") == 0) var = &tags;
+
+        else if (strcmp(a, "-vcf") == 0) var = &args.vcf_fname;
+        else if (strcmp(a, "-vtag") == 0) var = &args.vtag;
         
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
@@ -217,8 +230,8 @@ static int parse_args(int argc, char **argv)
         error("Unknown argument: %s", a);
     }
     
-    if (args.bed_fname == NULL && args.gtf_fname == NULL && args.chr_spec_fname == NULL) 
-        error("-bed or -gtf or -chr-species must be set.");
+    if (args.bed_fname == NULL && args.gtf_fname == NULL && args.chr_spec_fname == NULL && args.vcf_fname == NULL) 
+        error("-bed or -gtf or -chr-species or -vcf must be set.");
     
     CHECK_EMPTY(args.output_fname, "-o must be set.");
     CHECK_EMPTY(args.input_fname, "Input bam must be set.");
@@ -241,11 +254,17 @@ static int parse_args(int argc, char **argv)
     CHECK_EMPTY(args.hdr, "Failed to open header.");
         
     if (args.bed_fname) {
-        CHECK_EMPTY(args.tag, "-tag must be set.");
+        CHECK_EMPTY(args.tag, "-tag must be set with -bed.");
         args.B = bed_read(args.bed_fname);
         if (args.B == 0 || args.B->n == 0) error("Bed is empty.");
     }
 
+    if (args.vcf_fname) {
+        CHECK_EMPTY(args.vtag, "-vtag must be set with -vcf.");
+        args.V = bed_read_vcf(args.vcf_fname);
+        if (args.V == NULL || args.V->n == 0) error("VCF is empty.");
+    }
+    
     if (args.gtf_fname) {
 
         args.G = gtf_read_lite(args.gtf_fname);
@@ -798,6 +817,9 @@ void bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
     }
     dict_destroy(val);
 }
+
+extern void bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag);
+
 void *run_it(void *_d)
 {
     bam_hdr_t *h = args.hdr;
@@ -855,6 +877,9 @@ void *run_it(void *_d)
 
         if (args.B)
             bam_bed_anno(b, args.B, stat);
+
+        if (args.V)
+            bam_vcf_anno(b, args.hdr, args.V, args.vtag);
         
         if (args.chr_binding) {
             char *v = args.chr_binding[b->core.tid];

@@ -4,6 +4,7 @@
 #include "region_index.h"
 #include "htslib/kstring.h"
 #include "htslib/kseq.h"
+#include "htslib/vcf.h"
 #include "bed.h"
 #include "number.h"
 #include <zlib.h>
@@ -148,8 +149,81 @@ struct bed_spec *bed_read(const char *fname)
     bed_build_index(B);
     return B;
 }
+static struct var *var_init()
+{
+    struct var *v = malloc(sizeof(*v));
+    v->ref = malloc(sizeof(kstring_t));
+    v->ref->l = v->ref->m = 0;
+    v->ref->s = NULL;
+    v->alt = malloc(sizeof(kstring_t));
+    v->alt->l = v->alt->m = 0;
+    v->alt->s = NULL;
+    return v;
+}
 
-struct region_itr *bed_query(struct bed_spec *B, char *name, int start, int end)
+struct bed_spec *bed_read_vcf(const char *fn)
+{
+    htsFile *fp = hts_open(fn, "r");
+    if (fp == NULL) error("%s : %s.", fn, strerror(errno));
+
+    htsFormat type = *hts_get_format(fp);
+    if (type.format != vcf && type.format != bcf)
+        error("Unsupport input format. -vcf only accept VCF/BCF file.");
+
+    bcf_hdr_t *hdr = bcf_hdr_read(fp);
+    if (hdr == NULL) error("Failed parse header of input.");
+
+    struct bed_spec *B = bed_spec_init();
+    
+    bcf1_t *v = bcf_init();
+    
+    while(bcf_read(fp, hdr, v) == 0) {
+        if (v->rid == -1) continue;
+        bcf_unpack(v, BCF_UN_INFO);
+        const char *name = bcf_hdr_int2id(hdr, BCF_DT_CTG, v->rid);
+        int seqname = dict_push(B->seqname, name);
+        if (B->n == B->m) {
+            B->m = B->m == 0 ? 32 : B->m<<1;
+            B->bed = realloc(B->bed, sizeof(struct bed)*B->m);
+        }
+        struct bed *bed = &B->bed[B->n];
+        bed->seqname = seqname;
+        bed->start = v->pos;
+        bed->end = v->pos+v->rlen;
+        bed->name = -1;
+        bed->strand = -1;
+        struct var *var = var_init();
+        kputs(v->d.allele[0], var->ref);
+        if (v->n_allele > 1) kputs(v->d.allele[1], var->alt);
+
+        bed->data = var;
+        B->n++;
+    }
+    bcf_destroy(v);
+    hts_close(fp);
+    bcf_hdr_destroy(hdr);
+
+    bed_build_index(B);
+    
+    return B;
+}
+
+void bed_spec_var_destroy(struct bed_spec *B)
+{
+    int i;
+    for (i = 0; i < B->n; ++i) {
+        struct bed *bed = &B->bed[i];
+        struct var *var = (struct var*)bed->data;
+        if (var->ref->m) free(var->ref->s);
+        free(var->ref);
+        if (var->alt->m) free(var->alt->s);
+        free(var->alt);
+        free(var);
+    }
+    bed_spec_destroy(B);
+}
+
+struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, int end)
 {
     int id = dict_query(B->seqname, name);
     if (id == -1) return NULL;
@@ -184,7 +258,7 @@ struct region_itr *bed_query(struct bed_spec *B, char *name, int start, int end)
     return itr;
 }
 // return 0 on nonoverlap, 1 on overlap
-int bed_check_overlap(struct bed_spec *B, char *name, int start, int end)
+int bed_check_overlap(const struct bed_spec *B, char *name, int start, int end)
 {
     struct region_itr *itr = bed_query(B, name, start, end);
     if (itr == NULL) return 0;
