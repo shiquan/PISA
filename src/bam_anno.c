@@ -52,6 +52,8 @@ static struct args {
     int intron_consider;
     int n_thread;
     int chunk_size;
+
+    int anno_only;
     
     htsFile *fp;
     htsFile *out;
@@ -96,6 +98,8 @@ static struct args {
     .map_qual        = 0,
     .n_thread = 1,
     .chunk_size = 100000,
+    .anno_only       = 0,
+    
     .fp              = NULL,
     .out             = NULL,
     .hdr             = NULL,
@@ -216,6 +220,11 @@ static int parse_args(int argc, char **argv)
 
         else if (strcmp(a, "-vcf") == 0) var = &args.vcf_fname;
         else if (strcmp(a, "-vtag") == 0) var = &args.vtag;
+
+        else if (strcmp(a, "-anno-only") == 0) {
+            args.anno_only = 1;
+            continue;
+        }
         
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
@@ -716,7 +725,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
 
     return ann;
 }
-void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
+int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
 {
     // cleanup all exist tags
     uint8_t *data;
@@ -742,9 +751,11 @@ void bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     else error("Unknown type? %s", exon_type_names[ann->type]);
 
     gtf_anno_destroy(ann);
+
+    return ann->type == type_intergenic ? 0 : 1;
 }
 
-void bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
+int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
 {
     bam_hdr_t *h = args.hdr;
     
@@ -759,8 +770,8 @@ void bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
     int endpos = bam_endpos(b);
 
     struct region_itr *itr = bed_query(args.B, name, c->pos, endpos);
-    if (itr == NULL) return; // query failed
-    if (itr->n == 0) return; // no hit
+    if (itr == NULL) return 0; // query failed
+    if (itr->n == 0) return 0; // no hit
 
     struct dict *val = dict_init();
     int i;
@@ -814,11 +825,15 @@ void bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
 
         bam_aux_append(b, args.tag, 'Z', str.l+1, (uint8_t*)str.s);
         free(str.s);
+        dict_destroy(val);
+        return 1;
     }
     dict_destroy(val);
+
+    return 0;
 }
 
-extern void bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag);
+extern int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag);
 
 void *run_it(void *_d)
 {
@@ -840,6 +855,7 @@ void *run_it(void *_d)
     int i;
     
     for (i = 0; i < dat->p->n; ++i) {
+        int ann = 0;
         bam1_t *b = &dat->p->bam[i];
     
         if (args.group_tag) {
@@ -861,30 +877,37 @@ void *run_it(void *_d)
         c = &b->core;
         
         // secondary alignment
-        if (c->flag & BAM_FSECONDARY) continue;
+        if (c->flag & BAM_FSECONDARY) goto check_continue;
         
         dat->reads_input++;
         
         // QC
-        if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) continue;
+        if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) goto check_continue;
 
-        if (c->qual < args.map_qual) continue;
+        if (c->qual < args.map_qual) goto check_continue;
 
         dat->reads_pass_qc++;
 
         if (args.G) 
-            bam_gtf_anno(b, args.G, stat);
+            if (bam_gtf_anno(b, args.G, stat)) ann = 1;
 
         if (args.B)
-            bam_bed_anno(b, args.B, stat);
+            if (bam_bed_anno(b, args.B, stat)) ann = 1;
 
         if (args.V)
-            bam_vcf_anno(b, args.hdr, args.V, args.vtag);
+            if (bam_vcf_anno(b, args.hdr, args.V, args.vtag)) ann = 1;
         
         if (args.chr_binding) {
             char *v = args.chr_binding[b->core.tid];
-            if (v != NULL)        
+            if (v != NULL) {
                 bam_aux_append(b, args.btag, 'Z', strlen(v)+1, (uint8_t*)v);
+                ann=1;
+            }
+        }
+
+      check_continue:
+        if (args.anno_only && ann == 0) {
+            b->core.flag |= BAM_FQCFAIL;
         }
     }
     return dat;
@@ -895,6 +918,7 @@ static void write_out(void *_d)
     struct ret_dat *dat = (struct ret_dat *)_d;
     int i;
     for (i = 0; i < dat->p->n; ++i) {
+        if (dat->p->bam[i].core.flag & BAM_FQCFAIL) continue; // skip QC failure reads
         if (sam_write1(args.out, args.hdr, &dat->p->bam[i]) == -1)
             error("Failed to write SAM.");
     }

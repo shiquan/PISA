@@ -150,6 +150,7 @@ int anno_usage()
     fprintf(stderr, " -q        [0]         Map Quality Score cutoff. MapQ smaller and equal to this value will not be annotated.\n");
     fprintf(stderr, " -t        [INT]       Threads to annotate.\n");
     fprintf(stderr, " -chunk    [INT]       Chunk size per thread.\n");
+    fprintf(stderr, " -anno-only            Export annotated reads only.\n");
 
     fprintf(stderr, "\nOptions for BED file :\n");
     fprintf(stderr, " -bed      [BED]       Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");

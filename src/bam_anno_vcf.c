@@ -79,7 +79,7 @@ int reads_match_var(struct bed *bed, bam1_t *b)
             
     return 1;       
 }
-void bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag)
+int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag)
 { 
     bam1_core_t *c;
     c = &b->core;
@@ -92,8 +92,8 @@ void bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char 
     int endpos = bam_endpos(b);
 
     struct region_itr *itr = bed_query(B, name, c->pos, endpos);
-    if (itr == NULL) return; // query failed
-    if (itr->n == 0) return; // no hit
+    if (itr == NULL) return 0; // query failed
+    if (itr->n == 0) return 0; // no hit
 
     struct dict *val = dict_init();
     int i;
@@ -126,6 +126,9 @@ void bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char 
 
         bam_aux_append(b, vtag, 'Z', str.l+1, (uint8_t*)str.s);
         free(str.s);
+        dict_destroy(val);
+        return 1;
     }
     dict_destroy(val);
+    return 0;
 }
