@@ -657,7 +657,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
     char *name = h->target_name[c->tid];
     int endpos = bam_endpos(b);
 
-    if (c->tid < 0) return NULL;
+    if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) return NULL;
     
     struct gtf_anno_type *ann = malloc(sizeof(*ann));
     memset(ann, 0, sizeof(*ann));
