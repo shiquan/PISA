@@ -380,6 +380,7 @@ int bam_map_qual_corr(bam1_t **b, int n, struct gtf_spec const *G, int qual)
             l_qseq = c->l_qseq;
         }
         struct gtf_anno_type *ann = bam_gtf_anno_core(bam, G, args.hdr);
+        if (ann == NULL) continue;
         // read mapped in exon will be selected
         if (ann->type != type_exon &&
             ann->type != type_splice &&
