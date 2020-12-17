@@ -453,7 +453,9 @@ int bam_pool_qual_corr(struct sam_pool *p)
         }
         
         bam1_core_t *c = &bam->core;
-
+        if (c->tid <= -1 || c->tid > args.hdr->n_targets || (c->flag & BAM_FUNMAP)) {
+            i++; continue;
+        }
         // only correct multi-hits        
         if (!(c->flag & BAM_FSECONDARY)) {
             i++; continue;

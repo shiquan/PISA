@@ -993,6 +993,7 @@ static void memory_release()
     dict_destroy(args.group_stat);
     if (args.B) bed_spec_destroy(args.B);
     if (args.G) gtf_destroy(args.G);
+    if (args.V) bed_spec_var_destroy(args.V);
     if (args.fp_report != stderr) fclose(args.fp_report);
 }
 
