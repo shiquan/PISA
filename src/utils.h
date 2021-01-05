@@ -95,11 +95,15 @@ static inline double realtime()
 	return tp.tv_sec + tp.tv_usec * 1e-6;
 }
 
-#define sfree(x) do {\
-        if (x == NULL) {\
-            fprintf(stderr, ANSI_COLOR_RED "[func: %s, line: %d] Unsafe free." ANSI_COLOR_RESET "\n", __FUNCTION__, __LINE__); \
-        }\
-        free(x);\
-    } while(0)
+static inline long peakrss(void)
+{
+	struct rusage r;
+	getrusage(RUSAGE_SELF, &r);
+#ifdef __linux__
+	return r.ru_maxrss * 1024;
+#else
+	return r.ru_maxrss;
+#endif
+}
 
 #endif
