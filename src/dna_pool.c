@@ -56,7 +56,7 @@ static uint8_t *PISA_dna_pack(const char *seq, int l)
 // return index of query sequence, because all the sequence save in the pool by order, the index is not stable
 int PISA_dna_query0(struct PISA_dna_pool *p, const char *seq)
 {
-    if (p->len == 0) return -1;
+    if (p->len == 0 || p->l== 0) return -1;
     int l = strlen(seq);    
     if (p->len != l) error("Try to insert an unequal length sequence. %s, %d vs %d.", seq, l, p->len);
     uint8_t *a = PISA_dna_pack(seq, l);
@@ -84,6 +84,7 @@ int PISA_dna_query0(struct PISA_dna_pool *p, const char *seq)
 }
 int PISA_idx_query0(struct PISA_dna_pool *p, const int idx)
 {
+    if (p->l == 0) return -1;
     int i = 0, j = p->l > 0 ? p->l-1 : 0;
     for (;;) {
         if (j < i) break;
