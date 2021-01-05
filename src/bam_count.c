@@ -2,6 +2,7 @@
 #include "utils.h"
 #include "number.h"
 #include "dict.h"
+#include "dna_pool.h"
 #include "htslib/khash.h"
 #include "htslib/kstring.h"
 #include "htslib/sam.h"
@@ -54,15 +55,10 @@ static struct args {
     .n_record        = 0
 };
 
-struct counts {
+union counts {
     uint32_t count;
-    struct dict *umi;
+    struct PISA_dna_pool *p;
 };
-
-struct feature_counts {
-    struct dict *features;
-};
-
 
 static void memory_release()
 {
@@ -73,15 +69,8 @@ static void memory_release()
     int n_feature;
     n_feature = dict_size(args.features);
     for (i = 0; i < n_feature; ++i) {
-        struct feature_counts *v = dict_query_value(args.features, i);
-        int j;
-        for (j = 0; j < dict_size(v->features); ++j) {
-            struct counts *vv = dict_query_value(v->features, j);
-            if (vv->umi) dict_destroy(vv->umi);
-            free(vv);
-        }
-        dict_destroy(v->features);
-        free(v);
+        struct PISA_dna_pool *v = dict_query_value(args.features, i);
+        PISA_idx_destroy(v);
     }
     dict_destroy(args.features);
     dict_destroy(args.barcodes);
@@ -114,10 +103,13 @@ static int parse_args(int argc, char **argv)
             args.one_hit = 1;
             continue;
         }
+        
         else if (strcmp(a, "-corr") == 0) {
-            args.enable_corr_umi = 1;
+            //args.enable_corr_umi = 1;
+            warnings("Option -corr has been removed since v0.8, to correct UMIs please use `PISA corr` instead.");
             continue;
         }
+        
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -173,21 +165,6 @@ static int parse_args(int argc, char **argv)
     return 0;
 }
 
-static int check_similar(char *a, char *b)
-{
-    int l1, l2;
-    l1 = strlen(a);
-    l2 = strlen(b);
-    if (l1 == 0 || l2 == 0) error("Try to compare an empty string");
-    if (l1 != l2) error("Try to compare two unequal string.");
-    int i, m = 0;
-    for (i = 0; i < l1; ++i) {
-        if (a[i] != b[i]) m++;
-        if (m > 1) break;
-    }
-    if (m > 1) return 1;
-    return 0;
-}
 int *str_split(kstring_t *str, int *_n)
 {
     int m=1, n=0;
@@ -252,40 +229,36 @@ int count_matrix_core(bam1_t *b)
         int idx = dict_query(args.features, val);
         if (idx == -1) idx = dict_push(args.features, val);
 
-        struct feature_counts *v = dict_query_value(args.features, idx);
+        struct PISA_dna_pool *v = dict_query_value(args.features, idx);
 
         if (v == NULL) {
-            v = malloc(sizeof(struct feature_counts));
-            memset(v, 0, sizeof(*v));
+            v = PISA_dna_pool_init();
             dict_assign_value(args.features, idx, v);
-        }
-    
-
-        if (v->features == NULL) {
-            v->features = dict_init();
-            dict_set_value(v->features);
-        }
-
+        }    
         // not store cell barcode for each hash, use id number instead to reduce memory
-        int idx0 = dict_queryInt(v->features, cell_id);
-        if (idx0 == -1) idx0 = dict_pushInt(v->features, cell_id);
-        
-        struct counts *vv = dict_query_value(v->features, idx0);
-        if (vv == NULL) {
-            vv = malloc(sizeof(*vv));
-            memset(vv, 0, sizeof(*vv));
-            dict_assign_value(v->features, idx0, vv);
+        struct PISA_dna *idx0 = PISA_idx_query(v, cell_id);
+        if (idx0 == NULL) idx0 = PISA_idx_push(v, cell_id);
+
+        struct PISA_dna *c = PISA_idx_query(v, cell_id);
+        if (c->data == NULL) {
+            union counts *counts = malloc(sizeof(union counts));
+            if (args.umi_tag) 
+                counts->p = PISA_dna_pool_init();
+            else
+                counts->count = 0;
+            c->data = counts;
         }
-        
+
         if (args.umi_tag) {
             uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
             assert(umi_tag);
             char *val = (char*)(umi_tag+1);
-            if (vv->umi == NULL) vv->umi = dict_init();
-            dict_push(vv->umi, val);
+            union counts *count = c->data;
+            PISA_dna_push(count->p, val);
         }
         else {
-            vv->count++;
+            union counts *count = c->data;
+            count->count++;
         }
     }
     free(str.s);
@@ -298,45 +271,17 @@ static void update_counts()
     int n_feature = dict_size(args.features);
     int i;
     for (i = 0; i < n_feature; ++i) {
-        struct feature_counts *v = dict_query_value(args.features, i);
+        struct PISA_dna_pool *v = dict_query_value(args.features, i);
         int j;
-        int n_cell = dict_size(v->features);
+        int n_cell = v->l;
         for (j = 0; j < n_cell; ++j) {
-            struct counts *count = dict_query_value(v->features, j);
+            union counts *count = v->data[j].data;
             assert(count);
-            if (count->umi) {
-                int size = dict_size(count->umi);
-                if (args.enable_corr_umi == 1) { // do correction
-                    int *flag = malloc(size*sizeof(int));
-                    memset(flag, 0, size*sizeof(int));
-                    count->count = 0;
-                    int i0, i1;
-                    for (i0 = 0; i0 < size; ++i0) {
-                        if (flag[i0] == 1) continue;
-                        for (i1 = i0 + 1; i1 < size; ++i1) {
-                            if (flag[i1] == 1) continue;
-                            char *a = dict_name(count->umi, i0);
-                            char *b = dict_name(count->umi, i1);
-                            if (check_similar(a, b) == 0) {
-                                int v0 = dict_count(count->umi, i0);
-                                int v1 = dict_count(count->umi, i1);
-                                if (v0 > v1) flag[i1] = 1;
-                                else flag[i0] = 1;
-                            }
-                        }
-                    }
-                    for (i0 = 0; i0 < size; ++i0) {                
-                        if (flag[i0] == 0) count->count++;
-                    }
-                    free(flag);
-                }
-                else { 
-                    count->count = size;
-                }
-                dict_destroy(count->umi);
-                count->umi = NULL;
+            if (args.umi_tag) {
+                int size = count->p->l;
+                PISA_dna_destroy(count->p);
+                count->count = size;
             }
-            assert(count->count>0);
         }
         args.n_record += n_cell;
     }
@@ -413,13 +358,11 @@ static void write_outs()
         ksprintf(&str, "%d\t%d\t%llu\n", n_feature, n_barcode, args.n_record);
 
         for (i = 0; i < n_feature; ++i) {
-            struct feature_counts *v = dict_query_value(args.features, i);
+            struct PISA_dna_pool *v = dict_query_value(args.features, i);
             int j;
-            int n_cell = dict_size(v->features);
+            int n_cell = v->l;
             for (j = 0; j < n_cell; ++j) {
-                int idx = dict_nameInt(v->features, j);                
-                struct counts *count = dict_query_value(v->features, j);
-                ksprintf(&str, "%d\t%d\t%u\n", i+1, idx+1, count->count);
+                ksprintf(&str, "%d\t%d\t%u\n", i+1, v->data[j].idx, v->data[j].count);
             }
 
             if (str.l > 100000000) {
@@ -453,15 +396,14 @@ static void write_outs()
         fprintf(out, "\n");
         uint32_t *temp = malloc(n_barcode*sizeof(int));        
         for (i = 0; i < n_feature; ++i) {
-            struct feature_counts *v = dict_query_value(args.features, i);
+            struct PISA_dna_pool *v = dict_query_value(args.features, i);
             int j;
-            int n_cell = dict_size(v->features);
+            int n_cell = v->l;
             memset(temp, 0, sizeof(int)*n_barcode);
             fputs(dict_name(args.features, i), out);
             for (j = 0; j < n_cell; ++j) {
-                int idx = dict_nameInt(v->features, j);
-                struct counts *count = dict_query_value(v->features, j);
-                temp[idx] = count->count;
+                int idx = v->data[j].idx;
+                temp[idx] = v->data[j].count;
             }
 
             for (j = 0; j < n_barcode; ++j)
