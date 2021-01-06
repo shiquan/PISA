@@ -362,7 +362,8 @@ static void write_outs()
             int j;
             int n_cell = v->l;
             for (j = 0; j < n_cell; ++j) {
-                ksprintf(&str, "%d\t%d\t%u\n", i+1, v->data[j].idx, v->data[j].count);
+                union counts *count = v->data[j].data;
+                ksprintf(&str, "%d\t%d\t%u\n", i+1, v->data[j].idx+1, count->count);
             }
 
             if (str.l > 100000000) {
