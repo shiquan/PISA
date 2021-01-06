@@ -94,7 +94,7 @@ static inline double realtime()
 	gettimeofday(&tp, &tzp);
 	return tp.tv_sec + tp.tv_usec * 1e-6;
 }
-
+// copied from minimap2/misc.c
 static inline long peakrss(void)
 {
 	struct rusage r;

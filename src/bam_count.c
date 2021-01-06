@@ -192,7 +192,6 @@ int count_matrix_core(bam1_t *b)
     uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
     if (!anno_tag) return 1;
 
-            
     if (args.umi_tag) {
         uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
         if (!umi_tag) return 1;
@@ -234,13 +233,12 @@ int count_matrix_core(bam1_t *b)
         if (v == NULL) {
             v = PISA_dna_pool_init();
             dict_assign_value(args.features, idx, v);
-        }    
+        } 
         // not store cell barcode for each hash, use id number instead to reduce memory
-        struct PISA_dna *idx0 = PISA_idx_query(v, cell_id);
-        if (idx0 == NULL) idx0 = PISA_idx_push(v, cell_id);
-
-        struct PISA_dna *c = PISA_idx_query(v, cell_id);
-        if (c->data == NULL) {
+        struct PISA_dna *c= PISA_idx_query(v, cell_id);
+        if (c == NULL) {
+            c = PISA_idx_push(v, cell_id);
+        //if (c->data == NULL) {
             union counts *counts = malloc(sizeof(union counts));
             if (args.umi_tag) 
                 counts->p = PISA_dna_pool_init();
@@ -253,7 +251,9 @@ int count_matrix_core(bam1_t *b)
             uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
             assert(umi_tag);
             char *val = (char*)(umi_tag+1);
+            assert(c->data);
             union counts *count = c->data;
+
             PISA_dna_push(count->p, val);
         }
         else {

@@ -74,8 +74,12 @@ int PISA_dna_query0(struct PISA_dna_pool *p, const char *seq)
         if (ret < 0) return -1;
         
         int m = (i+j)/2;
+        
         ret = memcmp(p->data[m].dna, a, l2);
         if (ret == 0) return m;
+
+        if (i == m||j==m) return -1;
+        
         if (ret > 0) j = m;
         else i = m;
     }
@@ -86,7 +90,9 @@ int PISA_idx_query0(struct PISA_dna_pool *p, const int idx)
 {
     if (p->l == 0) return -1;
     int i = 0, j = p->l > 0 ? p->l-1 : 0;
+   
     for (;;) {
+        assert(i>=0 && j>=0);
         if (j < i) break;
         if (p->data[i].idx == idx) return i;
         if (p->data[i].idx > idx) return -1;
@@ -95,6 +101,9 @@ int PISA_idx_query0(struct PISA_dna_pool *p, const int idx)
 
         int m = (i+j)/2;
         if (p->data[m].idx == idx) return m;
+
+        if (i == m||j==m) return -1;
+        
         if (p->data[m].idx > idx) j = m;
         else i = m;
     }
@@ -121,6 +130,10 @@ static int PISA_idx_pool_add(struct PISA_dna_pool *p, int i, const int idx)
 static int PISA_idx_push_core(struct PISA_dna_pool *p, const int idx)
 {
     enlarge_pool(p);
+    if (p->l == 0) {
+        p->data[0].idx = idx;
+        return p->l++;
+    }
     int i = 0, j = p->l > 0 ? p->l-1 : 0;
     for (;;) {
         if (p->data[i].idx == idx) return i;
@@ -147,8 +160,25 @@ static int PISA_dna_pool_add(struct PISA_dna_pool *p, int i, uint8_t *a, int l)
     p->data[i+1].dna = a;
     return i+1;
 }
+void PISA_dna_pool_print(struct PISA_dna_pool *p) {
+    int i, j;
+    kstring_t str = {0,0,0};
+    debug_print("l : %d", p->l);
+    for (i = 0; i < p->l; ++i) {
+        uint8_t *a = p->data[i].dna;
+        str.l = 0;
+        for (j = 0; j < p->len/2; ++j) {
+            kputc(seq_nt16_str[a[j]>>4], &str);
+            kputc(seq_nt16_str[a[j]&0xf], &str);
+        }
+        debug_print("%s\t%d", str.s, p->data[i].count);
+    }
+    free(str.s);
+}
+
 static int PISA_dna_push_core(struct PISA_dna_pool *p, const char *seq)
 {
+    //PISA_dna_pool_print(p);
     int l = strlen(seq);
     if (p->len == 0) p->len = l;
     if (p->len != l) error("Try to insert an unequal length sequence. %s, %d vs %d.", seq, l, p->len);
@@ -242,21 +272,6 @@ struct PISA_dna *PISA_idx_query(struct PISA_dna_pool *p, const int idx)
 
 
 #ifdef _DNA_POOL_MAIN
-void PISA_dna_pool_print(struct PISA_dna_pool *p) {
-    int i, j;
-    kstring_t str = {0,0,0};
-    debug_print("l : %d", p->l);
-    for (i = 0; i < p->l; ++i) {
-        uint8_t *a = p->data[i].dna;
-        str.l = 0;
-        for (j = 0; j < p->len/2; ++j) {
-            kputc(seq_nt16_str[a[j]>>4], &str);
-            kputc(seq_nt16_str[a[j]&0xf], &str);
-        }
-        debug_print("%s\t%d", str.s, p->data[i].count);
-    }
-    free(str.s);
-}
 int main()
 {
     char *a = "AAGATGGCCTTACGAAGTGC";
