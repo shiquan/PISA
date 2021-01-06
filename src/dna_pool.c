@@ -112,7 +112,7 @@ int PISA_idx_query0(struct PISA_dna_pool *p, const int idx)
 static void* enlarge_pool(struct PISA_dna_pool *p)
 {
     if (p->l >= p->m) {
-        p->m = p->l*2;
+        p->m = p->l==0 ? 2 : p->l*2;
         p->data = realloc(p->data, p->m*sizeof(struct PISA_dna));
     }
     return p->data;
