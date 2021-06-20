@@ -233,7 +233,7 @@ struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, in
         warnings("Bad ranger, %s:%d-%d", name, start, end);
         return NULL;
     }
-
+    
     int st = B->ctg[id].idx-1; // 0 based
     if (end < B->bed[st].start) return NULL; // out of range
 
@@ -244,7 +244,7 @@ struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, in
     for (i = 0; i < itr->n;) {
         struct bed *bed = itr->rets[i];
         if (bed->start > end || bed->end < start) {
-            memmove(itr->rets+i, itr->rets+i+1, itr->n-i-1);
+            memmove(itr->rets+i, itr->rets+i+1, (itr->n-i-1)*sizeof(void*));
             itr->n--;
         }
         else i++;
