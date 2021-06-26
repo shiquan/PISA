@@ -52,6 +52,8 @@ struct fastq_handler {
 #define FH_NOT_ALLOC 4
 #define FH_NOT_INIT 5
 
+void bseq_destroy(struct bseq*);
+
 extern int check_name(char *s1, char *s2);
 
 struct bseq_pool *bseq_pool_init();
