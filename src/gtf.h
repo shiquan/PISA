@@ -6,6 +6,9 @@
 #include "region_index.h"
 #define EXONIC    0
 #define INTRONIC  1
+#define GTF_STRAND_FWD 0
+#define GTF_STRAND_REV 1
+#define GTF_STRAND_UNK -1
 
 enum feature_type {
     feature_unknow =-1,

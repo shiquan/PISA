@@ -687,13 +687,13 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
 
         if (args.ignore_strand == 0) {
             if (b->core.flag & BAM_FREVERSE) {
-                if (g0->strand == 0) {
+                if (g0->strand == GTF_STRAND_FWD) {
                     antisense = 1;
                     continue;
                 }
             }
             else {
-                if (g0->strand == 1) {
+                if (g0->strand == GTF_STRAND_REV) {
                     antisense = 1;
                     continue;
                 }
@@ -788,11 +788,11 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
         else
             kputs(dict_name(B->name, bed->name), &temp);
         
-        if (bed->strand == -1)
+        if (bed->strand == BED_STRAND_UNK)
             stat->reads_in_region++;
         else {
             if (c->flag & BAM_FREVERSE) {
-                if (bed->strand == 1) 
+                if (bed->strand == BED_STRAND_REV) 
                     stat->reads_in_region++;               
                 else {
                     stat->reads_in_region_diff_strand++;
@@ -800,7 +800,7 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
                 }
             }
             else {
-                if (bed->strand == 0)
+                if (bed->strand == BED_STRAND_FWD)
                     stat->reads_in_region++;               
                 else {
                     stat->reads_in_region_diff_strand++;

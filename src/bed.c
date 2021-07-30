@@ -106,8 +106,8 @@ static int parse_str(struct bed_spec *B, kstring_t *str)
     bed->strand = -1; // undefined
     if (n >= 6) {
         char *strand = str->s+s[5];
-        if (*strand == '+') bed->strand = 0;
-        if (*strand != '-') bed->strand = 1;
+        if (*strand == '+') bed->strand = BED_STRAND_FWD;
+        if (*strand == '-') bed->strand = BED_STRAND_REV;
     }
     B->n++;
 

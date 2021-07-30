@@ -6,6 +6,10 @@
 #include "dict.h"
 #include "htslib/kstring.h"
 
+#define BED_STRAND_FWD 0
+#define BED_STRAND_REV 1
+#define BED_STRAND_UNK -1
+
 struct bed {    
     int seqname;
     int name;
