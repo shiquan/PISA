@@ -59,7 +59,7 @@ struct gtf {
     int transcript_id;
 
     struct dict *attr; // attributions
-    struct dict *query; // used to fast access gtf
+    //struct dict *query; // used to fast access gtf, dedup
     int n_gtf, m_gtf;
     struct gtf **gtf;
 };
@@ -67,7 +67,7 @@ struct gtf {
 struct _ctg_idx;
 
 struct gtf_ctg {
-    struct dict *gene_idx;
+    //struct dict *gene_idx;  
     struct region_index *idx;    
     int n_gtf, m_gtf;
     struct gtf **gtf; 
@@ -77,6 +77,7 @@ struct gtf_spec {
     struct dict *gene_name;
     struct dict *gene_id;
     struct dict *transcript_id;
+    
     struct dict *sources; //
     struct dict *attrs; // attributes
     struct dict *features;

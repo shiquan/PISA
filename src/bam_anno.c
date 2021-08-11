@@ -29,6 +29,8 @@ struct read_stat {
     uint64_t reads_in_intron;
     uint64_t reads_antisense;
     uint64_t reads_ambiguous;
+
+    uint64_t reads_tss;
 };
 
 static struct args {
@@ -38,6 +40,8 @@ static struct args {
     const char *vcf_fname;
     const char *vtag; // tag name for vcf
     const char *tag; // attribute in BAM
+    const char *ctag; // tag name for TSS annotation
+    
     const char *gtf_fname;
     const char *report_fname;
     const char *chr_spec_fname;
@@ -52,7 +56,7 @@ static struct args {
     int intron_consider;
     int n_thread;
     int chunk_size;
-
+    int tss_mode;
     int anno_only;
     
     htsFile *fp;
@@ -91,7 +95,9 @@ static struct args {
     
     .chr_binding     = NULL,
     .btag            = NULL,
-    
+
+    .ctag            = NULL,
+    .tss_mode        = 0,
     .ignore_strand   = 0,
     .splice_consider = 0,
     .intron_consider = 0,
@@ -220,9 +226,15 @@ static int parse_args(int argc, char **argv)
 
         else if (strcmp(a, "-vcf") == 0) var = &args.vcf_fname;
         else if (strcmp(a, "-vtag") == 0) var = &args.vtag;
-
+        else if (strcmp(a, "-ctag") == 0) var = &args.ctag;
+        
         else if (strcmp(a, "-anno-only") == 0) {
             args.anno_only = 1;
+            continue;
+        }
+
+        else if (strcmp(a, "-tss") == 0) {
+            args.tss_mode = 1;
             continue;
         }
         
@@ -241,6 +253,8 @@ static int parse_args(int argc, char **argv)
     
     if (args.bed_fname == NULL && args.gtf_fname == NULL && args.chr_spec_fname == NULL && args.vcf_fname == NULL) 
         error("-bed or -gtf or -chr-species or -vcf must be set.");
+
+    if (args.tss_mode == 1 && args.ctag == NULL) error("-ctag must be set if -tss enable.");
     
     CHECK_EMPTY(args.output_fname, "-o must be set.");
     CHECK_EMPTY(args.input_fname, "Input bam must be set.");
@@ -752,8 +766,48 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     else if (ann->type == type_antisense) stat->reads_antisense++;
     else error("Unknown type? %s", exon_type_names[ann->type]);
 
-    gtf_anno_destroy(ann);
+    
+    if (args.tss_mode == 1) {
+        if (ann->type == type_exon || ann->type == type_splice) {
+            kstring_t str = {0,0,0};
 
+            int i;
+            for (i = 0; i < ann->n; ++i) {
+                struct gene_type *g = &ann->a[i];
+                int j;
+                for (j = 0; j < g->n; ++j) {
+                    struct trans_type *tx = &g->a[j];
+                    if (tx->type != type_exon && tx->type != type_splice) continue;
+                    struct gtf *tx_gtf = dict_query_value(G->transcript_id, tx->trans_id);
+                    if (tx_gtf->strand == GTF_STRAND_FWD) {
+                        if (b->core.pos+1 == tx_gtf->start) {
+                            char *gene_name =  dict_name(G->gene_name, tx_gtf->gene_name);
+                            if (str.l >0) kputc(';', &str);
+                            ksprintf(&str, "%s_+_%d", gene_name, tx_gtf->start);
+                            break;
+                        }                            
+                    }
+                    else {
+                        int endpos = bam_endpos(b);
+                        if (endpos == tx_gtf->end) {
+                            char *gene_name =  dict_name(G->gene_name, tx_gtf->gene_name);
+                            if (str.l >0) kputc(';', &str);
+                            ksprintf(&str, "%s_-_%d", gene_name, tx_gtf->end);
+                            break;
+                        }                            
+                    }
+                }
+            }
+            if (str.l) {
+                bam_aux_append(b, args.ctag, 'Z', str.l+1, (uint8_t*)str.s);
+                free(str.s);
+                stat->reads_tss++;
+            }
+        }
+    }
+
+    gtf_anno_destroy(ann);
+    
     return ann->type == type_intergenic ? 0 : 1;
 }
 
@@ -947,6 +1001,7 @@ static void write_out(void *_d)
         s0->reads_antisense += s1->reads_antisense;
         s0->reads_ambiguous += s1->reads_ambiguous;
         s0->reads_in_exonintron += s1->reads_in_exonintron;
+        s0->reads_tss += s1->reads_tss;
     }
     bam_pool_destory(dat->p);
 
@@ -977,6 +1032,9 @@ void write_report()
             fprintf(args.fp_report, "Reads Mapped Antisense to Gene,%.1f%%\n", (float)s0->reads_antisense/args.reads_pass_qc*100);
             fprintf(args.fp_report, "Reads Mapped to Intergenic Regions,%.1f%%\n", (float)s0->reads_in_intergenic/args.reads_pass_qc*100);
             fprintf(args.fp_report, "Reads Mapped to Gene but Failed to Interpret Type,%.1f%%\n", (float)s0->reads_ambiguous/args.reads_pass_qc*100);
+            if (s0->reads_tss>0) {
+                fprintf(args.fp_report, "Reads map start from TSS,%.1f%%\n", (float)s0->reads_tss/args.reads_pass_qc*100);
+            }
         }
     }
     else {

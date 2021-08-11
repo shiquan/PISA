@@ -164,9 +164,11 @@ int anno_usage()
     fprintf(stderr, " -gtf      [GTF]       GTF annotation file. gene_id,transcript_id is required for each record.\n");
     fprintf(stderr, " -tags     [TAGS]      Attribute names. Default is TX,AN,GN,GX,RE.\n");
     fprintf(stderr, " -ignore-strand        Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be annotated.\n");
-    fprintf(stderr, " -splice               Reads covered exon-intron edge will also be annotated.\n");
-    fprintf(stderr, " -intron               Reads covered intron regions will be annotated.\n");
-
+    fprintf(stderr, " -splice               Reads covered exon-intron edge will also be annotated with all tags.\n");
+    fprintf(stderr, " -intron               Reads covered intron regions will also be annotated with all tags.\n");
+    fprintf(stderr, " -tss                  Enable TSS annotation, annotate transcript start from TSS which generated from capped library.\n");
+    fprintf(stderr, " -ctag     [TAG]       Tag name for TSS annotation. Need set with -tss.\n");
+    
     fprintf(stderr, "\nOptions for VCF file :\n");
     fprintf(stderr, " -vcf      [VCF/BCF]   Varaints.\n");
     fprintf(stderr, " -vtag     [TAG]       Tag name. Set with -vcf.\n");
@@ -268,12 +270,12 @@ int bam2fq_usage()
     fprintf(stderr, " -o        [fastq]    Output file.\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "* Following options are experimental. \n");
-    fprintf(stderr, "* Merge overlapped reads from same molecular.\n");
-    fprintf(stderr, " -tag      [TAGS]     Tags to group reads.\n");
-    fprintf(stderr, " -i        [TAGS]     Inhert these tags to merged reads.\n");
-    fprintf(stderr, " -strand              Only check the overlapped reads from same strand.\n");
-    fprintf(stderr, "\n");
+    //fprintf(stderr, "* Following options are experimental. \n");
+    //fprintf(stderr, "* Merge overlapped reads from same molecular.\n");
+    //fprintf(stderr, " -tag      [TAGS]     Tags to group reads.\n");
+    //fprintf(stderr, " -i        [TAGS]     Inhert these tags to merged reads.\n");
+    //fprintf(stderr, " -strand              Only check the overlapped reads from same strand.\n");
+    //fprintf(stderr, "\n");
     return 1;
 }
 /*

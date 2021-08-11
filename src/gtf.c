@@ -51,9 +51,11 @@ void gtf_clear(struct gtf *gtf)
         }
         dict_destroy(gtf->attr);
     }
-    
+
+    /*
     if (gtf->query) // usually already freed during indexing
         dict_destroy(gtf->query);
+    */
 }
 
 void gtf_copy(struct gtf *dest, struct gtf *src)
@@ -161,7 +163,7 @@ static struct attr_pair *bend_pair(char *s, int *n)
     free(str.s);
     return p;
 }
-
+/*
 static kstring_t cache ={0,0,0};
 static void reset_cache()
 {
@@ -171,12 +173,14 @@ static void free_cache()
 {
     free(cache.s);
 }
-
+*/
 static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, int feature)
 {
-    int gene_idx = dict_pushInt(ctg->gene_idx, gtf->gene_id);
-    
-    struct gtf *gene_gtf = dict_query_value(ctg->gene_idx, gene_idx);
+    //char *gene_id = dict_query(G->gene_id, gtf->gene_id);
+    //int gene_idx = dict_push(ctg->gene_idx, gene_id);
+        
+    //struct gtf *gene_gtf = dict_query_value(ctg->gene_idx, gene_idx);
+    struct gtf *gene_gtf = dict_query_value(G->gene_id, gtf->gene_id);
 
     if (feature == feature_gene && gene_gtf != NULL) {
         warnings("Duplicated gene record? %s", dict_name(G->gene_name, gtf->gene_name));
@@ -190,7 +194,11 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
         }
         ctg->gtf[ctg->n_gtf] = gtf_create();
         gene_gtf = ctg->gtf[ctg->n_gtf++];
-        dict_assign_value(ctg->gene_idx, gene_idx, gene_gtf);
+        //dict_assign_value(ctg->gene_idx, gene_idx, gene_gtf);
+        dict_assign_value(G->gene_id, gtf->gene_id, gene_gtf);
+
+        dict_assign_value(G->gene_name, gtf->gene_name, gene_gtf);
+        
         gtf_reset(gene_gtf);     
         if (feature == feature_gene) {
             //memcpy(gene_gtf, gtf, sizeof(struct gtf));
@@ -201,19 +209,22 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
     }
 
     if (gtf->transcript_id == -1) error("No transcript found. %s:%s:%d:%d", feature_type_names[feature], dict_name(G->name, gtf->seqname), gtf->start, gtf->end);
-    
+
     // no gene record
+    /*
     if (gene_gtf->query == NULL) {
         gene_gtf->query = dict_init();
         dict_set_value(gene_gtf->query);
     }
-
+    */
     // inhert gene name
     if (gene_gtf->gene_id == -1) gene_gtf->gene_id = gtf->gene_id;
     if (gene_gtf->gene_name == -1) gene_gtf->gene_name = gtf->gene_name;
-    
-    int trans_idx = dict_pushInt(gene_gtf->query, gtf->transcript_id);
-    struct gtf *tx_gtf = dict_query_value(gene_gtf->query, trans_idx);
+
+    //char *transcript_id = dict_query(G->transcript_id, gtf->transcript_id);
+    //int trans_idx = dict_push(gene_gtf->query, gtf->transcript_id);
+    //struct gtf *tx_gtf = dict_query_value(gene_gtf->query, trans_idx);
+    struct gtf *tx_gtf = dict_query_value(G->transcript_id, gtf->transcript_id);
     
     if (feature == feature_transcript && tx_gtf != NULL) {
         warnings("Duplicated transcript record? %s", dict_name(G->transcript_id, gtf->transcript_id));
@@ -228,7 +239,8 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
         }
         gene_gtf->gtf[gene_gtf->n_gtf] = gtf_create();
         tx_gtf = gene_gtf->gtf[gene_gtf->n_gtf++];
-        dict_assign_value(gene_gtf->query, trans_idx,tx_gtf);
+        //dict_assign_value(gene_gtf->query, trans_idx,tx_gtf);
+        dict_assign_value(G->transcript_id, gtf->transcript_id, tx_gtf);
         
         gtf_reset(tx_gtf);
 
@@ -253,7 +265,8 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
     assert(tx_gtf->transcript_id == gtf->transcript_id);
 
     // exon, cds, UTRs etc.
-    reset_cache();
+    /*
+      reset_cache();
     kputs(feature_type_names[feature], &cache); kputc(':', &cache);
     kputw(gtf->start, &cache); kputc('-', &cache);
     kputw(gtf->end, &cache);
@@ -261,22 +274,23 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
         tx_gtf->query = dict_init();
         dict_set_value(tx_gtf->query);
     }
-    int idx = dict_push(tx_gtf->query, cache.s);
+    //int idx = dict_push(tx_gtf->query, cache.s);
     struct gtf *exon_gtf = dict_query_value(tx_gtf->query, idx);
     if (exon_gtf != NULL) {
         warnings("Duplicated record? %s", cache.s);
         return 1;
     }
+    */
     if (tx_gtf->n_gtf == tx_gtf->m_gtf) {
         tx_gtf->m_gtf = tx_gtf->m_gtf == 0 ? 4 : tx_gtf->m_gtf*2;
         tx_gtf->gtf = realloc(tx_gtf->gtf, tx_gtf->m_gtf*sizeof(struct gtf));
     }
     tx_gtf->gtf[tx_gtf->n_gtf] = gtf_create();
-    exon_gtf = tx_gtf->gtf[tx_gtf->n_gtf++];
+    struct gtf *exon_gtf = tx_gtf->gtf[tx_gtf->n_gtf++];
     //memcpy(exon_gtf, gtf, sizeof(struct gtf));
     
     gtf_copy(exon_gtf, gtf);
-    dict_assign_value(tx_gtf->query, idx, exon_gtf);
+    //dict_assign_value(tx_gtf->query, idx, exon_gtf);
 
     return 0;
 }
@@ -324,8 +338,8 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
     if (ctg == NULL) { // init contig value
         ctg = malloc(sizeof(struct gtf_ctg));
         memset(ctg, 0, sizeof(struct gtf_ctg));
-        ctg->gene_idx = dict_init();
-        dict_set_value(ctg->gene_idx);
+        //ctg->gene_idx = dict_init();
+        //dict_set_value(ctg->gene_idx);
         dict_assign_value(G->name, gtf.seqname, ctg);
     }
 
@@ -343,12 +357,13 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
         else if (strcmp(pp->key, "transcript_id") == 0) 
             gtf.transcript_id = dict_push(G->transcript_id, pp->val);
         else if (filter != FILTER_ATTRS) { // todo: update to dict structure
-            int attr_id = dict_push(G->attrs, pp->key);
+            //int attr_id = dict_push(G->attrs, pp->key);
+            dict_push(G->attrs, pp->key);
             if (gtf.attr == NULL) {
                 gtf.attr = dict_init();
                 dict_set_value(gtf.attr);
             }
-            int idx = dict_pushInt(gtf.attr, attr_id);
+            int idx = dict_push(gtf.attr, pp->key);
             if (pp->val != NULL) {
                 char *val = strdup(pp->val);
                 dict_assign_value(gtf.attr, idx, val);
@@ -394,11 +409,12 @@ static void gtf_sort(struct gtf *gtf)
         }
         assert(gtf->start < gtf->end);
     }
-
+    /*
     if (gtf->query) {
         dict_destroy(gtf->query); // destroy query dict
         gtf->query = NULL;
     }
+    */
 
 }
 static struct region_index *ctg_build_idx(struct gtf_ctg *ctg)
@@ -440,6 +456,9 @@ struct gtf_spec *gtf_spec_init()
     G->features        = dict_init();
 
     dict_set_value(G->name);
+    dict_set_value(G->gene_name);
+    dict_set_value(G->gene_id);
+    dict_set_value(G->transcript_id);
     int i;
     int l;
     l = sizeof(feature_type_names)/sizeof(feature_type_names[0]);
@@ -485,7 +504,7 @@ struct gtf_spec *gtf_read(const char *fname, int f)
 
     int n_gene = gtf_build_index(G);
     LOG_print("Load %d genes.", n_gene);
-    free_cache();
+    //free_cache();
     LOG_print("Load time : %.3f sec", realtime() - t_real);
     return G;
 
@@ -525,7 +544,7 @@ void gtf_destroy(struct gtf_spec *G)
     int i;
     for (i = 0; i < dict_size(G->name); ++i) {
         struct gtf_ctg *ctg = dict_query_value(G->name, i);
-        if (ctg->gene_idx) dict_destroy(ctg->gene_idx);
+        //if (ctg->gene_idx) dict_destroy(ctg->gene_idx);
         region_index_destroy(ctg->idx);
         
         int j;
