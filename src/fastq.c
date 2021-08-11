@@ -33,6 +33,11 @@ void bseq_clean(struct bseq *b)
     if (b->s1.m) free(b->s1.s);
     if (b->q1.m) free(b->q1.s);
 }
+void bseq_destroy(struct bseq *b)
+{
+    bseq_clean(b);
+    free(b);
+}
 void bseq_pool_clean(struct bseq_pool *p)
 {
     int i;
