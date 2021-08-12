@@ -128,12 +128,13 @@ int rmdup_usage()
 
 int pick_usage()
 {
-    fprintf(stderr, "* Pick alignment records within barcode list.\n");
-    fprintf(stderr, "PickBam [options] in.bam\n");
+    fprintf(stderr, "* Pick alignment records with barcode list.\n");
+    fprintf(stderr, "pick [options] in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -list    [file]       Barcode white list.\n");
-    fprintf(stderr, " -tag     [TAG]        Barcode tag.\n");
+    fprintf(stderr, " -tags    [TAGS]       Barcode tags.\n");
+    fprintf(stderr, " -list    [file]       Barcode white list, tag values in related column will be apply.\n");
     fprintf(stderr, " -o       [BAM]        Output file.\n");
+    fprintf(stderr, " -q       [INT]        Map Quality Score cutoff.\n");
     fprintf(stderr, " -@       [INT]        Threads to unpack BAM.\n");
     fprintf(stderr, "\n");
     return 1;
@@ -168,7 +169,7 @@ int anno_usage()
     fprintf(stderr, " -intron               Reads covered intron regions will also be annotated with all tags.\n");
     fprintf(stderr, " -tss                  Enable TSS annotation, annotate transcript start from TSS which generated from capped library.\n");
     fprintf(stderr, " -ctag     [TAG]       Tag name for TSS annotation. Need set with -tss.\n");
-    
+
     fprintf(stderr, "\nOptions for VCF file :\n");
     fprintf(stderr, " -vcf      [VCF/BCF]   Varaints.\n");
     fprintf(stderr, " -vtag     [TAG]       Tag name. Set with -vcf.\n");
@@ -236,6 +237,8 @@ int bam_extract_usage()
     fprintf(stderr, " -tags     [TAGS]     Tags to be extracted.\n");
     fprintf(stderr, " -o        [file]     Output file. tsv format\n");
     fprintf(stderr, " -n                   Print read name.\n");
+    fprintf(stderr, " -q                   Map Quality Score threshold.\n");
+    fprintf(stderr, " -all                 Only export if all tags have value.\n");
     fprintf(stderr, "\n");
     return 1;
 }

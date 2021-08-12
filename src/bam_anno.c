@@ -768,6 +768,8 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
 
     
     if (args.tss_mode == 1) {
+        if ((data = bam_aux_get(b, args.ctag)) != NULL) bam_aux_del(b, data);
+        
         if (ann->type == type_exon || ann->type == type_splice) {
             kstring_t str = {0,0,0};
 
