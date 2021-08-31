@@ -366,7 +366,8 @@ static int filter_bam(bam1_t *b, bam_hdr_t *hdr, struct bed_spec *bbed)
     get_interval(b, &start, &end);
     if (end <= 0) return 1;
 
-    if (bbed && bed_check_overlap(bbed, hdr->target_name[b->core.tid], start, end)) return 1;
+    if (bbed && bed_check_overlap(bbed, hdr->target_name[b->core.tid], start, end, BED_STRAND_IGN))
+        return 1;
     return 0;
 }
 

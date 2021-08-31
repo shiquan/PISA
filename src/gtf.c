@@ -566,6 +566,20 @@ void gtf_destroy(struct gtf_spec *G)
     free(G);
 }
 
+char *GTF_seqname(struct gtf_spec *G, int id)
+{
+    return dict_name(G->name, id);
+}
+
+char *GTF_genename(struct gtf_spec *G, int id)
+{
+    return dict_name(G->gene_name, id);
+}
+char *GTF_transid(struct gtf_spec *G, int id)
+{
+    return dict_name(G->transcript_id, id);
+}
+
 #ifdef GTF_MAIN
 int main(int argc, char **argv)
 {

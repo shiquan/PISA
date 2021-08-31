@@ -84,7 +84,10 @@ struct gtf_spec {
 };
 
 const char *get_feature_name(enum feature_type type);
-
+char *GTF_seqname(struct gtf_spec *G, int id);
+char *GTF_genename(struct gtf_spec *G, int id);
+char *GTF_transid(struct gtf_spec *G, int id);
+    
 struct gtf_spec *gtf_read(const char *fname, int filter);
 struct gtf_spec *gtf_read_lite(const char *fname); // only read necessary info
 struct region_itr *gtf_query(struct gtf_spec const *G, char *name, int start, int end);

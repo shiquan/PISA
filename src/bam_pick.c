@@ -25,7 +25,8 @@ static struct args {
     bam_hdr_t *hdr;
 
     int mapq_thres;
-    
+
+    int check_wl_column; 
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
@@ -39,6 +40,7 @@ static struct args {
     .fp_out = NULL,
     .hdr = NULL,
     .mapq_thres = 0,
+    .check_wl_column = 0,
 };
 
 extern int pick_usage();
@@ -126,7 +128,13 @@ static int parse_args(int argc, char **argv)
         kstring_t tmp = {0,0,0};
         while (ks_getuntil(ks, 2, &str, &ret) >= 0) {
             int *s = ksplit(&str, '\t', &n);
-            if (n < args.n_tag) error("Malformed line?");
+            if (n < args.n_tag) {
+                args.check_wl_column = n;
+            }
+            else {
+                args.check_wl_column = args.n_tag;
+            }
+                //error("Malformed line?");
             
             tmp.l = 0;
             
@@ -134,13 +142,9 @@ static int parse_args(int argc, char **argv)
             for (i = 0; i < n; ++i) {
                 kputs(str.s+s[i], &tmp);
             }
-            
             dict_push(args.barcodes, tmp.s);
-            
         }
         if (dict_size(args.barcodes) == 0) error("Empty list.");
-        
-        if (sam_hdr_write(args.fp_out, args.hdr)) error("Failed to write SAM header.");
         
         free(tmp.s);
         free(str.s);
@@ -181,7 +185,8 @@ int bam_pick(int argc, char **argv)
         if (b->core.flag & BAM_FSECONDARY) continue;
         if (b->core.qual < args.mapq_thres) continue;
         int i;
-        for (i = 0; i < args.n_tag; ++i) {
+        //for (i = 0; i < args.n_tag; ++i) {
+        for (i = 0; i < args.check_wl_column; ++i) {
             uint8_t *tag = bam_aux_get(b, args.tags[i]);
             if (!tag) {
                 str.l = 0;
@@ -191,6 +196,15 @@ int bam_pick(int argc, char **argv)
             else kputs((char*)(tag+1), &str);
         }
 
+        // check tag exists
+        for ( ; i < args.n_tag; ++i) {
+            uint8_t *tag = bam_aux_get(b, args.tags[i]);
+            if (!tag) {
+                str.l = 0;
+                break;
+            }
+        }
+        
         if(str.l) {
             // query barcodes
             int query = dict_query(args.barcodes, str.s);

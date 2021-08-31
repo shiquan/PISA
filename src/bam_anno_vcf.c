@@ -91,7 +91,7 @@ int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *
     char *name = h->target_name[c->tid];
     int endpos = bam_endpos(b);
 
-    struct region_itr *itr = bed_query(B, name, c->pos, endpos);
+    struct region_itr *itr = bed_query(B, name, c->pos, endpos, BED_STRAND_IGN);
     if (itr == NULL) return 0; // query failed
     if (itr->n == 0) return 0; // no hit
 

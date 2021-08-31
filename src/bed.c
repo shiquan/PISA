@@ -50,14 +50,69 @@ void bed_spec_destroy(struct bed_spec *B)
 {
     int i;
     for (i = 0; i < dict_size(B->seqname); ++i)
-        region_index_destroy(B->idx[i].idx);
-    free(B->idx);
-    free(B->ctg);
+        if (B->idx)
+            region_index_destroy(B->idx[i].idx);
+    
+    if (B->idx) free(B->idx);
+    if (B->ctg) free(B->ctg);
     free(B->bed);
     dict_destroy(B->seqname);
     dict_destroy(B->name);
+    free(B);
 }
+int bed_name2id(struct bed_spec *B, char *name)
+{
+    return dict_push(B->seqname, name);
+}
+char* bed_seqname(struct bed_spec *B, int id)
+{
+    return dict_name(B->seqname, id);
+}
+void debug_print_bed(struct bed_spec *B)
+{
+    int i;
+    for (i = 0; i < B->n; ++i) {
+        fprintf(stderr, "%s\t%d\t%d\n", bed_seqname(B, B->bed[i].seqname), B->bed[i].start, B->bed[i].end);
+    }
+}
+void bed_spec_merge0(struct bed_spec *B, int strand)
+{
+    qsort(B->bed, B->n, sizeof(struct bed), cmpfunc);
+    int i, j;
 
+    for (i = 0; i < B->n; ++i) {
+        struct bed *bed0 = &B->bed[i];
+        for (j = i+1; j < B->n; ++j) {
+            struct bed *bed = &B->bed[j];
+            if (bed->seqname == -1) continue;
+            if (bed0->seqname == -1) { // last record has been reset
+                memcpy(bed0, bed, sizeof(struct bed));
+                bed->seqname = -1; //reset
+                continue;
+            }
+            if (bed->seqname != bed0->seqname) {
+                memmove(B->bed+i+1, B->bed+j, (B->n-j)*sizeof(struct bed));
+                break;
+            }
+            // check strand sensitive
+            if (strand == 1 && bed->strand != bed0->strand) continue;
+            
+            if (bed->start >= bed0->end) break; // nonoverlap, move to next record
+            if (bed0->end < bed->end) bed0->end = bed->end; // enlarge overlapped region
+            
+            bed->seqname = -1; // reset this record
+        }
+
+        if (bed0->seqname == -1) break; // last record
+    }
+
+    for (i = B->n-1; i >= 0; --i) {
+        struct bed *bed = &B->bed[i];
+        if(bed->seqname!= -1) break;
+    }
+    
+    B->n = i+1;
+}
 static void bed_build_index(struct bed_spec *B)
 {
     qsort(B->bed, B->n, sizeof(struct bed), cmpfunc);
@@ -113,6 +168,17 @@ static int parse_str(struct bed_spec *B, kstring_t *str)
 
     free(s);
     return 0;
+}
+
+int bed_spec_push(struct bed_spec *B, struct bed *bed)
+{
+    if (B->n == B->m) {
+        B->m = B->m == 0 ? 32 : B->m<<1;
+        B->bed = realloc(B->bed, sizeof(struct bed)*B->m);
+    }
+    struct bed *bed0 = &B->bed[B->n];
+    memcpy(bed0, bed, sizeof(struct bed));
+    return B->n++;
 }
 
 struct bed_spec *bed_read(const char *fname)
@@ -223,7 +289,7 @@ void bed_spec_var_destroy(struct bed_spec *B)
     bed_spec_destroy(B);
 }
 
-struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, int end)
+struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, int end, int strand)
 {
     int id = dict_query(B->seqname, name);
     if (id == -1) return NULL;
@@ -246,8 +312,16 @@ struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, in
         if (bed->start > end || bed->end < start) {
             memmove(itr->rets+i, itr->rets+i+1, (itr->n-i-1)*sizeof(void*));
             itr->n--;
+            continue;
         }
-        else i++;
+        if (strand != BED_STRAND_IGN) { // check strand
+            if (strand != bed->strand) {
+                memmove(itr->rets+i, itr->rets+i+1, (itr->n-i-1)*sizeof(void*));
+                itr->n--;
+                continue;
+            }
+        }
+        i++;
     }
     if (itr->n == 0) {
         region_itr_destroy(itr);
@@ -258,9 +332,9 @@ struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, in
     return itr;
 }
 // return 0 on nonoverlap, 1 on overlap
-int bed_check_overlap(const struct bed_spec *B, char *name, int start, int end)
+int bed_check_overlap(const struct bed_spec *B, char *name, int start, int end, int strand)
 {
-    struct region_itr *itr = bed_query(B, name, start, end);
+    struct region_itr *itr = bed_query(B, name, start, end, strand);
     if (itr == NULL) return 0;
     region_itr_destroy(itr);
     return 1;

@@ -71,7 +71,7 @@ static struct args {
     struct summary *summary;
 
     int mito_id;
-
+    int qual_thres;
 } args = {
     .input_fname       = NULL,
     .output_fname      = NULL,
@@ -94,6 +94,7 @@ static struct args {
     .preload_record    = NULL,
     .summary           = NULL,
     .mito_id           = -2,
+    .qual_thres        = 0,
 };
 
 pthread_mutex_t global_data_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -566,7 +567,7 @@ static int parse_args(int argc, char **argv)
     const char *thread = NULL;
     const char *qual_corr = NULL;
     const char *file_th = NULL;
-    
+    const char *qual_thres = NULL;
     for (i = 1; i < argc;) {
 
         const char *a = argv[i++];
@@ -582,6 +583,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-@") == 0) var = &file_th;
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
         else if (strcmp(a, "-qual") == 0) var = &qual_corr;
+        else if (strcmp(a, "-q") == 0) var = &qual_thres;
         else if (strcmp(a, "-k") == 0) { // -k has been removed, 2020/02/13
             continue; 
         }
@@ -605,6 +607,9 @@ static int parse_args(int argc, char **argv)
         error("Unknown argument: %s.", a);
     }
 
+    if (qual_thres)
+        args.qual_thres = str2int(qual_thres);
+    
     // init input
     if (args.input_fname == NULL && !isatty(fileno(stdin))) args.input_fname = "-";
     if (args.input_fname == NULL) error("No input SAM file is set!");

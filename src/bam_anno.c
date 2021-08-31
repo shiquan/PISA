@@ -827,7 +827,7 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
     char *name = h->target_name[c->tid];
     int endpos = bam_endpos(b);
 
-    struct region_itr *itr = bed_query(args.B, name, c->pos, endpos);
+    struct region_itr *itr = bed_query(args.B, name, c->pos, endpos, BED_STRAND_IGN);
     if (itr == NULL) return 0; // query failed
     if (itr->n == 0) return 0; // no hit
 
