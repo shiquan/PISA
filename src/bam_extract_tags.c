@@ -37,7 +37,7 @@ static int parse_args(int argc, char **argv)
         const char **var = 0;
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         if (strcmp(a, "-tags") == 0) var = &tags;
-        else if (strcmp(a, "-out") == 0) var = &args.output_fname;
+        else if (strcmp(a, "-out") == 0 || strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-n") == 0) {
             args.print_rname = 1;

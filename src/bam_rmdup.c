@@ -13,27 +13,28 @@ static struct args {
     
     int file_thread;
     int keep_dup;
-
+    int qual_thres;
     int n_tag;
     char **tags;
     htsFile *fp;
     BGZF *out;
     FILE *fp_report;
     bam_hdr_t *hdr;
-    int as_SE;
+    //int as_SE;
 } args = {
     .input_fname  = NULL,
     .output_fname = NULL,
     .report_fname = NULL,
     .file_thread  = 1,
     .keep_dup     = 0,
+    .qual_thres   = 0,
     .n_tag        = 0,
     .tags         = NULL,    
     .fp           = NULL,
     .out          = NULL,
     .fp_report    = NULL,
     .hdr          = NULL,
-    .as_SE        = 0,
+    //.as_SE        = 0,
 };
 static int parse_args(int argc, char **argv)
 {
@@ -41,7 +42,7 @@ static int parse_args(int argc, char **argv)
     
     const char *tag_str  = NULL;
     const char *file_thread = NULL;
-    
+    const char *qual_thres = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -49,16 +50,17 @@ static int parse_args(int argc, char **argv)
         
         if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
-        else if (strcmp(a, "-tag") == 0) var = &tag_str;
+        else if (strcmp(a, "-tags") == 0 || strcmp(a, "-tag") == 0) var = &tag_str;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
+        else if (strcmp(a, "-q") == 0) var = &qual_thres;
         else if (strcmp(a, "-k") == 0) {
             args.keep_dup = 1;
             continue;
         }
-        else if (strcmp(a, "-S") == 0) {
-            args.as_SE = 1;
-            continue;
-        }
+        //else if (strcmp(a, "-S") == 0) {
+        //    args.as_SE = 1;
+        //    continue;
+        //}
         
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
@@ -79,6 +81,7 @@ static int parse_args(int argc, char **argv)
     if (tag_str == NULL) error("No tag specified.");
 
     if (file_thread) args.file_thread = str2int((char*)file_thread);
+    if (qual_thres) args.qual_thres = str2int((char*)qual_thres);
     
     kstring_t str = {0,0,0};
     kputs(tag_str, &str);
@@ -152,188 +155,108 @@ static inline char *pick_tag_name(const bam1_t *b, int n_tag, char **tags)
     return str.s;
 }
 
+struct rcd {
+    bam1_t *b;
+    int idx;
+    int qual;
+    int dup:1;
+    int checked:1;
+};
+
 static struct {
     int n, m;
-    bam1_t **b;
-    struct dict *dups;
+    struct rcd  *r;
+    struct dict *bcs;
 } buf = {
     .n = 0,
     .m = 0,
-    .b = NULL,
-    .dups = NULL,
+    .r = NULL,
+    .bcs = NULL,
 };
 
 static void clean_buffer()
 {
     int i;
-    for (i = 0; i < buf.n; ++i) bam_destroy1(buf.b[i]);
+    for (i = 0; i < buf.n; ++i) {
+        bam_destroy1(buf.r[i].b);
+        buf.r[i].idx = -1;
+        buf.r[i].qual = -1;
+        buf.r[i].dup= 0;
+        buf.r[i].checked = 0;
+    }
     buf.n = 0;
+    if (buf.bcs) dict_destroy(buf.bcs);
+    buf.bcs = NULL;
 }
-static void clean_buffer1()
-{
-    clean_buffer();
-    if (buf.dups) dict_destroy(buf.dups);
-    buf.dups = NULL;
-}
+
 static void destroy_buffer()
 {
-    clean_buffer1();
-    if (buf.m) free(buf.b);
+    if (buf.m) free(buf.r);
 }
 static void push_buffer(bam1_t *b)
 {
     if (buf.n == buf.m) {
         buf.m = buf.n == 0 ? 12 : buf.m * 2;
-        buf.b = realloc(buf.b, buf.m *sizeof(void*));
+        buf.r = realloc(buf.r, buf.m *sizeof(struct rcd));
     }
-    buf.b[buf.n++] = bam_dup1(b);
+    struct rcd *r = &buf.r[buf.n];
+    
+    r->b = bam_dup1(b);
+    bam1_core_t *c = &b->core;
+    if (c->qual < args.qual_thres) r->idx = -1;
+    else if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY)
+        r->idx = -1;
+    else {
+        r->qual = sum_qual(b);
+        r->dup = 0;
+        
+        char *bc = pick_tag_name(b, args.n_tag, args.tags);        
+        if (buf.bcs == NULL) buf.bcs = dict_init();
+        r->idx = dict_query(buf.bcs, bc);
+        if (r->idx == -1) r->idx = dict_push(buf.bcs, bc);
+        free(bc);
+    }
+    buf.n++;
 }
-
-struct read_qual {
-    char *name; // point to read struct
-    int qual;
-};
-
-struct rq_groups {
-    struct rq_groups *next;
-    int isize;
-    int n, m;
-    struct read_qual *q;
-};
-
 static void dump_best()
 {
     if (buf.n == 0) return;
-    
-    if (buf.n == 1) {
-        if (bam_write1(args.out, buf.b[0]) == -1) error("Failed to write.");
-        clean_buffer();
 
-        bam1_core_t *c = &buf.b[0]->core;
-        if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY)
-            return;
-        
-        all_reads++;
-        return;
-    }
-
-    struct dict *reads_group = dict_init();
-    dict_set_value(reads_group);
-    
-    if (buf.dups == NULL) buf.dups = dict_init();
-    
-    int i;
-
-    // groups reads from the same fragment
+    int i, j;
     for (i = 0; i < buf.n; ++i) {
-        bam1_t *b = buf.b[i];
-        bam1_core_t *c = &b->core;
-        
-        if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY) continue;
-        if (c->isize < 0) continue;
-        int isize = c->isize;
-        if (isize != 0 && args.as_SE == 1) isize = 0;
-        if (isize == 0) { // update isize to read length, for SE mode
-            int endpos = bam_endpos(b);
-            isize = endpos - c->pos;
-        }
-        char *bc = pick_tag_name(b, args.n_tag, args.tags);
-
-        int idx = dict_query(reads_group, bc);
-
-        if (idx == -1) idx = dict_push(reads_group, bc);
-        struct rq_groups *r = dict_query_value(reads_group, idx);
-        struct rq_groups *last_r = NULL;
-        for (;;) {
-            if (r == NULL) {
-                r = malloc(sizeof(*r));
-                r->n = r->m = 0;
-                r->next = NULL;
-                r->q = NULL;
-                r->isize = isize; // init isize
-                if (last_r == NULL) // header
-                    dict_assign_value(reads_group, idx, r);
-                    
-                else 
-                    last_r->next = r;
-                last_r = r;
+        struct rcd *r1 = &buf.r[i];
+        if (r1->idx == -1) continue;
+        if (r1->checked == 1) continue;
+        int best = i;
+        for (j = i+1; j < buf.n; ++j) {
+            struct rcd *r2 = &buf.r[j];
+            if (r2->idx == -1 || r2->checked == 1) continue;
+            if (r2->idx != r1->idx) continue;
+            r1 = &buf.r[best];
+            if (r2->qual > r1->qual) {
+                best = j; // update the best quality
+                r1->dup = 1; // mark last best one dup
+            } else {
+                r2->dup = 1; // mark current one dup
             }
-            
-            if (isize != r->isize) r = r->next;
-            else break; 
-        }
-        if (r->n == r->m) {
-            r->m = r->n == 0 ? 2 : r->m *2;
-            r->q = realloc(r->q, r->m*sizeof(struct read_qual));
-        }
-        r->q[r->n].name = bam_get_qname(b);
-        r->q[r->n].qual = sum_qual(b);
-        
-        r->n++;
-        free(bc);
-    }
-
-    // select read name with best quality
-    for (i = 0; i < dict_size(reads_group); ++i) {
-        struct rq_groups *r = dict_query_value(reads_group, i);
-        assert(r);
-        while (r) {
-            assert(r->isize >=0);
-            
-            /*
-              if (r->isize < 0) {
-                r = r->next;
-                continue;
-            }
-            */
-            int j;
-            int best_read = 0;
-            int qual = -1;
-            for (j = 0; j < r->n; ++j) {
-                if (qual < r->q[j].qual) {
-                    qual = r->q[j].qual;
-                    if (best_read != j) {
-                        dict_push(buf.dups, r->q[best_read].name); // keep duplicate names
-                        best_read = j;
-                    }
-                }
-            }
-            r = r->next;
+            r2->checked = 1;
         }
     }
 
-    // export reads
     for (i = 0; i < buf.n; ++i) {
-        bam1_t *b = buf.b[i];
-        bam1_core_t *c = &b->core;
-        if (c->flag & BAM_FQCFAIL || c->flag & BAM_FSECONDARY || c->flag & BAM_FSUPPLEMENTARY) {
-            if (bam_write1(args.out, b) == -1) error("Failed to write.");
-            continue;
-        }
-
-        all_reads++;
-        
-        int idx = dict_query(buf.dups, bam_get_qname(b));
-
-        if (idx >= 0) {
-            c->flag |= BAM_FDUP;
-            duplicate++;
-        }             
-        if (args.keep_dup == 0 && idx >= 0) continue;
-        if (bam_write1(args.out, b) == -1) error("Failed to write.");
-    }
-
-    // free
-    for (i = 0; i < dict_size(reads_group); ++i) {
-        struct rq_groups *r = dict_query_value(reads_group, i);
-        while (r) {
-            free(r->q);
-            void *r1 = r;
-            r = r->next;
-            free(r1);
+        struct rcd *r = &buf.r[i];
+        if (r->b->core.qual < args.qual_thres) continue;
+        if (r->idx != -1) all_reads++;
+        if (r->dup == 1) {
+            if (args.keep_dup == 0) continue;
+            r->b->core.flag |= BAM_FDUP;
+            if (bam_write1(args.out, r->b) == -1) error("Failed to write.");
+        } else {
+            
+            if (bam_write1(args.out, r->b) == -1) error("Failed to write.");
         }
     }
-    dict_destroy(reads_group);
+    
     clean_buffer();
 }
 static void print_unmapped(bam1_t *b)
@@ -372,6 +295,8 @@ int bam_rmdup(int argc, char **argv)
         ret = sam_read1(args.fp, args.hdr, b);
         if (ret < 0) break; // end of file
 
+        if (c->qual < args.qual_thres) continue;
+        
         // assume inputs are sorted
         if (c->tid == -1) {
             print_unmapped(b);
@@ -383,7 +308,6 @@ int bam_rmdup(int argc, char **argv)
             last_tid = c->tid;
             last_pos = -1;
             dump_best();
-            clean_buffer1();
         }
 
         if (last_pos == -1) {

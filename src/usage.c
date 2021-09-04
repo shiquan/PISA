@@ -115,12 +115,14 @@ int sam2bam_usage()
 int rmdup_usage()
 {
     fprintf(stderr, "* Deduplicate PCR reads with same barcodes.\n");
+    fprintf(stderr, "* Currently only support single-end reads.\n");
     fprintf(stderr, "bam_rmdup [options] in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, "   -tag   [TAGS]       Barcode tags to group reads.\n");
+    fprintf(stderr, "   -tags  [TAGS]       Barcode tags to group reads.\n");
     fprintf(stderr, "   -@     [INT]        Threads to unpack BAM.\n");
     fprintf(stderr, "   -o     [BAM]        Output bam.\n");
-    fprintf(stderr, "   -S                  Treat PE reads as SE.\n");
+    fprintf(stderr, "   -q     [INT]        Map Quality Score cutoff.\n");
+    // fprintf(stderr, "   -S                  Treat PE reads as SE.\n");
     fprintf(stderr, "   -k                  Keep duplicates, make flag instead of remove them.\n");
     fprintf(stderr, "\n");
     return 1;
