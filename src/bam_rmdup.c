@@ -25,7 +25,7 @@ static struct args {
     .input_fname  = NULL,
     .output_fname = NULL,
     .report_fname = NULL,
-    .file_thread  = 1,
+    .file_thread  = 5,
     .keep_dup     = 0,
     .qual_thres   = 0,
     .n_tag        = 0,
@@ -159,8 +159,8 @@ struct rcd {
     bam1_t *b;
     int idx;
     int qual;
-    int dup:1;
-    int checked:1;
+    int dup;
+    int checked;
 };
 
 static struct {
@@ -174,15 +174,20 @@ static struct {
     .bcs = NULL,
 };
 
+void reset_rcd(struct rcd *r)
+{
+    r->b = NULL;
+    r->idx = -1;
+    r->qual = -1;
+    r->dup = 0;
+    r->checked = 0;
+}
 static void clean_buffer()
 {
     int i;
     for (i = 0; i < buf.n; ++i) {
         bam_destroy1(buf.r[i].b);
-        buf.r[i].idx = -1;
-        buf.r[i].qual = -1;
-        buf.r[i].dup= 0;
-        buf.r[i].checked = 0;
+        reset_rcd(&buf.r[i]);
     }
     buf.n = 0;
     if (buf.bcs) dict_destroy(buf.bcs);
@@ -200,7 +205,7 @@ static void push_buffer(bam1_t *b)
         buf.r = realloc(buf.r, buf.m *sizeof(struct rcd));
     }
     struct rcd *r = &buf.r[buf.n];
-    
+    reset_rcd(r);
     r->b = bam_dup1(b);
     bam1_core_t *c = &b->core;
     if (c->qual < args.qual_thres) r->idx = -1;
@@ -210,7 +215,7 @@ static void push_buffer(bam1_t *b)
         r->qual = sum_qual(b);
         r->dup = 0;
         
-        char *bc = pick_tag_name(b, args.n_tag, args.tags);        
+        char *bc = pick_tag_name(b, args.n_tag, args.tags);
         if (buf.bcs == NULL) buf.bcs = dict_init();
         r->idx = dict_query(buf.bcs, bc);
         if (r->idx == -1) r->idx = dict_push(buf.bcs, bc);
@@ -221,7 +226,6 @@ static void push_buffer(bam1_t *b)
 static void dump_best()
 {
     if (buf.n == 0) return;
-
     int i, j;
     for (i = 0; i < buf.n; ++i) {
         struct rcd *r1 = &buf.r[i];
@@ -245,9 +249,11 @@ static void dump_best()
 
     for (i = 0; i < buf.n; ++i) {
         struct rcd *r = &buf.r[i];
+        //LOG_print("idx,%d\tdup,%d\tchecked:%d", r->idx, r->dup, r->checked);
         if (r->b->core.qual < args.qual_thres) continue;
         if (r->idx != -1) all_reads++;
         if (r->dup == 1) {
+            duplicate++;
             if (args.keep_dup == 0) continue;
             r->b->core.flag |= BAM_FDUP;
             if (bam_write1(args.out, r->b) == -1) error("Failed to write.");
