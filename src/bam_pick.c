@@ -101,31 +101,34 @@ static int parse_args(int argc, char **argv)
 
     if (sam_hdr_write(args.fp_out, args.hdr)) error("Failed to write SAM header.");
 
+    kstring_t str = {0,0,0};
+    kputs(tag_str, &str);
+    
+    int n;
+    int *s = ksplit(&str, ',', &n);
+    
+    args.n_tag = n;
+    args.tags = malloc(n*sizeof(void**));
+    
+    for (i = 0; i < n; ++i) {
+        args.tags[i] = strdup(str.s+s[i]);
+    }
+    
+    free(s);
+    free(str.s);
+    
     if (extract_fname) {
         gzFile fp = gzopen(extract_fname, "r");
         if (fp == NULL) error("%s : %s.", extract_fname, strerror(errno));
         
         kstream_t *ks = ks_init(fp);
-        
-        kstring_t str = {0,0,0};
-        kputs(tag_str, &str);
-        
-        int n;
-        int *s = ksplit(&str, ',', &n);
-        
-        args.n_tag = n;
-        args.tags = malloc(n*sizeof(void**));
-        
-        for (i = 0; i < n; ++i) {
-            args.tags[i] = strdup(str.s+s[i]);
-        }
-        
-        free(s);
-        
+                
         args.barcodes = dict_init();
         
         int ret;
         kstring_t tmp = {0,0,0};
+        kstring_t str = {0,0,0};
+        
         while (ks_getuntil(ks, 2, &str, &ret) >= 0) {
             int *s = ksplit(&str, '\t', &n);
             if (n < args.n_tag) {
@@ -200,9 +203,11 @@ int bam_pick(int argc, char **argv)
         }
 
         if (skip_flag == 1) continue;
+
         // check tag exists
         for ( ; i < args.n_tag; ++i) {
             uint8_t *tag = bam_aux_get(b, args.tags[i]);
+                        
             if (!tag) {
                 str.l = 0;
                 skip_flag = 1;
