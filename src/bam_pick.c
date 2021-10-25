@@ -174,10 +174,12 @@ int bam_pick(int argc, char **argv)
     bam1_t *b;
     b = bam_init1();
     int ret;
-    
+    int skip_flag;
     for (;;) {
+        // init statue
+        str.l = 0;
+        skip_flag = 0;
         
-        str.l=0;
         ret = sam_read1(args.fp_in, args.hdr, b);
         if (ret < 0) break;
         
@@ -190,30 +192,32 @@ int bam_pick(int argc, char **argv)
             uint8_t *tag = bam_aux_get(b, args.tags[i]);
             if (!tag) {
                 str.l = 0;
+                skip_flag = 1;
                 break;
             }
             if (*tag == 'A') kputc(tag[1], &str);
             else kputs((char*)(tag+1), &str);
         }
 
+        if (skip_flag == 1) continue;
         // check tag exists
         for ( ; i < args.n_tag; ++i) {
             uint8_t *tag = bam_aux_get(b, args.tags[i]);
             if (!tag) {
                 str.l = 0;
+                skip_flag = 1;
                 break;
             }
         }
-        
+
+        if (skip_flag == 1) continue;
         if(str.l) {
             // query barcodes
             int query = dict_query(args.barcodes, str.s);
-            if (query < 0) continue;
-            
-            // output
-            
-            if (sam_write1(args.fp_out, args.hdr, b) == -1) error("Failed to write SAM.");      
+            if (query < 0) continue; // jump to next record
         }
+        // output
+        if (sam_write1(args.fp_out, args.hdr, b) == -1) error("Failed to write SAM.");      
     }
     bam_destroy1(b);
     free(str.s);
