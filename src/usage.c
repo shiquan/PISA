@@ -298,3 +298,20 @@ int bam_impute_usage()
     return 1;
 }
 */
+
+int gene_fusion_usage()
+{
+    fprintf(stderr, "gene_fusion\n");
+    fprintf(stderr, " -gn    Gene tag name in the bam. [GN]\n");
+    fprintf(stderr, " -cb    Cell barcode tag name in the bam. [CB]\n");
+    fprintf(stderr, " -umi   UMI barcode tag name in the bam. [UB]\n");
+    fprintf(stderr, " -fs    Fusion record tag name for write into the bam. [FS]\n");
+    fprintf(stderr, " -o     Output bam file.\n");
+    fprintf(stderr, " -q     Mapping quality threshold. [0]\n");
+    fprintf(stderr, " -list  Cell barcode white list.\n");
+    fprintf(stderr, " -@     Threads to unpack bam.\n");
+    fprintf(stderr, " -m     Maximal mapped genes per UMI. [3]\n");
+        
+    return 1;
+}
+

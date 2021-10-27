@@ -24,6 +24,7 @@ int usage()
     fprintf(stderr, "    count      Count matrix.\n");
     fprintf(stderr, "    bam2fq     Convert BAM to FASTQ+ file with selected tags.\n");
     fprintf(stderr, "    bam2frag   Generate fragment file.\n");
+    fprintf(stderr, "    fusion     Predict gene fusion based on gene annotation reads.\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -46,6 +47,7 @@ int main(int argc, char *argv[])
     extern int bam2fq(int argc, char *argv[]);
     // extern int gene_cov(int argc, char **argv);
     extern int bam2frag(int argc, char **argv);
+    extern int gene_fusion(int argc, char **argv);
 
 
     if (argc == 1) return usage();
@@ -63,6 +65,7 @@ int main(int argc, char *argv[])
     // else if (strcmp(argv[1], "genecov") == 0) return gene_cov(argc-1, argv+1);
     else if (strcmp(argv[1], "bam2frag") == 0) return bam2frag(argc-1, argv+1);
     else if (strcmp(argv[1], "count") == 0) return count_matrix(argc-1, argv+1);
+    else if (strcmp(argv[1], "fusion") == 0) return gene_fusion(argc-1, argv+1);
     // else if (strcmp(argv[1], "assem") == 0)  return fastq_assem(argc-1, argv+1);
     // else if (strcmp(argv[1], "segment") == 0) return fastq_segment(argc-1, argv+1);
     // else if (strcmp(argv[1], "segment2") == 0) return check_segment2(argc-1, argv+1);
