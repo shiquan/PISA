@@ -21,11 +21,10 @@ struct args {
     struct dict *genes;
     int file_th;
     int mmgu;
-
 } args = {
     .input_fname   = NULL,
     .qual_thres    = 0,
-    .gene_tag      = NULL,
+    .gene_tag      = "GN",
     .cell_tag      = "CB",
     .umi_tag       = "UB",
     .fs_tag        = "FS",
@@ -39,6 +38,9 @@ struct args {
 };
 
 static int fixed_barcodes = 0;
+
+static int fusion_only = 0;
+static int empty_barcodes = 1;
 
 struct barcode_gene {
     int n; // genes, usually be 1
@@ -83,6 +85,9 @@ int build_barcode_gene_table()
         
         uint8_t *data = bam_aux_get(b, args.gene_tag);
         if (!data) continue; // if no gene tag
+
+        empty_barcodes = 0;
+        
         str.l = 0;
         kputs((char*)(data+1), &str);
         int i0 = 0;
@@ -100,6 +105,7 @@ int build_barcode_gene_table()
         
         data = bam_aux_get(b, args.cell_tag);
         if (!data) continue;
+        
         int cell_idx = dict_query(args.cell_barcodes, (char*)(data+1));
         if (fixed_barcodes == 1 && cell_idx == -1) continue;
         
@@ -149,14 +155,15 @@ int build_barcode_gene_table()
     sam_close(fp);
     bam_hdr_destroy(hdr);
     bam_destroy1(b);
-    return 0;
+
+    return empty_barcodes;
 }
 
 // Remove non fusion records, for query effcient.
-void slim_barcode_gene_table()
+int slim_barcode_gene_table()
 {
     int i;
-
+    int fusions = 0;
     for (i = 0; i < dict_size(args.cell_barcodes); ++i) {
 
         int delete_this_cell = 1;
@@ -182,6 +189,7 @@ void slim_barcode_gene_table()
 
             else if (bg->n > 1) {
                 delete_this_cell = 0; // disable flag
+                fusions++;
             }
         }
 
@@ -190,6 +198,8 @@ void slim_barcode_gene_table()
             dict_assign_value(args.cell_barcodes,i, NULL);
         }
     }
+
+    return fusions;
 }
 
 static int parse_args(int argc, const char **argv)
@@ -213,7 +223,10 @@ static int parse_args(int argc, const char **argv)
         else if (strcmp(a, "-umi") == 0) var = &args.umi_tag;
         else if (strcmp(a, "-list") == 0) var = &args.cell_list;
         else if (strcmp(a, "-m") == 0) var = &max;
-
+        else if (strcmp(a, "-fusion-only") == 0) {
+            fusion_only = 1;
+            continue;
+        }
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -251,7 +264,8 @@ static int parse_args(int argc, const char **argv)
 
     // Build cell barcode-UMI and mapped gene table.
     LOG_print("Building barcode table..");
-    if (build_barcode_gene_table() == 1) error("Failed to build table.\n");
+    if (build_barcode_gene_table() == 1)
+        error("No found gene tag in the bam. Did you `PISA anno` your bam file?");
 
     return 0;
 }
@@ -264,13 +278,18 @@ int gene_fusion(int argc, const char **argv)
     
     if (parse_args(argc, argv) == 1) return gene_fusion_usage();
     LOG_print("Slimming barcode table..");
-    slim_barcode_gene_table();
+    if (slim_barcode_gene_table() == 0) {
+        LOG_print("0 fusion reads detected.");
+        LOG_print("Real time: %.3f sec; CPU: %.3f sec.", realtime() - t_real, cputime());
+
+        return 0;
+    }
     LOG_print("Start annotation..");
     
     // TODO: breakpoint finding.
     
     // Annotate fusion record into bam file.
-        htsFile *fp = hts_open(args.input_fname, "r");
+    htsFile *fp = hts_open(args.input_fname, "r");
     bam_hdr_t *hdr = sam_hdr_read(fp);
     htsFile *out = hts_open(args.output_fname, "wb");
 
@@ -282,10 +301,14 @@ int gene_fusion(int argc, const char **argv)
     uint64_t fusion_reads = 0;
     bam1_t *b = bam_init1();
     int ret;
+    int fusion;
+
     for (;;) {
         ret = sam_read1(fp, hdr, b);
-        if (ret < 0) break;
+        if (ret < 0) break; 
 
+        fusion = 0; // reset fusion flag
+        
         if (b->core.flag & BAM_FQCFAIL) goto write_file;
         if (b->core.flag & BAM_FSECONDARY) goto write_file;
         if (b->core.qual < args.qual_thres) goto write_file;
@@ -304,6 +327,8 @@ int gene_fusion(int argc, const char **argv)
         // Since table has been slimmed, non-fusion records have be delected.
         if (umi == NULL) goto write_file;
         data = bam_aux_get(b, args.umi_tag);
+        if (!data) goto write_file;
+        
         int umi_idx = dict_query(umi, (char*)(data+1));
 
         if (umi_idx == -1) goto write_file;
@@ -327,12 +352,14 @@ int gene_fusion(int argc, const char **argv)
         
         if (str.l) {
             bam_aux_append(b, args.fs_tag, 'Z', str.l+1, (uint8_t*)str.s);
-            
             fusion_reads++;
+
+            fusion = 1;   // set flag
         }
         
         
     write_file:
+        if (fusion_only == 1 && fusion == 0) continue;
         if (sam_write1(out, hdr, b) == -1) error("Failed to write SAM."); 
     }
     

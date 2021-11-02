@@ -10,6 +10,9 @@
 #include <sys/stat.h>
 #include "pisa_version.h" // mex output
 
+// from v0.10, -ttype supported
+#include "read_anno.h"
+
 static struct args {
     const char *input_fname;
     const char *whitelist_fname;
@@ -20,6 +23,8 @@ static struct args {
     const char *anno_tag; // feature tag
     const char *umi_tag;
 
+    const char *prefix;
+    
     struct dict *features;
     struct dict *barcodes;
     
@@ -33,6 +38,10 @@ static struct args {
     bam_hdr_t *hdr;
 
     uint64_t n_record;
+    
+    const char *region_type_tag;
+    int n_type;
+    enum exon_type *region_types;
 } args = {
     .input_fname     = NULL,
     .whitelist_fname = NULL,
@@ -42,6 +51,7 @@ static struct args {
     .anno_tag        = NULL,
     .umi_tag         = NULL,
 
+    .prefix          = NULL,
     .barcodes        = NULL,
     .features        = NULL,
     
@@ -52,7 +62,11 @@ static struct args {
     .n_thread        = 5,
     .fp_in           = NULL,
     .hdr             = NULL,
-    .n_record        = 0
+    .n_record        = 0,
+
+    .region_type_tag = "RE",
+    .n_type          = 0,
+    .region_types    = NULL
 };
 
 union counts {
@@ -75,7 +89,27 @@ static void memory_release()
     dict_destroy(args.features);
     dict_destroy(args.barcodes);
 }
-    
+
+int *str_split(kstring_t *str, int *_n)
+{
+    int m=1, n=0;
+    int i;
+    int *s = malloc(1*sizeof(int));
+    s[n++] = 0;
+    for (i = 0; i < str->l; ++i) {
+        if (str->s[i] == ',' || str->s[i] == ';') {
+            if (m == n) {
+                m += 2;
+                s = realloc(s, sizeof(int)*m);
+            }
+            s[n++] = i+1;
+            str->s[i] = '\0';
+        }
+    }
+    *_n = n;
+    return s;
+}
+
 extern int bam_count_usage();
 
 static int parse_args(int argc, char **argv)
@@ -83,11 +117,12 @@ static int parse_args(int argc, char **argv)
     int i;
     const char *mapq = NULL;
     const char *n_thread = NULL;
+    const char *region_types = NULL;
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
         const char **var = 0;
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
-        if (strcmp(a, "-tag") == 0) var = &args.tag;
+        if (strcmp(a, "-tag") == 0 || strcmp(a, "-cb") == 0) var = &args.tag;
         else if (strcmp(a, "-anno-tag") == 0) var = &args.anno_tag;
         else if (strcmp(a, "-list") == 0) var = &args.whitelist_fname;
         else if (strcmp(a, "-umi") == 0) var = &args.umi_tag;
@@ -95,6 +130,9 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-outdir") == 0) var = &args.outdir;
         else if (strcmp(a, "-q") == 0) var = &mapq;
         else if (strcmp(a, "-@") == 0) var = &n_thread;
+        else if (strcmp(a, "-ttag") == 0) var = &args.region_type_tag;
+        else if (strcmp(a, "-ttype") == 0) var = &region_types;
+        else if (strcmp(a, "-prefix") == 0) var = &args.prefix;
         else if (strcmp(a, "-dup") == 0) {
             args.use_dup = 1;
             continue;
@@ -161,29 +199,27 @@ static int parse_args(int argc, char **argv)
         dict_read(args.barcodes, args.whitelist_fname);
         if (dict_size(args.barcodes) == 0) error("Barcode list is empty?");
     }
-    
+
+    if (region_types) {
+        kstring_t str = {0,0,0};
+        int n = 0;
+        kputs(region_types, &str);
+        int *s = str_split(&str, &n);
+        if (n == 0) error("Failed to parse -ttype, %s", region_types);
+        args.n_type = n;
+        args.region_types = malloc(n*sizeof(enum exon_type));
+        int k;
+        for (k = 0; k < n; ++k) {
+            char *rt = str.s+s[k];
+            if (strlen(rt) != 1) error("Failed to parse -ttype, %s", region_types);
+            enum exon_type type = RE_type_map(rt);
+            if (type == type_unknown) error("Unknown type %s", str.s+s[k]);
+            args.region_types[k] = type;
+        }
+    }
     return 0;
 }
 
-int *str_split(kstring_t *str, int *_n)
-{
-    int m=1, n=0;
-    int i;
-    int *s = malloc(1*sizeof(int));
-    s[n++] = 0;
-    for (i = 0; i < str->l; ++i) {
-        if (str->s[i] == ',' || str->s[i] == ';') {
-            if (m == n) {
-                m += 2;
-                s = realloc(s, sizeof(int)*m);
-            }
-            s[n++] = i+1;
-            str->s[i] = '\0';
-        }
-    }
-    *_n = n;
-    return s;
-}
 int count_matrix_core(bam1_t *b)
 {
     uint8_t *tag = bam_aux_get(b, args.tag);
@@ -312,6 +348,12 @@ static void write_outs()
             kputc('/', &mex_str);
         }
 
+        if (args.prefix) {
+            kputs(args.prefix, &barcode_str);
+            kputs(args.prefix, &feature_str);
+            kputs(args.prefix, &mex_str);
+        }
+        
         kputs("barcodes.tsv.gz", &barcode_str);
         kputs("features.tsv.gz", &feature_str);
         kputs("matrix.mtx.gz", &mex_str);
@@ -427,6 +469,7 @@ int count_matrix(int argc, char **argv)
 
     int ret;
     b = bam_init1();
+    int region_type_flag = 0;
     
     for (;;) {
         ret = sam_read1(args.fp_in, args.hdr, b);
@@ -438,6 +481,24 @@ int count_matrix(int argc, char **argv)
         if (c->tid <= -1 || c->tid > args.hdr->n_targets || (c->flag & BAM_FUNMAP)) continue;
         if (c->qual < args.mapq_thres) continue;
         if (args.use_dup == 0 && c->flag & BAM_FDUP) continue;
+        
+        if (args.n_type > 0) {
+
+            uint8_t *data = bam_aux_get(b, args.region_type_tag);
+            if (!data) continue;
+
+            region_type_flag = 0;
+            int k;
+            for (k = 0; k < args.n_type; ++k) {
+                if (args.region_types[k] == RE_type_map(data[1])) {
+                    region_type_flag = 1;
+                    break;
+                }
+            }
+
+            if (region_type_flag == 0) continue;
+        }
+        
         count_matrix_core(b);
     }
     

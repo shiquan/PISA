@@ -7,7 +7,7 @@ int fragment_usage()
     fprintf(stderr, "fragment [options] in.bam\n");
     fprintf(stderr, "\nOptions:\n");
     fprintf(stderr, " -o       [FILE]    Output file. This file will be bgzipped and indexed.\n");
-    fprintf(stderr, " -tag     [TAG]     Cell barcode tag.\n");
+    fprintf(stderr, " -cb      [TAG]     Cell barcode tag.\n");
     fprintf(stderr, " -list    [FILE]    Cell barcode white list.\n");
     fprintf(stderr, " -q       [20]      Mapping quality score to filter reads.\n");
     fprintf(stderr, " -isize   [2000]    Skip if insert size greater than this. [2KB]\n");
@@ -165,7 +165,7 @@ int anno_usage()
 
     fprintf(stderr, "\nOptions for GTF file :\n");
     fprintf(stderr, " -gtf      [GTF]       GTF annotation file. gene_id,transcript_id is required for each record.\n");
-    fprintf(stderr, " -tags     [TAGS]      Attribute names. Default is TX,AN,GN,GX,RE.\n");
+    fprintf(stderr, " -tags     [TAGS]      Attribute names, more details see `Notice` below. [TX,GN,GX,RE]\n");
     fprintf(stderr, " -ignore-strand        Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be annotated.\n");
     fprintf(stderr, " -splice               Reads covered exon-intron edge will also be annotated with all tags.\n");
     fprintf(stderr, " -intron               Reads covered intron regions will also be annotated with all tags.\n");
@@ -179,7 +179,7 @@ int anno_usage()
     fprintf(stderr, "\nNotice :\n");
     fprintf(stderr, " * For GTF mode, this program will set tags in default, you could also reset them by -tags.\n");
     fprintf(stderr, "   TX : Transcript id.\n");
-    fprintf(stderr, "   AN : Same with TX but set only if read mapped to antisense strand of transcript.\n");
+    //fprintf(stderr, "   AN : Same with TX but set only if read mapped to antisense strand of transcript.\n");
     fprintf(stderr, "   GN : Gene name.\n");
     fprintf(stderr, "   GX : Gene ID.\n");
     fprintf(stderr, "   RE : Region type, E (Exon), N (Intron), C (Exon and Intron), S (junction reads cover isoforms properly), V (ambiguous reads), I (Intergenic), A (Anitisense)\n");
@@ -206,7 +206,8 @@ int bam_corr_usage()
     fprintf(stderr, "* PISA corr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
     fprintf(stderr, " // Same with above. Besides, if two or more groups of reads have same CB and UB but different GN, the GN with the most supporting reads\n");
     fprintf(stderr, " // is kept for UMI counting, and the other read groups are discarded. In case of a tie for maximal read support, all read groups are\n");
-    fprintf(stderr, " // discarded, as the gene cannot be confidently assigned (Cell Ranger method).\n");    fprintf(stderr, "* PISA corr -cr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
+    fprintf(stderr, " // discarded, as the gene cannot be confidently assigned (Cell Ranger method).\n");
+    fprintf(stderr, "* PISA corr -cr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -250,7 +251,7 @@ int bam_count_usage()
     fprintf(stderr, "* Count reads or fragments matrix for single-cell datasets.\n");
     fprintf(stderr, "CountMatrix[options] aln.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -tag      [TAG]      Cell barcode tag.\n");
+    fprintf(stderr, " -cb       [TAG]      Cell barcode tag.\n");
     fprintf(stderr, " -anno-tag [TAG]      Annotation tag, gene or peak.\n");
     fprintf(stderr, " -list     [file]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
     //fprintf(stderr, " -o        [file]     Output matrix.\n");
@@ -260,6 +261,11 @@ int bam_count_usage()
     fprintf(stderr, " -corr                Enable correct UMIs. Similar UMIs defined as amming distance <= 1.\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. Default is 20.\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");
+    fprintf(stderr, " -ttag     [TAG]      Region type tag. [RE]\n");
+    fprintf(stderr, " -ttype               Region type used to count. Set `E,S` to count exon enclosed reads. Set `N,C` to count intron overlapped reads.\n");
+    fprintf(stderr, "\nNotice:\n");
+    fprintf(stderr, "* Region type (RE), which label functional region reads mapped, is annotated by `PISA anno`. Optional -ttype can be set\n");
+    fprintf(stderr, "  to one of region types(E/S/C/N) or combination to count reads mapped to these functional regions only.\n");
     fprintf(stderr,"\n");
     return 1;
 }
@@ -311,7 +317,7 @@ int gene_fusion_usage()
     fprintf(stderr, " -list  Cell barcode white list.\n");
     fprintf(stderr, " -@     Threads to unpack bam.\n");
     fprintf(stderr, " -m     Maximal mapped genes per UMI. [3]\n");
-        
+    fprintf(stderr, " -fusion-only  Export fusion support reads only.\n");
     return 1;
 }
 

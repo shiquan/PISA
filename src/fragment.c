@@ -71,7 +71,7 @@ static int parse_args(int argc, char **argv)
         const char **var = 0;
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         if (strcmp(a, "-list") == 0) var = &args.barcode_list;
-        else if (strcmp(a, "-tag") == 0) var = &args.tag;
+        else if (strcmp(a, "-tag") == 0||strcmp(a, "-cb")==0) var = &args.tag;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-@") == 0) var = &file_th;
         else if (strcmp(a, "-isize") == 0) var = &isize;

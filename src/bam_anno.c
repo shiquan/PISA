@@ -391,10 +391,6 @@ struct ret_dat {
     uint64_t reads_pass_qc;
 };
 
-static char *RE_tags[] = {
-    "U", "E", "N", "C", "A", "S", "V", "I",
-};
-
 void gtf_anno_destroy(struct gtf_anno_type *ann)
 {
     int i;
