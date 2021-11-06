@@ -67,7 +67,7 @@ static int parse_args(int argc, char **argv)
         if (strcmp(a, "-list") == 0) var = &args.list_fname;
         else if (strcmp(a, "-t") == 0) var = &thread;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
-        else if (strcmp(a, "-tag") == 0) var = &tags;
+        else if (strcmp(a, "-tag") == 0 || strcmp(a, "-tags") == 0) var = &tags;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-prefix") == 0) var = &args.prefix;
         else if (strcmp(a, "-m") == 0) var = &memory;

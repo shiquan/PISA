@@ -13,6 +13,9 @@
 // from v0.10, -ttype supported
 #include "read_anno.h"
 
+// accept file list
+#include "bam_files.h"
+
 static struct args {
     const char *input_fname;
     const char *whitelist_fname;
@@ -24,6 +27,8 @@ static struct args {
     const char *umi_tag;
 
     const char *prefix;
+
+    const char *sample_list;
     
     struct dict *features;
     struct dict *barcodes;
@@ -34,14 +39,17 @@ static struct args {
     int n_thread;
     int one_hit;
     
-    htsFile *fp_in;
-    bam_hdr_t *hdr;
+    //htsFile *fp_in;
+    //bam_hdr_t *hdr;
 
     uint64_t n_record;
+    int alias_file_cb;
     
     const char *region_type_tag;
     int n_type;
     enum exon_type *region_types;
+
+    struct bam_files *files;
 } args = {
     .input_fname     = NULL,
     .whitelist_fname = NULL,
@@ -54,19 +62,22 @@ static struct args {
     .prefix          = NULL,
     .barcodes        = NULL,
     .features        = NULL,
-    
+
     .mapq_thres      = 20,
     .use_dup         = 0,
     .enable_corr_umi = 0,
     .one_hit         = 0,
     .n_thread        = 5,
-    .fp_in           = NULL,
-    .hdr             = NULL,
+    //.fp_in           = NULL,
+    //.hdr             = NULL,
     .n_record        = 0,
 
+    .alias_file_cb = 0,
+    
     .region_type_tag = "RE",
     .n_type          = 0,
-    .region_types    = NULL
+    .region_types    = NULL,
+    .files           = NULL,
 };
 
 union counts {
@@ -76,8 +87,10 @@ union counts {
 
 static void memory_release()
 {
-    bam_hdr_destroy(args.hdr);
-    sam_close(args.fp_in);
+    //bam_hdr_destroy(args.hdr);
+    //sam_close(args.fp_in);
+
+    close_bam_files(args.files);
     
     int i;
     int n_feature;
@@ -133,6 +146,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-ttag") == 0) var = &args.region_type_tag;
         else if (strcmp(a, "-ttype") == 0) var = &region_types;
         else if (strcmp(a, "-prefix") == 0) var = &args.prefix;
+        else if (strcmp(a, "-sample-list") == 0) var = &args.sample_list;
         else if (strcmp(a, "-dup") == 0) {
             args.use_dup = 1;
             continue;
@@ -147,6 +161,11 @@ static int parse_args(int argc, char **argv)
             warnings("Option -corr has been removed since v0.8, to correct UMIs please use `PISA corr` instead.");
             continue;
         }
+
+        else if (strcmp(a, "-file-barcode") ==0) {
+            args.alias_file_cb = 1;
+            continue;
+        }        
         
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
@@ -160,32 +179,34 @@ static int parse_args(int argc, char **argv)
         }
         error("Unknown argument, %s", a);
     }
-    if (args.input_fname == 0) error("No input bam.");
+
+    if (args.input_fname == 0 && args.sample_list == NULL) error("No input bam.");
+    if (args.input_fname && args.sample_list) error("Input bam conflict with -sample-list.");
+    
     if (args.output_fname) {
         warnings("PISA now support MEX format. Old cell X gene expression format is very poor performance. Try -outdir instead of -o.");
     }
     
-    if (args.tag == 0) error("No cell barcode specified.");
+    if (args.tag == 0 && args.alias_file_cb == 0)
+        error("No cell barcode specified and -file-barcode disabled.");
+
     if (args.anno_tag == 0) error("No anno tag specified.");
 
     if (n_thread) args.n_thread = str2int((char*)n_thread);
 
     if (args.outdir) {
          struct stat sb;
-         if (stat(args.outdir, &sb) != 0) error("Directory %s is not exists.", args.outdir);
+         if (stat(args.outdir, &sb) != 0) error("Directory %s is not exist.", args.outdir);
          if (S_ISDIR(sb.st_mode) == 0)  error("%s does not look like a directory.", args.outdir);
     }
-    
-    args.fp_in = hts_open(args.input_fname, "r");
-    CHECK_EMPTY(args.fp_in, "%s : %s.", args.input_fname, strerror(errno));
-    htsFormat type = *hts_get_format(args.fp_in);
-    if (type.format != bam && type.format != sam)
-        error("Unsupported input format, only support BAM/SAM/CRAM format.");
 
-    hts_set_threads(args.fp_in, args.n_thread);
-    
-    args.hdr = sam_hdr_read(args.fp_in);
-    CHECK_EMPTY(args.hdr, "Failed to open header.");
+    if (args.input_fname) {
+        args.files = init_bam_line(args.input_fname, args.n_thread);
+    }
+    else if (args.sample_list) {
+        args.files = init_bam_list(args.sample_list, args.n_thread);
+    }
+    else error("Not found input bam file.");
 
     if (mapq) {
         args.mapq_thres = str2int(mapq);        
@@ -212,18 +233,27 @@ static int parse_args(int argc, char **argv)
         for (k = 0; k < n; ++k) {
             char *rt = str.s+s[k];
             if (strlen(rt) != 1) error("Failed to parse -ttype, %s", region_types);
-            enum exon_type type = RE_type_map(rt);
-            if (type == type_unknown) error("Unknown type %s", str.s+s[k]);
+            enum exon_type type = RE_type_map(rt[0]);
+            if (type == type_unknown) error("Unknown type %s", rt);
             args.region_types[k] = type;
         }
+        free(s);
+        free(str.s);
     }
     return 0;
 }
 
-int count_matrix_core(bam1_t *b)
+int count_matrix_core(bam1_t *b, char *tag)
 {
-    uint8_t *tag = bam_aux_get(b, args.tag);
-    if (!tag) return 1;
+    if (args.tag) {
+        uint8_t *tag0 = bam_aux_get(b, args.tag);
+        if (!tag0) return 1;
+
+        tag = (char*)(tag0+1);
+    }
+    else if (args.alias_file_cb) {
+        assert(tag);
+    }
         
     uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
     if (!anno_tag) return 1;
@@ -235,11 +265,11 @@ int count_matrix_core(bam1_t *b)
 
     int cell_id;
     if (args.whitelist_fname) {
-        cell_id = dict_query(args.barcodes, (char*)(tag+1));
+        cell_id = dict_query(args.barcodes, tag);
         if (cell_id == -1) return 1;
     }
     else {
-        cell_id = dict_push(args.barcodes, (char*)(tag+1));
+        cell_id = dict_push(args.barcodes, tag);
     }
 
     // for each feature
@@ -406,6 +436,7 @@ static void write_outs()
             for (j = 0; j < n_cell; ++j) {
                 union counts *count = v->data[j].data;
                 ksprintf(&str, "%d\t%d\t%u\n", i+1, v->data[j].idx+1, count->count);
+                free(count);
             }
 
             if (str.l > 100000000) {
@@ -472,13 +503,19 @@ int count_matrix(int argc, char **argv)
     int region_type_flag = 0;
     
     for (;;) {
-        ret = sam_read1(args.fp_in, args.hdr, b);
+        //ret = sam_read1(args.fp_in, args.hdr, b);
+        ret = read_bam_files(args.files, b);
         if (ret < 0) break;
-                
+        bam_hdr_t *hdr = get_hdr(args.files);
+
+        char *alias = get_alias(args.files);
+        if (args.alias_file_cb == 1 && !alias)
+            error("No alias found for %s", get_fname(args.files));
+        
         bam1_core_t *c;
         c = &b->core;
 
-        if (c->tid <= -1 || c->tid > args.hdr->n_targets || (c->flag & BAM_FUNMAP)) continue;
+        if (c->tid <= -1 || c->tid > hdr->n_targets || (c->flag & BAM_FUNMAP)) continue;
         if (c->qual < args.mapq_thres) continue;
         if (args.use_dup == 0 && c->flag & BAM_FDUP) continue;
         
@@ -499,7 +536,7 @@ int count_matrix(int argc, char **argv)
             if (region_type_flag == 0) continue;
         }
         
-        count_matrix_core(b);
+        count_matrix_core(b, alias);
     }
     
     bam_destroy1(b);

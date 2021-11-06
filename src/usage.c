@@ -3,8 +3,9 @@
 
 int fragment_usage()
 {
-    fprintf(stderr, "* Convert sam record to fragment file.");
-    fprintf(stderr, "fragment [options] in.bam\n");
+    fprintf(stderr, "# Convert sam record to fragment file.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "! PISA bam2frag -cb CB -list cell_barcodes.txt -o out.tsv.gz in.bam\n");
     fprintf(stderr, "\nOptions:\n");
     fprintf(stderr, " -o       [FILE]    Output file. This file will be bgzipped and indexed.\n");
     fprintf(stderr, " -cb      [TAG]     Cell barcode tag.\n");
@@ -16,13 +17,16 @@ int fragment_usage()
     fprintf(stderr, " -stat    [FILE]    Transposition events per cell.\n");   
     fprintf(stderr, " -@       [4]       Thread to unpack and pack files.[4]\n");
     fprintf(stderr, " -disable-tn5       Disable Tn5 offset for each fragment.\n");
+    fprintf(stderr, "\n");
     return 1;
 }
 
 int fastq_parse_usage()
 {
-    fprintf(stderr, "* Parse cell barcode and UMI string from raw FASTQ.\n");
-    fprintf(stderr, "parse [options] lane1_1.fq.gz,lane02_1.fq.gz  lane1_2.fq.gz,lane2_2.fq.gz\n");
+    fprintf(stderr, "# Parse cell barcode and UMI string from raw FASTQ.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "! PISA parse -config read_struct.json -report fastq.csv -cbdis cell_dist.tsv \\\n");
+    fprintf(stderr, "          -1 out.fq lane1_1.fq.gz,lane02_1.fq.gz  lane1_2.fq.gz,lane2_2.fq.gz\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -1       [fastq]   Read 1 output.\n");
     fprintf(stderr, " -2       [fastq]   Read 2 output.\n");
@@ -39,10 +43,11 @@ int fastq_parse_usage()
 }
 int fsort_usage()
 {
-    fprintf(stderr, "* Sort reads by tags and deduplicate.\n");
-    fprintf(stderr, "fastq-sort [options] in.fq\n");
+    fprintf(stderr, "# Sort reads by tags and deduplicate.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "! PISA fsort -tags CB,UR -list cell_barcodes_top10K.txt -@ 5 -o sorted.fq.gz in.fq\n");
     fprintf(stderr, "\nOptions:\n");
-    fprintf(stderr, " -tag     [TAGS]     Tags, such as CB,UR. Order of these tags is sensitive.\n");
+    fprintf(stderr, " -tags    [TAGS]     Tags, such as CB,UR. Order of these tags is sensitive.\n");
     fprintf(stderr, " -dedup              Remove dna copies with same tags. Only keep reads have the best quality.\n");
     fprintf(stderr, " -dup-tag [TAG]      Tag name of duplication counts. Use with -dedup only. [DU]\n");
     fprintf(stderr, " -list    [file]     White list for first tag, usually for cell barcodes.\n");
@@ -90,8 +95,9 @@ int segment_usage()
 */
 int sam2bam_usage()
 {
-    fprintf(stderr, "* Parse FASTQ+ read name and convert SAM to BAM.\n");
-    fprintf(stderr, "sam2bam [options] in.sam\n");
+    fprintf(stderr, "# Parse FASTQ+ read name and convert SAM to BAM.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "! PISA sam2bam -report alignment.csv -@ 5 -adjust-mapq -gtf genes.gtf -o aln.bam in.sam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -o       [BAM]       Output file [stdout].\n");
     fprintf(stderr, " -mito    [string]    Mitochondria name. Used to stat ratio of mitochondria reads.\n");
@@ -114,9 +120,9 @@ int sam2bam_usage()
 
 int rmdup_usage()
 {
-    fprintf(stderr, "* Deduplicate PCR reads with same barcodes.\n");
-    fprintf(stderr, "* Currently only support single-end reads.\n");
-    fprintf(stderr, "bam_rmdup [options] in.bam\n");
+    fprintf(stderr, "# Deduplicate PCR reads with same barcodes.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "! PISA rmdup -tags CB,UR -o rmdup.bam in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, "   -tags  [TAGS]       Barcode tags to group reads.\n");
     fprintf(stderr, "   -@     [INT]        Threads to unpack BAM.\n");
@@ -124,14 +130,17 @@ int rmdup_usage()
     fprintf(stderr, "   -q     [INT]        Map Quality Score cutoff.\n");
     // fprintf(stderr, "   -S                  Treat PE reads as SE.\n");
     fprintf(stderr, "   -k                  Keep duplicates, make flag instead of remove them.\n");
+    fprintf(stderr, "\nNotices:\n");
+    fprintf(stderr, "* Currently only support single-end reads.\n");
     fprintf(stderr, "\n");
     return 1;
 }
 
 int pick_usage()
 {
-    fprintf(stderr, "* Pick alignment records with barcode list.\n");
-    fprintf(stderr, "pick [options] in.bam\n");
+    fprintf(stderr, "# Pick alignment records with barcode list.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "! PISA pick -tags CB,GN -list cell_barcodes.txt in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -tags    [TAGS]       Barcode tags.\n");
     fprintf(stderr, " -list    [file]       Barcode white list, tag values in related column will be apply.\n");
@@ -143,9 +152,10 @@ int pick_usage()
 }
 int anno_usage()
 {
-    fprintf(stderr, "* Annotate bam records with overlapped function regions. Such as gene, trnascript etc.\n");
-    fprintf(stderr, "anno_bam -bed peak.bed -tag PK -o anno.bam in.bam\n");
-    fprintf(stderr, "anno_bam -gtf genes.gtf -o anno.bam in.bam\n");
+    fprintf(stderr, "# Annotate bam records with overlapped function regions. Such as gene, trnascript etc.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "! PISA anno -bed peak.bed -tag PK -o anno.bam in.bam\n");
+    fprintf(stderr, "! PISA anno -gtf genes.gtf -o anno.bam in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -o        [BAM]       Output bam file.\n");
     fprintf(stderr, " -report   [csv]       Summary report.\n");
@@ -169,7 +179,7 @@ int anno_usage()
     fprintf(stderr, " -ignore-strand        Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be annotated.\n");
     fprintf(stderr, " -splice               Reads covered exon-intron edge will also be annotated with all tags.\n");
     fprintf(stderr, " -intron               Reads covered intron regions will also be annotated with all tags.\n");
-    fprintf(stderr, " -tss                  Enable TSS annotation, annotate transcript start from TSS which generated from capped library.\n");
+    fprintf(stderr, " -tss                  Annotate reads start from TSS, designed for capped library. **experiment**\n");
     fprintf(stderr, " -ctag     [TAG]       Tag name for TSS annotation. Need set with -tss.\n");
 
     fprintf(stderr, "\nOptions for VCF file :\n");
@@ -189,33 +199,35 @@ int anno_usage()
 
 int bam_corr_usage()
 {
-    fprintf(stderr, "* Correct similar barcodes (hamming distance == 1).\n");
-    fprintf(stderr, "PISA corr [options] in.bam\n");
+    fprintf(stderr, "! Correct similar barcodes (hamming distance == 1).\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "# PISA corr -tag UR -new-tag UB -tags-block CB,GN -@ 5 -o corr.bam in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -o        [BAM]       Output bam.\n");
     fprintf(stderr, " -tag      [TAG]       Tag to correct.\n");
     fprintf(stderr, " -new-tag  [TAG]       Create a new tag for corrected barcodes.\n");
     fprintf(stderr, " -tags-block  [TAGS]   Tags to define read group. For example, if set to GN (gene), reads in the same gene will be grouped together.\n");
-    fprintf(stderr, " -cr                   Enable CellRanger like UMI correction method.\n");
+    fprintf(stderr, " -cr                   Enable CellRanger like UMI correction method. See `Demo` for details.\n");
     fprintf(stderr, " -e                    Maximal hamming distance to define similar barcode, default is 1.\n");
     fprintf(stderr, " -@        [INT]       Thread to compress BAM file.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Demo : \n");
     fprintf(stderr, " // Two groups of reads have same cell barcode (CB) and gene (GN) but their UMIs (UY) differ by only one base. The UMI of less supported\n");
     fprintf(stderr, " // is corrected to the UMI with higher support. UB save the checked or corrected UMI.\n");
-    fprintf(stderr, "* PISA corr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
+    fprintf(stderr, "$ PISA corr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
     fprintf(stderr, " // Same with above. Besides, if two or more groups of reads have same CB and UB but different GN, the GN with the most supporting reads\n");
     fprintf(stderr, " // is kept for UMI counting, and the other read groups are discarded. In case of a tie for maximal read support, all read groups are\n");
     fprintf(stderr, " // discarded, as the gene cannot be confidently assigned (Cell Ranger method).\n");
-    fprintf(stderr, "* PISA corr -cr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
+    fprintf(stderr, "$ PISA corr -cr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
     fprintf(stderr, "\n");
     return 1;
 }
 
 int bam_attr_usage()
 {
-    fprintf(stderr, "* Count the frequency of tag values.\n");
-    fprintf(stderr, "PISA count in.bam\n");
+    fprintf(stderr, "# Count the frequency of tag values.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "! PISA attrcnt -cb CB -tags UR,GN -dedup -all-tags in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -cb       [TAG]      Cell Barcode, or other tag used for each individual.\n");
     fprintf(stderr, " -list     [file]     Cell barcode white list.\n");
@@ -234,8 +246,9 @@ int bam_attr_usage()
 
 int bam_extract_usage()
 {
-    fprintf(stderr, "* Extract tag values from alignments.\n");    
-    fprintf(stderr, "bam_extract_tags[options] in.bam\n");
+    fprintf(stderr, "# Extract tag values from alignments.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "! PISA extract -tags CB,UR,GN -o tags.tsv in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -tags     [TAGS]     Tags to be extracted.\n");
     fprintf(stderr, " -o        [file]     Output file. tsv format\n");
@@ -248,8 +261,11 @@ int bam_extract_usage()
 
 int bam_count_usage()
 {
-    fprintf(stderr, "* Count reads or fragments matrix for single-cell datasets.\n");
-    fprintf(stderr, "CountMatrix[options] aln.bam\n");
+    fprintf(stderr, "# Count reads or fragments matrix for single-cell datasets.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "$ PISA count -cb CB -anno-tag GN -umi UB -outdir exp aln.bam\n");
+    fprintf(stderr, "$ PISA count [options] aln1.bam,aln2.bam\n");
+    fprintf(stderr, "$ PISA count -file-barcode -sample-list bam_files.txt -outdir exp\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -cb       [TAG]      Cell barcode tag.\n");
     fprintf(stderr, " -anno-tag [TAG]      Annotation tag, gene or peak.\n");
@@ -258,14 +274,20 @@ int bam_count_usage()
     fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this fold.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
     fprintf(stderr, " -one-hit             Skip if a read hits more than 1 gene or peak.\n");
-    fprintf(stderr, " -corr                Enable correct UMIs. Similar UMIs defined as amming distance <= 1.\n");
+    // fprintf(stderr, " -corr                Enable correct UMIs. Similar UMIs defined as amming distance <= 1.\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. Default is 20.\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");
     fprintf(stderr, " -ttag     [TAG]      Region type tag. [RE]\n");
     fprintf(stderr, " -ttype               Region type used to count. Set `E,S` to count exon enclosed reads. Set `N,C` to count intron overlapped reads.\n");
+    fprintf(stderr, " -file-barcode        No cell barcode tag in the bam, but alias file name as cell barcode. This option must use with -sample-list.\n");
+    fprintf(stderr, " -sample-list [file]  A list of bam files. First column of this file should be path of bam files. Optional second column is the \n");
+    fprintf(stderr, "                      sample or cell name. This option is useful for one cell per bam experiment, like Smartseq.\n");
     fprintf(stderr, "\nNotice:\n");
-    fprintf(stderr, "* Region type (RE), which label functional region reads mapped, is annotated by `PISA anno`. Optional -ttype can be set\n");
-    fprintf(stderr, "  to one of region types(E/S/C/N) or combination to count reads mapped to these functional regions only.\n");
+    fprintf(stderr, " * Region type (RE), which label functional region reads mapped, is annotated by `PISA anno`. Optional -ttype can be set\n");
+    fprintf(stderr, "   to one of region types(E/S/C/N) or combination to count reads mapped to these functional regions only.\n");
+    fprintf(stderr, " * If you want count from more than one bam file, there are two ways to set the parameter. By seperating bam files with ',' or by\n");
+    fprintf(stderr, "   setting -sample-list option. But if you want alias each bam with a predefined cell name, only -sample-list supported.\n");
+    fprintf(stderr, " * -cb conflict with -file-barcode. PISA read cell barcode from bam tag or alias name list. Not both.\n");
     fprintf(stderr,"\n");
     return 1;
 }
@@ -307,7 +329,7 @@ int bam_impute_usage()
 
 int gene_fusion_usage()
 {
-    fprintf(stderr, "gene_fusion\n");
+    fprintf(stderr, "gene_fusion ** experiment **\n");
     fprintf(stderr, " -gn    Gene tag name in the bam. [GN]\n");
     fprintf(stderr, " -cb    Cell barcode tag name in the bam. [CB]\n");
     fprintf(stderr, " -umi   UMI barcode tag name in the bam. [UB]\n");
@@ -318,6 +340,7 @@ int gene_fusion_usage()
     fprintf(stderr, " -@     Threads to unpack bam.\n");
     fprintf(stderr, " -m     Maximal mapped genes per UMI. [3]\n");
     fprintf(stderr, " -fusion-only  Export fusion support reads only.\n");
+    fprintf(stderr, "\n");
     return 1;
 }
 

@@ -11,20 +11,20 @@ int usage()
     fprintf(stderr, "\nCommands:\n");
     fprintf(stderr, "\n--- Processing FASTQ\n");
     fprintf(stderr, "    parse      Parse barcodes from fastq reads.\n");
-    fprintf(stderr, "    fsort      Sort fastq records by barcodes.\n");
+    fprintf(stderr, "    fsort      Sort fastq records by barcodes. **experiment**\n");
     
     fprintf(stderr, "\n--- Processing BAM\n");
     fprintf(stderr, "    sam2bam    Parse FASTQ+ read name and convert SAM to BAM.\n");
     fprintf(stderr, "    rmdup      Remove PCR duplicates per molecular.\n");
     fprintf(stderr, "    pick       Pick alignments with tags.\n");
     fprintf(stderr, "    anno       Annotate functional regions or gene names.\n");
-    fprintf(stderr, "    corr       Correct error prone UMIs. 1 mismatch considered in default.\n");
+    fprintf(stderr, "    corr       Correct error prone UMIs. 1 mismatch considered.\n");
     fprintf(stderr, "    attrcnt    Count raw reads and tag values per cell.\n");
     fprintf(stderr, "    extract    Extract tag value from BAM.\n");
     fprintf(stderr, "    count      Count matrix.\n");
     fprintf(stderr, "    bam2fq     Convert BAM to FASTQ+ file with selected tags.\n");
     fprintf(stderr, "    bam2frag   Generate fragment file.\n");
-    fprintf(stderr, "    fusion     Predict gene fusion based on gene annotation reads.\n");
+    fprintf(stderr, "    fusion     Predict gene fusion based on UMIs. **experiment**\n");
     fprintf(stderr, "\n");
     return 1;
 }
