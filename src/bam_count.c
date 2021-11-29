@@ -12,6 +12,7 @@
 
 // from v0.10, -ttype supported
 #include "read_anno.h"
+#include "biostring.h"
 
 // accept file list
 #include "bam_files.h"
@@ -101,26 +102,6 @@ static void memory_release()
     }
     dict_destroy(args.features);
     dict_destroy(args.barcodes);
-}
-
-int *str_split(kstring_t *str, int *_n)
-{
-    int m=1, n=0;
-    int i;
-    int *s = malloc(1*sizeof(int));
-    s[n++] = 0;
-    for (i = 0; i < str->l; ++i) {
-        if (str->s[i] == ',' || str->s[i] == ';') {
-            if (m == n) {
-                m += 2;
-                s = realloc(s, sizeof(int)*m);
-            }
-            s[n++] = i+1;
-            str->s[i] = '\0';
-        }
-    }
-    *_n = n;
-    return s;
 }
 
 extern int bam_count_usage();
