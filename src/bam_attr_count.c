@@ -7,6 +7,8 @@
 #include "htslib/kseq.h"
 #include "dict.h"
 #include <zlib.h>
+#include "biostring.h"
+#include "read_anno.h"
 
 static struct args {
     const char *input_fname;
@@ -22,6 +24,11 @@ static struct args {
     int is_dyn_alloc;
     int file_th;
     int all_tags;
+
+    const char *region_type_tag;
+    int n_type;
+    enum exon_type *region_types;
+
 } args = {
     .input_fname   = NULL,
     .output_fname  = NULL,
@@ -36,6 +43,10 @@ static struct args {
     .is_dyn_alloc  = 1,
     .file_th       = 4,
     .all_tags      = 0,
+    .region_type_tag = "RE",
+    .n_type        = 0,
+    .region_types  = NULL,
+
 };
 
 static int parse_args(int argc, char **argv)
@@ -44,6 +55,7 @@ static int parse_args(int argc, char **argv)
     const char *tag  = NULL;
     const char *qual = NULL;
     const char *file_th = NULL;
+    const char *region_types = NULL;
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -63,6 +75,9 @@ static int parse_args(int argc, char **argv)
             args.all_tags = 1;
             continue;
         }
+        else if (strcmp(a, "-ttag") == 0) var = &args.region_type_tag;
+        else if (strcmp(a, "-ttype") == 0) var = &region_types;
+
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -98,6 +113,27 @@ static int parse_args(int argc, char **argv)
     if (args.qual_thres) args.qual_thres = 0;
     if (file_th) args.file_th = str2int(file_th);
     assert (args.file_th > 0);
+
+    if (region_types) {
+        kstring_t str = {0,0,0};
+        int n = 0;
+        kputs(region_types, &str);
+        int *s = str_split(&str, &n);
+        if (n == 0) error("Failed to parse -ttype, %s", region_types);
+        args.n_type = n;
+        args.region_types = malloc(n*sizeof(enum exon_type));
+        int k;
+        for (k = 0; k < n; ++k) {
+            char *rt = str.s+s[k];
+            if (strlen(rt) != 1) error("Failed to parse -ttype, %s", region_types);
+            enum exon_type type = RE_type_map(rt[0]);
+            if (type == type_unknown) error("Unknown type %s", rt);
+            args.region_types[k] = type;
+        }
+        free(s);
+        free(str.s);
+    }
+
     return 0;
 }
 struct counts_per_bcode {
@@ -138,6 +174,23 @@ int counts_push(struct counts *cnt, bam1_t *b)
 
     uint8_t *tag = bam_aux_get(b, args.cb_tag);
     if (!tag) return 1; // skip records without cell Barcodes
+
+    if (args.n_type > 0) {
+        
+        uint8_t *data = bam_aux_get(b, args.region_type_tag);
+        if (!data) return 1; // no RE tag
+
+        int region_type_flag = 0;
+        int k;
+        for (k = 0; k < args.n_type; ++k) {
+            if (args.region_types[k] == RE_type_map(data[1])) {
+                region_type_flag = 1;
+                break;
+            }
+        }
+        
+        if (region_type_flag == 0) return 1;// RE not matched
+    }
 
     char *name = (char*)(tag+1);
     int id = -1; // individual index
