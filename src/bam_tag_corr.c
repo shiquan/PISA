@@ -498,7 +498,8 @@ char *select_umi(struct dict *Cindex, int n,const char **tags, char *umi)
 int update_new_tag(struct dict *Cindex, int n_block, const char **blocks, const char *old_tag, const char *new_tag, bam1_t *b)
 {
     char *umi = (char *)bam_aux_get(b, old_tag);
-    assert(umi);
+    if (!umi) return 0;
+    // assert(umi);
     
     char **tag_vals = sam_tag_values(b, n_block, blocks);
     if (tag_vals == NULL) return 0;

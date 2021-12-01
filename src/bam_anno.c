@@ -929,7 +929,12 @@ void *run_it(void *_d)
 
         bam1_core_t *c;
         c = &b->core;
-        
+        // move the mapping quality check above of unmap and secondary alignment check. because both of these two jump to check -anno-only
+        if (c->qual < args.map_qual) { // if -q set, filter low quailty directly
+            b->core.flag |= BAM_FQCFAIL;
+            continue;
+        } //goto check_continue;
+
         // secondary alignment
         if (c->flag & BAM_FSECONDARY) goto check_continue;
         
@@ -937,8 +942,6 @@ void *run_it(void *_d)
         
         // QC
         if (c->tid <= -1 || c->tid > h->n_targets || (c->flag & BAM_FUNMAP)) goto check_continue;
-
-        if (c->qual < args.map_qual) goto check_continue;
 
         dat->reads_pass_qc++;
 
@@ -962,7 +965,7 @@ void *run_it(void *_d)
       check_continue:
         if (args.anno_only && ann == 0) {
             b->core.flag |= BAM_FQCFAIL;
-        }
+        } 
     }
     return dat;
 }
