@@ -44,12 +44,16 @@ static struct args {
     //bam_hdr_t *hdr;
 
     uint64_t n_record;
+    uint64_t n_record1;
+    uint64_t n_record2;
     int alias_file_cb;
     
     const char *region_type_tag;
     int n_type;
     enum exon_type *region_types;
 
+    int velocity;
+    
     struct bam_files *files;
 } args = {
     .input_fname     = NULL,
@@ -72,18 +76,23 @@ static struct args {
     //.fp_in           = NULL,
     //.hdr             = NULL,
     .n_record        = 0,
-
-    .alias_file_cb = 0,
+    .n_record1       = 0,
+    .n_record2       = 0,
+    .alias_file_cb   = 0,
     
     .region_type_tag = "RE",
     .n_type          = 0,
     .region_types    = NULL,
+    .velocity        = 0,
     .files           = NULL,
 };
 
-union counts {
+struct counts {
     uint32_t count;
     struct PISA_dna_pool *p;
+
+    uint32_t unspliced;
+    struct PISA_dna_pool *up;
 };
 
 static void memory_release()
@@ -130,6 +139,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-sample-list") == 0) var = &args.sample_list;
         else if (strcmp(a, "-dup") == 0) {
             args.use_dup = 1;
+            continue;
+        }
+        else if (strcmp(a, "-velo") == 0) {
+            args.velocity = 1;
             continue;
         }
         else if (strcmp(a, "-one-hit") == 0) {
@@ -235,7 +248,7 @@ int count_matrix_core(bam1_t *b, char *tag)
     else if (args.alias_file_cb) {
         assert(tag);
     }
-        
+    
     uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
     if (!anno_tag) return 1;
 
@@ -244,6 +257,18 @@ int count_matrix_core(bam1_t *b, char *tag)
         if (!umi_tag) return 1;
     }
 
+    int unspliced = 0;
+    if (args.velocity) {
+        uint8_t *data = bam_aux_get(b, args.region_type_tag);
+        if (!data) return 1;
+        if (RE_type_map(data[1]) == type_unknown) return 1;
+        if (RE_type_map(data[1]) == type_antisense) return 1;
+        if (RE_type_map(data[1]) == type_ambiguous) return 1;
+        if (RE_type_map(data[1]) == type_intergenic)  return 1;
+        if (RE_type_map(data[1]) == type_exon_intron || RE_type_map(data[1]) == type_intron)
+            unspliced = 1;
+    }
+    
     int cell_id;
     if (args.whitelist_fname) {
         cell_id = dict_query(args.barcodes, tag);
@@ -286,11 +311,15 @@ int count_matrix_core(bam1_t *b, char *tag)
         if (c == NULL) {
             c = PISA_idx_push(v, cell_id);
         //if (c->data == NULL) {
-            union counts *counts = malloc(sizeof(union counts));
-            if (args.umi_tag) 
+            struct counts *counts = malloc(sizeof(struct counts));
+            if (args.umi_tag)  {
                 counts->p = PISA_dna_pool_init();
-            else
+                counts->up = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
+            }
+            else {
                 counts->count = 0;
+                counts->unspliced = 0;
+            }
             c->data = counts;
         }
 
@@ -299,13 +328,18 @@ int count_matrix_core(bam1_t *b, char *tag)
             assert(umi_tag);
             char *val = (char*)(umi_tag+1);
             assert(c->data);
-            union counts *count = c->data;
-
+            struct counts *count = c->data;
             PISA_dna_push(count->p, val);
+
+            if (args.velocity && unspliced)
+                PISA_dna_push(count->up, val);
         }
         else {
-            union counts *count = c->data;
+            struct counts *count = c->data;
             count->count++;
+
+            if (args.velocity && unspliced)
+                count->unspliced++;
         }
     }
     free(str.s);
@@ -322,15 +356,24 @@ static void update_counts()
         int j;
         int n_cell = v->l;
         for (j = 0; j < n_cell; ++j) {
-            union counts *count = v->data[j].data;
+            struct counts *count = v->data[j].data;
             assert(count);
             if (args.umi_tag) {
                 int size = count->p->l;
                 PISA_dna_destroy(count->p);
                 count->count = size;
             }
+
+            if (args.velocity) {
+                if (args.umi_tag) {
+                    int size = count->up->l;
+                    PISA_dna_destroy(count->up);
+                    count->unspliced = size;
+                }
+            }
+            args.n_record += count->count;
+            args.n_record2 += count->unspliced;
         }
-        args.n_record += n_cell;
     }
 }
 static void write_outs()
@@ -344,30 +387,43 @@ static void write_outs()
         warnings("No anntated record found.");
         return;
     }
+    args.n_record1 = args.n_record;
+
+    if (args.velocity) args.n_record1 = args.n_record - args.n_record2;
     
     if (args.outdir) {
         kstring_t barcode_str = {0,0,0};
         kstring_t feature_str = {0,0,0};
         kstring_t mex_str = {0,0,0};
+        kstring_t unspliced_str = {0,0,0};
+        
         kputs(args.outdir, &barcode_str);
         kputs(args.outdir, &feature_str);
         kputs(args.outdir, &mex_str);
+        kputs(args.outdir, &unspliced_str);
 
         if (args.outdir[strlen(args.outdir)-1] != '/') {
             kputc('/', &barcode_str);
             kputc('/', &feature_str);
             kputc('/', &mex_str);
+            kputc('/', &unspliced_str);
         }
 
         if (args.prefix) {
             kputs(args.prefix, &barcode_str);
             kputs(args.prefix, &feature_str);
             kputs(args.prefix, &mex_str);
+            kputs(args.prefix, &unspliced_str);
         }
         
         kputs("barcodes.tsv.gz", &barcode_str);
         kputs("features.tsv.gz", &feature_str);
-        kputs("matrix.mtx.gz", &mex_str);
+        if (args.velocity)
+            kputs("spliced.mtx.gz", &mex_str);
+        else
+            kputs("matrix.mtx.gz", &mex_str);
+
+        kputs("unspliced.mtx.gz", &unspliced_str);
         
         BGZF *barcode_fp = bgzf_open(barcode_str.s, "w");
         bgzf_mt(barcode_fp, args.n_thread, 256);
@@ -376,6 +432,7 @@ static void write_outs()
         int i;
 
         kstring_t str = {0,0,0};
+        kstring_t str2 = {0,0,0};
         
         for (i = 0; i < n_barcode; ++i) {
             kputs(dict_name(args.barcodes, i), &str);
@@ -408,15 +465,35 @@ static void write_outs()
         kputs("% Generated by PISA ", &str);
         kputs(PISA_VERSION, &str);
         kputc('\n', &str);
-        ksprintf(&str, "%d\t%d\t%llu\n", n_feature, n_barcode, args.n_record);
+        ksprintf(&str, "%d\t%d\t%llu\n", n_feature, n_barcode, args.n_record1);
 
+        BGZF *unspliced_fp = NULL;
+        if (args.velocity) {
+            unspliced_fp = bgzf_open(unspliced_str.s, "w");
+            if (unspliced_fp == NULL) error("%s : %s.", unspliced_str.s, strerror(errno));
+        
+            bgzf_mt(unspliced_fp, args.n_thread, 256);
+            kputs("%%MatrixMarket matrix coordinate integer general\n", &str2);
+            kputs("% Generated by PISA ", &str2);
+            kputs(PISA_VERSION, &str2);
+            kputc('\n', &str2);
+            ksprintf(&str2, "%d\t%d\t%llu\n", n_feature, n_barcode, args.n_record2);
+        }
+        
         for (i = 0; i < n_feature; ++i) {
             struct PISA_dna_pool *v = dict_query_value(args.features, i);
             int j;
             int n_cell = v->l;
             for (j = 0; j < n_cell; ++j) {
-                union counts *count = v->data[j].data;
-                ksprintf(&str, "%d\t%d\t%u\n", i+1, v->data[j].idx+1, count->count);
+                struct counts *count = v->data[j].data;
+                if (args.velocity) {
+                    int spliced = count->count - count->unspliced;
+                    if (spliced > 0) ksprintf(&str, "%d\t%d\t%u\n", i+1, v->data[j].idx+1, spliced);
+                    if (count->unspliced > 0) ksprintf(&str2, "%d\t%d\t%u\n", i+1, v->data[j].idx+1, count->unspliced);
+                }
+                else
+                    ksprintf(&str, "%d\t%d\t%u\n", i+1, v->data[j].idx+1, count->count);
+                
                 free(count);
             }
 
@@ -424,6 +501,12 @@ static void write_outs()
                 int l = bgzf_write(mex_fp, str.s, str.l);
                 if (l != str.l) error("Failed to write file.");
                 str.l = 0;
+
+                if (args.velocity) {
+                    l = bgzf_write(unspliced_fp, str2.s, str2.l);
+                    if (l != str2.l) error("Failed to write file.");
+                    str2.l = 0;                
+                }
             }
         }
 
@@ -432,10 +515,18 @@ static void write_outs()
             if (l != str.l) error("Failed to wirte.");
         }
 
+        if (str2.l) {
+            l = bgzf_write(unspliced_fp, str2.s, str2.l);
+            if (l != str2.l) error("Failed to wirte.");
+        
+        }
+
         free(str.s);
+        if (str2.m) free(str2.s);
         free(mex_str.s);
         free(barcode_str.s);
         free(feature_str.s);
+        if (unspliced_str.m) free(unspliced_str.s);
         bgzf_close(mex_fp);
     }
     

@@ -88,7 +88,7 @@ static struct args {
 
     int qual_thres;
     
-    // int n_thread;
+    int n_thread;
     int chunk_size;
     int cell_number;
 
@@ -152,7 +152,7 @@ static struct args {
     .report_fname = NULL,
     .dis_fname = NULL,
     .qual_thres = 0,
-    //.n_thread = 4,
+    .n_thread = 4,
     .chunk_size = 10000,
     .cell_number = 10000,
     .smart_pair = 0,
@@ -629,6 +629,7 @@ struct BRstat *extract_barcodes(struct bseq *b,
     return NULL;
 }
 
+
 struct BRstat *extract_sample_barcode_reads(struct bseq *b,
                                  int n,
                                  const struct bcode_reg *r,
@@ -695,7 +696,7 @@ struct BRstat *extract_reads(struct bseq *b, const struct bcode_reg *r1, const s
     return stat;
 }
 
-static void *run_it(void *_p, int idx)
+static void *run_it(void *_p)
 {
     struct bseq_pool *p = (struct bseq_pool*)_p;
     struct args *opts = p->opts;
@@ -973,7 +974,7 @@ void report_write()
         fprintf(args.report_fp, "Q30 bases in UMI,%.1f%%\n", args.bases_umi == 0 ? 0 : (float)args.q30_bases_umi/(args.bases_umi+1)*100);
         fprintf(args.report_fp, "Q30 bases in Reads,%.1f%%\n", (float)args.q30_bases_reads/(args.bases_reads+1)*100);
         
-        fclose(args.report_fp);
+        if (args.report_fp != stderr) fclose(args.report_fp);
     }
 }
 void full_details()
@@ -1070,8 +1071,8 @@ static int parse_args(int argc, char **argv)
     config_init(args.config_fname);
     LOG_print("Configure file inited.");
     
-    // if (thread) args.n_thread = str2int((char*)thread);
-    if (chunk_size) args.chunk_size = str2int((char*)chunk_size);
+    if (thread) args.n_thread = str2int((char*)thread);
+    //if (chunk_size) args.chunk_size = str2int((char*)chunk_size);
     // assert(args.n_thread >= 1 && args.chunk_size >= 1);
     if (qual_thres) {
         args.qual_thres = str2int((char*)qual_thres);
@@ -1085,6 +1086,7 @@ static int parse_args(int argc, char **argv)
         args.report_fp = fopen(args.report_fname, "w");
         CHECK_EMPTY(args.report_fp, "%s : %s.", args.report_fname, strerror(errno));
     }
+    else args.report_fp = stderr;
 
     if (args.out1_fname) {
         args.out1_fp = fopen(args.out1_fname, "w");
@@ -1116,6 +1118,25 @@ static int parse_args(int argc, char **argv)
 }
 
 extern int fastq_parse_usage();
+static void *process(void *shared, int step, void *_data)
+{
+    struct args *aux = (struct args *)shared;
+    struct bseq_pool *data = (struct bseq_pool*)_data;
+
+    if (step == 0) {
+        struct bseq_pool *b = fastq_read(aux->fastq, &args);
+        return b;
+    }
+    else if (step == 1) {
+        return run_it(data);        
+    }
+    else if (step == 2) {
+        write_out(data);
+        return 0;
+    }
+    return 0;
+}
+void kt_pipeline(int n_threads, void *(*func)(void*, int, void*), void *shared_data, int n_steps);
 
 int fastq_prase_barcodes(int argc, char **argv)
 {
@@ -1124,19 +1145,22 @@ int fastq_prase_barcodes(int argc, char **argv)
     
     if (parse_args(argc, argv)) return fastq_parse_usage();
 
-    for (;;) {
-        struct bseq_pool *b = fastq_read(args.fastq, &args);
-        if (b == NULL) break;
-        b = run_it(b, 0);
-        write_out(b);
+    if (args.n_thread == 1) {
+        for (;;) {
+            struct bseq_pool *b = fastq_read(args.fastq, &args);
+            if (b == NULL) break;
+            b = run_it(b);
+            write_out(b);
+        }
     }
-    // todo: multi-threads parse
+
+    kt_pipeline(args.n_thread, process, &args, 3);
     
     cell_barcode_count_pair_write();
 
     report_write();
-    // todo: html report
-    full_details();
+    
+    // full_details();
     
     memory_release();
 

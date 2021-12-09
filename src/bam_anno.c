@@ -102,8 +102,8 @@ static struct args {
     .splice_consider = 0,
     .intron_consider = 0,
     .map_qual        = 0,
-    .n_thread = 1,
-    .chunk_size = 100000,
+    .n_thread        = 4,
+    .chunk_size      = 100000,
     .anno_only       = 0,
     
     .fp              = NULL,

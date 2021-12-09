@@ -175,23 +175,6 @@ int counts_push(struct counts *cnt, bam1_t *b)
     uint8_t *tag = bam_aux_get(b, args.cb_tag);
     if (!tag) return 1; // skip records without cell Barcodes
 
-    if (args.n_type > 0) {
-        
-        uint8_t *data = bam_aux_get(b, args.region_type_tag);
-        if (!data) return 1; // no RE tag
-
-        int region_type_flag = 0;
-        int k;
-        for (k = 0; k < args.n_type; ++k) {
-            if (args.region_types[k] == RE_type_map(data[1])) {
-                region_type_flag = 1;
-                break;
-            }
-        }
-        
-        if (region_type_flag == 0) return 1;// RE not matched
-    }
-
     char *name = (char*)(tag+1);
     int id = -1; // individual index
     
@@ -215,7 +198,25 @@ int counts_push(struct counts *cnt, bam1_t *b)
         }
     }
     struct counts_per_bcode *bc = &cnt->counts[id];
-    
+
+    // check region types
+    if (args.n_type > 0) {
+        
+        uint8_t *data = bam_aux_get(b, args.region_type_tag);
+        if (!data) return 1; // no RE tag
+
+        int region_type_flag = 0;
+        int k;
+        for (k = 0; k < args.n_type; ++k) {
+            if (args.region_types[k] == RE_type_map(data[1])) {
+                region_type_flag = 1;
+                break;
+            }
+        }
+        
+        if (region_type_flag == 0) return 1;// RE not matched
+    }
+
     // dynamic allocate group tag
     int grp_id = 0; // group index
     
