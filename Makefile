@@ -66,7 +66,8 @@ LIB_OBJ = src/barcode_list.o \
 	src/bam_region.o \
 	src/dna_pool.o \
 	src/bam_files.o \
-	src/biostring.o
+	src/biostring.o \
+	src/kthread.o
 
 AOBJ = src/bam_anno.o \
 	src/bam_count.o \
@@ -127,6 +128,7 @@ src/dna_pool.o:src/dna_pool.c
 src/gene_fusion.o:src/gene_fusion.c
 src/bam_files.o:src/bam_files.c
 src/biostring.o:src/biostring.c
+src/kthread.o:src/kthread.c
 
 clean: testclean
 	-rm -f gmon.out *.o *~ $(PROG) pisa_version.h 
