@@ -31,20 +31,22 @@ int fastq_parse_usage()
     fprintf(stderr, " -1       [fastq]   Read 1 output.\n");
     fprintf(stderr, " -2       [fastq]   Read 2 output.\n");
     fprintf(stderr, " -config  [json]    Read structure configure file in JSON format. Required.\n");
-    fprintf(stderr, " -rule    [STRING]  Read structure in line. See \n");
+    //fprintf(stderr, " -rule    [STRING]  Read structure in line. See \x1b[31m\x1b[1mNotice\x1b[0m.\n");
     fprintf(stderr, " -run     [string]  Run code, used for different library.\n");
     fprintf(stderr, " -cbdis   [file]    Read count per cell barcode.\n");
     fprintf(stderr, " -p                 Read 1 and read 2 interleaved in the input file.\n");
     fprintf(stderr, " -q       [INT]     Drop reads if average sequencing quality below this value.\n");
     fprintf(stderr, " -dropN             Drop reads if N base in sequence or barcode.\n");
     fprintf(stderr, " -report  [csv]     Summary report.\n");
-    fprintf(stderr, " -x                 Preset read structure. Use one of codes predefined below.\n");
-    fprintf(stderr, "        - C4v1      MGI DNBelab C4 RNA v1/v2 kit\n");
-    fprintf(stderr, "        - 10Xv3     10X Genomics 3' v3 kit. Use barcode whitelist from \"3M-febrary-2018.txt.gz\"\n");
-    fprintf(stderr, "        - 10Xv2     10X Genomics 3' v2 or 5' v1/v2 kit. Use barcode whitelist from \"737k-august-2016.txt\"\n");
-    fprintf(stderr, "        - 10Xv3     10X Genomics 3' v1 kit. Use barcode whitelist from \"737k-april-2014_rc.txt\"\n");
-    fprintf(stderr, "        - 10XMulv1  10X Genomics Multiome (ATAC+GEX) v1 kit. Use barcode whitelist from \"737k-arc-v1.txt.gz\"\n");
-    fprintf(stderr, "        - 10XLTv1   10X Genomics 3' low throughput (LT) kit. Use barcode whitelist from \"9K-LT-march-2021.txt.gz\"\n");
+    fprintf(stderr, " -t       [INT]     Threads. [4]\n");
+    //fprintf(stderr, " -x                 Preset read structure. Use one of codes predefined below.\n");
+    //fprintf(stderr, "        - C4v1      MGI DNBelab C4 RNA v1/v2 kit\n");
+    //fprintf(stderr, "        - 10Xv3     10X Genomics 3' v3 kit. Use barcode whitelist from \"3M-febrary-2018.txt.gz\"\n");
+    //fprintf(stderr, "        - 10Xv2     10X Genomics 3' v2 or 5' v1/v2 kit. Use barcode whitelist from \"737k-august-2016.txt\"\n");
+    //fprintf(stderr, "        - 10Xv3     10X Genomics 3' v1 kit. Use barcode whitelist from \"737k-april-2014_rc.txt\"\n");
+    //fprintf(stderr, "        - 10XMulv1  10X Genomics Multiome (ATAC+GEX) v1 kit. Use barcode whitelist from \"737k-arc-v1.txt.gz\"\n");
+    //fprintf(stderr, "        - 10XLTv1   10X Genomics 3' low throughput (LT) kit. Use barcode whitelist from \"9K-LT-march-2021.txt.gz\"\n");
+    /*
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[31m\x1b[1mNotice\x1b[0m :\n");
     fprintf(stderr, " * \x1b[1mPISA\x1b[0m parse requires -config, -rule, or -x option to specify cell barcode and UMI locations in the raw read files.\n");
@@ -69,6 +71,7 @@ int fastq_parse_usage()
     fprintf(stderr, "#   from 1 to 10 in read 1, and whitelist is bc1.txt, and second segment start from 11 to 20, and whitelist is bc2.txt.\n");
     fprintf(stderr, "#   These two segments will be combined after correction, because the corrected tag are the same.\n");
     fprintf(stderr, "\n");
+    */
     return 1;
 }
 int fsort_usage()
@@ -309,7 +312,8 @@ int bam_count_usage()
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. Default is 20.\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");
     fprintf(stderr, " -ttag     [TAG]      Region type tag. [RE]\n");
-    fprintf(stderr, " -ttype               Region type used to count. Set `E,S` to count exon enclosed reads. Set `N,C` to count intron overlapped reads.\n");
+    fprintf(stderr, " -velo                Generate spliced and unspliced matrix files for RNA velocity analysis.\n");
+    fprintf(stderr, " -ttype    [TYPE]     Region type used to count. Set `E,S` to count exon enclosed reads. Set `N,C` to count intron overlapped reads.\n");
     fprintf(stderr, " -file-barcode        No cell barcode tag in the bam, but alias file name as cell barcode. This option must use with -sample-list.\n");
     fprintf(stderr, " -sample-list [file]  A list of bam files. First column of this file should be path of bam files. Optional second column is the \n");
     fprintf(stderr, "                      sample or cell name. This option is useful for one cell per bam experiment, like Smartseq.\n");
@@ -319,6 +323,7 @@ int bam_count_usage()
     fprintf(stderr, " * If you want count from more than one bam file, there are two ways to set the parameter. By seperating bam files with ',' or by\n");
     fprintf(stderr, "   setting -sample-list option. But if you want alias each bam with a predefined cell name, only -sample-list supported.\n");
     fprintf(stderr, " * -cb conflict with -file-barcode. \x1b[1mPISA\x1b[0m read cell barcode from bam tag or alias name list. Not both.\n");
+    fprintf(stderr, " * If -velo set, spliced and unspliced folders will be created at outdir.\n");
     fprintf(stderr,"\n");
     return 1;
 }
