@@ -33,7 +33,7 @@ int fastq_parse_usage()
     fprintf(stderr, " -config  [json]    Read structure configure file in JSON format. Required.\n");
     //fprintf(stderr, " -rule    [STRING]  Read structure in line. See \x1b[31m\x1b[1mNotice\x1b[0m.\n");
     fprintf(stderr, " -run     [string]  Run code, used for different library.\n");
-    fprintf(stderr, " -cbdis   [file]    Read count per cell barcode.\n");
+    fprintf(stderr, " -cbdis   [FILE]    Read count per cell barcode.\n");
     fprintf(stderr, " -p                 Read 1 and read 2 interleaved in the input file.\n");
     fprintf(stderr, " -q       [INT]     Drop reads if average sequencing quality below this value.\n");
     fprintf(stderr, " -dropN             Drop reads if N base in sequence or barcode.\n");
@@ -83,7 +83,7 @@ int fsort_usage()
     fprintf(stderr, " -tags    [TAGS]     Tags, such as CB,UR. Order of these tags is sensitive.\n");
     fprintf(stderr, " -dedup              Remove dna copies with same tags. Only keep reads have the best quality.\n");
     fprintf(stderr, " -dup-tag [TAG]      Tag name of duplication counts. Use with -dedup only. [DU]\n");
-    fprintf(stderr, " -list    [file]     White list for first tag, usually for cell barcodes.\n");
+    fprintf(stderr, " -list    [FILE]     White list for first tag, usually for cell barcodes.\n");
     fprintf(stderr, " -@       [INT]      Threads to compress file.\n");
     fprintf(stderr, " -o       [fq.gz]    bgzipped output fastq file.\n");
     fprintf(stderr, " -m       [mem]      Memory per thread. [1G]\n");
@@ -103,7 +103,7 @@ int assemble_usage()
     fprintf(stderr, " -o       [fastq]    Output fastq.\n");
     fprintf(stderr, " -tag     [TAGS]     Tags of read block.\n");
     fprintf(stderr, " -p                  Input fastq is smart paired.\n");
-    fprintf(stderr, " -dis     [file]     Assembled length distribution.\n");
+    fprintf(stderr, " -dis     [FILE]     Assembled length distribution.\n");
     //fprintf(stderr, " -report  [csv]      Summary information.\n");
     fprintf(stderr, "\n");
     return 1;
@@ -176,7 +176,7 @@ int pick_usage()
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m pick -tags CB,GN -list cell_barcodes.txt in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -tags    [TAGS]       Barcode tags.\n");
-    fprintf(stderr, " -list    [file]       Barcode white list, tag values in related column will be apply.\n");
+    fprintf(stderr, " -list    [FILE]       Barcode white list, tag values in related column will be apply.\n");
     fprintf(stderr, " -o       [BAM]        Output file.\n");
     fprintf(stderr, " -q       [INT]        Map Quality Score cutoff.\n");
     fprintf(stderr, " -@       [INT]        Threads to unpack BAM.\n");
@@ -203,7 +203,7 @@ int anno_usage()
     fprintf(stderr, " -tag      [TAG]       Attribute tag name. Set with -bed.\n");
 
     fprintf(stderr, "\nOptions for mixed samples.\n");
-    fprintf(stderr, " -chr-species  [file]  Chromosome name and related species binding list.\n");
+    fprintf(stderr, " -chr-species  [FILE]  Chromosome name and related species binding list.\n");
     fprintf(stderr, " -btag     [TAG]       Species tag name. Set with -chr-species.\n");
 
     fprintf(stderr, "\nOptions for GTF file :\n");
@@ -263,12 +263,12 @@ int bam_attr_usage()
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m attrcnt -cb CB -tags UR,GN -dedup -all-tags in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -cb       [TAG]      Cell Barcode, or other tag used for grouping reads.\n");
-    fprintf(stderr, " -list     [file]     Cell barcode white list.\n");
+    fprintf(stderr, " -list     [FILE]     Cell barcode white list.\n");
     fprintf(stderr, " -tags     [TAGS]     Tags to count.\n");
     fprintf(stderr, " -dedup               Deduplicate the atrributes in each tag.\n");
     fprintf(stderr, " -all-tags            Only records with all tags be count.\n");
     fprintf(stderr, " -group    [TAG]      Group tag, count all tags for each group seperately.\n");
-    fprintf(stderr, " -o        [file]     Output count table.\n");
+    fprintf(stderr, " -o        [FILE]     Output count table.\n");
     fprintf(stderr, " -q        [INT]      Map Quality to filter bam.\n");
     fprintf(stderr, " -no-header           Ignore header in the output.\n");
     fprintf(stderr, " -@        [INT]      Thread to unpack bam.\n");
@@ -285,7 +285,7 @@ int bam_extract_usage()
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m extract -tags CB,UR,GN -o tags.tsv in.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -tags     [TAGS]     Tags to be extracted.\n");
-    fprintf(stderr, " -o        [file]     Output file. tsv format\n");
+    fprintf(stderr, " -o        [FILE]     Output file. tsv format\n");
     fprintf(stderr, " -n                   Print read name.\n");
     fprintf(stderr, " -q                   Map Quality Score threshold.\n");
     fprintf(stderr, " -all                 Only export if all tags have value.\n");
@@ -303,8 +303,8 @@ int bam_count_usage()
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -cb       [TAG]      Cell barcode tag.\n");
     fprintf(stderr, " -anno-tag [TAG]      Annotation tag, gene or peak.\n");
-    fprintf(stderr, " -list     [file]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
-    //fprintf(stderr, " -o        [file]     Output matrix.\n");
+    fprintf(stderr, " -list     [FILE]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
+    //fprintf(stderr, " -o        [FILE]     Output matrix.\n");
     fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this fold.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
     fprintf(stderr, " -one-hit             Skip if a read hits more than 1 gene or peak.\n");
@@ -315,7 +315,7 @@ int bam_count_usage()
     fprintf(stderr, " -velo                Generate spliced and unspliced matrix files for RNA velocity analysis.\n");
     fprintf(stderr, " -ttype    [TYPE]     Region type used to count. Set `E,S` to count exon enclosed reads. Set `N,C` to count intron overlapped reads.\n");
     fprintf(stderr, " -file-barcode        No cell barcode tag in the bam, but alias file name as cell barcode. This option must use with -sample-list.\n");
-    fprintf(stderr, " -sample-list [file]  A list of bam files. First column of this file should be path of bam files. Optional second column is the \n");
+    fprintf(stderr, " -sample-list [FILE]  A list of bam files. First column of this file should be path of bam files. Optional second column is the \n");
     fprintf(stderr, "                      sample or cell name. This option is useful for one cell per bam experiment, like Smartseq.\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
     fprintf(stderr, " * Region type (RE), which label functional region reads mapped, is annotated by `\x1b[1mPISA\x1b[0m anno`. Optional -ttype can be set\n");
@@ -383,20 +383,20 @@ int gene_fusion_usage()
 int depth_usage()
 {
     fprintf(stderr, "# Count coverage depth or unique UMIs for genome locations.\n");
-    fprintf(stderr, "Usage :\n");
-    fprintf(stderr, "\x1b[1mPISA\x1b[0m depth [options] in.bam [region]\n\n");
+    fprintf(stderr, "\nUsage : \x1b[1mPISA\x1b[0m depth [options] sorted.bam [region]\n\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth -cb CB -umi UB -tags GN -region in.bed -o depth.tsv sorted.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth -cb CB -umi UB sorted.bam chr1:1-2:+\n");
     fprintf(stderr, "\nOptions : \n");
     fprintf(stderr, " -cb       [TAG]      Cell Barcode, or other tag used for grouping reads.\n");
-    fprintf(stderr, " -list     [file]     Cell barcode white list.\n");
+    fprintf(stderr, " -list     [FILE]     Cell barcode white list.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. If set, only count unique UMIs for each location.\n");
     fprintf(stderr, " -bed      [BED]      Target BED region file. If the strand in column six set, only count reads with the same strand.\n");
     fprintf(stderr, " -tags     [TAG]      Only count reads with the defined tags.\n");
-    fprintf(stderr, " -o        [file]     Output depth file. [stdout].\n");
+    fprintf(stderr, " -o        [FILE]     Output depth file. [stdout].\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. [20]\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack bam. [4]\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
+    fprintf(stderr, " * Require sorted and indexed BAM as input.\n");
     fprintf(stderr, " * Compare with `samtools depth`, PISA depth considers UMIs and strand of reads.\n");
     return 1;
 }
