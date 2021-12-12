@@ -5,7 +5,7 @@
 
 int usage()
 {
-    fprintf(stderr, "\nPISA - a preprocessing and interative suite for single-cell data analysis\n");
+    fprintf(stderr, "\n\x1b[1mPISA\x1b[0m - a preprocessing and interative suite for single-cell data analysis\n");
     fprintf(stderr, "Version: %s + htslib: %s\n", PISA_VERSION, HTS_VERSION_TEXT);
     fprintf(stderr, "Contact: Quan SHI [shiquan(AT)genomics.cn]\n");
     fprintf(stderr, "\nCommands:\n");
@@ -24,7 +24,10 @@ int usage()
     fprintf(stderr, "    count      Count matrix.\n");
     fprintf(stderr, "    bam2fq     Convert BAM to FASTQ+ file with selected tags.\n");
     fprintf(stderr, "    bam2frag   Generate fragment file.\n");
+    fprintf(stderr, "    depth      Coverage depth/UMI for target regions.\n");
     fprintf(stderr, "    fusion     Predict gene fusion based on UMIs. **experiment**\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Use `\x1b[1mPISA\x1b[0m command -h` for help information.\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -48,7 +51,7 @@ int main(int argc, char *argv[])
     // extern int gene_cov(int argc, char **argv);
     extern int bam2frag(int argc, char **argv);
     extern int gene_fusion(int argc, char **argv);
-
+    extern int depth_main(int argc, char **argv);
 
     if (argc == 1) return usage();
     else if (strcmp(argv[1], "parse") == 0) return fastq_prase_barcodes(argc-1, argv+1);
@@ -71,7 +74,8 @@ int main(int argc, char *argv[])
     // else if (strcmp(argv[1], "segment2") == 0) return check_segment2(argc-1, argv+1);
     //else if (strcmp(argv[1], "cleanup") == 0) return LFR_cleanup(argc-1, argv+1);
     //else if (strcmp(argv[1], "overlap") == 0) return fastq_overlap(argc-1, argv+1);
-    // else if (strcmp(argv[1], "impute") == 0) return LFR_impute(argc-1, argv+1);                    
+    // else if (strcmp(argv[1], "impute") == 0) return LFR_impute(argc-1, argv+1);
+    else if (strcmp(argv[1], "depth") == 0) return depth_main(argc-1, argv+1);
     else return usage();
     return 0;
 }
