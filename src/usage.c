@@ -240,11 +240,11 @@ int bam_corr_usage()
     fprintf(stderr, " -tag      [TAG]       Tag to correct.\n");
     fprintf(stderr, " -new-tag  [TAG]       Create a new tag for corrected barcodes.\n");
     fprintf(stderr, " -tags-block  [TAGS]   Tags to define read group. For example, if set to GN (gene), reads in the same gene will be grouped together.\n");
-    fprintf(stderr, " -cr                   Enable CellRanger like UMI correction method. See `Demo` for details.\n");
+    fprintf(stderr, " -cr                   Enable CellRanger like UMI correction method. See `\x1b[31m\x1b[1mExamples\x1b[0m` for details.\n");
     fprintf(stderr, " -e                    Maximal hamming distance to define similar barcode, default is 1.\n");
     fprintf(stderr, " -@        [INT]       Thread to compress BAM file.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "Demo : \n");
+    fprintf(stderr, "\n\x1b[31m\x1b[1mExamples\x1b[0m :\n");
     fprintf(stderr, " // Two groups of reads have same cell barcode (CB) and gene (GN) but their UMIs (UY) differ by only one base. The UMI of less supported\n");
     fprintf(stderr, " // is corrected to the UMI with higher support. UB save the checked or corrected UMI.\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m corr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
@@ -262,7 +262,7 @@ int bam_attr_usage()
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m attrcnt -cb CB -tags UR,GN -dedup -all-tags in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -cb       [TAG]      Cell Barcode, or other tag used for each individual.\n");
+    fprintf(stderr, " -cb       [TAG]      Cell Barcode, or other tag used for grouping reads.\n");
     fprintf(stderr, " -list     [file]     Cell barcode white list.\n");
     fprintf(stderr, " -tags     [TAGS]     Tags to count.\n");
     fprintf(stderr, " -dedup               Deduplicate the atrributes in each tag.\n");
@@ -330,11 +330,11 @@ int bam_count_usage()
 
 int bam2fq_usage()
 {
-    fprintf(stderr, "* Convert BAM into fastq.\n");
-    fprintf(stderr, "bam2fq in.bam\n");
+    fprintf(stderr, "# Convert BAM into fastq.\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m bam2fq -tags CB,UB,GN -o out.fq aln.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -i        [TAGS]     Export tags in read name.\n");        
-    fprintf(stderr, " -f                   Filter this record if `-i` specified tags not existed.\n");
+    fprintf(stderr, " -tags     [TAGS]     Export tags in read name.\n");        
+    fprintf(stderr, " -f                   Filter this record if `-tags` specified tags not existed.\n");
     fprintf(stderr, " -fa                  Output fasta instead of fastq.\n");
     fprintf(stderr, " -o        [fastq]    Output file.\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");
@@ -365,7 +365,7 @@ int bam_impute_usage()
 
 int gene_fusion_usage()
 {
-    fprintf(stderr, "gene_fusion ** experiment **\n");
+    fprintf(stderr, "# gene_fusion ** experiment **\n");
     fprintf(stderr, " -gn    Gene tag name in the bam. [GN]\n");
     fprintf(stderr, " -cb    Cell barcode tag name in the bam. [CB]\n");
     fprintf(stderr, " -umi   UMI barcode tag name in the bam. [UB]\n");
@@ -380,3 +380,23 @@ int gene_fusion_usage()
     return 1;
 }
 
+int depth_usage()
+{
+    fprintf(stderr, "# Count coverage depth or unique UMIs for genome locations.\n");
+    fprintf(stderr, "Usage :\n");
+    fprintf(stderr, "\x1b[1mPISA\x1b[0m depth [options] in.bam [region]\n\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth -cb CB -umi UB -tags GN -region in.bed -o depth.tsv sorted.bam\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth -cb CB -umi UB sorted.bam chr1:1-2:+\n");
+    fprintf(stderr, "\nOptions : \n");
+    fprintf(stderr, " -cb       [TAG]      Cell Barcode, or other tag used for grouping reads.\n");
+    fprintf(stderr, " -list     [file]     Cell barcode white list.\n");
+    fprintf(stderr, " -umi      [TAG]      UMI tag. If set, only count unique UMIs for each location.\n");
+    fprintf(stderr, " -bed      [BED]      Target BED region file. If the strand in column six set, only count reads with the same strand.\n");
+    fprintf(stderr, " -tags     [TAG]      Only count reads with the defined tags.\n");
+    fprintf(stderr, " -o        [file]     Output depth file. [stdout].\n");
+    fprintf(stderr, " -q        [INT]      Minimal map quality to filter. [20]\n");
+    fprintf(stderr, " -@        [INT]      Threads to unpack bam. [4]\n");
+    fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
+    fprintf(stderr, " * Compare with `samtools depth`, PISA depth considers UMIs and strand of reads.\n");
+    return 1;
+}

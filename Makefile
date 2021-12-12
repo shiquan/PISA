@@ -81,6 +81,7 @@ AOBJ = src/bam_anno.o \
 	src/bam_extract_tags.o \
 	src/bam_rmdup.o\
 	src/gene_fusion.o \
+	src/bam_depth.o \
 	src/usage.o
 
 liba.a: $(LIB_OBJ)
@@ -96,6 +97,7 @@ debug: $(HTSLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h
 	$(CC) $(DEBUGFLAGS) $(INCLUDES) -o PISA src/main.c $(AOBJ) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
 
 src/sim_search.o: src/sim_search.c
+src/bam_depth.o: src/bam_depth.c
 src/bam2fq.o: src/bam2fq.c
 src/bam_anno.o: src/bam_anno.c
 src/bam_count.o: src/bam_count.c pisa_version.h

@@ -51,7 +51,7 @@ static int parse_args(int argc, char **argv)
         const char *a = argv[i++];
         const char **var = 0;
         if ( strcmp(a, "-h") == 0 || strcmp(a, "-help") == 0) return 1;
-        else if (strcmp(a, "-filter") == 0) {
+        else if (strcmp(a, "-f") == 0) {
             args.filter = 1;
             continue;
         }
@@ -61,7 +61,7 @@ static int parse_args(int argc, char **argv)
         }
         else if (strcmp(a, "-@") == 0) var = &file_th;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
-        else if (strcmp(a, "-tag") == 0) var = &tags;
+        else if (strcmp(a, "-tags") == 0) var = &tags;
         
         if (var != 0) {
             if (argc == i) error("Miss an argument after %s.",a);
