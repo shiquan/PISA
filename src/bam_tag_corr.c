@@ -287,6 +287,11 @@ void build_index1(struct bc_corr *bc)
         filter_umi_gene(bc);
 }
 
+void build_index2(struct dict *cell_bc, int i, int n)
+{
+    struct bc_corr *bc0 = dict_query_value(cell_bc, i);
+    build_index1(bc0);      
+}
 kh_bc_t *select_umi_hash(struct dict *Cindex, int n, const char **tags)
 {
     int cell_idx = dict_query(Cindex, tags[0]);
@@ -364,6 +369,8 @@ void bc_push(struct dict *bc, int cr_method, int n_tag, const char **tags, const
     }
 }
 
+extern void kt_for(int n_threads, void (*func)(void*,long,int), void *data, long n);
+
 struct dict *build_index(const char *fn, int cr_method, int n_tag, const char **tags, const char *umi_tag)
 {
     LOG_print("Building index ..");
@@ -398,12 +405,15 @@ struct dict *build_index(const char *fn, int cr_method, int n_tag, const char **
     sam_close(fp);
 
     //struct tpool *tp = tpool_init(args.n_thread, args.n_thread*2, 1);
+    kt_for(args.n_thread, build_index2, cell_bc, i);
 
+    /*
     for (i = 0; i < dict_size(cell_bc); ++i) {
         struct bc_corr *bc0 = dict_query_value(cell_bc, i);
         build_index1(bc0);
         //tpool_add_work(tp, build_index1, bc0);
     }
+    */
     //tpool_destroy(tp);
     LOG_print("Build time : %.3f sec", realtime() - t_real);
     return cell_bc;
