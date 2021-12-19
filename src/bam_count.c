@@ -528,6 +528,7 @@ static void write_outs()
         free(feature_str.s);
         if (unspliced_str.m) free(unspliced_str.s);
         bgzf_close(mex_fp);
+        if (unspliced_fp) bgzf_close(unspliced_fp);
     }
     
     // header
