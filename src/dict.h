@@ -31,5 +31,5 @@ void dict_set_value(struct dict *D);
 void *dict_query_value(struct dict *D, int idx);
 void *dict_query_value2(struct dict *D, const char *key);
 int dict_assign_value(struct dict *D, int idx, void *val);
-
+int dict_delete_value(struct dict *D, int idx);
 #endif
