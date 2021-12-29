@@ -12,6 +12,7 @@
 
 // TN5 offsett
 // reads aligning to the + strand were offset by +4 bps, and reads aligning to the – strand were offset −5 bps
+// ref: Adey, A. et al. Rapid, low-input, low-bias construction of shotgun fragment libraries by high-density in vitro transposition. Genome Biol. 11, R119 (2010).
 #define TN5_PLUS_OFFSET   4
 #define TN5_MINUS_OFFSET -5
 
@@ -98,7 +99,7 @@ static int parse_args(int argc, char **argv)
     if (args.input_fname == NULL ) error("No input fastq specified.");
     if (args.output_fname == NULL) error("No fragment file set.");
     if (args.tag == NULL) {
-        warnings("-tag is not set. Trying to use \"CB\" tag for cell barcode.");
+        warnings("-cb is not set. Trying to use \"CB\" tag for cell barcode.");
         args.tag = "CB";
     }
     if (strlen(args.tag) != 2) error("Bad format of tag, %s", args.tag);
@@ -217,7 +218,7 @@ void fragment_flush_cache(struct dict *d, BGZF *out, bam_hdr_t *hdr)
     }
     
     qsort(a, sizes, sizeof(struct frag*), cmpfunc);
-
+    
     // write to disk
     kstring_t str = {0,0,0};
     for (i = 0; i < sizes; ++i) {
@@ -231,7 +232,7 @@ void fragment_flush_cache(struct dict *d, BGZF *out, bam_hdr_t *hdr)
         if (bgzf_write(out, str.s, str.l) < 0) error("Failed to write file.");
     }
     free(str.s);
-
+    free(a);
     // release cached
     for (i = 0; i < dict_size(d); ++i) {
         struct frag_pool *p = dict_query_value(d, i);
@@ -247,6 +248,7 @@ void fragment_flush_cache(struct dict *d, BGZF *out, bam_hdr_t *hdr)
         p->head = p->tail = NULL;
         assert(p->n == 0);
         region_index_destroy(p->idx);
+        dict_delete_value(d, i);
     }
     
 }
@@ -300,57 +302,31 @@ void fragment_pool_push0(struct frag_pool *p, int start, int end, int tid, int i
     p->n++;
     p->cut_sites++;
 }
-// 1 on failure, 0 on success
-static int fragment_pool_push(struct dict *cells, bam1_t *b, const char *CB, int wl)
-{
-    uint8_t *val = bam_aux_get(b, CB);
-    if (!val) return 1;
-    
-    int ret = dict_query(cells, (char*)(val+1));
-    if (wl == 1 && ret == -1) return 1;
-    if (ret == -1) ret = dict_push(cells, (char*)(val+1));
 
-        // Tn5 offset
-    int start, end;
-    if (b->core.isize > 0) {
-        start = b->core.pos;
-        end = start + b->core.isize+1;
-        start += args.forward_offset;
-        end -= args.forward_offset;
-    }
-    else {
-        end = bam_endpos(b);
-        start = end + b->core.isize -1;
-        end += args.reverse_offset;
-        start -=  args.reverse_offset;
-    }
-
-    if (start < 0) start = 0;
-
-    if (start >= end) return 1;
-    
-    struct frag_pool *p = dict_query_value(cells, ret);
-    if (p == 0) {
-        p = fragment_pool_create();
-        dict_assign_value(cells, ret, p);
-    }
-    fragment_pool_push0(p, start, end, b->core.tid, ret);
-
-    return 0;
-}
 static void get_interval(bam1_t *b, int *start, int *end)
 {
     if (b->core.isize > 0) {
         *start  = b->core.pos;
         *end    = *start + b->core.isize;
-        *start += args.forward_offset;
-        *end   += args.reverse_offset;
+        if (b->core.flag & BAM_FREVERSE) {
+            *start += args.reverse_offset;
+            *end += args.forward_offset;
+        } else {
+            *start += args.forward_offset;
+            *end += args.reverse_offset;
+        }
     }
     else {
         *end     = bam_endpos(b);
         *start   = *end + b->core.isize;
-        *start  += args.forward_offset;
-        *end    += args.reverse_offset;
+        if (b->core.flag & BAM_FREVERSE) {
+            *start += args.forward_offset;
+            *end += args.reverse_offset;
+        } else {
+            *start += args.reverse_offset;
+            *end += args.forward_offset;
+        }
+
     }
     if (*start < 0) *start = 0;
 }
@@ -361,13 +337,32 @@ static int filter_bam(bam1_t *b, bam_hdr_t *hdr, struct bed_spec *bbed)
     if (b->core.tid < 0) return 1;
     if (b->core.flag & BAM_FREAD2) return 1;
 
+    uint8_t *val = bam_aux_get(b, args.tag);
+    if (!val) return 1;
+    
+    int ret = dict_query(args.cells, (char*)(val+1));
+    if (args.barcode_list && ret == -1) return 1;
+    if (ret == -1) ret = dict_push(args.cells, (char*)(val+1));
+    
     // Tn5 offset
     int start, end;
     get_interval(b, &start, &end);
-    if (end <= 0) return 1;
+    if (start < 0) start = 0;
+    // if (end <= 0) return 1;
+    if (start >= end) return 1;
 
+    if (end - start > args.isize) return 1;
+    
     if (bbed && bed_check_overlap(bbed, hdr->target_name[b->core.tid], start, end, BED_STRAND_IGN))
         return 1;
+
+    struct frag_pool *p = dict_query_value(args.cells, ret);
+    if (p == 0) {
+        p = fragment_pool_create();
+        dict_assign_value(args.cells, ret, p);
+    }
+    fragment_pool_push0(p, start, end, b->core.tid, ret);
+
     return 0;
 }
 
@@ -377,18 +372,6 @@ int read_bam(htsFile *fp, bam_hdr_t *hdr, bam1_t *b, struct bam_region_itr *bri)
     return sam_read1(fp, hdr, b);
 }
 
-// return last_id
-static int process_bam(htsFile *fp, bam_hdr_t *h, bam1_t *b, int last_id, BGZF *fp_out)
-{
-    // output buffered Records
-    if (last_id != b->core.tid) {
-        //fragment_flush_cache(args.cells, fp_out, h);
-        last_id = b->core.tid;
-    }
-    if (last_id == -1) last_id = b->core.tid;
-    fragment_pool_push(args.cells, b, args.tag, args.barcode_list ? 1 : 0);
-    return last_id;
-}
 static void memory_release()
 {
     if (args.target) bri_destroy(args.target);
@@ -408,9 +391,19 @@ int bam2frag(int argc, char **argv)
     bam1_t *b = bam_init1();
     int last_id = -1;
     int ret;
+    int last_pos = -1;
     while ((ret = read_bam(args.fp, args.hdr, b, args.target)) >=0) {
+
+        if (last_id != b->core.tid) {
+            fragment_flush_cache(args.cells, args.fp_out, args.hdr);
+            last_id = b->core.tid;
+            last_pos = b->core.pos;
+        }
+        
+        if (last_pos > b->core.pos) error("Input bam not sorted?");
+    
         if (filter_bam(b, args.hdr, args.black_region)) continue;
-        last_id = process_bam(args.fp, args.hdr, b, last_id, args.fp_out);
+        // todo?
     }
     
     fragment_flush_cache(args.cells, args.fp_out, args.hdr);
