@@ -56,6 +56,15 @@ int dict_assign_value(struct dict *D, int idx, void *val)
     return 0;
 }
 
+int dict_delete_value(struct dict *D, int idx)
+{
+    if (idx < 0 || idx > D->n) return 1;
+    void *p = D->value[idx];
+    D->value[idx] = NULL;
+    free(p);
+    return 0;
+}
+    
 char *dict_name(const struct dict *D, int idx)
 {
     assert(idx >= 0 && idx < D->n);
