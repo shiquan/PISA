@@ -82,7 +82,8 @@ AOBJ = src/bam_anno.o \
 	src/bam_rmdup.o\
 	src/gene_fusion.o \
 	src/bam_depth.o \
-	src/usage.o
+	src/usage.o \
+	src/addtag.o
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@
@@ -131,6 +132,7 @@ src/gene_fusion.o:src/gene_fusion.c
 src/bam_files.o:src/bam_files.c
 src/biostring.o:src/biostring.c
 src/kthread.o:src/kthread.c
+src/addtag.o:src/addtag.c
 
 clean: testclean
 	-rm -f gmon.out *.o *~ $(PROG) pisa_version.h 

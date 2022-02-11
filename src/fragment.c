@@ -305,6 +305,7 @@ void fragment_pool_push0(struct frag_pool *p, int start, int end, int tid, int i
 
 static void get_interval(bam1_t *b, int *start, int *end)
 {
+    
     if (b->core.isize > 0) {
         *start  = b->core.pos;
         *end    = *start + b->core.isize;
@@ -316,7 +317,7 @@ static void get_interval(bam1_t *b, int *start, int *end)
             *end += args.reverse_offset;
         }
     }
-    else {
+    else if (b->core.isize < 0) {
         *end     = bam_endpos(b);
         *start   = *end + b->core.isize;
         if (b->core.flag & BAM_FREVERSE) {
@@ -328,7 +329,13 @@ static void get_interval(bam1_t *b, int *start, int *end)
         }
 
     }
+    else { // single end, not adjust offset
+        *start   = b->core.pos;
+        *end     = bam_endpos(b);
+    }
     if (*start < 0) *start = 0;
+
+    //LOG_print("%s\t%d\t%d", (char*)b->data, *start, *end);
 }
 extern int fragment_usage();
 static int filter_bam(bam1_t *b, bam_hdr_t *hdr, struct bed_spec *bbed)

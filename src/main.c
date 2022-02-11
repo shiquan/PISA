@@ -26,6 +26,7 @@ int usage()
     fprintf(stderr, "    bam2frag   Generate fragment file.\n");
     fprintf(stderr, "    depth      Coverage depth/UMI for target regions.\n");
     fprintf(stderr, "    fusion     Predict gene fusion based on UMIs. **experiment**\n");
+    fprintf(stderr, "    addtags    Add tag string to the reads.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Use `\x1b[1mPISA\x1b[0m command -h` for help information.\n");
     fprintf(stderr, "\n");
@@ -53,6 +54,7 @@ int main(int argc, char *argv[])
     extern int gene_fusion(int argc, char **argv);
     extern int depth_main(int argc, char **argv);
 
+    extern int add_tags(int argc, char **argv);
     if (argc == 1) return usage();
     else if (strcmp(argv[1], "parse") == 0) return fastq_prase_barcodes(argc-1, argv+1);
     //else if (strcmp(argv[1], "trim") == 0) return fastq_trim_adaptors(argc-1, argv+1);
@@ -76,6 +78,7 @@ int main(int argc, char *argv[])
     //else if (strcmp(argv[1], "overlap") == 0) return fastq_overlap(argc-1, argv+1);
     // else if (strcmp(argv[1], "impute") == 0) return LFR_impute(argc-1, argv+1);
     else if (strcmp(argv[1], "depth") == 0) return depth_main(argc-1, argv+1);
+    else if (strcmp(argv[1], "addtags") == 0) return add_tags(argc-1, argv+1);
     else return usage();
     return 0;
 }

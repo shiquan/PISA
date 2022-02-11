@@ -1,6 +1,5 @@
 #include <stdio.h>
 
-
 int fragment_usage()
 {
     fprintf(stderr, "# Convert sam record to fragment file.\n");
@@ -16,7 +15,7 @@ int fragment_usage()
     fprintf(stderr, " -black-region [BED] Skip convert fragments overlapped with black regions.\n");
     fprintf(stderr, " -stat    [FILE]    Transposition events per cell.\n");   
     fprintf(stderr, " -@       [4]       Thread to unpack and pack files.[4]\n");
-    fprintf(stderr, " -disable-tn5       Disable Tn5 offset for each fragment.\n");
+    fprintf(stderr, " -disable-offset    Disable Tn5 offset for each fragment.\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -133,6 +132,7 @@ int sam2bam_usage()
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m sam2bam -report alignment.csv -@ 5 -adjust-mapq -gtf genes.gtf -o aln.bam in.sam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -o       [BAM]       Output file [stdout].\n");
+    fprintf(stderr, " -t       [INT]       Work threads.\n");
     fprintf(stderr, " -mito    [string]    Mitochondria name. Used to stat ratio of mitochondria reads.\n");
     fprintf(stderr, " -maln    [BAM]       Export mitochondria reads into this file instead of standard output file.\n");
     fprintf(stderr, " -@       [INT]       Threads to compress bam file.\n");
