@@ -32,7 +32,7 @@ static int usage()
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m addtags -str CB:Z:CELL1,LB:Z:PoII2 -o out.bam in.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m addtags -str CB:Z:CELL1,LB:Z:PoII2 -o out.fastq in.fastq\n");
     fprintf(stderr, "\nOptions:\n");
-    fprintf(stderr, "-o    [FILE]    Output file, bam of fastq, depends on input format\n");
+    fprintf(stderr, "-o    [FILE]    Output file, bam or fastq, depends on input format\n");
     fprintf(stderr, "-str  [string]  TAGs.\n");
     fprintf(stderr, "-@    [INT]     Threads to pack file.\n");
     fprintf(stderr, "-mapq [INT]     Mapping quality score to filter mapped reads.\n");
