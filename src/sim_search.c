@@ -321,15 +321,30 @@ int levnshn_dist_calc(uint64_t a, uint64_t b)
     return dist;
 }
 
-static int use_levenshtein_distance = 0;
+// static int use_levenshtein_distance = 0;
 
-void set_levenshtein()
+// 1 for hamming distance
+// 2 for levenshtein distance
+// 3 for mixed 
+static int dist_strategy = 1;
+
+void set_method(int i)
 {
-    use_levenshtein_distance = 1;    
+    dist_strategy = i;
 }
 void set_hamming()
 {
-    use_levenshtein_distance = 0;
+    set_method(1);
+    //use_levenshtein_distance = 0;
+}
+void set_levenshtein()
+{
+    set_method(2);
+    //use_levenshtein_distance = 1;    
+}
+void set_mix()
+{
+    set_method(3);
 }
 char *ss_query(ss_t *S, char *seq, int e, int *exact)
 {
@@ -339,7 +354,7 @@ char *ss_query(ss_t *S, char *seq, int e, int *exact)
     uint64_t q = enc64(seq);
     khint_t k = kh_get(ss64, S->d0, q);
     
-    if (k != kh_end(S->d0)) return decode64(q);
+    if (k != kh_end(S->d0)) return decode64(q); // exactly match
 
     *exact = 0;
     int i;
@@ -372,10 +387,32 @@ char *ss_query(ss_t *S, char *seq, int e, int *exact)
     
     int hit = -1;
     for (i = 0; i < set->n; ++i) {
-        int dist = use_levenshtein_distance == 1 ?  levnshn_dist_calc(S->cs[set->ele[i].ele], q) : hamming_dist_calc(S->cs[set->ele[i].ele], q);
+        int dist = 0;
+        if (dist_strategy == 1) {
+            dist = hamming_dist_calc(S->cs[set->ele[i].ele], q);
+        } else if (dist_strategy == 2) {
+            dist = levnshn_dist_calc(S->cs[set->ele[i].ele], q);
+        } else if (dist_strategy == 3) {
+            dist = hamming_dist_calc(S->cs[set->ele[i].ele], q);
+        } else {
+            error("Unknown dist strategy.");
+        }
+
         if (dist <= e) {
             if (hit != -1) goto multi_hits;
             hit = set->ele[i].ele;
+        }
+    }
+    // mix strategy, if hamming dist not work, use levenshtein instead. Wang Zhifeng report there are ~5% reads offset
+    // 1 position in ad153 library, 20220223
+    if (hit == -1 && dist_strategy == 2) {
+        for (i = 0; i < set->n; ++i) {
+            int dist;
+            dist = levnshn_dist_calc(S->cs[set->ele[i].ele], q);
+            if (dist <= e) {
+                if (hit != -1) goto multi_hits;
+                hit = set->ele[i].ele;
+            }
         }
     }
     

@@ -38,6 +38,9 @@ int fastq_parse_usage()
     fprintf(stderr, " -dropN             Drop reads if N base in sequence or barcode.\n");
     fprintf(stderr, " -report  [csv]     Summary report.\n");
     fprintf(stderr, " -t       [INT]     Threads. [4]\n");
+    fprintf(stderr, " -strategy 1|2|3    Distance scoring method. 1 for hamming distance, 2 for levenshtein, 3 for mix.\n");
+    fprintf(stderr, "                    If set 3, hamming dist will applied first, if no hit, try levenshtein then.\n");
+    
     //fprintf(stderr, " -x                 Preset read structure. Use one of codes predefined below.\n");
     //fprintf(stderr, "        - C4v1      MGI DNBelab C4 RNA v1/v2 kit\n");
     //fprintf(stderr, "        - 10Xv3     10X Genomics 3' v3 kit. Use barcode whitelist from \"3M-febrary-2018.txt.gz\"\n");

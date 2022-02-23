@@ -1023,6 +1023,8 @@ static int parse_args(int argc, char **argv)
     const char *thread = NULL;
     const char *chunk_size = NULL;    
     const char *qual_thres = NULL;
+    const char *strategy = NULL;
+    
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -1037,7 +1039,8 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-run") == 0) var = &args.run_code;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
         else if (strcmp(a, "-dis") == 0) var = &args.dis_fname;
-        else if (strcmp(a, "-q") == 0) var = &qual_thres;       
+        else if (strcmp(a, "-q") == 0) var = &qual_thres;
+        else if (strcmp(a, "-strategy") == 0) var = &strategy;
         else if (strcmp(a, "-f") == 0) {
             args.bgiseq_filter = 1;
             continue;
@@ -1079,6 +1082,14 @@ static int parse_args(int argc, char **argv)
         LOG_print("Average quality below %d will be drop.", args.qual_thres);
     }
 
+    if (strategy) {
+        int idx = str2int(strategy);
+        if (idx == 1) set_hamming();
+        else if (idx == 2) set_levenshtein();
+        else if (idx == 3) set_mix();
+        else error("Unknown strategy, %d", idx);
+    }
+    
     if (args.r1_fname == NULL && (!isatty(fileno(stdin)))) args.r1_fname = "-";
     if (args.r1_fname == NULL) error("Fastq file(s) must be set.");
         
