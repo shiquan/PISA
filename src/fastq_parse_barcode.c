@@ -537,7 +537,6 @@ char *check_whitelist(char *s, const struct bcode_reg *r, int *exact_match)
     if (r->n_wl == 0) return 0;
     int len = strlen(s);
     if (len != r->len) error("Trying to check inconsistance length sequence.");
-    set_hamming();
     return ss_query(r->wl, s, r->dist, exact_match);
 }
 static void update_rname(struct bseq *b, const char *tag, char *s){
@@ -1023,7 +1022,7 @@ static int parse_args(int argc, char **argv)
     const char *thread = NULL;
     const char *chunk_size = NULL;    
     const char *qual_thres = NULL;
-    const char *strategy = NULL;
+    const char *dist_method = NULL;
     
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
@@ -1040,7 +1039,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
         else if (strcmp(a, "-dis") == 0) var = &args.dis_fname;
         else if (strcmp(a, "-q") == 0) var = &qual_thres;
-        else if (strcmp(a, "-strategy") == 0) var = &strategy;
+        else if (strcmp(a, "-dist") == 0) var = &dist_method;
         else if (strcmp(a, "-f") == 0) {
             args.bgiseq_filter = 1;
             continue;
@@ -1082,12 +1081,12 @@ static int parse_args(int argc, char **argv)
         LOG_print("Average quality below %d will be drop.", args.qual_thres);
     }
 
-    if (strategy) {
-        int idx = str2int(strategy);
+    if (dist_method) {
+        int idx = str2int(dist_method);
         if (idx == 1) set_hamming();
         else if (idx == 2) set_levenshtein();
         else if (idx == 3) set_mix();
-        else error("Unknown strategy, %d", idx);
+        else error("Unknown method, %d", idx);
     }
     
     if (args.r1_fname == NULL && (!isatty(fileno(stdin)))) args.r1_fname = "-";

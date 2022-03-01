@@ -326,11 +326,11 @@ int levnshn_dist_calc(uint64_t a, uint64_t b)
 // 1 for hamming distance
 // 2 for levenshtein distance
 // 3 for mixed 
-static int dist_strategy = 1;
+static int dist_method = 1;
 
 void set_method(int i)
 {
-    dist_strategy = i;
+    dist_method = i;
 }
 void set_hamming()
 {
@@ -388,14 +388,14 @@ char *ss_query(ss_t *S, char *seq, int e, int *exact)
     int hit = -1;
     for (i = 0; i < set->n; ++i) {
         int dist = 0;
-        if (dist_strategy == 1) {
+        if (dist_method == 1) {
             dist = hamming_dist_calc(S->cs[set->ele[i].ele], q);
-        } else if (dist_strategy == 2) {
+        } else if (dist_method == 2) {
             dist = levnshn_dist_calc(S->cs[set->ele[i].ele], q);
-        } else if (dist_strategy == 3) {
+        } else if (dist_method == 3) {
             dist = hamming_dist_calc(S->cs[set->ele[i].ele], q);
         } else {
-            error("Unknown dist strategy.");
+            error("Unknown dist method.");
         }
 
         if (dist <= e) {
@@ -403,9 +403,9 @@ char *ss_query(ss_t *S, char *seq, int e, int *exact)
             hit = set->ele[i].ele;
         }
     }
-    // mix strategy, if hamming dist not work, use levenshtein instead. Wang Zhifeng report there are ~5% reads offset
+    // mix method, if hamming dist not work, use levenshtein instead. Wang Zhifeng report there are ~5% reads offset
     // 1 position in ad153 library, 20220223
-    if (hit == -1 && dist_strategy == 2) {
+    if (hit == -1 && dist_method == 3) {
         for (i = 0; i < set->n; ++i) {
             int dist;
             dist = levnshn_dist_calc(S->cs[set->ele[i].ele], q);
@@ -430,11 +430,14 @@ char *ss_query(ss_t *S, char *seq, int e, int *exact)
 int main()
 {
     ss_t *S = ss_init();    
-    ss_push(S,"CTTCGATGGT");
-    ss_push(S,"ACTTCTATGC");
+    ss_push(S,"CGATCGTCAG");
+    // ss_push(S,"ACTTCTATGC");
+
+    set_levenshtein();
     int exact;
-    char *s1 = ss_query(S, "CTTCTATGGT", 1, &exact);
-    char *s2 = ss_query(S, "ACTTCTATGA", 2, &exact);
+    char *s1 = ss_query(S, "GATCGTCAGC", 1, &exact);
+    char *s2 = ss_query(S, "GATCGTCAGC", 2, &exact);
+
     fprintf(stderr, "%s\t%s\n", s1, s2);
     return 0;
 }

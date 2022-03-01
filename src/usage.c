@@ -38,7 +38,7 @@ int fastq_parse_usage()
     fprintf(stderr, " -dropN             Drop reads if N base in sequence or barcode.\n");
     fprintf(stderr, " -report  [csv]     Summary report.\n");
     fprintf(stderr, " -t       [INT]     Threads. [4]\n");
-    fprintf(stderr, " -strategy 1|2|3    Distance scoring method. 1 for hamming distance, 2 for levenshtein, 3 for mix.\n");
+    fprintf(stderr, " -dist    1|2|3     Distance scoring method. 1 for hamming distance, 2 for levenshtein, 3 for mix.\n");
     fprintf(stderr, "                    If set 3, hamming dist will applied first, if no hit, try levenshtein then.\n");
     
     //fprintf(stderr, " -x                 Preset read structure. Use one of codes predefined below.\n");
