@@ -12,7 +12,7 @@ int usage()
     fprintf(stderr, "\n--- Processing FASTQ\n");
     fprintf(stderr, "    parse      Parse barcodes from fastq reads.\n");
     fprintf(stderr, "    fsort      Sort fastq records by barcodes. **experiment**\n");
-    
+    fprintf(stderr, "    addtags    Add tag string to fastq reads.\n");
     fprintf(stderr, "\n--- Processing BAM\n");
     fprintf(stderr, "    sam2bam    Parse FASTQ+ read name and convert SAM to BAM.\n");
     fprintf(stderr, "    rmdup      Remove PCR duplicates per molecular.\n");
@@ -21,12 +21,14 @@ int usage()
     fprintf(stderr, "    corr       Correct error prone UMIs. 1 mismatch considered.\n");
     fprintf(stderr, "    attrcnt    Count raw reads and tag values per cell.\n");
     fprintf(stderr, "    extract    Extract tag value from BAM.\n");
-    fprintf(stderr, "    count      Count matrix.\n");
+    fprintf(stderr, "    count      Count feature X cell matrix from BAMs.\n");
     fprintf(stderr, "    bam2fq     Convert BAM to FASTQ+ file with selected tags.\n");
     fprintf(stderr, "    bam2frag   Generate fragment file.\n");
     fprintf(stderr, "    depth      Coverage depth/UMI for target regions.\n");
     fprintf(stderr, "    fusion     Predict gene fusion based on UMIs. **experiment**\n");
-    fprintf(stderr, "    addtags    Add tag string to the reads.\n");
+    fprintf(stderr, "    addtags    Add tag string to BAM alignments.\n");
+    fprintf(stderr, "\n--- Processing fragment file.\n");
+    fprintf(stderr, "    count2     Count peak X cell matrix from fragment file.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Use `\x1b[1mPISA\x1b[0m command -h` for help information.\n");
     fprintf(stderr, "\n");
@@ -53,6 +55,7 @@ int main(int argc, char *argv[])
     extern int bam2frag(int argc, char **argv);
     extern int gene_fusion(int argc, char **argv);
     extern int depth_main(int argc, char **argv);
+    extern int fragment_count(int argc, char **argv);
 
     extern int add_tags(int argc, char **argv);
     if (argc == 1) return usage();
@@ -70,6 +73,7 @@ int main(int argc, char *argv[])
     // else if (strcmp(argv[1], "genecov") == 0) return gene_cov(argc-1, argv+1);
     else if (strcmp(argv[1], "bam2frag") == 0) return bam2frag(argc-1, argv+1);
     else if (strcmp(argv[1], "count") == 0) return count_matrix(argc-1, argv+1);
+    else if (strcmp(argv[1], "count2") == 0) return fragment_count(argc-1, argv+1);
     else if (strcmp(argv[1], "fusion") == 0) return gene_fusion(argc-1, argv+1);
     // else if (strcmp(argv[1], "assem") == 0)  return fastq_assem(argc-1, argv+1);
     // else if (strcmp(argv[1], "segment") == 0) return fastq_segment(argc-1, argv+1);

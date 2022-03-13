@@ -28,7 +28,11 @@ struct bed_spec {
     struct dict *name;    
 
     struct bed_idx *idx;
-    struct _ctg_idx *ctg;
+    struct _ctg_idx {
+        int offset;
+        int idx;
+    } *ctg;
+    // struct _ctg_idx *ctg;
     int n,m;
     struct bed *bed;
 };

@@ -1,5 +1,19 @@
 #include <stdio.h>
 
+int frag_count_usage()
+{
+    fprintf(stderr, "# Count fragments per peak per cell matrix.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count2 -bed peaks.bed -t 10 -list barcodes.txt -outdir exp fragments.tsv.gz\n");
+    fprintf(stderr, "\nOptions :\n");
+    fprintf(stderr, " -list     [FILE]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
+    fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this fold.\n");
+    fprintf(stderr, " -prefix   [STR]      Prefix of output files.\n");
+    fprintf(stderr, " -t        [INT]      Threads.\n");
+    fprintf(stderr, "\n");
+
+    return 1;
+}
 int fragment_usage()
 {
     fprintf(stderr, "# Convert sam record to fragment file.\n");

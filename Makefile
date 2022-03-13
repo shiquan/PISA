@@ -18,8 +18,8 @@ include $(ZLIBDIR)/zlib.mk
 LIBZ = $(ZLIBDIR)/libz.a
 
 CC       = gcc
-CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64
-DEBUGFLAGS = -fsanitize=address -fno-omit-frame-pointer -O0 -g
+CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64 -fopenmp
+DEBUGFLAGS = -fsanitize=address -fno-omit-frame-pointer -O0 -g -fopenmp
 DFLAGS   =
 INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I$(ZLIBDIR)
 LIBS = -lbz2 -llzma -pthread -lm -lcurl 
@@ -83,7 +83,8 @@ AOBJ = src/bam_anno.o \
 	src/gene_fusion.o \
 	src/bam_depth.o \
 	src/usage.o \
-	src/addtags.o
+	src/addtags.o \
+	src/fragment_count.o
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@
@@ -133,6 +134,7 @@ src/bam_files.o:src/bam_files.c
 src/biostring.o:src/biostring.c
 src/kthread.o:src/kthread.c
 src/addtags.o:src/addtags.c
+src/fragment.o:src/fragment_count.c
 
 clean: testclean
 	-rm -f gmon.out *.o *~ $(PROG) pisa_version.h 
