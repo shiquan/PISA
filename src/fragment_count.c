@@ -103,10 +103,11 @@ struct ret *query_count_write(struct bed_spec *B, int ci, const char *fn)
     if (out == NULL) error("%s : %s.", fn, strerror(errno));
 
     struct ret *ret = malloc(sizeof(struct ret));
-    //uint32_t counts = 0;
     ret->counts = 0;
     ret->bc = dict_init();
-        
+
+    if (wl == 1) dict_read(cc, args.barcode_list);
+    
     int j;
     j = B->ctg[ci].idx ;
     int i = 0;
@@ -114,12 +115,9 @@ struct ret *query_count_write(struct bed_spec *B, int ci, const char *fn)
     while (1) {
         
         if (i == B->ctg[ci].offset) break;
-        
         const struct bed *b = &B->bed[j++];
         i++;
-        
         char *name = bed_seqname(B, b->seqname);
-        
         int id = tbx_name2id(tbx, name);
         hts_itr_t *itr = tbx_itr_queryi(tbx, id, b->start, b->end);
             
@@ -191,7 +189,7 @@ struct ret *query_count_write(struct bed_spec *B, int ci, const char *fn)
 }
 
 
-struct ret * create_temp(struct bed_spec *B, const char **tmpfiles)
+struct ret *create_temp(struct bed_spec *B, const char **tmpfiles)
 {
     int ci;
     int n = dict_size(B->seqname);
@@ -307,7 +305,6 @@ int fragment_count(int argc, char **argv)
     bgzf_write(fout_bed, str.s, str.l);
     str.l = 0;
     bgzf_close(fout_bed);
-    
     bgzf_mt(fout_mex, args.n_thread, 256);
     
     kputs("%%MatrixMarket matrix coordinate integer general\n", &str);
