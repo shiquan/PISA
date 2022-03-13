@@ -65,12 +65,12 @@ static int parse_args(int argc, char **argv)
     // check index
     tbx_t *tbx = tbx_index_load(args.input_fname);
     if (tbx == NULL) {
-        warnings("Fail to load index file, try to index it ..\n");
+        warnings("Fail to load index file, try to index it ..");
         if (tbx_index_build(args.input_fname, 0, &tbx_conf_bed))
             error("Failed to index.");
+    } else {
+        tbx_destroy(tbx);
     }
-
-    tbx_destroy(tbx);
     if (args.bed_fname == NULL) error("No -bed specified.");
     args.B = bed_read(args.bed_fname);
         
@@ -162,7 +162,7 @@ struct ret *query_count_write(struct bed_spec *B, int ci, const char *fn)
             if (k == dict_size(cc)) break;
             int *v = dict_query_value(cc, k);
             if (v != NULL && *v != 0) {
-                ksprintf(&str,"%d\t%s\t%d\n", j+1 , dict_name(cc,k), *v);
+                ksprintf(&str,"%d\t%s\t%d\n", j , dict_name(cc,k), *v); // j already increased
                 ret->counts += *v;
                 *v = 0;
             }
@@ -203,7 +203,7 @@ struct ret * create_temp(struct bed_spec *B, const char **tmpfiles)
     omp_lock_t writelock;
     omp_init_lock(&writelock);
 
-#pragma omp parallel for private(ci) num_threads(args.n_thread)
+#pragma omp parallel for private(ci) num_threads(args.n_thread) schedule(dynamic)
     for (ci = 0; ci < n; ++ci) {
         struct ret *ret0 = query_count_write(B, ci, tmpfiles[ci]);
         omp_set_lock(&writelock);
@@ -255,11 +255,12 @@ int fragment_count(int argc, char **argv)
             kputs(args.prefix, &bed_str);
             kputs(args.prefix, &mex_str);            
         }
-        kputs("barcode.tsv.gz", &barcode_str);
-        kputs("peaks.bed.gz", &bed_str);
-        kputs("matrix.mtx.gz", &mex_str);
-        kputs("__temp_", &temp_str);
     }
+
+    kputs("barcodes.tsv.gz", &barcode_str);
+    kputs("peaks.bed.gz", &bed_str);
+    kputs("matrix.mtx.gz", &mex_str);
+    kputs("__temp_", &temp_str);
     
     BGZF *fout_mex = bgzf_open(mex_str.s, "w");
     BGZF *fout_bc = bgzf_open(barcode_str.s, "w");
@@ -330,7 +331,7 @@ int fragment_count(int argc, char **argv)
             assert(ncol == 3);
             kputs(temp.s, &str);
             kputc('\t', &str);
-            int id = dict_query(ret->bc,temp.s + s[1]);
+            int id = dict_query(ret->bc,temp.s + s[1])+1;
             kputw(id, &str);
             kputc('\t', &str);
             kputs(temp.s+s[2], &str);
