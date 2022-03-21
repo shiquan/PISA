@@ -10,6 +10,10 @@
 #include "htslib/kseq.h"
 #include "sim_search.h"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 KHASH_MAP_INIT_STR(str, int)
 typedef kh_str_t strhash_t;
 
@@ -1118,25 +1122,6 @@ static int parse_args(int argc, char **argv)
 }
 
 extern int fastq_parse_usage();
-static void *process(void *shared, int step, void *_data)
-{
-    struct args *aux = (struct args *)shared;
-    struct bseq_pool *data = (struct bseq_pool*)_data;
-
-    if (step == 0) {
-        struct bseq_pool *b = fastq_read(aux->fastq, &args);
-        return b;
-    }
-    else if (step == 1) {
-        return run_it(data);        
-    }
-    else if (step == 2) {
-        write_out(data);
-        return 0;
-    }
-    return 0;
-}
-void kt_pipeline(int n_threads, void *(*func)(void*, int, void*), void *shared_data, int n_steps);
 
 int fastq_prase_barcodes(int argc, char **argv)
 {
@@ -1145,22 +1130,22 @@ int fastq_prase_barcodes(int argc, char **argv)
     
     if (parse_args(argc, argv)) return fastq_parse_usage();
 
-    if (args.n_thread == 1) {
-        for (;;) {
-            struct bseq_pool *b = fastq_read(args.fastq, &args);
-            if (b == NULL) break;
-            b = run_it(b);
-            write_out(b);
-        }
+    
+    struct bseq_pool *b;
+
+#pragma omp parallel private(b) num_threads(args.n_thread)
+    for (;;) {
+        
+#pragma omp critical (read)
+        b = fastq_read(args.fastq, &args);
+        if (b == NULL) break;
+        b = run_it(b);
+        
+#pragma omp critical (write)
+        write_out(b);            
     }
-
-    kt_pipeline(args.n_thread, process, &args, 3);
     
-    cell_barcode_count_pair_write();
-
     report_write();
-    
-    // full_details();
     
     memory_release();
 

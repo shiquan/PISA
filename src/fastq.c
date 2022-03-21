@@ -88,7 +88,7 @@ static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_siz
     int size = 0;
     int ret1= -1;
     do {
-        
+
         ret1 = kseq_read(h->k1);
     
         if (ret1 < 0) { // come to the end of file
