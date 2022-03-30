@@ -159,7 +159,8 @@ static int dict_push0(struct dict *D, char const *key, int idx)
     
     D->name[D->n] = strdup(key);
     khint_t k;
-    k = kh_put(name, D->dict, D->name[D->n], &ret);
+    int ret0;
+    k = kh_put(name, D->dict, D->name[D->n], &ret0);
 
     kh_val(D->dict, k).idx = D->n;
     kh_val(D->dict, k).ref = ret;
