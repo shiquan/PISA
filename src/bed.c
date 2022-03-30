@@ -160,7 +160,16 @@ static int parse_str(struct bed_spec *B, kstring_t *str)
     bed->start   = start;
     bed->end     = end;
     bed->name    = -1;
-    if (n >= 4) bed->name = dict_push(B->name, str->s+s[3]);
+
+    if (n >= 4) {
+        char *name = str->s+s[3];
+        if (strlen(name) == 1) {
+            if (name[0] == '.' || name[0] == '*') bed->name = -1;
+            else  bed->name = dict_push(B->name, name);
+        } else {
+            bed->name = dict_push(B->name, name);  
+        } 
+    }
 
     bed->strand = -1; // undefined
     if (n >= 6) {

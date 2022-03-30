@@ -43,7 +43,7 @@ static int usage()
 
 void check_tagstr(const char *tag_str)
 {
-    args.tag_str = malloc(sizeof(kstring_t *));
+    args.tag_str = malloc(sizeof(kstring_t));
     
     args.tag_str->s = NULL;
     args.tag_str->m = args.tag_str->l = 0;
@@ -118,6 +118,7 @@ void generate_fqout()
 
     kstring_t tag_str = {0,0,0};
 
+    // todo: use fname_update_tags() instead
     int i;
     for (i = 0; i < args.n_tag; ++i) {
         char *tag = args.tag_str->s + args.s[i];

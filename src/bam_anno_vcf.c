@@ -107,7 +107,7 @@ int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *
 
         // "," is not compatible with PISA count, change to "-" from v0.10
         //if (bed->name == -1) ksprintf(&temp, "%s,%d,%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->alt->s);
-        if (bed->name == -1) ksprintf(&temp, "%s-%d-%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->alt->s);
+        if (bed->name == -1) ksprintf(&temp, "%s_%d_%s_%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->alt->s);
         else kputs(dict_name(B->name,bed->name), &temp);
         
         if (temp.l)

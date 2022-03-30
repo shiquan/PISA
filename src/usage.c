@@ -60,31 +60,49 @@ int fastq_parse_usage()
     //fprintf(stderr, "        - 10XMulv1  10X Genomics Multiome (ATAC+GEX) v1 kit. Use barcode whitelist from \"737k-arc-v1.txt.gz\"\n");
     //fprintf(stderr, "        - 10XLTv1   10X Genomics 3' low throughput (LT) kit. Use barcode whitelist from \"9K-LT-march-2021.txt.gz\"\n");
     /*
+    */
+    return 1;
+}
+
+int fastq_parse2_usage()
+{
+    fprintf(stderr, "# Parse cell barcode and UMI string from raw FASTQ.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse2 -rule CB,R1:1-10,whitelist.txt,CB,1;R1,R1:11-60;R2,R2 -report fastq.csv \\\n");
+    fprintf(stderr, "           lane1_1.fq.gz,lane02_1.fq.gz  lane1_2.fq.gz,lane2_2.fq.gz\n");
+    fprintf(stderr, "\nOptions :\n");
+    fprintf(stderr, " -1       [fastq]   Read 1 output.\n");
+    fprintf(stderr, " -2       [fastq]   Read 2 output.\n");
+    fprintf(stderr, " -rule    [STRING]  Read structure in line. See \x1b[31m\x1b[1mNotice\x1b[0m.\n");
+    fprintf(stderr, " -p                 Read 1 and read 2 interleaved in the input file.\n");
+    fprintf(stderr, " -q       [INT]     Drop reads if average sequencing quality below this value.\n");
+    fprintf(stderr, " -dropN             Drop reads if N base in sequence or barcode.\n");
+    fprintf(stderr, " -report  [csv]     Summary report.\n");
+    fprintf(stderr, " -t       [INT]     Threads. [4]\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[31m\x1b[1mNotice\x1b[0m :\n");
-    fprintf(stderr, " * \x1b[1mPISA\x1b[0m parse requires -config, -rule, or -x option to specify cell barcode and UMI locations in the raw read files.\n");
-    fprintf(stderr, " * -config accept configure file in JSON format. Full details to generate this file can be found at wiki page.\n");
-    fprintf(stderr, " * -rule accept tag rule STRING to parse input fastq following format \"TAG,location,whitelist,mismatch,TAG_corrected\".\n");
+    //fprintf(stderr, " * \x1b[1mPISA\x1b[0m parse requires -config, -rule, or -x option to specify cell barcode and UMI locations in the raw read files.\n");
+    //fprintf(stderr, " * -config accept configure file in JSON format. Full details to generate this file can be found at wiki page.\n");
+    fprintf(stderr, " * -rule accept tag rule STRING to parse input fastq following format \"TAG,location,whitelist,corrected TAG,allow mismatch\".\n");
     fprintf(stderr, "   For each tag rule, location part should be format like R[12]:start-end. Both start and end location start from 1.\n");
-    fprintf(stderr, "   TAG and locaion parts are mandatory, and whitelist, mismatch, and TAG_corrected are optional.\n");
+    fprintf(stderr, "   TAG and locaion parts are mandatory, and whitelist, corrected TAG and mismatch are optional.\n");
     fprintf(stderr, "   Futhermore, multiply tags seperated by \';\'. In location part, R1 stands for raw read 1, R2 stands for raw read 2.\n");
     fprintf(stderr, "   In tag part, R1 stands for output read 1 while R2 stands for output read 2. Here are some examples.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -rule '\x1b[32mCR,R1:1-18,barcodes.txt,1,CB;\x1b[33mUR,R1:19-30;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -rule '\x1b[32mCR,R1:1-18,barcodes.txt,CB,1;\x1b[33mUR,R1:19-30;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "#\x1b[32m CR,R1:1-18,barcodes.txt,1,CB \x1b[0m - CR tag start from 1 to 18 in read 1, and barcodes.txt are barcode whitelist,\n");
-    fprintf(stderr, "#   each barcode per line. Cell barcode will be corrected if mismatch with whitelist is smaller or equal to 1.\n");
+    fprintf(stderr, "#\x1b[32m CR,R1:1-18,barcodes.txt,CB,1 \x1b[0m - CR tag start from 1 to 18 in read 1, and barcodes.txt are barcode whitelist,\n");
+    fprintf(stderr, "#   each barcode per line. Cell barcode will be corrected while hamming distance <= 1.\n");
     fprintf(stderr, "#   Corrected cell barcode tag is CB. \n");
     fprintf(stderr, "#\x1b[33m UR,R1:19-30\x1b[0m - UR tag start from 19-30 in read 1.\n");
     fprintf(stderr, "#\x1b[34m R1,R2:1-100\x1b[0m - Sequence from 1 to 100 in read 2 output to read 1 file. \n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -rule '\x1b[32mCR,R1:1-10,bc1.txt,1,CB;\x1b[33mCR,R1:11-20,bc2.txt,1,CB;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -rule '\x1b[32mCR,R1:1-10,bc1.txt,CB,1;\x1b[33mCR,R1:11-20,bc2.txt,CB,1;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "#\x1b[32m CR,R1:1-10,bc1.txt,1,CB;\x1b[33mCR,R1:11-20,bc2.txt,1,CB\x1b[0m - This cell barcode consist of two segments, first segment start\n");
+    fprintf(stderr, "#\x1b[32m CR,R1:1-10,bc1.txt,CB,1;\x1b[33mCR,R1:11-20,bc2.txt,CB,1\x1b[0m - This cell barcode consist of two segments, first segment start\n");
     fprintf(stderr, "#   from 1 to 10 in read 1, and whitelist is bc1.txt, and second segment start from 11 to 20, and whitelist is bc2.txt.\n");
     fprintf(stderr, "#   These two segments will be combined after correction, because the corrected tag are the same.\n");
     fprintf(stderr, "\n");
-    */
     return 1;
 }
 int fsort_usage()
@@ -177,6 +195,7 @@ int rmdup_usage()
     fprintf(stderr, "   -q     [INT]        Map Quality Score cutoff.\n");
     // fprintf(stderr, "   -S                  Treat PE reads as SE.\n");
     fprintf(stderr, "   -k                  Keep duplicates, make flag instead of remove them.\n");
+    fprintf(stderr, "   -nw                 Disable warnings.\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m:\n");
     fprintf(stderr, "* Currently only support single-end reads.\n");
     fprintf(stderr, "\n");
@@ -348,7 +367,7 @@ int bam2fq_usage()
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m bam2fq -tags CB,UB,GN -o out.fq aln.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -tags     [TAGS]     Export tags in read name.\n");        
-    fprintf(stderr, " -f                   Filter this record if `-tags` specified tags not existed.\n");
+    fprintf(stderr, " -f                   Filter records if specified tags not all exist.\n");
     fprintf(stderr, " -fa                  Output fasta instead of fastq.\n");
     fprintf(stderr, " -o        [fastq]    Output file.\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");

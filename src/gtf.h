@@ -28,25 +28,6 @@ enum feature_type {
     feature_Selenocysteine,
 };
 
-static const char *feature_type_names[] = {
-    // The following feature types are required: "gene", "transcript"
-    "gene",
-    "transcript",
-    // The features "CDS", "start_codon", "stop_codon", "5UTR", "3UTR", "inter", "inter_CNS", "intron_CNS" and "exon" are optional.
-    "CDS",
-    "start_codon",
-    "stop_codon",
-    "5UTR",
-    "3UTR",
-    "inter",
-    "inter_CNS",
-    "intron_CNS",
-    "exon",
-    "five_prime_utr",
-    "three_prime_utr",
-    "Selenocysteine"
-    // All other features will be ignored. The types must have the correct capitalization shown here.
-};
 struct gtf {
     int seqname;
     int source;

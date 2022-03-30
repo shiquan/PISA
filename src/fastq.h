@@ -17,6 +17,12 @@ struct qc_report {
 #define FQ_BC_FAIL  2
 #define FQ_DUP      3
 
+#define FQ_FLAG_PASS          0
+#define FQ_FLAG_BC_EXACTMATCH 1
+#define FQ_FLAG_BC_FAILURE    2
+#define FQ_FLAG_READ_QUAL     3
+#define FQ_FLAG_SAMPLE_FAIL   4
+
 struct bseq {
     int flag; // flag for skip reasons
     // read 1
@@ -30,6 +36,7 @@ struct bseq {
 struct bseq_pool {
     int n, m;
     struct bseq *s;
+    int force_fasta;
     void *opts; // used to point thread safe structure
 };
 
@@ -44,6 +51,7 @@ struct fastq_handler {
     void *k2;
     int smart_pair;
     int chunk_size;
+    int closed;
 };
 
 #define FH_SE 1
@@ -75,4 +83,19 @@ extern void bseq_pool_push(struct bseq *b, struct bseq_pool *p);
 extern int bseq_pool_dedup(struct bseq_pool *p);
 extern size_t hamming_n(const char *a, const size_t length, const char *b, const size_t bLength);
 extern size_t levenshtein_n(const char *a, const size_t length, const char *b, const size_t bLength);
+
+
+void bseq_pool_write_fp(struct bseq_pool *p, FILE *fp);
+void bseq_pool_write_file(struct bseq_pool *p, const char *fn);
+
+// cache 
+struct bseq_pool *bseq_pool_cache_fastq(FILE *fp, int n);
+struct bseq_pool *bseq_pool_cache_fasta(FILE *fp, int n);
+struct bseq_pool *bseq_pool_cache_fp(FILE *fp, int n);
+struct bseq_pool *bseq_pool_cache_file(const char *fn);
+
+struct bseq *fastq_read_one(struct fastq_handler *fastq);
+
+struct bseq_pool *fastq_read_block(struct fastq_handler *fastq, struct dict *tags);
+
 #endif

@@ -71,12 +71,6 @@ struct fq_data {
     int cr_exact_match;
 };
 
-#define FQ_FLAG_PASS          0
-#define FQ_FLAG_BC_EXACTMATCH 1
-#define FQ_FLAG_BC_FAILURE    2
-#define FQ_FLAG_READ_QUAL     3
-#define FQ_FLAG_SAMPLE_FAIL   4
-
 extern int kstr_copy(kstring_t *a, kstring_t *b);
 
 static struct args {
@@ -114,8 +108,8 @@ static struct args {
 
     // file handler
     // inputs could be gzipped fastq or unzipped
-    gzFile r1_fp;
-    gzFile r2_fp;
+    //gzFile r1_fp;
+    //gzFile r2_fp;
     // All outputs will be unzipped for performance
     FILE *out1_fp;
     FILE *out2_fp;
@@ -167,8 +161,8 @@ static struct args {
     .m_name = 0,
     .cbhash = NULL,
 
-    .r1_fp = NULL,
-    .r2_fp = NULL,
+    //.r1_fp = NULL,
+    //.r2_fp = NULL,
     .out1_fp = NULL,
     .out2_fp = NULL,
     .cbdis_fp = NULL,
@@ -1012,8 +1006,8 @@ void full_details()
 }
 static void memory_release()
 {
-    if (args.r1_fp) gzclose(args.r1_fp);
-    if (args.r2_fp) gzclose(args.r2_fp);
+    //if (args.r1_fp) gzclose(args.r1_fp);
+    //if (args.r2_fp) gzclose(args.r2_fp);
     if (args.out1_fp) fclose(args.out1_fp);
     if (args.out2_fp) fclose(args.out2_fp);
     if (args.barcode_dis_fp) fclose(args.barcode_dis_fp);
@@ -1123,7 +1117,7 @@ static int parse_args(int argc, char **argv)
 
 extern int fastq_parse_usage();
 
-int fastq_prase_barcodes(int argc, char **argv)
+int fastq_parse_barcodes(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
@@ -1150,6 +1144,6 @@ int fastq_prase_barcodes(int argc, char **argv)
     memory_release();
 
     config_destory();
-    LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());    
+    LOG_print("Real time: %.3f sec; CPU: %.3f sec; Peak RSS: %.3f GB.", realtime() - t_real, cputime(), peakrss() / 1024.0 / 1024.0 / 1024.0);
     return 0;
 }

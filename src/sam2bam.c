@@ -749,6 +749,6 @@ int sam2bam(int argc, char **argv)
     
     memory_release();
 
-    LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
+    LOG_print("Real time: %.3f sec; CPU: %.3f sec; Peak RSS: %.3f GB.", realtime() - t_real, cputime(), peakrss() / 1024.0 / 1024.0 / 1024.0);
     return 0;
 }

@@ -3,9 +3,15 @@
 #include "htslib/kseq.h"
 #include <zlib.h>
 
-KHASH_MAP_INIT_STR(name, int)
+typedef struct dict_val {
+    int idx;
+    int ref;
+} dict_val_t;
+
+KHASH_MAP_INIT_STR(name, dict_val_t)
     
 KSTREAM_INIT(gzFile, gzread, 8193);
+
 
 struct dict {
     int n, m;
@@ -64,7 +70,7 @@ int dict_delete_value(struct dict *D, int idx)
     free(p);
     return 0;
 }
-    
+
 char *dict_name(const struct dict *D, int idx)
 {
     assert(idx >= 0 && idx < D->n);
@@ -98,16 +104,35 @@ void dict_destroy(struct dict *D)
     free(D);
 }
 
+
 int dict_query(const struct dict *D, char const *key)
 {
     if (key == NULL) error("Trying to query an empty key.");
     khint_t k;
     k = kh_get(name, D->dict, key);
     if (k == kh_end(D->dict)) return -1;
-    return kh_val(D->dict, k);
+    return kh_val(D->dict, k).idx;
 }
 
-int dict_push0(struct dict *D, char const *key)
+struct dict_val *dict_query0(const struct dict *D, char const *key)
+{
+    if (key == NULL) error("Trying to query an empty key.");
+    khint_t k;
+    k = kh_get(name, D->dict, key);
+    if (k == kh_end(D->dict)) return NULL;
+    return &kh_val(D->dict, k);
+}
+
+int dict_query2(const struct dict *D, char const *key)
+{
+    if (key == NULL) error("Trying to query an empty key.");
+    khint_t k;
+    k = kh_get(name, D->dict, key);
+    if (k == kh_end(D->dict)) return -1;
+    return kh_val(D->dict, k).ref;
+}
+
+static int dict_push0(struct dict *D, char const *key, int idx)
 {
     if (key == NULL) error("Trying to push an empty key.");
     int ret;
@@ -129,11 +154,18 @@ int dict_push0(struct dict *D, char const *key)
             for (j = D->n; j < D->m; ++j) D->value[j] = NULL; // reset  
         }
     }
+
+    ret = idx >= 0 ? idx : D->n;
+    
     D->name[D->n] = strdup(key);
     khint_t k;
     k = kh_put(name, D->dict, D->name[D->n], &ret);
-    kh_val(D->dict, k) = D->n;
-    return -1;
+
+    kh_val(D->dict, k).idx = D->n;
+    kh_val(D->dict, k).ref = ret;
+
+    D->n++;
+    return ret;
 }
 
 int dict_push(struct dict *D, char const *key)
@@ -143,18 +175,30 @@ int dict_push(struct dict *D, char const *key)
         return -1;
     }
     int ret;
-    ret = dict_push0(D, key);
-    if (ret != -1) return ret; // already present
-    D->count[D->n]++;
-    return D->n++;
+    ret = dict_push0(D, key, -1);
+    D->count[ret]++;
+    return ret;
 }
 // push new key without increase count
 int dict_push1(struct dict *D, char const *key)
 {
     int ret;
-    ret = dict_push0(D, key);
-    if (ret != -1) return ret;
-    return D->n++;
+    ret = dict_push0(D, key, -1);
+    return ret;
+}
+
+// point error tolerated key to original key
+int dict_push2(struct dict *D, char const *key, int idx)
+{
+    if (key == NULL) {
+        warnings("Try to push empty key! Skip ..");
+        return -1;
+    }
+    int ret;
+    ret = dict_push0(D, key, idx);
+    if (ret != -1) return ret; // already present
+    D->count[ret]++;
+    return ret;
 }
 
 int dict_read(struct dict *D, const char *fname)
@@ -181,6 +225,8 @@ int dict_read(struct dict *D, const char *fname)
     if (str.m) free(str.s);
     ks_destroy(ks);
     gzclose(fp);
+
+    if (dict_size(D) == 0) return 1;
     return 0;
 }
 
@@ -229,4 +275,18 @@ char *dict_most_likely_key(struct dict *D)
     }
 
     return key;
+}
+int dict_del(struct dict *D, const char *key)
+{
+    struct dict_val *v = dict_query0(D, key);
+    if (v == NULL) return -1;
+    v->ref = -2;
+    return 0;
+}
+
+int dict_exist(struct dict *D, const char *key)
+{
+    struct dict_val *v = dict_query0(D, key);
+    if (v == NULL) return -1; // not exist
+    return v->ref; // deleted or ref to
 }

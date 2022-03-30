@@ -25,6 +25,17 @@ struct bseq_pool *bseq_pool_init()
     memset(p, 0, sizeof(*p));
     return p;
 }
+void bseq_unset(struct bseq *b)
+{
+    memset(b, 0, sizeof(*b));
+}
+struct bseq* bseq_init()
+{
+    struct bseq *b = malloc(sizeof(*b));
+    bseq_unset(b);
+    return b;
+}
+
 void bseq_clean(struct bseq *b)
 {
     if (b->n0.m) free(b->n0.s);
@@ -32,6 +43,8 @@ void bseq_clean(struct bseq *b)
     if (b->q0.m) free(b->q0.s);
     if (b->s1.m) free(b->s1.s);
     if (b->q1.m) free(b->q1.s);
+
+    bseq_unset(b);
 }
 void bseq_destroy(struct bseq *b)
 {
@@ -64,10 +77,6 @@ kstring_t *kstr_init()
     memset(s, 0, sizeof(*s));
     return s;
 }
-void bseq_init(struct bseq *b)
-{
-    memset(b, 0, sizeof(*b));
-}
 
 int kstr_copy(kstring_t *a, kstring_t *b)
 {
@@ -80,6 +89,20 @@ int kstr_copy(kstring_t *a, kstring_t *b)
     kputs("",a);
 
     return 0;
+}
+
+int fastq_handler_read_one(struct fastq_handler *fastq)
+{
+    if (fastq->closed) return -1;
+    int ret = kseq_read(fastq->k1);
+    if (ret < 0) {
+        fastq->closed = 1;
+        return ret;   
+    }
+
+    if (fastq->k2 != NULL)
+        ret = kseq_read(fastq->k2);
+    return ret;
 }
 
 static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_size)
@@ -114,7 +137,7 @@ static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_siz
 
         trim_read_tail(ks->name.s, ks->name.l);
 
-        bseq_init(s);
+        bseq_unset(s);
         
         kstr_copy(&s->n0, &ks->name);
         kstr_copy(&s->s0, &ks->seq);
@@ -170,7 +193,7 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
             struct bseq *s = &p->s[p->n];
             kseq_t *k1 = h->k1;
             trim_read_tail(k1->name.s, k1->name.l);
-            bseq_init(s);
+            bseq_unset(s);
             kstr_copy(&s->n0, &k1->name);
             kstr_copy(&s->s0, &k1->seq);
             kstr_copy(&s->q0, &k1->qual);
@@ -216,7 +239,7 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
                 p->s = realloc(p->s, p->m*sizeof(struct bseq));
             }
             s = &p->s[p->n];
-            bseq_init(s);
+            bseq_unset(s);
             kstr_copy(&s->n0, &k1->name);
             kstr_copy(&s->s0, &k1->seq);
             kstr_copy(&s->q0, &k1->qual);
@@ -292,6 +315,7 @@ struct fastq_handler *fastq_handler_init(const char *r1, const char *r2, int sma
     
     return h;
 }
+
 void fastq_handler_destory(struct fastq_handler *h)
 {
     kseq_destroy(h->k1);
@@ -388,9 +412,16 @@ void bseq_pool_push(struct bseq *b, struct bseq_pool *p)
         p->s = realloc(p->s, sizeof(struct bseq)*p->m);               
     }
     struct bseq *c = &p->s[p->n++];
-    memcpy(c, b, sizeof(struct bseq));
-    //debug_print("c %d, b %d", c->l0, b->l0);
-    // free(b);
+    bseq_unset(c);
+    c->flag = b->flag;
+    kputs(b->n0.s, &c->n0);
+    kputs(b->s0.s, &c->s0);
+    if (b->q0.l) kputs(b->q0.s, &c->q0);
+
+    if (b->s1.l) {
+        kputs(b->s1.s, &c->s1);
+        kputs(b->q1.s, &c->q1);
+    }
 }
 
 size_t hamming_n(const char *a, const size_t length, const char *b, const size_t bLength) {
@@ -615,7 +646,6 @@ int bseq_pool_dedup(struct bseq_pool *p)
                     struct hval *v1 = &v->v[j];
                     struct bseq *r = &p->s[v1->idx];
                     if (check_dup(r, b, strand)) {
-                        //debug_print("%s\t%s\t%d", r->s0, b->s0, v1->idx);
                         if (qual > v1->qual) {
                             // update
                             v1->idx = i;
@@ -686,22 +716,278 @@ int bseq_pool_dedup(struct bseq_pool *p)
     kh_destroy(key, hash);
     return 0;   
 }
-/* TODO: improve buffer performance
-#define MIN_BUFFER      1     // 1M
-#define DEFAULT_BUFFER  1000  // 1G
-#define MAX_BUFFER      10000 // 10G
 
-struct fastq_buffer {
-    uint32_t n, m;
-    struct bseq *s;
-    int paired;
-    uint32_t l_buf, m_buf;
-    uint8_t *buf;
-};
+void bseq_pool_write_fp(struct bseq_pool *p, FILE *fp)
+{
+    if (fp == NULL) error("Unknown file handler?");
+    int i;
+    for (i = 0; i < p->n; ++i) {
+        struct bseq *b = &p->s[i];
+        if (p->force_fasta == 1) b->q0.l = 0;
+        
+        if (b->q0.l == 0) fputc('>', fp);
+        else fputc('@', fp);
+        fputs(b->n0.s, fp);
+        fputc('\n', fp);
+        fputs(b->s0.s, fp);
+        fputc('\n', fp);
+        if (b->q0.l > 0) {
+            fputc('+', fp);
+            fputc('\n', fp);
+            fputs(b->q0.s, fp);
+            fputc('\n', fp);
+        }
 
-struct fastq_handler {
-    gzFile read_1;
-    gzFile read_2;
-    uint8_t *buf;
+        if (b->s1.l == 0) continue;
+        if (p->force_fasta == 1) b->q1.l = 0;
+        if (b->q1.l == 0) fputc('>', fp);
+        else fputc('@', fp);
+        fputs(b->n0.s, fp);
+        fputc('\n', fp);
+        fputs(b->s1.s, fp);
+        fputc('\n', fp);
+        if (b->q1.l > 0) {
+            fputc('+', fp);
+            fputc('\n', fp);
+            fputs(b->q1.s, fp);
+            fputc('\n', fp);
+        }
+    }
 }
-*/
+
+void bseq_pool_write_file(struct bseq_pool *p, const char *fn)
+{
+    FILE *fp = fopen(fn, "w");
+    if (fp == NULL) error("%s : %s.", fn, strerror(errno));
+    bseq_pool_write_fp(p, fp);
+    fclose(fp);
+}
+
+struct bseq_pool *bseq_pool_cache_fastq(FILE *fp, int n)
+{
+    struct bseq_pool *p = bseq_pool_init();
+    
+    for (;;) {
+        if (n > 0) {
+            if (p->n == n) break;
+            if (p->n == 0) {
+                p->m = n;
+                p->s = malloc(sizeof(struct bseq)*p->m);
+            }
+        } else {
+            if (p->n == p->m) {
+                p->m = p->m == 0 ? 4 : p->m *2;
+                p->s = realloc(p->s, sizeof(struct bseq)*p->m);
+            }
+        }
+        int l = 0;
+        struct bseq *b = &p->s[p->n];
+        bseq_unset(b);
+        char c = fgetc(fp);
+        assert(c == '@');
+
+        for (;;) { // fastq name
+            c = fgetc(fp);
+            if (c == '\n' || c == EOF) break;
+            kputc(c, &b->n0);
+        }
+
+        if (c == EOF) {
+            warnings("Truncated file?");
+            // emit this record then
+            break;   
+        }
+        
+        for (;;) { // seq
+            c = fgetc(fp);
+            if (c == '\n' || c == EOF) break;
+            kputc(c, &b->s0);            
+        }
+
+        if (c == EOF) {
+            warnings("Truncated file?");
+            // emit this record then
+            break;   
+        }
+
+        l = b->s0.l; // read length
+        
+        c = getc(fp);
+        assert(c == '+');
+        for (;;) { // emit qual name
+            c = fgetc(fp);
+            if (c == '\n' || c == EOF) break; 
+        }
+
+        if (c == EOF) {
+            warnings("Truncated file?");
+            // emit this record then
+            break;
+        }
+
+        for (;;) { // qual
+            c = fgetc(fp);
+            if (c == '\n' || c == EOF) break;
+            kputc(c, &b->q0);
+        }
+
+        if (l != b->q0.l) {
+            warnings("Truncated file? Skip this record %s", b->n0.s);
+            // emit this record then
+
+            if (c == EOF) break; // if end of file, usually write problem, just exit..
+            
+            continue; // otherwise, skip this record
+        }
+        
+        p->n++;
+
+        if (c == EOF) break;
+    }
+    return p;
+}
+struct bseq_pool *bseq_pool_cache_fasta(FILE *fp, int n)
+{
+    struct bseq_pool *p = bseq_pool_init();
+    
+    for (;;) {
+        if (n > 0) {
+            if (p->n == n) break;
+            if (p->n == 0) {
+                p->m = n;
+                p->s = malloc(sizeof(struct bseq)*p->m);
+            }
+        } else {
+            if (p->n == p->m) {
+                p->m = p->m == 0 ? 4 : p->m *2;
+                p->s = realloc(p->s, sizeof(struct bseq)*p->m);
+            }
+        }
+
+        struct bseq *b = &p->s[p->n];
+        bseq_unset(b);
+        
+        char c = fgetc(fp);
+        assert(c == '>');
+
+        for (;;) { // fasta name
+            c = fgetc(fp);
+            if (c == EOF) break;
+            if (c == '\n') break;
+            kputc(c, &b->n0);
+        }
+        if (c == EOF) {
+            warnings("Truncated file?");
+            // emit this record then
+            break;   
+        }
+        for (;;) {
+            c = fgetc(fp);
+            if (c == EOF) break;
+            if (c == '>') {
+                ungetc('>', fp);
+                break;
+            } 
+            if (isspace(c)) continue;
+            kputc(c, &b->s0);
+        }
+
+        p->n++;
+        
+        if (c == EOF) break;
+    }
+    return p;    
+}
+struct bseq_pool *bseq_pool_cache_fp(FILE *fp, int n)
+{
+    char c = fgetc(fp);
+    if (c == '@') {
+        ungetc('@', fp); // push back fastq symbol
+        return bseq_pool_cache_fastq(fp, n);
+    } else if (c == '>') {
+        ungetc('>', fp);
+        return bseq_pool_cache_fasta(fp, n);
+    } else if (c == EOF) return NULL;
+    
+    error("Unknown input format, %c", c);
+}
+
+struct bseq_pool *bseq_pool_cache_file(const char *fn)
+{
+    FILE *fp = fopen(fn, "r");
+    if (fp == NULL) error("%s : %s.", fn, strerror(errno));
+    struct bseq_pool *p = bseq_pool_cache_fp(fp, 0);
+    fclose(fp);
+    return p;
+}
+
+struct bseq *fastq_read_one(struct fastq_handler *fastq)
+{
+    if (fastq->closed == 1) return NULL;
+    kseq_t *ks = fastq->k1;
+    if (ks->name.l == 0) {
+        int ret = fastq_handler_read_one(fastq);
+        if (ret < 0) {
+            fastq->closed = 1;
+            return NULL;
+        }
+    }
+    struct bseq *b = bseq_init();
+    ks = fastq->k1;
+    trim_read_tail(ks->name.s, ks->name.l);
+    kstr_copy(&b->n0, &ks->name);
+    kstr_copy(&b->s0, &ks->seq);
+    kstr_copy(&b->q0, &ks->qual);
+    
+    fastq_handler_read_one(fastq);
+   
+    return b;
+}
+
+#include "read_tags.h"
+
+// 0 on same, 1 on diff, -1 on end of file
+int compare_block(char**vals, int n, struct fastq_handler *fastq, struct dict *tags)
+{
+    if (fastq->closed) return -1;
+    kseq_t *ks = fastq->k1;
+    if (ks->name.l == 0) return -1;
+    char **v1 = fname_pick_tags(ks->name.s, tags);
+    
+    int i;
+    for (i = 0; i < n; ++i) {
+        if (strcmp(vals[i], v1[i]) != 0) break;
+    }
+    int j;
+    for (j = 0; j < n; ++j) free(v1[j]);
+    free(v1);
+    if (i != n) return 1;
+    return 0;
+}
+struct bseq_pool *fastq_read_block(struct fastq_handler *fastq, struct dict *tags)
+{
+    if (fastq->closed == 1) return NULL;
+    struct bseq *b = fastq_read_one(fastq);
+    if (b == NULL) {
+        fastq->closed = 1;
+        return NULL;
+    }
+
+    struct bseq_pool *p = bseq_pool_init();
+    char **vals = fname_pick_tags(b->n0.s, tags);
+    
+    bseq_pool_push(b, p);
+    bseq_destroy(b);
+    p->opts = vals;
+
+    int n = dict_size(tags);
+    for (;;) {
+        int ret = compare_block(vals, n, fastq, tags);
+        if (ret == 1) break; // diff
+        if (ret == -1) break; // end of file
+        struct bseq *b1 = fastq_read_one(fastq);
+        bseq_pool_push(b1, p);
+        bseq_destroy(b1);
+    }
+    return p;
+}

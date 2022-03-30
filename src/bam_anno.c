@@ -1,8 +1,6 @@
 // annotate Gene or Peak to SAM attribution
 #include "utils.h"
 #include "number.h"
-#include "htslib/thread_pool.h"
-#include "thread_pool_internal.h"
 #include "htslib/khash.h"
 #include "htslib/kstring.h"
 #include "htslib/sam.h"
@@ -10,12 +8,17 @@
 #include "htslib/kseq.h"
 #include "htslib/hts.h"
 #include "bam_pool.h"
+#include "htslib/thread_pool.h"
 #include "gtf.h"
 #include "bed.h"
 #include "region_index.h"
 #include "read_anno.h"
 #include "dict.h"
 #include <zlib.h>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 struct read_stat {
 
@@ -275,7 +278,8 @@ static int parse_args(int argc, char **argv)
         error("Unsupported input format, only support BAM/SAM/CRAM format.");
     args.hdr = sam_hdr_read(args.fp);
     CHECK_EMPTY(args.hdr, "Failed to open header.");
-        
+    hts_set_threads(args.fp, file_th);
+    
     if (args.bed_fname) {
         CHECK_EMPTY(args.tag, "-tag must be set with -bed.");
         args.B = bed_read(args.bed_fname);
@@ -381,9 +385,6 @@ struct isoform *bend_sam_isoform(bam1_t *b)
     return S;    
 }
 
-
-#include "htslib/thread_pool.h"
-
 struct ret_dat {
     struct bam_pool *p;
     struct dict *group_stat;
@@ -401,14 +402,14 @@ void gtf_anno_destroy(struct gtf_anno_type *ann)
 }
 static void gtf_anno_print(struct gtf_anno_type *ann, struct gtf_spec const *G)
 {
-    fprintf(stderr, "Type : %s\n", exon_type_names[ann->type]);
+    fprintf(stderr, "Type : %s\n", exon_type_name(ann->type));
     int i;
     for (i = 0; i < ann->n; ++i) {
         struct gene_type *g = &ann->a[i];
-        fprintf(stderr, "Gene : %s, %s\n", dict_name(G->gene_name, g->gene_name),  exon_type_names[g->type]); 
+        fprintf(stderr, "Gene : %s, %s\n", dict_name(G->gene_name, g->gene_name),  exon_type_name(g->type)); 
         int j;
         for (j = 0; j < g->n; ++j)
-            fprintf(stderr, "  Trans : %s, %s\n", dict_name(G->transcript_id, g->a[j].trans_id), exon_type_names[g->a[j].type]);       
+            fprintf(stderr, "  Trans : %s, %s\n", dict_name(G->transcript_id, g->a[j].trans_id), exon_type_name(g->a[j].type));       
     }
 }
 
@@ -749,7 +750,7 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
 
     struct gtf_anno_type *ann = bam_gtf_anno_core(b, G, args.hdr);
 
-    bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)RE_tags[ann->type]);
+    bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)RE_tag_name(ann->type));
 
     gtf_anno_string(b, ann, G);
 
@@ -760,8 +761,7 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     else if (ann->type == type_ambiguous) stat->reads_ambiguous++; // new transcript
     else if (ann->type == type_intergenic) stat->reads_in_intergenic++;
     else if (ann->type == type_antisense) stat->reads_antisense++;
-    else error("Unknown type? %s", exon_type_names[ann->type]);
-
+    else error("Unknown type? %s", exon_type_name(ann->type));
     
     if (args.tss_mode == 1) {
         if ((data = bam_aux_get(b, args.ctag)) != NULL) bam_aux_del(b, data);
@@ -781,7 +781,7 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
                         if (b->core.pos+1 == tx_gtf->start) {
                             char *gene_name =  dict_name(G->gene_name, tx_gtf->gene_name);
                             if (str.l >0) kputc(';', &str);
-                            ksprintf(&str, "%s_+_%d", gene_name, tx_gtf->start);
+                            ksprintf(&str, "%s_%d_+", gene_name, tx_gtf->start);
                             break;
                         }                            
                     }
@@ -790,7 +790,7 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
                         if (endpos == tx_gtf->end) {
                             char *gene_name =  dict_name(G->gene_name, tx_gtf->gene_name);
                             if (str.l >0) kputc(';', &str);
-                            ksprintf(&str, "%s_-_%d", gene_name, tx_gtf->end);
+                            ksprintf(&str, "%s_%d_-", gene_name, tx_gtf->end);
                             break;
                         }                            
                     }
@@ -821,53 +821,65 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
     if ((data = bam_aux_get(b, args.tag)) != NULL) bam_aux_del(b, data);
     
     char *name = h->target_name[c->tid];
-    int endpos = bam_endpos(b);
+    // int endpos = bam_endpos(b);
 
-    struct region_itr *itr = bed_query(args.B, name, c->pos, endpos, BED_STRAND_IGN);
-    if (itr == NULL) return 0; // query failed
-    if (itr->n == 0) return 0; // no hit
-
-    struct dict *val = dict_init();
-    int i;
+    int i, j;
     kstring_t temp = {0,0,0};
-    for (i = 0; i < itr->n; ++i) {
-        struct bed *bed = (struct bed*)itr->rets[i];
-        if (bed->start > endpos || bed->end <= c->pos) continue; // not covered
-        temp.l = 0;
-        
-        if (bed->name == -1) 
-            ksprintf(&temp, "%s:%d-%d", dict_name(B->seqname, bed->seqname), bed->start, bed->end);
-        else
-            kputs(dict_name(B->name, bed->name), &temp);
-        
-        if (bed->strand == BED_STRAND_UNK)
-            stat->reads_in_region++;
-        else {
-            if (c->flag & BAM_FREVERSE) {
-                if (bed->strand == BED_STRAND_REV) 
-                    stat->reads_in_region++;               
-                else {
-                    stat->reads_in_region_diff_strand++;
-                    temp.l = 0; // reset
-                }
-            }
+    int read_in_peak = 0;
+    int read_diff_strand = 0;
+    struct dict *val = dict_init();
+    struct isoform *isf = bend_sam_isoform(b);
+    
+    for (j = 0; j < isf->n; ++j) {
+        // struct region_itr *itr = bed_query(args.B, name, c->pos, endpos, BED_STRAND_IGN);
+        struct pair *s = &isf->p[j];
+        struct region_itr *itr = bed_query(args.B, name, s->start, s->end, BED_STRAND_IGN);
+        if (itr == NULL) continue; // query failed
+        if (itr->n == 0) continue; // no hit
+        for (i = 0; i < itr->n; ++i) {
+            struct bed *bed = (struct bed*)itr->rets[i];
+            if (bed->start > s->start || bed->end <= s->end) continue; // not covered
+            temp.l = 0;
+            
+            if (bed->name == -1) 
+                ksprintf(&temp, "%s_%d_%d", dict_name(B->seqname, bed->seqname), bed->start, bed->end);
+            else
+                kputs(dict_name(B->name, bed->name), &temp);
+            
+            if (bed->strand == BED_STRAND_UNK) read_in_peak = 1;
+            // stat->reads_in_region++;
             else {
-                if (bed->strand == BED_STRAND_FWD)
-                    stat->reads_in_region++;               
+                if (c->flag & BAM_FREVERSE) {
+                    if (bed->strand == BED_STRAND_REV) read_in_peak = 1;
+                    // stat->reads_in_region++;               
+                    else {
+                        read_diff_strand = 1;
+                        // stat->reads_in_region_diff_strand++;
+                        temp.l = 0; // reset
+                    }
+                }
                 else {
-                    stat->reads_in_region_diff_strand++;
-                    temp.l = 0;
+                    if (bed->strand == BED_STRAND_FWD) read_in_peak = 1;
+                    // stat->reads_in_region++;               
+                    else {
+                        read_diff_strand = 1;
+                        // stat->reads_in_region_diff_strand++;
+                        temp.l = 0;
+                    }
                 }
             }
+            
+            if (temp.l) dict_push(val, temp.s);
         }
-        
-        if (temp.l)
-            dict_push(val, temp.s);
-        
+        region_itr_destroy(itr);
     }
-    region_itr_destroy(itr);
 
     if (temp.m) free(temp.s);
+
+    if (read_in_peak) stat->reads_in_region++;
+    else if (read_diff_strand) stat->reads_in_region_diff_strand++;
+    free(isf->p);
+    free(isf);
     
     if (dict_size(val)) {
         kstring_t str = {0,0,0};
@@ -883,7 +895,6 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
         return 1;
     }
     dict_destroy(val);
-
     return 0;
 }
 
@@ -1024,7 +1035,7 @@ void write_report()
         if (args.B) {
             fprintf(args.fp_report, "Reads Mapped to BED regions / Peaks,%.1f%%\n", (float)s0->reads_in_region/args.reads_pass_qc*100);
             if (s0->reads_in_region_diff_strand)
-                fprintf(args.fp_report, "Reads Mapped to BED regions but on diff strand,%.1f%%\n", (float)s0->reads_in_region_diff_strand/args.reads_pass_qc*100);
+                fprintf(args.fp_report, "Reads Mapped on different strand of BED regions,%.1f%%\n", (float)s0->reads_in_region_diff_strand/args.reads_pass_qc*100);
         }
         if (args.G) {
             fprintf(args.fp_report, "Reads Mapped to Exonic Regions,%.1f%%\n", (float)s0->reads_in_exon/args.reads_pass_qc*100);
@@ -1067,52 +1078,53 @@ int bam_anno_attr(int argc, char *argv[])
 
     if (parse_args(argc, argv)) return anno_usage();
 
-    if (args.n_thread == 1) {
-        for (;;) {
-            struct bam_pool *b = bam_pool_create();
-            bam_read_pool(b, args.fp, args.hdr, args.chunk_size);
-            if (b == NULL) break;
-            if (b->n == 0) { free(b->bam); free(b); break; }
-            b = run_it(b);
-            write_out(b);
-        }
-    }
-    else {
-        // multi-thread mode
-
-        hts_tpool *p = hts_tpool_init(args.n_thread);
-        hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
-        hts_tpool_result *r;
-
-        for (;;) {
-            struct bam_pool *b = bam_pool_create();
-            bam_read_pool(b, args.fp, args.hdr, args.chunk_size);
-            
-            if (b == NULL) break;
-            if (b->n == 0) { free(b->bam); free(b); break; }
-            
-            int block;
-            do {
-                block = hts_tpool_dispatch2(p, q, run_it, b, 1);
-                if ((r = hts_tpool_next_result(q))) {
-                    struct bam_pool *d = (struct bam_pool*)hts_tpool_result_data(r);
-                    write_out(d);
-                    hts_tpool_delete_result(r, 0);
-                }
+    
+    hts_tpool *p = hts_tpool_init(args.n_thread);
+    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+    hts_tpool_result *r;
+    
+    for (;;) {
+        struct bam_pool *b = bam_pool_create();
+        bam_read_pool(b, args.fp, args.hdr, args.chunk_size);
+        
+        if (b == NULL) break;
+        if (b->n == 0) { free(b->bam); free(b); break; }
+        
+        int block;
+        do {
+            block = hts_tpool_dispatch2(p, q, run_it, b, 1);
+            if ((r = hts_tpool_next_result(q))) {
+                struct bam_pool *d = (struct bam_pool*)hts_tpool_result_data(r);
+                write_out(d);
+                hts_tpool_delete_result(r, 0);
             }
-            while (block == -1);
         }
-
-        hts_tpool_process_flush(q);
-
-        while ((r = hts_tpool_next_result(q))) {
-            struct bam_pool *d = (struct bam_pool*)hts_tpool_result_data(r);
-            write_out(d);
-            hts_tpool_delete_result(r, 0);
-        }
-        hts_tpool_process_destroy(q);
-        hts_tpool_destroy(p);
+        while (block == -1);
     }
+    
+    hts_tpool_process_flush(q);
+    
+    while ((r = hts_tpool_next_result(q))) {
+        struct bam_pool *d = (struct bam_pool*)hts_tpool_result_data(r);
+        write_out(d);
+        hts_tpool_delete_result(r, 0);
+    }
+    hts_tpool_process_destroy(q);
+    hts_tpool_destroy(p);
+
+
+/* #pragma omp parallel num_threads(args.n_thread) */
+/*     for (;;) { */
+/*         struct bam_pool *b = bam_pool_create(); */
+/* #pragma omp critical (read) */
+/*         bam_read_pool(b, args.fp, args.hdr, args.chunk_size); */
+/*         if (b == NULL) break; */
+/*         if (b->n == 0) { free(b->bam); free(b); break; } */
+/*         b = run_it(b); */
+
+/* #pragma omp critical (write) */
+/*         write_out(b); */
+/*     } */
 
     write_report();
     memory_release();    

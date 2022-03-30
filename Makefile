@@ -57,16 +57,15 @@ LIB_OBJ = src/barcode_list.o \
 	src/bam_pool.o \
 	src/umi_corr.o \
 	src/dict.o \
-	src/read_thread.o \
 	src/read_tags.o \
 	src/sim_search.o \
-	src/thread.o \
 	src/fragment.o \
 	src/compactDNA.o \
 	src/bam_region.o \
 	src/dna_pool.o \
 	src/bam_files.o \
 	src/biostring.o \
+	src/read_anno.o \
 	src/kthread.o
 
 AOBJ = src/bam_anno.o \
@@ -84,7 +83,9 @@ AOBJ = src/bam_anno.o \
 	src/bam_depth.o \
 	src/usage.o \
 	src/addtags.o \
-	src/fragment_count.o
+	src/fragment_count.o \
+	src/fastq_stream.o \
+	src/fastq_parse2.o
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@
@@ -98,6 +99,9 @@ PISA: $(HTSLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h
 debug: $(HTSLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h 
 	$(CC) $(DEBUGFLAGS) $(INCLUDES) -o PISA src/main.c $(AOBJ) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
 
+src/fastq_parse2.o: src/fastq_parse2.c
+src/fastq_stream.o: src/fastq_stream.c
+src/read_anno.o: src/read_anno.c
 src/sim_search.o: src/sim_search.c
 src/bam_depth.o: src/bam_depth.c
 src/bam2fq.o: src/bam2fq.c
@@ -121,7 +125,6 @@ src/fastq.o: src/fastq.c
 src/json_config.o: src/json_config.c
 src/kson.o: src/kson.c
 src/bam_attr_count.o: src/bam_attr_count.c
-src/read_thread.o: src/read_thread.c
 src/read_tags.o: src/read_tags.c
 src/ksa.o: src/ksa.c
 src/bam_pool.o: src/bam_pool.c
