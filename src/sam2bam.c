@@ -195,7 +195,7 @@ static struct sam_pool* sam_pool_read(kstream_t *s, int buffer_size)
     
     return p;
 }
-static bam_hdr_t *sam_parse_header(kstream_t *s, kstring_t *line)
+bam_hdr_t *sam_parse_header(kstream_t *s, kstring_t *line)
 {
     bam_hdr_t *h = NULL;
     kstring_t str = {0,0,0};
@@ -261,7 +261,7 @@ static void summary_report(struct args *opts)
         fprintf(opts->fp_report, "Mapping quality corrected reads,%"PRIu64"\n", summary->n_corr);
 }
 
-static int parse_name_str(kstring_t *s)
+int parse_name_str(kstring_t *s)
 {
     // CL100053545L1C001R001_2|||BC:Z:TTTCATGA|||CR:Z:TANTGGTAGCCACTAT|||PL:i:20
     // CL100053545L1C001R001_2 .. CR:Z:TANTGGTAGCCACTAT ..
@@ -488,7 +488,7 @@ int bam_pool_qual_corr(struct sam_pool *p)
     }
     return corred;
 }
-static int sam_safe_check(kstring_t *str)
+int sam_safe_check(kstring_t *str)
 {
     int i;
     int s = 0;

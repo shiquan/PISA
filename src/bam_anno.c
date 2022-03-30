@@ -16,10 +16,12 @@
 #include "dict.h"
 #include <zlib.h>
 
-#ifdef _OPENMP
-#include <omp.h>
-#endif
+//#ifdef _OPENMP
+//#include <omp.h>
+//#endif
 
+#include "htslib/kseq.h"
+KSTREAM_INIT(gzFile, gzread, 0x10000)
 struct read_stat {
 
     uint64_t reads_in_region;
@@ -61,6 +63,11 @@ static struct args {
     int chunk_size;
     int tss_mode;
     int anno_only;
+
+    int input_sam;
+    gzFile fp_sam;
+    kstream_t *ks;
+    char *preload_record;
     
     htsFile *fp;
     htsFile *out;
@@ -108,6 +115,11 @@ static struct args {
     .n_thread        = 4,
     .chunk_size      = 100000,
     .anno_only       = 0,
+
+    .input_sam       = 0,
+    .fp_sam          = NULL,
+    .ks              = NULL,
+    .preload_record  = NULL,
     
     .fp              = NULL,
     .out             = NULL,
@@ -121,6 +133,55 @@ static struct args {
     .group_stat      = 0,
     .debug_mode      = 0
 };
+
+struct kstring_pool {
+    int n, m;
+    kstring_t *str;
+};
+struct kstring_pool *kstring_pool_init(int size)
+{
+    struct kstring_pool *p = malloc(sizeof(*p));
+    p->m = size;
+    p->n = 0;
+    p->str = malloc(p->m*sizeof(kstring_t));
+    memset(p->str, 0, p->m*sizeof(kstring_t));
+    return p;
+}
+void kstring_pool_destroy(struct kstring_pool *p)
+{
+    int i;
+    for (i = 0; i < p->n; ++i) {
+        kstring_t *s = &p->str[i];
+        if (s->m) free(s->s);
+    }
+    free(p->str);
+    free(p);
+}
+struct kstring_pool *kstring_pool_read(kstream_t *s, int buffer_size)
+{
+    struct kstring_pool *p = kstring_pool_init(buffer_size);
+    
+    if (args.preload_record) {
+        kputs(args.preload_record, &p->str[0]);
+        p->n++;
+        free(args.preload_record);
+        args.preload_record= NULL;
+    }
+    
+    int ret;
+    for (;;) {
+        if (p->n == p->m) break;
+        if (ks_getuntil(s, 2, &p->str[p->n], &ret) < 0) break;
+        if (p->str[p->n].s[0] == '@') continue;
+        p->n++;
+    }
+    
+    if (p->n == 0) {
+        kstring_pool_destroy(p);
+        return NULL;
+    }
+    return p;
+}
 
 static char **chr_binding(const char *fname, bam_hdr_t *hdr)
 {
@@ -174,6 +235,7 @@ static char GX_tag[2] = "GX";
 static char RE_tag[2] = "RE";
 
 extern struct bed_spec *bed_read_vcf(const char *fn);
+extern bam_hdr_t *sam_parse_header(kstream_t *s, kstring_t *line);
 
 static int parse_args(int argc, char **argv)
 {
@@ -195,6 +257,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-chunk") == 0) var = &chunk;
         else if (strcmp(a, "-q") == 0) var = &map_qual;
+        else if (strcmp(a, "-sam") == 0) {
+            args.input_sam = 1;
+            continue;
+        }
         else if (strcmp(a, "-debug") == 0) {
             args.debug_mode = 1;
             continue;
@@ -260,7 +326,8 @@ static int parse_args(int argc, char **argv)
     if (args.tss_mode == 1 && args.ctag == NULL) error("-ctag must be set if -tss enable.");
     
     CHECK_EMPTY(args.output_fname, "-o must be set.");
-    CHECK_EMPTY(args.input_fname, "Input bam must be set.");
+    // CHECK_EMPTY(args.input_fname, "Input bam must be set.");
+    if (args.input_fname == NULL && !isatty(fileno(stdin))) args.input_fname = "-";
     
     if (thread) args.n_thread = str2int((char*)thread);
     if (chunk) args.chunk_size = str2int((char*)chunk);
@@ -270,15 +337,28 @@ static int parse_args(int argc, char **argv)
     int file_th = 1;
     if (file_thread)
         file_th = str2int((char*)file_thread);
-    
-    args.fp  = hts_open(args.input_fname, "r");
-    CHECK_EMPTY(args.fp, "%s : %s.", args.input_fname, strerror(errno));
-    htsFormat type = *hts_get_format(args.fp);
-    if (type.format != bam && type.format != sam)
-        error("Unsupported input format, only support BAM/SAM/CRAM format.");
-    args.hdr = sam_hdr_read(args.fp);
-    CHECK_EMPTY(args.hdr, "Failed to open header.");
-    hts_set_threads(args.fp, file_th);
+
+    if (args.input_sam == 1) {
+        args.fp_sam = strcmp(args.input_fname, "-") ? gzopen(args.input_fname,"r") : gzdopen(fileno(stdin), "r");
+        if (args.fp_sam == NULL) error("%s : %s.", args.input_fname, strerror(errno));
+        args.ks = ks_init(args.fp_sam);
+        
+        kstring_t str = {0,0,0}; // cache first record
+        args.hdr = sam_parse_header(args.ks, &str);
+        if (args.hdr == NULL) error("Failed to parse header. %s", args.input_fname);
+        if (str.s[0] != '@')
+            args.preload_record = strndup(str.s, str.l);    
+        free(str.s);
+    } else {
+        args.fp  = hts_open(args.input_fname, "r");
+        CHECK_EMPTY(args.fp, "%s : %s.", args.input_fname, strerror(errno));
+        htsFormat type = *hts_get_format(args.fp);
+        if (type.format != bam && type.format != sam)
+            error("Unsupported input format, only support BAM/SAM/CRAM format.");
+        args.hdr = sam_hdr_read(args.fp);
+        CHECK_EMPTY(args.hdr, "Failed to open header.");
+        hts_set_threads(args.fp, file_th);
+    }
     
     if (args.bed_fname) {
         CHECK_EMPTY(args.tag, "-tag must be set with -bed.");
@@ -899,13 +979,39 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
 }
 
 extern int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag);
-
+extern int sam_safe_check(kstring_t *str);
+extern int parse_name_str(kstring_t *s);
 void *run_it(void *_d)
 {
     bam_hdr_t *h = args.hdr;
     struct ret_dat *dat = malloc(sizeof(struct ret_dat));
     memset(dat, 0, sizeof(*dat));
-    dat->p = (struct bam_pool*)_d;
+
+    if (args.input_sam) {
+        struct kstring_pool *d = (struct kstring_pool *)_d;
+        struct bam_pool *p = bam_pool_create(d->n);
+        int i;
+        for (i = 0; i < d->n; ++i) {
+            parse_name_str(&d->str[i]);
+            if (sam_safe_check(&d->str[i])) {
+                warnings("Failed to parse %s", d->str[i].s);
+                continue;
+            }
+            if (sam_parse1(&d->str[i], h, &p->bam[p->n])) {
+                warnings ("Failed to parse SAM., %s", bam_get_qname(&p->bam[i]));
+                continue;
+            }
+            p->n++;
+        }
+
+        kstring_pool_destroy(d);
+
+        dat->p = p;
+        
+    } else {
+        dat->p = (struct bam_pool*)_d;
+    }
+    
     dat->group_stat = dict_init();
 
     int idx;
@@ -1055,7 +1161,11 @@ void write_report()
 static void memory_release()
 {
     bam_hdr_destroy(args.hdr);
-    sam_close(args.fp);
+    if (args.fp) sam_close(args.fp);
+    if (args.fp_sam) {
+        gzclose(args.fp_sam);
+        ks_destroy(args.ks);
+    }
     sam_close(args.out);
     int i;
     for (i = 0; i < dict_size(args.group_stat); ++i) {
@@ -1071,28 +1181,30 @@ static void memory_release()
 
 extern int anno_usage();
 
-int bam_anno_attr(int argc, char *argv[])
+void process_bam()
 {
-    double t_real;
-    t_real = realtime();
-
-    if (parse_args(argc, argv)) return anno_usage();
-
-    
     hts_tpool *p = hts_tpool_init(args.n_thread);
     hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
     hts_tpool_result *r;
     
     for (;;) {
-        struct bam_pool *b = bam_pool_create();
-        bam_read_pool(b, args.fp, args.hdr, args.chunk_size);
-        
-        if (b == NULL) break;
-        if (b->n == 0) { free(b->bam); free(b); break; }
+        void *b0;
+        if (args.input_sam) {
+            struct kstring_pool *b =  kstring_pool_read(args.ks, args.chunk_size);
+            if (b == NULL) break;
+            if (b->n == 0) { free(b->str); free(b); break; }
+            b0 = b;
+        } else {
+            struct bam_pool *b = bam_pool_create();
+            bam_read_pool((struct bam_pool*)b, args.fp, args.hdr, args.chunk_size);
+            if (b == NULL) break;
+            if (b->n == 0) { free(b->bam); free(b); break; }
+            b0 = b;
+        }
         
         int block;
         do {
-            block = hts_tpool_dispatch2(p, q, run_it, b, 1);
+            block = hts_tpool_dispatch2(p, q, run_it, b0, 1);
             if ((r = hts_tpool_next_result(q))) {
                 struct bam_pool *d = (struct bam_pool*)hts_tpool_result_data(r);
                 write_out(d);
@@ -1111,7 +1223,15 @@ int bam_anno_attr(int argc, char *argv[])
     }
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
+}
+int bam_anno_attr(int argc, char *argv[])
+{
+    double t_real;
+    t_real = realtime();
 
+    if (parse_args(argc, argv)) return anno_usage();
+    
+    process_bam();
 
 /* #pragma omp parallel num_threads(args.n_thread) */
 /*     for (;;) { */

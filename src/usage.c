@@ -124,6 +124,25 @@ int fsort_usage()
     fprintf(stderr, "\n");
     return 1;
 }
+int fastq_stream_usage()
+{
+    fprintf(stderr, "# Perform user-defined script for each FASTQ+ block.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m stream -script run.sh reads.fq.gz\n");
+    fprintf(stderr, "\nOptions :\n");
+    fprintf(stderr, " -tags    [TAGS]     Tags to define read blocks.\n");
+    fprintf(stderr, " -script  [FILE]     User defined bash script, process $FQ and generate results to stdout.\n");
+    fprintf(stderr, " -min     [INT]      Mininal reads per block to process.  [2]\n");
+    fprintf(stderr, " -max     [INT]      Maximal reads per block, if more reads, will downsampling. [8000]\n");
+    fprintf(stderr, " -fa                 Stream FASTQ output instead of FASTQ.\n");
+    // fprintf(stderr, " -rename           Rename output reads\n");
+    fprintf(stderr, " -tmpdir\n");
+    fprintf(stderr, " -t           Threads.\n");
+    fprintf(stderr, " -o   [FILE]  Path to output file.\n");
+    fprintf(stderr, "\n");
+    return 1;
+}
+
 /*
 int assemble_usage()
 {
@@ -161,7 +180,7 @@ int sam2bam_usage()
 {
     fprintf(stderr, "# Parse FASTQ+ read name and convert SAM to BAM.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m sam2bam -report alignment.csv -@ 5 -adjust-mapq -gtf genes.gtf -o aln.bam in.sam\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m sam2bam -report alignment.csv -@ 5 -adjust-mapq -gtf genes.gtf -o aln.bam in.sam[.gz]\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -o       [BAM]       Output file [stdout].\n");
     fprintf(stderr, " -t       [INT]       Work threads.\n");
@@ -218,10 +237,11 @@ int pick_usage()
 }
 int anno_usage()
 {
-    fprintf(stderr, "# Annotate bam records with overlapped function regions. Such as gene, trnascript etc.\n");
+    fprintf(stderr, "# Annotate SAM/BAM records with overlapped function regions. Such as gene, transcript etc.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -bed peak.bed -tag PK -o anno.bam in.bam\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -bed peak.bed -tag PK -vcf in.vcf.gz -vtag VF -o anno.bam in.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -gtf genes.gtf -o anno.bam in.bam\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -gtf genes.gtf -o anno.bam in.sam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -o        [BAM]       Output bam file.\n");
     fprintf(stderr, " -report   [csv]       Summary report.\n");
@@ -230,7 +250,8 @@ int anno_usage()
     fprintf(stderr, " -t        [INT]       Threads to annotate.\n");
     fprintf(stderr, " -chunk    [INT]       Chunk size per thread.\n");
     fprintf(stderr, " -anno-only            Export annotated reads only.\n");
-
+    fprintf(stderr, " -sam                  Input is SAM file, parse tags from read name.\n");
+    
     fprintf(stderr, "\nOptions for BED file :\n");
     fprintf(stderr, " -bed      [BED]       Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
     fprintf(stderr, " -tag      [TAG]       Attribute tag name. Set with -bed.\n");
@@ -253,6 +274,7 @@ int anno_usage()
     fprintf(stderr, " -vtag     [TAG]       Tag name. Set with -vcf.\n");
     
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
+    fprintf(stderr, " * If input is SAM format, will try to parse the tags in the read name.\n");
     fprintf(stderr, " * For GTF mode, this program will set tags in default, you could also reset them by -tags.\n");
     fprintf(stderr, "   TX : Transcript id.\n");
     //fprintf(stderr, "   AN : Same with TX but set only if read mapped to antisense strand of transcript.\n");

@@ -121,26 +121,6 @@ static int parse_args(int argc, char **argv)
     return 0;    
 }
 
-int fastq_stream_usage()
-{
-    fprintf(stderr, "# Perform user-defined script for each FASTQ+ block.\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m stream -script run.sh reads.fq.gz\n");
-    fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -tags   [TAGS]\n");
-    fprintf(stderr, " -script   \n");
-    fprintf(stderr, " -min        2   \n");
-    fprintf(stderr, " -max        8000 \n");
-    fprintf(stderr, " -fa               Stream fasta input instead of fastq.\n");
-    // fprintf(stderr, " -rename           Rename output reads\n");
-    fprintf(stderr, " -tmpdir\n");
-    fprintf(stderr, " -t           Threads.\n");
-    fprintf(stderr, " -o   [FILE]  Path to output file.\n");
-    fprintf(stderr, "\n");
-    return 1;
-}
-
-
 static struct bseq_pool *stream_process(const char *run_script, struct bseq_pool *in, char *tmpdir, char *unique_block_name)
 {
     // char cwd[PATH_MAX];
@@ -205,7 +185,7 @@ char *stream_script_format(const char *script)
 
     return str.s;
 }
-
+extern int fastq_stream_usage();
 int fastq_stream(int argc, char **argv)
 {
     double t_real;
