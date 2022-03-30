@@ -989,7 +989,7 @@ void *run_it(void *_d)
 
     if (args.input_sam) {
         struct kstring_pool *d = (struct kstring_pool *)_d;
-        struct bam_pool *p = bam_pool_create(d->n);
+        struct bam_pool *p = bam_pool_init(d->n);
         int i;
         for (i = 0; i < d->n; ++i) {
             parse_name_str(&d->str[i]);

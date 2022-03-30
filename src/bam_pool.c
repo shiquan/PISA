@@ -14,10 +14,13 @@ struct bam_pool *bam_pool_init(int size)
     p->m = size;
     p->n = 0;
     
-    if (p->m > 0)
+    if (p->m > 0) {
         p->bam = malloc(p->m*sizeof(bam1_t));
-    else
-        p->bam = NULL;
+        memset(p->bam, 0, p->m*sizeof(bam1_t));
+    } else {
+        p->bam = NULL;    
+    }
+    
     return p;
 }
 
