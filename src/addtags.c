@@ -158,7 +158,7 @@ int add_tags(int argc, char **argv)
     int i;
     const char *mapq = NULL;
     const char *threads = NULL;
-    const char *str;
+    const char *str = NULL;
     
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];

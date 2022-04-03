@@ -64,7 +64,8 @@ void bseq_destroy(struct bseq*);
 
 extern int check_name(char *s1, char *s2);
 
-struct bseq_pool *bseq_pool_init();
+struct bseq_pool *bseq_pool_init0();
+struct bseq_pool *bseq_pool_init(int size);
 
 void bseq_pool_clean(struct bseq_pool *p);
 

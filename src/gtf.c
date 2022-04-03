@@ -336,10 +336,10 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
     if (filter > 0 &&
         qry != feature_gene &&
         qry != feature_exon &&
-        qry != feature_transcript &&
-        qry != feature_CDS &&
-        qry != feature_5UTR &&
-        qry != feature_3UTR) {
+        qry != feature_transcript) {
+        //qry != feature_CDS &&
+        //qry != feature_5UTR &&
+        //qry != feature_3UTR) {
         free(s);
         return 0;
     }

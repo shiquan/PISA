@@ -23,6 +23,8 @@ static struct args {
     struct fastq_handler *fastq;
     int n_thread;
 
+    int no_warnings;
+    
     // In default, temp files will be deleted after process, but enable this flag will keep them.
     // However, program will create one temp dir for each read block which means it will be
     // harmful to the file system if much blocks are processed. For example, to stream over 10K
@@ -74,6 +76,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-script") == 0) var = &args.script;
         else if (strcmp(a, "-min") == 0) var = &min;
         else if (strcmp(a, "-max") == 0) var = &max;
+        else if (strcmp(a, "-nw") == 0) {
+            args.no_warnings = 1;
+            continue;
+        }
         else if (strcmp(a, "-keep-tmp") == 0) {
             args.keep_temp = 1;
             continue;
@@ -150,6 +156,8 @@ static struct bseq_pool *stream_process(const char *run_script, struct bseq_pool
     FILE *fp;
     fp = popen(script.s, "r");
     if (fp == NULL) {
+        if (args.no_warnings) return NULL;
+
         warnings("Failed to process read block %s : %s.", unique_block_name, strerror(errno));
         // out of tmp dir
         return NULL;
@@ -175,7 +183,8 @@ char *stream_script_format(const char *script)
     int file_check = stat(script, &sb);
     if (file_check == 0) { // a script file
         char actualpath [PATH_MAX+1];
-        realpath(script, actualpath);
+        char *path = realpath(script, actualpath);
+        if (path == NULL) error("Unable to define the path of script, %s", script);
         ksprintf(&str, "sh %s", actualpath);
         LOG_print("script path: %s", actualpath);
     } else {
@@ -239,7 +248,7 @@ int fastq_stream(int argc, char **argv)
         struct bseq_pool *ret_p = stream_process(run_script, p, tempdir0.s, ubi);
         
         if (ret_p == NULL) {
-            warnings("Block %s has zero output.", ubi);
+            if (args.no_warnings == 0) warnings("Block %s has zero output.", ubi);
         } else {
             if (args.stream_input_fasta == 1) ret_p->force_fasta = 1;
             // update names

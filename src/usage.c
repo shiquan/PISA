@@ -112,8 +112,8 @@ int fsort_usage()
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m fsort -tags CB,UR -list cell_barcodes_top10K.txt -@ 5 -o sorted.fq.gz in.fq\n");
     fprintf(stderr, "\nOptions:\n");
     fprintf(stderr, " -tags    [TAGS]     Tags, such as CB,UR. Order of these tags is sensitive.\n");
-    fprintf(stderr, " -dedup              Remove dna copies with same tags. Only keep reads have the best quality.\n");
-    fprintf(stderr, " -dup-tag [TAG]      Tag name of duplication counts. Use with -dedup only. [DU]\n");
+    //fprintf(stderr, " -dedup              Remove dna copies with same tags. Only keep reads have the best quality.\n");
+    //fprintf(stderr, " -dup-tag [TAG]      Tag name of duplication counts. Use with -dedup only. [DU]\n");
     fprintf(stderr, " -list    [FILE]     White list for first tag, usually for cell barcodes.\n");
     fprintf(stderr, " -@       [INT]      Threads to compress file.\n");
     fprintf(stderr, " -o       [fq.gz]    bgzipped output fastq file.\n");
@@ -132,13 +132,14 @@ int fastq_stream_usage()
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -tags    [TAGS]     Tags to define read blocks.\n");
     fprintf(stderr, " -script  [FILE]     User defined bash script, process $FQ and generate results to stdout.\n");
-    fprintf(stderr, " -min     [INT]      Mininal reads per block to process.  [2]\n");
-    fprintf(stderr, " -max     [INT]      Maximal reads per block, if more reads, will downsampling. [8000]\n");
+    //fprintf(stderr, " -min     [INT]      Mininal reads per block to process.  [2]\n");
+    //fprintf(stderr, " -max     [INT]      Maximal reads per block, if more reads, will downsampling. [8000]\n");
     fprintf(stderr, " -fa                 Stream FASTQ output instead of FASTQ.\n");
     // fprintf(stderr, " -rename           Rename output reads\n");
     fprintf(stderr, " -tmpdir\n");
     fprintf(stderr, " -t           Threads.\n");
-    fprintf(stderr, " -o   [FILE]  Path to output file.\n");
+    fprintf(stderr, " -o         [FILE]   Path to output file.\n");
+    fprintf(stderr, " -nw                 Disable warning messages.\n");
     fprintf(stderr, "\n");
     return 1;
 }

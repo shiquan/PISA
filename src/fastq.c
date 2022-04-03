@@ -19,12 +19,21 @@ int check_name(char *s1, char *s2)
     return 0;
 }
 
-struct bseq_pool *bseq_pool_init()
+struct bseq_pool *bseq_pool_init0()
 {
     struct bseq_pool *p = malloc(sizeof(*p));
     memset(p, 0, sizeof(*p));
     return p;
 }
+
+struct bseq_pool *bseq_pool_init(int size)
+{
+    struct bseq_pool *p = bseq_pool_init0();
+    p->m = size;
+    p->s = malloc(p->m*sizeof(struct bseq));
+    return p;
+}
+
 void bseq_unset(struct bseq *b)
 {
     memset(b, 0, sizeof(*b));
@@ -107,11 +116,11 @@ int fastq_handler_read_one(struct fastq_handler *fastq)
 
 static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_size)
 {
-    struct bseq_pool *p = bseq_pool_init();
-    int size = 0;
+    struct bseq_pool *p = bseq_pool_init(chunk_size);
     int ret1= -1;
     do {
-
+        if (p->n == chunk_size) break;
+        
         ret1 = kseq_read(h->k1);
     
         if (ret1 < 0) { // come to the end of file
@@ -129,10 +138,12 @@ static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_siz
         kseq_t *ks = h->k1;
         
         struct bseq *s;
+        /*
         if (p->n >= p->m ) {
             p->m = p->m ? p->m*2 : 256;
             p->s = realloc(p->s, p->m*sizeof(struct bseq));
         }
+        */
         s = &p->s[p->n];
 
         trim_read_tail(ks->name.s, ks->name.l);
@@ -152,10 +163,7 @@ static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_siz
         kstr_copy(&s->s1, &ks->seq);
         kstr_copy(&s->q1, &ks->qual);
         
-        size += s->s0.l;
-        size += s->s1.l;
         p->n++;
-        if ( size >= chunk_size ) break;
     } while (1);
     
     if ( p->n == 0 ) {
@@ -167,11 +175,13 @@ static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_siz
 static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size, int pe)
 {
     // k1 and k2 already load one record when come here
-    struct bseq_pool *p = bseq_pool_init();
+    struct bseq_pool *p = bseq_pool_init(chunk_size);
     int ret1, ret2 = -1;
     
     if ( pe == 0 ) {
         do {
+            if (p->n == chunk_size) break;
+            
             ret1 = kseq_read(h->k1);
             
             if (ret1 < 0) { // come to the end of file
@@ -185,11 +195,12 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
                 else break;
                 h->curr++;
             }
-
+            /*
             if (p->n >= p->m) {
                 p->m = p->m ? p->m<<1 : 256;
                 p->s = realloc(p->s, p->m*sizeof(struct bseq));
             }
+            */
             struct bseq *s = &p->s[p->n];
             kseq_t *k1 = h->k1;
             trim_read_tail(k1->name.s, k1->name.l);
@@ -198,12 +209,15 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
             kstr_copy(&s->s0, &k1->seq);
             kstr_copy(&s->q0, &k1->qual);
             p->n++;
-            if ( p->n >= chunk_size ) break;
+            // if ( p->n >= chunk_size ) break;
         }
         while(1);
     }
     else {
-        do {            
+        do {
+            
+            if ( p->n == chunk_size ) break;
+            
             ret1 = kseq_read(h->k1);
             ret2 = kseq_read(h->k2);
             if (ret1 < 0) { // come to the end of file
@@ -234,10 +248,12 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
             //if ( k1->seq.l != k2->seq.l ) error("Inconsistant PE read length, %s.", k1->name.s);
             
             struct bseq *s;
+            /*
             if (p->n >= p->m) {
                 p->m = p->m ? p->m<<1 : 256;
                 p->s = realloc(p->s, p->m*sizeof(struct bseq));
             }
+            */
             s = &p->s[p->n];
             bseq_unset(s);
             kstr_copy(&s->n0, &k1->name);
@@ -245,9 +261,7 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
             kstr_copy(&s->q0, &k1->qual);
             kstr_copy(&s->s1, &k2->seq);
             kstr_copy(&s->q1, &k2->qual);
-            p->n++;
-            
-            if ( p->n >= chunk_size ) break;            
+            p->n++;           
         }
         while(1);
     }
@@ -765,10 +779,14 @@ void bseq_pool_write_file(struct bseq_pool *p, const char *fn)
 
 struct bseq_pool *bseq_pool_cache_fastq(FILE *fp, int n)
 {
-    struct bseq_pool *p = bseq_pool_init();
+    struct bseq_pool *p = bseq_pool_init(n);
     
     for (;;) {
-        if (n > 0) {
+
+        if (p->n == p->m) break;
+        
+        /*
+          if (n > 0) {
             if (p->n == n) break;
             if (p->n == 0) {
                 p->m = n;
@@ -780,6 +798,7 @@ struct bseq_pool *bseq_pool_cache_fastq(FILE *fp, int n)
                 p->s = realloc(p->s, sizeof(struct bseq)*p->m);
             }
         }
+        */
         int l = 0;
         struct bseq *b = &p->s[p->n];
         bseq_unset(b);
@@ -848,9 +867,13 @@ struct bseq_pool *bseq_pool_cache_fastq(FILE *fp, int n)
 }
 struct bseq_pool *bseq_pool_cache_fasta(FILE *fp, int n)
 {
-    struct bseq_pool *p = bseq_pool_init();
+    struct bseq_pool *p = bseq_pool_init(n);
     
     for (;;) {
+
+        if (p->n == p->m) break;
+        
+        /*
         if (n > 0) {
             if (p->n == n) break;
             if (p->n == 0) {
@@ -863,7 +886,7 @@ struct bseq_pool *bseq_pool_cache_fasta(FILE *fp, int n)
                 p->s = realloc(p->s, sizeof(struct bseq)*p->m);
             }
         }
-
+        */
         struct bseq *b = &p->s[p->n];
         bseq_unset(b);
         
@@ -973,7 +996,7 @@ struct bseq_pool *fastq_read_block(struct fastq_handler *fastq, struct dict *tag
         return NULL;
     }
 
-    struct bseq_pool *p = bseq_pool_init();
+    struct bseq_pool *p = bseq_pool_init(2);
     char **vals = fname_pick_tags(b->n0.s, tags);
     
     bseq_pool_push(b, p);

@@ -921,11 +921,13 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
             if (bed->start > s->start || bed->end <= s->end) continue; // not covered
             temp.l = 0;
             
-            if (bed->name == -1) 
+            if (bed->name == -1) {          
                 ksprintf(&temp, "%s_%d_%d", dict_name(B->seqname, bed->seqname), bed->start, bed->end);
-            else
+                if (bed->strand == 0) kputs("_+", &temp);
+                else if (bed->strand == 1) kputs("_-", &temp);
+            } else {
                 kputs(dict_name(B->name, bed->name), &temp);
-            
+            }
             if (bed->strand == BED_STRAND_UNK) read_in_peak = 1;
             // stat->reads_in_region++;
             else {
@@ -1223,16 +1225,8 @@ void process_bam()
     }
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
-}
-int bam_anno_attr(int argc, char *argv[])
-{
-    double t_real;
-    t_real = realtime();
 
-    if (parse_args(argc, argv)) return anno_usage();
     
-    process_bam();
-
 /* #pragma omp parallel num_threads(args.n_thread) */
 /*     for (;;) { */
 /*         struct bam_pool *b = bam_pool_create(); */
@@ -1246,9 +1240,21 @@ int bam_anno_attr(int argc, char *argv[])
 /*         write_out(b); */
 /*     } */
 
+}
+int bam_anno_attr(int argc, char *argv[])
+{
+    double t_real;
+    t_real = realtime();
+
+    if (parse_args(argc, argv)) return anno_usage();
+    
+    process_bam();
+
     write_report();
     memory_release();    
-    LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
+
+    LOG_print("Real time: %.3f sec; CPU: %.3f sec; Speed : %d records/sec; Peak RSS: %.3f GB.",
+              realtime() - t_real, cputime(), (int)(args.reads_pass_qc/cputime()), peakrss() / 1024.0 / 1024.0 / 1024.0);
     
     return 0;    
 }
