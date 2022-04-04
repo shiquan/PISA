@@ -985,6 +985,7 @@ int compare_block(char**vals, int n, struct fastq_handler *fastq, struct dict *t
 struct bseq_pool *fastq_read_block(struct fastq_handler *fastq, struct dict *tags)
 {
     if (fastq->closed == 1) return NULL;
+    assert(tags);
     struct bseq *b = fastq_read_one(fastq);
     if (b == NULL) {
         fastq->closed = 1;
@@ -992,13 +993,13 @@ struct bseq_pool *fastq_read_block(struct fastq_handler *fastq, struct dict *tag
     }
 
     struct bseq_pool *p = bseq_pool_init(2);
-    
-    bseq_pool_push(b, p);
-    bseq_destroy(b);
 
     char **vals = fname_pick_tags(b->n0.s, tags);
     p->opts = vals;
-
+    //debug_print("%s", b->n0.s);
+    bseq_pool_push(b, p);
+    bseq_destroy(b);
+    
     int n = dict_size(tags);
     for (;;) {
         int ret = compare_block(vals, n, fastq, tags);

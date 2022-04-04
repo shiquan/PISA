@@ -175,6 +175,7 @@ static struct bseq_pool *stream_process(const char *run_script, struct bseq_pool
     pclose(fp);
 
     free(script.s);
+    
     // back to workdir
     // chdir(cwd); 
     return out;
@@ -209,12 +210,15 @@ static void write_out(struct bseq_pool *p)
 {
     if (p == NULL) return;        
     bseq_pool_write_fp(p, args.fout);
-    int i;
-    char **vals = p->opts;
-    int n = dict_size(args.tags);
-    for (i = 0; i < n; ++i)
-        if (vals[i]) free(vals[i]);
-    free(vals);
+
+    if (p->opts) {
+        int i;
+        char **vals = p->opts;
+        int n = dict_size(args.tags);
+        for (i = 0; i < n; ++i)
+            if (vals[i]) free(vals[i]);
+        free(vals);
+    }
     bseq_pool_destroy(p);
 }
 static void *run_it(void *_data)
@@ -263,6 +267,15 @@ static void *run_it(void *_data)
         free(str.s);
     }
     free(tempdir0.s);
+
+    int i;
+    char **vals = p->opts;
+    int n = dict_size(args.tags);
+    for (i = 0; i < n; ++i)
+        if (vals[i]) free(vals[i]);
+    free(vals);
+
+    bseq_pool_destroy(p);
     free(ubi);
     return ret_p;
 }
