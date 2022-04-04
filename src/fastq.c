@@ -992,10 +992,11 @@ struct bseq_pool *fastq_read_block(struct fastq_handler *fastq, struct dict *tag
     }
 
     struct bseq_pool *p = bseq_pool_init(2);
-    char **vals = fname_pick_tags(b->n0.s, tags);
     
     bseq_pool_push(b, p);
     bseq_destroy(b);
+
+    char **vals = fname_pick_tags(b->n0.s, tags);
     p->opts = vals;
 
     int n = dict_size(tags);
