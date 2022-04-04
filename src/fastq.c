@@ -116,6 +116,7 @@ int fastq_handler_read_one(struct fastq_handler *fastq)
 
 static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_size)
 {
+    assert(chunk_size > 0);
     struct bseq_pool *p = bseq_pool_init(chunk_size);
     int ret1= -1;
     do {
@@ -174,6 +175,7 @@ static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_siz
 }
 static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size, int pe)
 {
+    assert(chunk_size > 0);
     // k1 and k2 already load one record when come here
     struct bseq_pool *p = bseq_pool_init(chunk_size);
     int ret1, ret2 = -1;
@@ -783,12 +785,9 @@ struct bseq_pool *bseq_pool_cache_fastq(FILE *fp, int n)
     
     for (;;) {
 
-        if (p->n == p->m) break;
-        
-        /*
-          if (n > 0) {
+        if (n > 0) {
             if (p->n == n) break;
-            if (p->n == 0) {
+            if (p->m == 0) {
                 p->m = n;
                 p->s = malloc(sizeof(struct bseq)*p->m);
             }
@@ -798,7 +797,7 @@ struct bseq_pool *bseq_pool_cache_fastq(FILE *fp, int n)
                 p->s = realloc(p->s, sizeof(struct bseq)*p->m);
             }
         }
-        */
+        
         int l = 0;
         struct bseq *b = &p->s[p->n];
         bseq_unset(b);
@@ -870,10 +869,6 @@ struct bseq_pool *bseq_pool_cache_fasta(FILE *fp, int n)
     struct bseq_pool *p = bseq_pool_init(n);
     
     for (;;) {
-
-        if (p->n == p->m) break;
-        
-        /*
         if (n > 0) {
             if (p->n == n) break;
             if (p->n == 0) {
@@ -886,7 +881,7 @@ struct bseq_pool *bseq_pool_cache_fasta(FILE *fp, int n)
                 p->s = realloc(p->s, sizeof(struct bseq)*p->m);
             }
         }
-        */
+       
         struct bseq *b = &p->s[p->n];
         bseq_unset(b);
         

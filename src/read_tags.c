@@ -142,7 +142,11 @@ char *vals2str(char **vals, int n)
     kstring_t str = {0,0,0};
     for (i = 0; i < n; ++i) {
         if (i > 0) kputc('_', &str);
-        kputs(vals[i], &str);
+        if (vals[i]) kputs(vals[i], &str);
+        else {
+            if (str.m) free(str.s);
+            return NULL;
+        }
     }
 
     for (i = 0; i < str.l; ++i) {
@@ -158,7 +162,8 @@ char *fname_tagvalstr(const char *p, struct dict *dict)
     int n =  dict_size(dict);
     char *con = vals2str(vals, n);
     int i;
-    for (i = 0; i < n; ++i) free(vals[i]);
+    for (i = 0; i < n; ++i)
+        if (vals[i]) free(vals[i]);
     free(vals);
 
     return con;    

@@ -19,7 +19,7 @@ static struct args {
     struct dict *tags;
     int min_reads_per_block;
     int max_reads_per_block;
-    
+    int keep_processed;
     struct fastq_handler *fastq;
     int n_thread;
 
@@ -45,6 +45,7 @@ static struct args {
     .tags         = NULL,
     .min_reads_per_block = 2,
     .max_reads_per_block = 8000,
+    .keep_processed = 0,
     .fastq        = NULL,
     .n_thread     = 1,
     .keep_temp    = 0,
@@ -88,7 +89,10 @@ static int parse_args(int argc, char **argv)
             args.stream_input_fasta = 1;
             continue;
         }
-
+        else if (strcmp(a, "-keep") == 0) {
+            args.keep_processed = 1;
+            continue;
+        }
         if (var != 0) {
             *var = argv[i++];
             continue;
@@ -222,10 +226,11 @@ int fastq_stream(int argc, char **argv)
             warnings("Too much temp files created. Auto disable -keep-tmp.");
             args.keep_temp = 0;   
         }
-
+        
         if (p->n == 1 || p->n < args.min_reads_per_block) {
+            if (args.keep_processed == 0) continue;
             if (args.stream_input_fasta == 1) p->force_fasta = 1;
-            
+
 #pragma omp critical (write)
             bseq_pool_write_fp(p, args.fout);
             
@@ -236,9 +241,9 @@ int fastq_stream(int argc, char **argv)
                      
             bseq_pool_destroy(p);
             continue;
-        }        
-        // make unique block barcode [0-9A-Za-z_]
+        }
 
+        // make unique block barcode [0-9A-Za-z_]
         char *ubi = vals2str(p->opts, n);
 
         kstring_t tempdir0 = {0,0,0};
