@@ -4,11 +4,12 @@
 #include "dict.h"
 #include "fastq.h"
 #include "read_tags.h"
-
+#include "htslib/thread_pool.h"
+/*
 #ifdef _OPENMP
 #include <omp.h>
 #endif
-
+*/
 static struct args {
     const char *input_fname;
     const char *output_fname;
@@ -17,12 +18,14 @@ static struct args {
     const char *tags_str;
     const char *tempdir;
     struct dict *tags;
+    
     int min_reads_per_block;
     int max_reads_per_block;
     int keep_processed;
     struct fastq_handler *fastq;
     int n_thread;
 
+    char *run_script;
     int no_warnings;
     
     // In default, temp files will be deleted after process, but enable this flag will keep them.
@@ -34,7 +37,7 @@ static struct args {
     
     int keep_temp;
     int stream_input_fasta;
-    FILE *fout;
+    FILE *fout;    
 } args = {
     .input_fname  = NULL,
     .output_fname = NULL,
@@ -48,6 +51,7 @@ static struct args {
     .keep_processed = 0,
     .fastq        = NULL,
     .n_thread     = 1,
+    .run_script   = NULL,
     .keep_temp    = 0,
     .stream_input_fasta = 0,
     .fout         = NULL,
@@ -55,6 +59,7 @@ static struct args {
 
 static void memory_release()
 {
+    if (args.run_script) free(args.run_script);
     fastq_handler_destory(args.fastq);    
 }
 
@@ -199,7 +204,127 @@ char *stream_script_format(const char *script)
     return str.s;
 }
 extern int fastq_stream_usage();
+
+static void write_out(struct bseq_pool *p)
+{
+    if (p == NULL) return;        
+    bseq_pool_write_fp(p, args.fout);
+    int i;
+    char **vals = p->opts;
+    int n = dict_size(args.tags);
+    for (i = 0; i < n; ++i) free(vals[i]);
+    free(vals);
+    bseq_pool_destroy(p);
+}
+static void *run_it(void *_data)
+{
+    struct bseq_pool *p = (struct bseq_pool*)_data;
+    
+    if (p->n == 1 || p->n < args.min_reads_per_block) {
+        if (args.keep_processed == 0) return NULL;
+        if (args.stream_input_fasta == 1) p->force_fasta = 1;
+        return p;
+    }
+
+    // make unique block barcode [0-9A-Za-z_]
+    char *ubi = vals2str(p->opts, dict_size(args.tags));
+
+    kstring_t tempdir0 = {0,0,0};
+    kputs(args.tempdir, &tempdir0);
+    if (tempdir0.s[tempdir0.l-1] != '/') kputc('/', &tempdir0);
+    kputs(ubi, &tempdir0);
+    struct bseq_pool *ret_p = stream_process(args.run_script, p, tempdir0.s, ubi);
+    
+    if (ret_p == NULL) {
+        if (args.no_warnings == 0) warnings("Block %s has zero output.", ubi);
+    } else {
+        if (args.stream_input_fasta == 1) ret_p->force_fasta = 1;
+        // update names
+        char **vals = p->opts;
+        int i;
+        for (i = 0; i < ret_p->n; ++i) {
+            struct bseq *b = &ret_p->s[i];
+            char *new = fname_update_tags(b->n0.s, args.tags, vals);
+            if (new) {
+                b->n0.l = 0;
+                kputs(new, &b->n0);
+                free(new);
+            }
+        }
+    }
+
+    if (args.keep_temp == 0) {
+        kstring_t str = {0,0,0};
+        kputs("rm -rf ", &str);
+        kputs(tempdir0.s, &str);
+        
+        if (system(str.s) == -1) warnings("Failed to run %s", str.s);
+        free(str.s);
+    }
+    free(tempdir0.s);
+    free(ubi);
+    return ret_p;
+}
+
 int fastq_stream(int argc, char **argv)
+{
+    double t_real;
+    t_real = realtime();
+    
+    if (parse_args(argc, argv)) return fastq_stream_usage();
+    
+    args.run_script = stream_script_format(args.script);
+    if (args.run_script == NULL) error("Empty run script?");
+    
+    int n_block = 0;
+
+    hts_tpool *p = hts_tpool_init(args.n_thread);
+    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+    hts_tpool_result *r;
+    
+    for (;;) {
+        if (args.fastq->closed == 1) break;
+        struct bseq_pool *b0;
+        b0 = fastq_read_block(args.fastq, args.tags);
+        if (b0 == NULL) break;
+        n_block++;
+        
+        if (n_block > 1000 && args.keep_temp ==1) {
+            warnings("Too much temp files created. Auto disable -keep-tmp.");
+            args.keep_temp = 0;   
+        }
+        
+        int block;
+        do {
+            block = hts_tpool_dispatch2(p, q, run_it, b0, 1);
+            if ((r = hts_tpool_next_result(q))) {
+                struct bseq_pool *d = (struct bseq_pool*)hts_tpool_result_data(r);
+                write_out(d);
+                hts_tpool_delete_result(r, 0);
+            }
+        }
+        while (block == -1);
+    }
+    
+    hts_tpool_process_flush(q);
+    
+    while ((r = hts_tpool_next_result(q))) {
+        struct bseq_pool *d = (struct bseq_pool*)hts_tpool_result_data(r);
+        write_out(d);
+        hts_tpool_delete_result(r, 0);
+    }
+    hts_tpool_process_destroy(q);
+    hts_tpool_destroy(p);
+
+    memory_release();
+
+    LOG_print("Real time: %.3f sec; CPU: %.3f sec; Peak RSS: %.3f GB.", realtime() - t_real, cputime(), peakrss() / 1024.0 / 1024.0 / 1024.0);
+    return 0;
+}
+
+
+
+int fastq_stream0(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
@@ -211,6 +336,7 @@ int fastq_stream(int argc, char **argv)
     
     int n_block = 0;
     int n = dict_size(args.tags);
+
     
 #pragma omp parallel shared(n_block) num_threads(args.n_thread)
     for (;;) {
