@@ -212,7 +212,8 @@ static void write_out(struct bseq_pool *p)
     int i;
     char **vals = p->opts;
     int n = dict_size(args.tags);
-    for (i = 0; i < n; ++i) free(vals[i]);
+    for (i = 0; i < n; ++i)
+        if (vals[i]) free(vals[i]);
     free(vals);
     bseq_pool_destroy(p);
 }
@@ -362,7 +363,8 @@ int fastq_stream0(int argc, char **argv)
             
             int i;
             char **vals = p->opts;
-            for (i = 0; i < n; ++i) free(vals[i]);
+            for (i = 0; i < n; ++i)
+                if (vals[i]) free(vals[i]);
             free(vals);
                      
             bseq_pool_destroy(p);
