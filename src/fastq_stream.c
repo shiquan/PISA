@@ -258,6 +258,16 @@ static void *run_it(void *_data)
         }
     }
 
+    int i;
+    char **vals = p->opts;
+    int n = dict_size(args.tags);
+    for (i = 0; i < n; ++i)
+        if (vals[i]) free(vals[i]);
+    free(vals);
+    bseq_pool_destroy(p);
+
+    free(ubi);
+
     if (args.keep_temp == 0) {
         kstring_t str = {0,0,0};
         kputs("rm -rf ", &str);
@@ -268,15 +278,6 @@ static void *run_it(void *_data)
     }
     free(tempdir0.s);
 
-    int i;
-    char **vals = p->opts;
-    int n = dict_size(args.tags);
-    for (i = 0; i < n; ++i)
-        if (vals[i]) free(vals[i]);
-    free(vals);
-
-    bseq_pool_destroy(p);
-    free(ubi);
     return ret_p;
 }
 
@@ -337,7 +338,7 @@ int fastq_stream(int argc, char **argv)
 }
 
 
-
+/*
 int fastq_stream0(int argc, char **argv)
 {
     double t_real;
@@ -416,6 +417,12 @@ int fastq_stream0(int argc, char **argv)
         
         free(ubi);
         
+        char **vals = p->opts;
+        int i;
+        for (i = 0; i < n; ++i) free(vals[i]);
+        free(vals);
+        bseq_pool_destroy(p);
+
         if (args.keep_temp == 0) {
             kstring_t str = {0,0,0};
             kputs("rm -rf ", &str);
@@ -425,13 +432,6 @@ int fastq_stream0(int argc, char **argv)
             free(str.s);
         }
         free(tempdir0.s);
-
-        char **vals = p->opts;
-        int i;
-        for (i = 0; i < n; ++i) free(vals[i]);
-        free(vals);
-        bseq_pool_destroy(p);
-
     }
 
     free(run_script);
@@ -440,3 +440,4 @@ int fastq_stream0(int argc, char **argv)
     LOG_print("Real time: %.3f sec; CPU: %.3f sec; Peak RSS: %.3f GB.", realtime() - t_real, cputime(), peakrss() / 1024.0 / 1024.0 / 1024.0);
     return 0;
 }
+*/
