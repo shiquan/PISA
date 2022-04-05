@@ -132,7 +132,8 @@ int fastq_stream_usage()
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -tags    [TAGS]     Tags to define read blocks.\n");
     fprintf(stderr, " -script  [FILE]     User defined bash script, process $FQ and generate results to stdout.\n");
-    //fprintf(stderr, " -min     [INT]      Mininal reads per block to process.  [2]\n");
+    fprintf(stderr, " -min     [INT]      Mininal reads per block to process.  [2]\n");
+    fprintf(stderr, " -keep               Output unprocessed FASTQ+ records.\n");
     //fprintf(stderr, " -max     [INT]      Maximal reads per block, if more reads, will downsampling. [8000]\n");
     fprintf(stderr, " -fa                 Stream FASTQ output instead of FASTQ.\n");
     // fprintf(stderr, " -rename           Rename output reads\n");
