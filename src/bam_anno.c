@@ -1183,7 +1183,30 @@ static void memory_release()
 }
 
 extern int anno_usage();
+static void *read_chunk()
+{
+    if (args.input_sam) {
+        struct kstring_pool *b =  kstring_pool_read(args.ks, args.chunk_size);
+        if (b == NULL) return NULL;
+        if (b->n == 0) {
+            free(b->str);
+            free(b);
+            return NULL;
+        }
+        return b;
+    }
+    
+    struct bam_pool *b = bam_pool_create();
+    bam_read_pool((struct bam_pool*)b, args.fp, args.hdr, args.chunk_size);
+    if (b == NULL) return NULL;
+    if (b->n == 0) {
+        free(b->bam);
+        free(b);
+        return NULL;
+    }
+    return b;
 
+}
 void process_bam()
 {
     hts_tpool *p = hts_tpool_init(args.n_thread);
@@ -1191,19 +1214,7 @@ void process_bam()
     hts_tpool_result *r;
     
     for (;;) {
-        void *b0;
-        if (args.input_sam) {
-            struct kstring_pool *b =  kstring_pool_read(args.ks, args.chunk_size);
-            if (b == NULL) break;
-            if (b->n == 0) { free(b->str); free(b); break; }
-            b0 = b;
-        } else {
-            struct bam_pool *b = bam_pool_create();
-            bam_read_pool((struct bam_pool*)b, args.fp, args.hdr, args.chunk_size);
-            if (b == NULL) break;
-            if (b->n == 0) { free(b->bam); free(b); break; }
-            b0 = b;
-        }
+        void *b0 = read_chunk();
         
         int block;
         do {
@@ -1226,21 +1237,22 @@ void process_bam()
     }
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
+}
 
-    
-/* #pragma omp parallel num_threads(args.n_thread) */
-/*     for (;;) { */
-/*         struct bam_pool *b = bam_pool_create(); */
-/* #pragma omp critical (read) */
-/*         bam_read_pool(b, args.fp, args.hdr, args.chunk_size); */
-/*         if (b == NULL) break; */
-/*         if (b->n == 0) { free(b->bam); free(b); break; } */
-/*         b = run_it(b); */
+void process_bam1()
+{        
+#pragma omp parallel num_threads(args.n_thread)
+    for (;;) {
+        void *b = NULL;
+#pragma omp critical (read)
+        b = read_chunk();
+        if (b == NULL) break;
 
-/* #pragma omp critical (write) */
-/*         write_out(b); */
-/*     } */
+        b = run_it(b);
 
+#pragma omp critical (write)
+        write_out(b);
+    }
 }
 int bam_anno_attr(int argc, char *argv[])
 {
@@ -1249,7 +1261,7 @@ int bam_anno_attr(int argc, char *argv[])
 
     if (parse_args(argc, argv)) return anno_usage();
     
-    process_bam();
+    process_bam1();
 
     write_report();
     memory_release();    
