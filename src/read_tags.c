@@ -69,8 +69,14 @@ char *fname_concat_tag(char *p, const char *tag, const char *val)
     kputc(':', &str);
     if (val[1] != ':') kputs("Z:", &str); // if no type in the val, treat as 'Z'
     kputs(val, &str);
-    
+
     if (i < l) kputs(p+i, &str); // other optional fields
+
+    if (str.l > MAX_ID_LENGTH) {
+        warnings("Failed to update : length of read name is limited to %d", MAX_ID_LENGTH);
+        free(str.s);
+        return NULL;
+    }
     
     return str.s;
 }
@@ -93,6 +99,11 @@ char *fname_update_tag(char *p, const char *tag, const char *val)
     kputc(':', &str);
     kputs(val, &str);
     if (j < l) kputs(p+j, &str);
+    if (str.l > MAX_ID_LENGTH) {
+        warnings("Failed to update : length of read name is limited to %d", MAX_ID_LENGTH);
+        free(str.s);
+        return NULL;
+    }
     return str.s;
 }
 

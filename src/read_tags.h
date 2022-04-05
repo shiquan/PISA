@@ -5,6 +5,8 @@
 #include "dict.h"
 #include "fastq.h"
 
+#define MAX_ID_LENGTH 254
+
 struct dict *str2tag(const char *seq);
 int fname_query_tag(const char *p, const char *tag);
 
