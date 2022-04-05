@@ -334,10 +334,11 @@ static int parse_args(int argc, char **argv)
     if (map_qual) args.map_qual = str2int((char*)map_qual);
     if (args.map_qual < 0) args.map_qual = 0;
     
-    int file_th = 1;
-    if (file_thread)
-        file_th = str2int((char*)file_thread);
-
+    // int file_th = 4;
+    /* if (file_thread) */
+    /*     file_th = str2int((char*)file_thread); */
+    /* else file_th = args.n_thread; // */
+    
     if (args.input_sam == 1) {
         args.fp_sam = strcmp(args.input_fname, "-") ? gzopen(args.input_fname,"r") : gzdopen(fileno(stdin), "r");
         if (args.fp_sam == NULL) error("%s : %s.", args.input_fname, strerror(errno));
@@ -357,7 +358,7 @@ static int parse_args(int argc, char **argv)
             error("Unsupported input format, only support BAM/SAM/CRAM format.");
         args.hdr = sam_hdr_read(args.fp);
         CHECK_EMPTY(args.hdr, "Failed to open header.");
-        hts_set_threads(args.fp, file_th);
+        hts_set_threads(args.fp, args.n_thread);
     }
     
     if (args.bed_fname) {
@@ -409,7 +410,7 @@ static int parse_args(int argc, char **argv)
     CHECK_EMPTY(args.out, "%s : %s.", args.output_fname, strerror(errno));
     if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
 
-    hts_set_threads(args.out, file_th);
+    hts_set_threads(args.out,args.n_thread);
 
     args.group_stat = dict_init();
     int idx;
