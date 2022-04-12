@@ -281,9 +281,27 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
     if (tx_gtf->gene_name == -1) tx_gtf->gene_name = gtf->gene_name;
     if (tx_gtf->transcript_id == -1) tx_gtf->transcript_id = gtf->transcript_id;
 
-    assert(tx_gtf->gene_id == gtf->gene_id);
-    assert(tx_gtf->gene_name == gtf->gene_name);
-    assert(tx_gtf->transcript_id == gtf->transcript_id);
+    if (tx_gtf->gene_id != gtf->gene_id) {
+        error("Inconsitance gene id between transcript %s and gene %s.",
+              dict_name(G->transcript_id, tx_gtf->transcript_id),
+              dict_name(G->gene_id, gtf->gene_id)
+            );
+    }
+    if (tx_gtf->gene_name != gtf->gene_name) {
+        error("Inconsitance gene name between transcript %s and gene %s.",
+              dict_name(G->transcript_id, tx_gtf->transcript_id),
+              dict_name(G->gene_name, gtf->gene_name)
+            );        
+    }
+    if (tx_gtf->transcript_id != gtf->transcript_id) {
+        error("Inconsitance transcript id between transcript %s and record %s.",
+              dict_name(G->transcript_id, tx_gtf->transcript_id),
+              dict_name(G->transcript_id, gtf->transcript_id)
+            );        
+    }
+    // assert(tx_gtf->gene_id == gtf->gene_id);
+    // assert(tx_gtf->gene_name == gtf->gene_name);
+    // assert(tx_gtf->transcript_id == gtf->transcript_id);
 
     // exon, cds, UTRs etc.
     /*
