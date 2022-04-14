@@ -134,103 +134,83 @@ struct dict *read_wl_cached(const char **bcs, int l, int mis)
     if (mis == 0) return wl;
     return build_mis(wl);
 }
-char *bseq_subset_seq(struct bseq *b, struct bc_reg *r)
+char *bseq_subset_seq(struct bseq *b, int rd, int st, int ed)
 {
-    if (r == NULL) return NULL;
     kstring_t str = {0,0,0};
 
-    int i;
-    for (i = 0; i < r->n; ++i) {
-        struct bc_reg0 *r0 = &r->r[i];
-        
-        if (r0->rd == 1) {
-            if (r0->st == -1) kputs(b->s0.s, &str);
-            else if (r0->ed == -1) kputs(b->s1.s+r0->st, &str);
-            else {
-                kputsn(b->s0.s+r0->st, r0->ed - r0->st, &str);
-                kputs("", &str);
-            }
-        } else if (r0->rd == 2) {
-            if (r0->st == -1) kputs(b->s1.s, &str);
-            else if (r0->ed == -1) kputs(b->s1.s+r0->st, &str);
-            else {
-                kputsn(b->s1.s+r0->st, r0->ed - r0->st, &str);
-                kputs("", &str);
-            }
-        } else {
-            error("Only support 2 reads now.");
-        }
-    }
-    return str.s;
-}
-char *bseq_subset_qual(struct bseq *b, struct bc_reg *r)
-{
-    if (r == NULL) return NULL;
-    kstring_t str = {0,0,0};
-    int i;
-    for (i = 0; i < r->n; ++i) {
-        struct bc_reg0 *r0 = &r->r[i];
-        if (r0->rd == 1) {
-            if (b->q0.l == 0 || b->q0.l < r0->st) return NULL;        
-            if (r0->st == -1) {
-                kputs(b->q0.s, &str);
-            } else if (r0->ed > r0->st){
-                kputsn(b->q0.s+r0->st, r0->ed - r0->st, &str);
-                kputs("", &str);
-            } else {
-                kputs(b->q0.s+r0->st, &str);
-            }
-        } else if (r0->rd == 2) {
-            if (b->q1.l == 0) return NULL;
-            if (r0->st == -1) {
-                kputs(b->q1.s, &str);
-            } else if (r0->ed > r0->st) {
-            kputsn(b->q1.s+r0->st, r0->ed - r0->st, &str);
+    if (rd == 1) {
+        if (st == -1) kputs(b->s0.s, &str);
+        else if (ed == -1) kputs(b->s1.s+st, &str);
+        else {
+            kputsn(b->s0.s+st, ed - st, &str);
             kputs("", &str);
-            } else {
-                kputs(b->q1.s+r0->st, &str);
-            }
-        } else {
-            error("Only support 2 reads now.");
         }
+    } else if (rd == 2) {
+        if (st == -1) kputs(b->s1.s, &str);
+        else if (ed == -1) kputs(b->s1.s+st, &str);
+        else {
+            kputsn(b->s1.s+st, ed -st, &str);
+            kputs("", &str);
+        }
+    } else {
+        error("Only support 2 reads now.");
     }
     return str.s;
 }
-char *correct_bc(struct bc_reg *r, const char *val, int *exact)
+char *bseq_subset_qual(struct bseq *b, int rd, int st, int ed)
+{
+    kstring_t str = {0,0,0};
+    if (rd == 1) {
+        if (b->q0.l == 0 || b->q0.l < st) return NULL;        
+        if (st == -1) {
+            kputs(b->q0.s, &str);
+        } else if (ed > st){
+            kputsn(b->q0.s+st, ed - st, &str);
+            kputs("", &str);
+        } else {
+            kputs(b->q0.s+st, &str);
+        }
+    } else if (rd == 2) {
+        if (b->q1.l == 0) return NULL;
+        if (st == -1) {
+            kputs(b->q1.s, &str);
+        } else if (ed > st) {
+            kputsn(b->q1.s+st, ed - st, &str);
+            kputs("", &str);
+        } else {
+            kputs(b->q1.s+st, &str);
+        }
+    } else {
+        error("Only support 2 reads now.");
+    }
+    return str.s;
+}
+char *correct_bc(struct dict *wl, const char *val, int *exact)
 {
     *exact = 0;
-
-    kstring_t ret = {0,0,0};
-    int i;
-    for (i = 0; i < r->n; ++i) {
-        struct bc_reg0 *r0 = &r->r[i];
-        if (r0->wl == NULL) kputs(val, &ret);
-        
-        int idx = dict_query(r0->wl, val);
-        if (idx >= 0) {
-            *exact = 1;
-            kputs(dict_name(r0->wl, idx), &ret); // Exactly match
-        } else {
-            *exact = 0;
-            int j;
-            int l = strlen(val);
-            kstring_t str= {0, 0, 0};
-            kputs(val, &str);
-            for (j = 0; j < l; ++j) {
-                str.s[j] = 'N';
-                idx = dict_query(r0->wl, str.s);
-                if (idx > 0) {
-                    free(str.s);
-                    kputs(dict_name(r0->wl, idx), &ret);
-                }
+    int idx = dict_query(wl, val);
+    if (idx >= 0) {
+        *exact = 1;
+        return dict_name(wl, idx); // Exactly match
+    } else {
+        *exact = 0;
+        int j;
+        int l = strlen(val);
+        kstring_t str= {0, 0, 0};
+        kputs(val, &str);
+        for (j = 0; j < l; ++j) {
+            char o = str.s[j];
+            str.s[j] = 'N';
+            idx = dict_query(wl, str.s);
+            if (idx > 0) {
+                free(str.s);
+                return dict_name(wl, idx);
             }
-            free(str.s);        
-            if (ret.m) free(ret.s);
-            return NULL;
+            str.s[j] = o;
         }
+        free(str.s);        
     }
-
-    return ret.s;
+    return NULL;
 }
 int parse_region(const char *_s, struct bc_reg *r)
 {
@@ -503,7 +483,7 @@ static void memory_release()
         free(r->r);
         if (r->raw_tag) free(r->raw_tag);
         if (r->corr_tag) free(r->corr_tag);
-        free(r);
+        // free(r);
     }
     
     free(args.bcs);
@@ -548,37 +528,55 @@ static void *run_it(void *_p)
         int j;
         for (j = 0; j < args.n_bc; ++j) {
             struct bc_reg *r = &args.bcs[j];
-            char *val = bseq_subset_seq(b, r);
-            char *name1 = fname_update_tag(b->n0.s, r->raw_tag, val);
+            kstring_t str = {0,0,0};
+            kstring_t corr = {0,0,0};
+            
+            int k;
+            for (k = 0; k < r->n; ++k) {
+                struct bc_reg0 *r0 = &r->r[k];
+                char *val = bseq_subset_seq(b, r0->rd, r0->st, r0->ed);
+                if (r->corr_tag) {
+                    int ex;
+                    char *val0 = correct_bc(r0->wl, val, &ex);
+                    if (ex) b->flag = FQ_FLAG_BC_EXACTMATCH;
+                    if (val0 == NULL) {
+                        b->flag = FQ_FLAG_BC_FAILURE;
+                    } else {
+                        kputs(val0, &corr);
+                        // free(val0);
+                    }
+                }
+                kputs(val, &str);
+                free(val);
+            }
+
+            char *name1 = fname_update_tag(b->n0.s, r->raw_tag, str.s);
+            if (r->corr_tag) {
+                char *tmp = name1;
+                name1 = fname_update_tag(tmp,r->corr_tag, corr.s);
+                free(tmp);
+            }
+            
             b->n0.l = 0;
             kputs(name1, &b->n0);
             free(name1);
-            if (r->corr_tag) {
-                int ex;
-                char *val0 = correct_bc(r, val, &ex);
-                if (ex) b->flag = FQ_FLAG_BC_EXACTMATCH;
-                if (val0 == NULL) {
-                    b->flag = FQ_FLAG_BC_FAILURE;
-                } else {
-                    name1 = fname_update_tag(b->n0.s,r->corr_tag, val0);
-                    b->n0.l = 0;
-                    kputs(name1, &b->n0);
-                    free(name1);
-                }
-            }
-            free(val);
+            free(str.s);
+            if (corr.m) free(corr.s);
         }
 
         char *r1 = NULL;
         char *q1 = NULL;
         char *r2 = NULL;
         char *q2 = NULL;
-        r1 = bseq_subset_seq(b, args.r1);
-        q1 = bseq_subset_qual(b, args.r1);
-        if (r1 == NULL) error("Empty read one.");
-        r2 = bseq_subset_seq(b, args.r2);
-        q2 = bseq_subset_qual(b, args.r2);
+        r1 = bseq_subset_seq(b, args.r1->r->rd, args.r1->r->st, args.r1->r->ed);
+        q1 = bseq_subset_qual(b, args.r1->r->rd, args.r1->r->st, args.r1->r->ed);
 
+        if (r1 == NULL) error("Empty read one.");
+        if (args.r2) {
+            r2 = bseq_subset_seq(b, args.r2->r->rd, args.r2->r->st, args.r2->r->ed);
+            q2 = bseq_subset_qual(b, args.r2->r->rd, args.r2->r->st, args.r2->r->ed);
+        }
+        
         // update reads
         b->s0.l = 0;
         b->q0.l = 0;
