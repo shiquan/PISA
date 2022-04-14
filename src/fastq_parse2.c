@@ -128,7 +128,6 @@ struct dict *read_wl_cached(const char **bcs, int l, int mis)
     struct dict *wl = dict_init();
     int i;
     for (i = 0; i < l;i++) {
-        debug_print("%s", bcs[i]);
         // if (bcs[i] == NULL) continue;
         dict_push(wl, bcs[i]);
     }
