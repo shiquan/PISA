@@ -79,6 +79,9 @@ int fastq_parse2_usage()
     fprintf(stderr, " -dropN             Drop reads if N base in sequence or barcode.\n");
     fprintf(stderr, " -report  [csv]     Summary report.\n");
     fprintf(stderr, " -t       [INT]     Threads. [4]\n");
+    fprintf(stderr, " -x                 Predefined code for specific library.\n");
+    fprintf(stderr, "          * C4      Library structure for DNBelab C4 RNA kit v1.");
+    
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[31m\x1b[1mNotice\x1b[0m :\n");
     //fprintf(stderr, " * \x1b[1mPISA\x1b[0m parse requires -config, -rule, or -x option to specify cell barcode and UMI locations in the raw read files.\n");

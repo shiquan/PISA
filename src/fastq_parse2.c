@@ -69,32 +69,27 @@ static struct args {
     .filtered_by_lowqual = 0,
 };
 
-struct bc_reg {
+struct bc_reg0 {
     int rd;
     int st; // 0 offset
     int ed; // 1 offset
-    char *raw_tag;
-    char *corr_tag;
     struct dict *wl;
 };
 
-struct dict *read_wl(const char *fn, int mis)
+struct bc_reg {
+    int n;
+    char *raw_tag;
+    char *corr_tag;
+    struct bc_reg0 *r;
+};
+struct dict *build_mis(struct dict *wl)
 {
-    struct dict *wl = dict_init();
-    if ( dict_read(wl, fn) ) {
-        dict_destroy(wl);
-        error("Failed to read barcodes from %s.", fn);
-    }
-
     int i;
     kstring_t str = {0,0,0};
     int n = dict_size(wl); // current keys of white list
     for (i = 0; i < n; ++i) {
         str.l = 0;
         kputs(dict_name(wl, i), &str);
-
-        if (mis == 0) continue;
-        
         int j;
         for (j = 0; j < str.l; ++j) {
             char o = str.s[j];
@@ -116,25 +111,56 @@ struct dict *read_wl(const char *fn, int mis)
     free(str.s);
     return wl;
 }
+struct dict *read_wl(const char *fn, int mis)
+{
+    struct dict *wl = dict_init();
+    if ( dict_read(wl, fn) ) {
+        dict_destroy(wl);
+        error("Failed to read barcodes from %s.", fn);
+    }
 
+    if (mis == 0) return wl;
+
+    return build_mis(wl);
+}
+struct dict *read_wl_cached(const char **bcs, int l, int mis)
+{
+    struct dict *wl = dict_init();
+    int i;
+    for (i = 0; i < l;i++) {
+        debug_print("%s", bcs[i]);
+        // if (bcs[i] == NULL) continue;
+        dict_push(wl, bcs[i]);
+    }
+    if (mis == 0) return wl;
+    return build_mis(wl);
+}
 char *bseq_subset_seq(struct bseq *b, struct bc_reg *r)
 {
     if (r == NULL) return NULL;
     kstring_t str = {0,0,0};
-    if (r->rd == 1) {
-        if (r->st == -1) kputs(b->s0.s, &str);
-        else {
-            kputsn(b->s0.s+r->st, r->ed - r->st, &str);
-            kputs("", &str);
+
+    int i;
+    for (i = 0; i < r->n; ++i) {
+        struct bc_reg0 *r0 = &r->r[i];
+        
+        if (r0->rd == 1) {
+            if (r0->st == -1) kputs(b->s0.s, &str);
+            else if (r0->ed == -1) kputs(b->s1.s+r0->st, &str);
+            else {
+                kputsn(b->s0.s+r0->st, r0->ed - r0->st, &str);
+                kputs("", &str);
+            }
+        } else if (r0->rd == 2) {
+            if (r0->st == -1) kputs(b->s1.s, &str);
+            else if (r0->ed == -1) kputs(b->s1.s+r0->st, &str);
+            else {
+                kputsn(b->s1.s+r0->st, r0->ed - r0->st, &str);
+                kputs("", &str);
+            }
+        } else {
+            error("Only support 2 reads now.");
         }
-    } else if (r->rd == 2) {
-        if (r->st == -1) kputs(b->s1.s, &str);
-        else {
-            kputsn(b->s1.s+r->st, r->ed - r->st, &str);
-            kputs("", &str);
-        }
-    } else {
-        error("Only support 2 reads now.");
     }
     return str.s;
 }
@@ -142,66 +168,83 @@ char *bseq_subset_qual(struct bseq *b, struct bc_reg *r)
 {
     if (r == NULL) return NULL;
     kstring_t str = {0,0,0};
-    if (r->rd == 1) {
-        if (b->q0.l == 0 || b->q0.l < r->st) return NULL;        
-        if (r->st == -1) {
-            kputs(b->q0.s, &str);
-        } else if (r->ed > r->st){
-            kputsn(b->q0.s+r->st, r->ed - r->st, &str);
+    int i;
+    for (i = 0; i < r->n; ++i) {
+        struct bc_reg0 *r0 = &r->r[i];
+        if (r0->rd == 1) {
+            if (b->q0.l == 0 || b->q0.l < r0->st) return NULL;        
+            if (r0->st == -1) {
+                kputs(b->q0.s, &str);
+            } else if (r0->ed > r0->st){
+                kputsn(b->q0.s+r0->st, r0->ed - r0->st, &str);
+                kputs("", &str);
+            } else {
+                kputs(b->q0.s+r0->st, &str);
+            }
+        } else if (r0->rd == 2) {
+            if (b->q1.l == 0) return NULL;
+            if (r0->st == -1) {
+                kputs(b->q1.s, &str);
+            } else if (r0->ed > r0->st) {
+            kputsn(b->q1.s+r0->st, r0->ed - r0->st, &str);
             kputs("", &str);
+            } else {
+                kputs(b->q1.s+r0->st, &str);
+            }
         } else {
-            kputs(b->q0.s+r->st, &str);
+            error("Only support 2 reads now.");
         }
-    } else if (r->rd == 2) {
-        if (b->q1.l == 0) return NULL;
-        if (r->st == -1) {
-            kputs(b->q1.s, &str);
-        } else if (r->ed > r->st) {
-            kputsn(b->q1.s+r->st, r->ed - r->st, &str);
-            kputs("", &str);
-        } else {
-            kputs(b->q1.s+r->st, &str);
-        }
-    } else {
-        error("Only support 2 reads now.");
     }
     return str.s;
 }
 char *correct_bc(struct bc_reg *r, const char *val, int *exact)
 {
     *exact = 0;
-    if (r->wl == NULL) return NULL;
-    int idx = dict_query(r->wl, val);
-    if (idx >= 0) {
-        *exact = 1;
-        return dict_name(r->wl, idx); // Exactly match
-    }
 
+    kstring_t ret = {0,0,0};
     int i;
-    int l = strlen(val);
-    kstring_t str= {0, 0, 0};
-    kputs(val, &str);
-    for (i = 0; i < l; ++i) {
-        str.s[i] = 'N';
-        idx = dict_query(r->wl, str.s);
-        if (idx > 0) {
-            free(str.s);
-            return dict_name(r->wl, idx);
+    for (i = 0; i < r->n; ++i) {
+        struct bc_reg0 *r0 = &r->r[i];
+        if (r0->wl == NULL) kputs(val, &ret);
+        
+        int idx = dict_query(r0->wl, val);
+        if (idx >= 0) {
+            *exact = 1;
+            kputs(dict_name(r0->wl, idx), &ret); // Exactly match
+        } else {
+            *exact = 0;
+            int j;
+            int l = strlen(val);
+            kstring_t str= {0, 0, 0};
+            kputs(val, &str);
+            for (j = 0; j < l; ++j) {
+                str.s[j] = 'N';
+                idx = dict_query(r0->wl, str.s);
+                if (idx > 0) {
+                    free(str.s);
+                    kputs(dict_name(r0->wl, idx), &ret);
+                }
+            }
+            free(str.s);        
+            if (ret.m) free(ret.s);
+            return NULL;
         }
     }
-    free(str.s);
-    return NULL;
+
+    return ret.s;
 }
 int parse_region(const char *_s, struct bc_reg *r)
 {
-    r->st = -1;
-    r->ed = -1;
+    struct bc_reg0 *r0 = &r->r[0];
+    
+    r0->st = -1;
+    r0->ed = -1;
     
     char *s0 = strdup(_s);
     char *s = s0;
     if (s[0] != 'R') { free(s0); return 1;}
-    if (s[1] == '1') r->rd = 1;
-    else if (s[1] == '2') r->rd = 2;
+    if (s[1] == '1') r0->rd = 1;
+    else if (s[1] == '2') r0->rd = 2;
     else { free(s0); return 1; }
 
     if (s[2] == '\0') { free(s0); return 0; }
@@ -219,10 +262,34 @@ int parse_region(const char *_s, struct bc_reg *r)
         s++;
         p[n] = '\0';   
     }
-    r->st = str2int(p) - 1;
+    r0->st = str2int(p) - 1;
 
-    if (s) r->ed = str2int(s);
+    if (s) r0->ed = str2int(s);
     free(s0);
+    return 0;
+}
+// return 0 on add new bcs, return 1 on merged
+int merge_bcs(struct bc_reg *bcs, int n0)
+{
+    if (n0 == 0) return 0;
+    struct bc_reg *b0 = &bcs[n0];
+    int i;
+    for (i = 0; i < n0; ++i) {
+        struct bc_reg *b = &bcs[i];       
+        if (strcmp(b->raw_tag, b0->raw_tag) == 0) {
+            b->r =realloc(b->r, (b->n+1)*sizeof(struct bc_reg0));
+            b->r[b->n].rd = b0->r[0].rd;
+            b->r[b->n].st = b0->r[0].st;
+            b->r[b->n].ed = b0->r[0].ed;
+            b->r[b->n].wl = b0->r[0].wl;
+            b->n++;
+            free(b0->r);
+            if (b0->raw_tag) free(b0->raw_tag);
+            if (b0->corr_tag) free(b0->corr_tag);
+            free(b0->r);
+            return 1;
+        }
+    }
     return 0;
 }
 // CB,R1:1-10,whitelist.txt,CB,1;R1,R1:11-60;R2,R2
@@ -259,25 +326,29 @@ void parse_rules(const char *rule)
             if (parse_region(ru, args.r2)) error("Unrecognised rule format.");
         } else {
             if (ru[2] != ',') error("Unrecognised rule format.");
-            struct bc_reg *r0 = &args.bcs[n0++];
-            memset(r0, 0, sizeof(struct bc_reg));
+            struct bc_reg *r = &args.bcs[n0];
+            memset(r, 0, sizeof(struct bc_reg));
+            r->r = malloc(sizeof(struct bc_reg0));
+            
             kstring_t temp = {0,0,0};
             kputs(ru, &temp);
             int n1;
             int *s0 = ksplit(&temp, ',', &n1);
-            r0->raw_tag = strdup(temp.s);
-            if (parse_region(temp.s+s0[1], r0)) error("Unrecognised rule format.");
+            r->raw_tag = strdup(temp.s);
+            if (parse_region(temp.s+s0[1], r)) error("Unrecognised rule format.");
 
             int mis = 0;
-            if (n1 >=4) {
+            if (n1 >=4) {                
                 if (strlen(temp.s+s0[3]) != 2) error("Unrecognised rule format.");
                 if (*(temp.s+s0[4]) == '1') mis = 1;
+                r->corr_tag = strdup(temp.s+s0[3]);
+                struct bc_reg0 *r0 = &r->r[0];
                 r0->wl = read_wl(temp.s+s0[2], mis);
-                r0->corr_tag = strdup(temp.s+s0[3]);
             }
 
             free(temp.s);
             free(s0);
+            if (merge_bcs(args.bcs, n0)==0) n0++;
         }
     }
 
@@ -292,6 +363,7 @@ static int parse_args(int argc, char **argv)
     int i;
     const char *thread = NULL;
     const char *qual_thres = NULL;
+    const char *code = NULL;
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -302,7 +374,9 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-rule") == 0) var = &args.parse_rules;
         else if (strcmp(a, "-t") == 0) var = &thread; 
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
-        else if (strcmp(a, "-q") == 0) var = &qual_thres;       
+        else if (strcmp(a, "-q") == 0) var = &qual_thres;
+        else if (strcmp(a, "-x") == 0) var = &code;
+        
         else if (strcmp(a, "-p") == 0) {
             args.smart_pair = 1;
             continue;
@@ -332,9 +406,57 @@ static int parse_args(int argc, char **argv)
         error("Unknown argument: %s, use -h see help information.", a);
     }
 
-    if (args.parse_rules == NULL) error("Option -rule is required.");
+    if (args.parse_rules == NULL && code == NULL) error("Option -rule or -x is required.");
+    if (args.parse_rules) {
+        parse_rules(args.parse_rules);
+    } else {
+        if (strcmp(code, "C4") == 0) {
 
-    parse_rules(args.parse_rules);
+#include "DNBelabC4.h"            
+            args.n_bc = 2;
+            args.bcs = malloc(sizeof(struct bc_reg)*args.n_bc);
+            struct bc_reg *cb = &args.bcs[0];
+            memset(cb, 0, sizeof(*cb));
+            
+            cb->raw_tag = strdup("CR");
+            cb->corr_tag = strdup("CB");
+            cb->n = 2;
+            cb->r = malloc(cb->n*sizeof(struct bc_reg0));
+            struct bc_reg0 *s1 = &cb->r[0];
+            struct bc_reg0 *s2 = &cb->r[1];
+            s1->rd = s2->rd = 1;
+            s1->st = 0;
+            s1->ed = 10;
+            s2->st = 10;
+            s2->ed = 20;
+            s1->wl = read_wl_cached(C4_barcodes, 1536, 1);
+            s2->wl = read_wl_cached(C4_barcodes, 1536, 1);
+            
+            struct bc_reg *ub = &args.bcs[1];
+            memset(ub, 0, sizeof(*ub));
+            
+            ub->n = 1;
+            ub->raw_tag = strdup("UR");
+            ub->r = malloc(sizeof(struct bc_reg0));
+            ub->r->rd = 1;
+            ub->r->st = 20;
+            ub->r->ed = 30;
+            ub->r->wl = NULL;
+            
+            args.r1 = malloc(sizeof(struct bc_reg));
+            memset(args.r1, 0, sizeof(struct bc_reg));
+            args.r1->n = 1;
+            args.r1->r = malloc(sizeof(struct bc_reg0));
+            struct bc_reg0 *r0 = &args.r1->r[0];
+            memset(r0, 0, sizeof(*r0));
+            
+            r0->rd = 2;
+            r0->st = 0;
+            r0->ed = -1; // to the end                
+        } else {
+            error("Unknown code. %s", code);
+        }
+    }
     
     if (thread) args.n_thread = str2int((char*)thread);
     if (qual_thres) {
@@ -376,24 +498,30 @@ static void memory_release()
     int i;
     for (i = 0; i < args.n_bc; ++i) {
         struct bc_reg *r = &args.bcs[i];
-        if (r->wl) dict_destroy(r->wl);
+        int j = 0;
+        for (j = 0; j < r->n; ++j)
+            if (r->r[j].wl) dict_destroy(r->r[j].wl);
+        free(r->r);
         if (r->raw_tag) free(r->raw_tag);
         if (r->corr_tag) free(r->corr_tag);
+        free(r);
     }
     
     free(args.bcs);
 
-    struct bc_reg *r = args.r1;
-    if (r->wl) dict_destroy(r->wl);
-    if (r->raw_tag) free(r->raw_tag);
-    if (r->corr_tag) free(r->corr_tag);
+    //struct bc_reg *r = args.r1;
+    // if (r->r[0].wl) dict_destroy(r->r[0].wl);
+    //if (r->raw_tag) free(r->raw_tag);
+    //if (r->corr_tag) free(r->corr_tag);
+    free(args.r1->r);
     free(args.r1);
     
     if (args.r2) {
-        struct bc_reg *r = args.r2;
-        if (r->wl) dict_destroy(r->wl);
-        if (r->raw_tag) free(r->raw_tag);
-        if (r->corr_tag) free(r->corr_tag);
+        //struct bc_reg *r = args.r2;
+        //if (r->r[0].wl) dict_destroy(r->r[0].wl);
+        //if (r->raw_tag) free(r->raw_tag);
+        //if (r->corr_tag) free(r->corr_tag);
+        free(args.r2->r);
         free(args.r2);        
     }
     fastq_handler_destory(args.fastq);
