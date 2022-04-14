@@ -551,8 +551,9 @@ static void *run_it(void *_p)
             }
 
             char *name1 = fname_update_tag(b->n0.s, r->raw_tag, str.s);
-            if (r->corr_tag) {
+            if (corr.l) {
                 char *tmp = name1;
+                //debug_print("%s", tmp);
                 name1 = fname_update_tag(tmp,r->corr_tag, corr.s);
                 free(tmp);
             }
