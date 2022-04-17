@@ -85,7 +85,8 @@ AOBJ = src/bam_anno.o \
 	src/addtags.o \
 	src/fragment_count.o \
 	src/fastq_stream.o \
-	src/fastq_parse2.o
+	src/fastq_parse2.o \
+	src/gtf_format.o
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@
@@ -99,6 +100,7 @@ PISA: $(HTSLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h
 debug: $(HTSLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h 
 	$(CC) $(DEBUGFLAGS) $(INCLUDES) -o PISA src/main.c $(AOBJ) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
 
+src/gtf_format.o: src/gtf_format.c
 src/fastq_parse2.o: src/fastq_parse2.c
 src/fastq_stream.o: src/fastq_stream.c
 src/read_anno.o: src/read_anno.c

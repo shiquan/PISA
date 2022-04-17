@@ -48,7 +48,7 @@ struct gtf {
 struct _ctg_idx;
 
 struct gtf_ctg {
-    //struct dict *gene_idx;  
+    struct dict *gene_idx;  
     struct region_index *idx;    
     int n_gtf, m_gtf;
     struct gtf **gtf; 
@@ -73,5 +73,6 @@ struct gtf_spec *gtf_read(const char *fname, int filter);
 struct gtf_spec *gtf_read_lite(const char *fname); // only read necessary info
 struct region_itr *gtf_query(struct gtf_spec const *G, char *name, int start, int end);
 void gtf_destroy(struct gtf_spec *G);
+void gtf_dump(struct gtf_spec *G, const char *fname);
 
 #endif

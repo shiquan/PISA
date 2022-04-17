@@ -37,7 +37,7 @@ int usage()
 
     fprintf(stderr, "\n--- Some experimental ideas. Not stable, just for test.\n");
     fprintf(stderr, "    fusion     Predict gene fusion based on UMIs. **experiment**\n");
-
+    fprintf(stderr, "    gtffmt     Format and reorder GTF file. **experiment**\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Use `\x1b[1mPISA\x1b[0m command -h` for help information.\n");
     fprintf(stderr, "\n");
@@ -68,6 +68,9 @@ int main(int argc, char *argv[])
 
     // process fragment
     extern int fragment_count(int argc, char **argv);
+
+    // process GTF
+    extern int gtf_format(int argc, char **argv);
     
     if (argc == 1) return usage();
     else if (strcmp(argv[1], "parse") == 0) return fastq_parse_barcodes(argc-1, argv+1);
@@ -95,6 +98,7 @@ int main(int argc, char *argv[])
     // else if (strcmp(argv[1], "impute") == 0) return LFR_impute(argc-1, argv+1);
     else if (strcmp(argv[1], "depth") == 0) return depth_main(argc-1, argv+1);
     else if (strcmp(argv[1], "addtags") == 0) return add_tags(argc-1, argv+1);
+    else if (strcmp(argv[1], "gtffmt") == 0) return gtf_format(argc-1, argv+1);
     else return usage();
     return 0;
 }

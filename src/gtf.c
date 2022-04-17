@@ -105,11 +105,11 @@ static int cmpfunc (const void *_a, const void *_b)
 */
 static int cmpfunc1 (const void *_a, const void *_b)
 {
-    struct gtf *a = *(struct gtf**)_a;
-    struct gtf *b = *(struct gtf**)_b;
-    if (a->seqname != b->seqname) return a->seqname - b->seqname;
-    if (a->start != b->start) return a->start - b->start;
-    return a->end - b->end;
+    const struct gtf *a = *(const struct gtf**)_a;
+    const struct gtf *b = *(const struct gtf**)_b;
+    if (a->seqname != b->seqname) return (a->seqname > b->seqname) - (a->seqname < b->seqname);
+    if (a->start != b->start) return (a->start > b->start) - (a->start < b->start);
+    return (a->end > b->end) - (a->end < b->end) ;
 }
 
 struct gtf_idx {
@@ -197,14 +197,21 @@ static void free_cache()
 */
 static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, int feature)
 {
-    //char *gene_id = dict_query(G->gene_id, gtf->gene_id);
-    //int gene_idx = dict_push(ctg->gene_idx, gene_id);
+    char *gene_id = dict_name(G->gene_id, gtf->gene_id);
+    int gene_idx = dict_push(ctg->gene_idx, gene_id);
         
-    //struct gtf *gene_gtf = dict_query_value(ctg->gene_idx, gene_idx);
-    struct gtf *gene_gtf = dict_query_value(G->gene_id, gtf->gene_id);
+    struct gtf *gene_gtf = dict_query_value(ctg->gene_idx, gene_idx);
+    //struct gtf *gene_gtf = dict_query_value(G->gene_id, gtf->gene_id);
 
     if (feature == feature_gene && gene_gtf != NULL) {
         warnings("Duplicated gene record? %s", dict_name(G->gene_name, gtf->gene_name));
+        if (gene_gtf->start < 0 || gene_gtf->start > gtf->start) gene_gtf->start = gtf->start;
+        if (gene_gtf->end < 0 || gene_gtf->end < gtf->end) gene_gtf->end = gtf->end;
+
+        gene_gtf->strand = gtf->strand;
+        gene_gtf->gene_id = gtf->gene_id;
+        gene_gtf->gene_name = gtf->gene_name;
+        gene_gtf->seqname = gtf->seqname;
         return 1;
     }
     
@@ -215,19 +222,25 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
         }
         ctg->gtf[ctg->n_gtf] = gtf_create();
         gene_gtf = ctg->gtf[ctg->n_gtf++];
-        //dict_assign_value(ctg->gene_idx, gene_idx, gene_gtf);
-        dict_assign_value(G->gene_id, gtf->gene_id, gene_gtf);
 
-        dict_assign_value(G->gene_name, gtf->gene_name, gene_gtf);
+        // assign to ctg, because will reorder these records during indexing
+        dict_assign_value(ctg->gene_idx, gene_idx, gene_gtf);
+        //dict_assign_value(G->gene_id, gtf->gene_id, gene_gtf);
+        //dict_assign_value(G->gene_name, gtf->gene_name, gene_gtf);
         
-        gtf_reset(gene_gtf);     
+        gtf_reset(gene_gtf); 
         if (feature == feature_gene) {
             //memcpy(gene_gtf, gtf, sizeof(struct gtf));
             gtf_copy(gene_gtf, gtf);
             return 0;
         }
         gene_gtf->type = feature_gene;
+        gene_gtf->strand = gtf->strand;
+        gene_gtf->seqname = gtf->seqname;
     }
+
+    if (gene_gtf->start < 0 || gene_gtf->start > gtf->start) gene_gtf->start = gtf->start;
+    if (gene_gtf->end < 0 || gene_gtf->end < gtf->end) gene_gtf->end = gtf->end;
 
     if (gtf->transcript_id == -1) error("No transcript found. %s:%s:%d:%d", feature_type_names[feature], dict_name(G->name, gtf->seqname), gtf->start, gtf->end);
 
@@ -245,10 +258,23 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
     //char *transcript_id = dict_query(G->transcript_id, gtf->transcript_id);
     //int trans_idx = dict_push(gene_gtf->query, gtf->transcript_id);
     //struct gtf *tx_gtf = dict_query_value(gene_gtf->query, trans_idx);
-    struct gtf *tx_gtf = dict_query_value(G->transcript_id, gtf->transcript_id);
-    
+    struct gtf *tx_gtf = NULL; // dict_query_value(G->transcript_id, gtf->transcript_id);
+    int i;
+    for (i = 0; i < gene_gtf->n_gtf; ++i) {
+        struct gtf *tx_gtf0 = gene_gtf->gtf[i];
+        if (gtf->transcript_id == tx_gtf0->transcript_id) {
+            tx_gtf = tx_gtf0;
+            break;
+        }
+    }
     if (feature == feature_transcript && tx_gtf != NULL) {
         warnings("Duplicated transcript record? %s", dict_name(G->transcript_id, gtf->transcript_id));
+        if (tx_gtf->start < 0 || tx_gtf->start > gtf->start) tx_gtf->start = gtf->start;
+        if (tx_gtf->end < 0 || tx_gtf->end < gtf->end) tx_gtf->end = gtf->end;
+        tx_gtf->strand = gtf->strand;
+        tx_gtf->gene_id = gtf->gene_id;
+        tx_gtf->gene_name = gtf->gene_name;
+        tx_gtf->seqname = gtf->seqname;
         return 1;
     }
 
@@ -261,7 +287,7 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
         gene_gtf->gtf[gene_gtf->n_gtf] = gtf_create();
         tx_gtf = gene_gtf->gtf[gene_gtf->n_gtf++];
         //dict_assign_value(gene_gtf->query, trans_idx,tx_gtf);
-        dict_assign_value(G->transcript_id, gtf->transcript_id, tx_gtf);
+        // dict_assign_value(G->transcript_id, gtf->transcript_id, tx_gtf);
         
         gtf_reset(tx_gtf);
 
@@ -274,6 +300,8 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
         // no transcript record in the gtf, produce a record automatically
         // init gtf type
         tx_gtf->type = feature_transcript;
+        tx_gtf->strand = gtf->strand;
+        tx_gtf->seqname = gtf->seqname;        
     }
 
     // inhert gene and transcript name 
@@ -281,6 +309,10 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
     if (tx_gtf->gene_name == -1) tx_gtf->gene_name = gtf->gene_name;
     if (tx_gtf->transcript_id == -1) tx_gtf->transcript_id = gtf->transcript_id;
 
+    // will update before indexing
+    if (tx_gtf->start < 0 || tx_gtf->start > gtf->start) tx_gtf->start = gtf->start;
+    if (tx_gtf->end < 0 || tx_gtf->end < gtf->end) tx_gtf->end = gtf->end;
+    
     if (tx_gtf->gene_id != gtf->gene_id) {
         error("Inconsitance gene id between transcript %s and gene %s.",
               dict_name(G->transcript_id, tx_gtf->transcript_id),
@@ -322,7 +354,7 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
     */
     if (tx_gtf->n_gtf == tx_gtf->m_gtf) {
         tx_gtf->m_gtf = tx_gtf->m_gtf == 0 ? 4 : tx_gtf->m_gtf*2;
-        tx_gtf->gtf = realloc(tx_gtf->gtf, tx_gtf->m_gtf*sizeof(struct gtf));
+        tx_gtf->gtf = realloc(tx_gtf->gtf, tx_gtf->m_gtf*sizeof(struct gtf*));
     }
     tx_gtf->gtf[tx_gtf->n_gtf] = gtf_create();
     struct gtf *exon_gtf = tx_gtf->gtf[tx_gtf->n_gtf++];
@@ -377,8 +409,8 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
     if (ctg == NULL) { // init contig value
         ctg = malloc(sizeof(struct gtf_ctg));
         memset(ctg, 0, sizeof(struct gtf_ctg));
-        //ctg->gene_idx = dict_init();
-        //dict_set_value(ctg->gene_idx);
+        ctg->gene_idx = dict_init();
+        dict_set_value(ctg->gene_idx);
         dict_assign_value(G->name, gtf.seqname, ctg);
     }
 
@@ -420,28 +452,33 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
         return 1;
     }
     if (gtf.gene_id == -1) {
-        warnings("Record %s:%s:%d-%d has no gene_id, use gene_name instead.", dict_name(G->name, gtf.seqname), feature_type_names[qry], gtf.start, gtf.end);
+        // warnings("Record %s:%s:%d-%d has no gene_id, use gene_name instead.", dict_name(G->name, gtf.seqname), feature_type_names[qry], gtf.start, gtf.end);
         gtf.gene_id = dict_push(G->gene_id, dict_name(G->gene_name, gtf.gene_name));
     }
 
     if (gtf.gene_name == -1) {
-        warnings("Record %s:%s:%d-%d has no gene_name, use gene_id instead.", dict_name(G->name, gtf.seqname), feature_type_names[qry], gtf.start, gtf.end);
+        // warnings("Record %s:%s:%d-%d has no gene_name, use gene_id instead.", dict_name(G->name, gtf.seqname), feature_type_names[qry], gtf.start, gtf.end);
         gtf.gene_name = dict_push(G->gene_name, dict_name(G->gene_id, gtf.gene_id));
     }
-    gtf_push(G, ctg, &gtf, qry);
+    if (gtf_push(G, ctg, &gtf, qry)) {
+        warnings("Failed to push record, %s:%s:%d-%d", dict_name(G->name, gtf.seqname), feature_type_names[qry], gtf.start, gtf.end);
+    }
     gtf_clear(&gtf);
     return 0;
 }
 static void gtf_sort(struct gtf *gtf)
 {
-    int i;
-    for (i = 0; i < gtf->n_gtf; ++i) 
-        gtf_sort(gtf->gtf[i]);
+    /* int i; */
+    /* for (i = 0; i < gtf->n_gtf; ++i)  */
+    /*     gtf_sort(gtf->gtf[i]); */
         
     if (gtf->n_gtf) {
-        qsort((struct gtf**)gtf->gtf, gtf->n_gtf, sizeof(struct gtf*), cmpfunc1);
+        qsort((const struct gtf**)gtf->gtf, gtf->n_gtf, sizeof(struct gtf*), cmpfunc1);
         int j;
+        int last_start = -1;
         for (j = 0; j < gtf->n_gtf; ++j) {
+            if (last_start > gtf->gtf[j]->start) error("Failed sort?");
+            last_start = gtf->gtf[j]->start;
             if (gtf->start < 0) gtf->start = gtf->gtf[j]->start;
             else if (gtf->start > gtf->gtf[j]->start) gtf->start = gtf->gtf[j]->start;
             if (gtf->end < gtf->gtf[j]->end) gtf->end = gtf->gtf[j]->end;
@@ -460,8 +497,12 @@ static struct region_index *ctg_build_idx(struct gtf_ctg *ctg)
 {
     struct region_index *idx = region_index_create();
     int i;
-    for (i = 0; i < ctg->n_gtf; ++i) 
+    int last_start = -1;
+    for (i = 0; i < ctg->n_gtf; ++i) {
+        if (last_start > ctg->gtf[i]->start) error("gtf is not sorted.");
+        last_start = ctg->gtf[i]->start;
         index_bin_push(idx, ctg->gtf[i]->start, ctg->gtf[i]->end, ctg->gtf[i]);
+    }
     return idx;
 }
 static int gtf_build_index(struct gtf_spec *G)
@@ -495,9 +536,9 @@ struct gtf_spec *gtf_spec_init()
     G->features        = dict_init();
 
     dict_set_value(G->name);
-    dict_set_value(G->gene_name);
-    dict_set_value(G->gene_id);
-    dict_set_value(G->transcript_id);
+    //dict_set_value(G->gene_name);
+    //dict_set_value(G->gene_id);
+    //dict_set_value(G->transcript_id);
     int i;
     int l;
     l = sizeof(feature_type_names)/sizeof(feature_type_names[0]);
@@ -619,6 +660,49 @@ char *GTF_transid(struct gtf_spec *G, int id)
     return dict_name(G->transcript_id, id);
 }
 
+void write_gtf_fp(struct gtf_spec *G, struct gtf *gtf, FILE *fp)
+{
+    fputs(dict_name(G->name,gtf->seqname), fp);
+    fputs("\t.\t", fp);
+    fputs(feature_type_names[gtf->type], fp);
+    fprintf(fp,"\t%d\t%d\t.\t%c\t.\t", gtf->start, gtf->end, "+-"[gtf->strand]);
+    fprintf(fp, "gene_name \"%s\"; gene_id \"%s\";", dict_name(G->gene_name, gtf->gene_name),
+            dict_name(G->gene_id, gtf->gene_id));
+
+    if (gtf->transcript_id >= 0) {
+        fprintf(fp, " transcript_id \"%s\";", dict_name(G->transcript_id, gtf->transcript_id));
+    }
+
+    if (gtf->attr) {
+        int i;
+        for (i = 0; i < dict_size(gtf->attr); ++i) {
+            char *name = dict_name(gtf->attr, i);
+            fprintf(fp, " %s", name);
+            char *val = dict_query_value(gtf->attr, i);
+            if (val) fprintf(fp, " \"%s\";", val);
+            else fputc(';', fp);
+        }
+    }
+    fputc('\n', fp);
+    
+    int i;
+    for (i = 0; i < gtf->n_gtf; ++i) write_gtf_fp(G, gtf->gtf[i], fp);
+}
+
+void gtf_dump(struct gtf_spec *G, const char *fname)
+{
+    FILE *fp = fopen(fname, "w");
+    if (fp == NULL) error("%s : %s.", fname, strerror(errno));
+    int i, j;
+    for (i = 0; i < dict_size(G->name); ++i) {
+        struct gtf_ctg *ctg = dict_query_value(G->name, i);
+        for (j = 0; j < ctg->n_gtf; ++j) {
+            struct gtf *gtf = ctg->gtf[j];
+            write_gtf_fp(G, gtf, fp);
+        }
+    }
+    fclose(fp);
+}
 #ifdef GTF_MAIN
 int main(int argc, char **argv)
 {
