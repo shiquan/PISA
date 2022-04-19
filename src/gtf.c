@@ -468,21 +468,12 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
 }
 static void gtf_sort(struct gtf *gtf)
 {
-    /* int i; */
-    /* for (i = 0; i < gtf->n_gtf; ++i)  */
-    /*     gtf_sort(gtf->gtf[i]); */
+    int i;
+    for (i = 0; i < gtf->n_gtf; ++i)
+        gtf_sort(gtf->gtf[i]);
         
     if (gtf->n_gtf) {
         qsort((const struct gtf**)gtf->gtf, gtf->n_gtf, sizeof(struct gtf*), cmpfunc1);
-        int j;
-        int last_start = -1;
-        for (j = 0; j < gtf->n_gtf; ++j) {
-            if (last_start > gtf->gtf[j]->start) error("Failed sort?");
-            last_start = gtf->gtf[j]->start;
-            if (gtf->start < 0) gtf->start = gtf->gtf[j]->start;
-            else if (gtf->start > gtf->gtf[j]->start) gtf->start = gtf->gtf[j]->start;
-            if (gtf->end < gtf->gtf[j]->end) gtf->end = gtf->gtf[j]->end;
-        }
         assert(gtf->start < gtf->end);
     }
     /*
@@ -498,8 +489,17 @@ static struct region_index *ctg_build_idx(struct gtf_ctg *ctg)
     struct region_index *idx = region_index_create();
     int i;
     int last_start = -1;
+    int last_id = -1;
+        
     for (i = 0; i < ctg->n_gtf; ++i) {
-        if (last_start > ctg->gtf[i]->start) error("gtf is not sorted.");
+        if (last_id != ctg->gtf[i]->seqname) {
+            last_id = ctg->gtf[i]->seqname;
+            last_start = -1;
+        } else {
+            if (last_start > ctg->gtf[i]->start) {
+                error("gtf is not sorted.");   
+            }
+        }
         last_start = ctg->gtf[i]->start;
         index_bin_push(idx, ctg->gtf[i]->start, ctg->gtf[i]->end, ctg->gtf[i]);
     }
@@ -513,6 +513,7 @@ static int gtf_build_index(struct gtf_spec *G)
     for (i = 0; i < dict_size(G->name); ++i) {
         struct gtf_ctg *ctg = dict_query_value(G->name,i);
         assert(ctg);
+        qsort((const struct gtf**)ctg->gtf, ctg->n_gtf, sizeof(struct gtf*), cmpfunc1);
         int j;
         for (j = 0; j < ctg->n_gtf; ++j) {
             gtf_sort(ctg->gtf[j]); // sort gene
