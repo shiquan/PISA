@@ -1,8 +1,7 @@
 #include "utils.h"
-#include "pisa_version.h"
 #include "version.h"
+#include "pisa_version.h"
 #include <string.h>
-
 int usage()
 {
     fprintf(stderr, "\n\x1b[1mPISA\x1b[0m - a collection of tools for single cell data pre-processing and interpretation.\n");

@@ -94,11 +94,14 @@ liba.a: $(LIB_OBJ)
 
 test: $(HTSLIB) $(HTSVERSION)
 
-PISA: $(HTSLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h 
+PISA: $(HTSLIB) $(LIBZ) liba.a $(AOBJ)
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
 
-debug: $(HTSLIB) $(LIBZ) liba.a $(AOBJ) pisa_version.h 
+debug: $(HTSLIB) $(LIBZ) liba.a $(AOBJ)
 	$(CC) $(DEBUGFLAGS) $(INCLUDES) -o PISA src/main.c $(AOBJ) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
+
+git: pisa_version.h
+	${shell git push}
 
 src/gtf_format.o: src/gtf_format.c
 src/fastq_parse2.o: src/fastq_parse2.c
@@ -108,7 +111,7 @@ src/sim_search.o: src/sim_search.c
 src/bam_depth.o: src/bam_depth.c
 src/bam2fq.o: src/bam2fq.c
 src/bam_anno.o: src/bam_anno.c
-src/bam_count.o: src/bam_count.c pisa_version.h
+src/bam_count.o: src/bam_count.c 
 src/bam_pick.o: src/bam_pick.c
 src/bam_anno_vcf.o: src/bam_anno_vcf.c
 src/bam_tag_corr.o: src/bam_tag_corr.c
@@ -142,7 +145,7 @@ src/addtags.o:src/addtags.c
 src/fragment.o:src/fragment_count.c
 
 clean: testclean
-	-rm -f gmon.out *.o *~ $(PROG) pisa_version.h 
+	-rm -f gmon.out *.o *~ $(PROG) 
 	-rm -rf *.dSYM plugins/*.dSYM test/*.dSYM
 	-rm src/*.o src/liba.a
 
