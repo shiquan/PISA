@@ -412,6 +412,7 @@ static int parse_args(int argc, char **argv)
     if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
 
     hts_set_threads(args.out,args.n_thread);
+    // set compress level from 6 to 2, save ~1x runtime, but will also increase ~0.5x file size
     if (args.out->is_bgzf)
         args.out->fp.bgzf->compress_level = 2;
     
