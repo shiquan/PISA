@@ -91,7 +91,10 @@ void gtf_copy(struct gtf *dest, struct gtf *src)
     dest->gene_id = src->gene_id;
     dest->gene_name = src->gene_name;
     dest->transcript_id = src->transcript_id;
-    // not copy attributes
+    // copy attributes
+    dest->attr = src->attr;
+
+    src->attr = NULL; // do we need transfer the point??
 }
 /*
 static int cmpfunc (const void *_a, const void *_b)
@@ -294,6 +297,7 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
         if (feature == feature_transcript) {
             //memcpy(tx_gtf, gtf, sizeof(struct gtf));
             gtf_copy(tx_gtf, gtf);
+            
             return 0; // trans record end here
         }
 
@@ -397,7 +401,8 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
     struct gtf gtf;
     gtf_reset(&gtf);
     gtf.seqname = dict_push(G->name, str->s + s[0]);
-    gtf.source = dict_push(G->sources, str->s + s[1]);
+    if (s[1] != 1 || str->s[s[1]] != '.')
+        gtf.source = dict_push(G->sources, str->s + s[1]);
     gtf.type = qry;
     gtf.start = str2int(str->s+s[3]);
     gtf.end = str2int(str->s+s[4]);
@@ -449,6 +454,7 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
 
     if (gtf.gene_id == -1 && gtf.gene_name == -1) {
         warnings("Record %s:%s:%d-%d has no gene_name and gene_id. Skip.", dict_name(G->name, gtf.seqname), feature_type_names[qry], gtf.start, gtf.end);
+        gtf_clear(&gtf);
         return 1;
     }
     if (gtf.gene_id == -1) {
@@ -625,7 +631,7 @@ void gtf_destroy(struct gtf_spec *G)
     int i;
     for (i = 0; i < dict_size(G->name); ++i) {
         struct gtf_ctg *ctg = dict_query_value(G->name, i);
-        //if (ctg->gene_idx) dict_destroy(ctg->gene_idx);
+        if (ctg->gene_idx) dict_destroy(ctg->gene_idx);
         region_index_destroy(ctg->idx);
         
         int j;
@@ -664,7 +670,8 @@ char *GTF_transid(struct gtf_spec *G, int id)
 void write_gtf_fp(struct gtf_spec *G, struct gtf *gtf, FILE *fp)
 {
     fputs(dict_name(G->name,gtf->seqname), fp);
-    fputs("\t.\t", fp);
+    if (gtf->source == -1)fputs("\t.\t", fp);
+    else fprintf(fp, "\t%s\t", dict_name(G->sources, gtf->source));
     fputs(feature_type_names[gtf->type], fp);
     fprintf(fp,"\t%d\t%d\t.\t%c\t.\t", gtf->start, gtf->end, "+-"[gtf->strand]);
     fprintf(fp, "gene_name \"%s\"; gene_id \"%s\";", dict_name(G->gene_name, gtf->gene_name),

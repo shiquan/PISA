@@ -262,7 +262,7 @@ int merge_bcs(struct bc_reg *bcs, int n0)
             b->r[b->n].ed = b0->r[0].ed;
             b->r[b->n].wl = b0->r[0].wl;
             b->n++;
-            free(b0->r);
+
             if (b0->raw_tag) free(b0->raw_tag);
             if (b0->corr_tag) free(b0->corr_tag);
             free(b0->r);
@@ -296,19 +296,26 @@ void parse_rules(const char *rule)
             ru = ru + 3;
             args.r1 = malloc(sizeof(struct bc_reg));
             memset(args.r1, 0, sizeof(struct bc_reg));
+            args.r1->n = 1;
+            args.r1->r = malloc(sizeof(struct bc_reg0));
+            memset(args.r1->r, 0, sizeof(struct bc_reg0));
             if (parse_region(ru, args.r1)) error("Unrecognised rule format.");
         } else if (ru[0] == 'R' && ru[1] == '2') {
             if(ru[2] != ',') error("Unrecognised rule format.");
             ru = ru + 3;
             args.r2 = malloc(sizeof(struct bc_reg));
             memset(args.r2, 0, sizeof(struct bc_reg));
+            args.r2->n = 1;
+            args.r2->r = malloc(sizeof(struct bc_reg0));
+            memset(args.r2->r, 0, sizeof(struct bc_reg0));
             if (parse_region(ru, args.r2)) error("Unrecognised rule format.");
         } else {
             if (ru[2] != ',') error("Unrecognised rule format.");
             struct bc_reg *r = &args.bcs[n0];
             memset(r, 0, sizeof(struct bc_reg));
+            r->n = 1;
             r->r = malloc(sizeof(struct bc_reg0));
-            
+            memset(r->r, 0, sizeof(struct bc_reg0));
             kstring_t temp = {0,0,0};
             kputs(ru, &temp);
             int n1;
@@ -327,7 +334,7 @@ void parse_rules(const char *rule)
 
             free(temp.s);
             free(s0);
-            if (merge_bcs(args.bcs, n0)==0) n0++;
+            if (merge_bcs(args.bcs, n0)==0) n0++; // n0 is real number of tags
         }
     }
 
@@ -479,27 +486,17 @@ static void memory_release()
         struct bc_reg *r = &args.bcs[i];
         int j = 0;
         for (j = 0; j < r->n; ++j)
-            if (r->r[j].wl) dict_destroy(r->r[j].wl);
+            if (r->r[j].wl) { dict_destroy(r->r[j].wl); r->r[j].wl = NULL; }
         free(r->r);
         if (r->raw_tag) free(r->raw_tag);
         if (r->corr_tag) free(r->corr_tag);
-        // free(r);
     }
     
     free(args.bcs);
-
-    //struct bc_reg *r = args.r1;
-    // if (r->r[0].wl) dict_destroy(r->r[0].wl);
-    //if (r->raw_tag) free(r->raw_tag);
-    //if (r->corr_tag) free(r->corr_tag);
     free(args.r1->r);
     free(args.r1);
     
     if (args.r2) {
-        //struct bc_reg *r = args.r2;
-        //if (r->r[0].wl) dict_destroy(r->r[0].wl);
-        //if (r->raw_tag) free(r->raw_tag);
-        //if (r->corr_tag) free(r->corr_tag);
         free(args.r2->r);
         free(args.r2);        
     }

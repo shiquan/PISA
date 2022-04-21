@@ -29,10 +29,6 @@ LIBS = -lbz2 -llzma -pthread -lm -lcurl
 # See htslib/Makefile
 PACKAGE_VERSION := $(shell git describe --tags)
 
-pisa_version.h:
-	-rm -f pisa_version.h
-	echo '#define PISA_VERSION "$(PACKAGE_VERSION)"' > $@
-
 .SUFFIXES:.c .o
 
 .PHONY:all clean clean-all distclean install lib tags test testclean 
@@ -100,8 +96,9 @@ PISA: $(HTSLIB) $(LIBZ) liba.a $(AOBJ)
 debug: $(HTSLIB) $(LIBZ) liba.a $(AOBJ)
 	$(CC) $(DEBUGFLAGS) $(INCLUDES) -o PISA src/main.c $(AOBJ) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
 
-git: pisa_version.h
-	${shell git push}
+git:
+	@-echo '#define PISA_VERSION "$(PACKAGE_VERSION)"' > pisa_version.h
+	@-git push
 
 src/gtf_format.o: src/gtf_format.c
 src/fastq_parse2.o: src/fastq_parse2.c

@@ -94,12 +94,15 @@ uint32_t dict_count_sum(const struct dict *D)
 }
 void dict_destroy(struct dict *D)
 {
+    if (D == NULL) return;
     int i;
     for (i = 0; i < D->n; ++i) free(D->name[i]);
     // values are actually points, need free pointed values manually
-    if (D->assign_value_flag && D->value) free(D->value); 
-    free(D->name);
-    free(D->count);
+    if (D->assign_value_flag && D->value) free(D->value);
+    if (D->n > 0) {
+        free(D->name);
+        free(D->count);
+    }
     kh_destroy(name,D->dict);
     free(D);
 }

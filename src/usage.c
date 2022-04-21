@@ -41,7 +41,7 @@ int fastq_parse_usage()
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -config read_struct.json -report fastq.csv -cbdis cell_dist.tsv \\\n");
     fprintf(stderr, "          -1 out.fq lane1_1.fq.gz,lane02_1.fq.gz  lane1_2.fq.gz,lane2_2.fq.gz\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -1       [fastq]   Read 1 output.\n");
+    fprintf(stderr, " -1       [fastq]   Read 1 output. Default is stdout.\n");
     fprintf(stderr, " -2       [fastq]   Read 2 output.\n");
     fprintf(stderr, " -config  [json]    Read structure configure file in JSON format. Required.\n");
     //fprintf(stderr, " -rule    [STRING]  Read structure in line. See \x1b[31m\x1b[1mNotice\x1b[0m.\n");

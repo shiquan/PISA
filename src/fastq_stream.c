@@ -226,7 +226,16 @@ static void *run_it(void *_data)
     struct bseq_pool *p = (struct bseq_pool*)_data;
     
     if (p->n == 1 || p->n < args.min_reads_per_block) {
-        if (args.keep_processed == 0) return NULL;
+        if (args.keep_processed == 0) {
+            int i;
+            char **vals = p->opts;
+            int n = dict_size(args.tags);
+            for (i = 0; i < n; ++i)
+                if (vals[i]) free(vals[i]);
+            free(vals);
+            bseq_pool_destroy(p);
+            return NULL;
+        }
         if (args.stream_input_fasta == 1) p->force_fasta = 1;
         return p;
     }
