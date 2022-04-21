@@ -628,8 +628,8 @@ static int parse_args(int argc, char **argv)
         hts_set_threads(args.fp_out, args.file_th);
     }
     // set compress level from 6 to 2, save ~1x runtime, but will also increase ~0.5x file size
-    if (args.out->is_bgzf)
-        args.out->fp.bgzf->compress_level = 2;
+    if (args.fp_out->is_bgzf)
+        args.fp_out->fp.bgzf->compress_level = 2;
 
     if (args.enable_corr) {
         if (args.gtf_fname == NULL) error("-gtf is required if mapping quality correction enabled.");
