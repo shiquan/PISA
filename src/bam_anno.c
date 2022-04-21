@@ -7,6 +7,7 @@
 #include "htslib/khash_str2int.h"
 #include "htslib/kseq.h"
 #include "htslib/hts.h"
+#include "htslib/bgzf.h"
 #include "bam_pool.h"
 #include "htslib/thread_pool.h"
 #include "gtf.h"
@@ -411,7 +412,9 @@ static int parse_args(int argc, char **argv)
     if (sam_hdr_write(args.out, args.hdr)) error("Failed to write SAM header.");
 
     hts_set_threads(args.out,args.n_thread);
-
+    if (args.out->is_bgzf)
+        args.out->fp.bgzf->compress_level = 2;
+    
     args.group_stat = dict_init();
     int idx;
     idx = dict_push(args.group_stat, "__ALL__");
@@ -1094,12 +1097,13 @@ static void write_out(void *_d)
 {
     struct ret_dat *dat = (struct ret_dat *)_d;
     int i;
+   
     for (i = 0; i < dat->p->n; ++i) {
         if (dat->p->bam[i].core.flag & BAM_FQCFAIL) continue; // skip QC failure reads
         if (sam_write1(args.out, args.hdr, &dat->p->bam[i]) == -1)
             error("Failed to write SAM.");
     }
-    
+   
     args.reads_input   += dat->reads_input;
     args.reads_pass_qc += dat->reads_pass_qc;
 
