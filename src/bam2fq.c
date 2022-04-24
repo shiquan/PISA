@@ -206,7 +206,7 @@ int bam2fq(int argc, char **argv)
             kputc('\n', &str);
         }
         else {
-            char *qual;
+            char *qual=NULL; // set to NULL, to disable warnings
             get_quality(b, &qual);
 
             kputc('@', &str); kputs((char*)b->data, &str); kputs(name.s, &str); kputc('\n', &str);

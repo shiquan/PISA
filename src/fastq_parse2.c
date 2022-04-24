@@ -480,7 +480,7 @@ static void memory_release()
 {
     if (args.fp_out1 != stdout) fclose(args.fp_out1);
     if (args.fp_out2) fclose(args.fp_out2);
-    if (args.fp_report && args.fp_report != stderr) fclose(args.fp_report);
+
     int i;
     for (i = 0; i < args.n_bc; ++i) {
         struct bc_reg *r = &args.bcs[i];
