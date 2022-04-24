@@ -83,7 +83,7 @@ static struct args {
     .enable_corr       = 0,
     .G                 = NULL,
     .n_thread          = 1,
-    .buffer_size       = 1000000, // 1M
+    .buffer_size       = 1000, // 
     .file_th           = 1,
     .fp                = NULL,
     .ks                = NULL,
