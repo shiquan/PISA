@@ -92,7 +92,7 @@ int fastq_parse2_usage()
     fprintf(stderr, "   Futhermore, multiply tags seperated by \';\'. In location part, R1 stands for raw read 1, R2 stands for raw read 2.\n");
     fprintf(stderr, "   In tag part, R1 stands for output read 1 while R2 stands for output read 2. Here are some examples.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -rule '\x1b[32mCR,R1:1-18,barcodes.txt,CB,1;\x1b[33mUR,R1:19-30;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse2 -rule '\x1b[32mCR,R1:1-18,barcodes.txt,CB,1;\x1b[33mUR,R1:19-30;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "#\x1b[32m CR,R1:1-18,barcodes.txt,CB,1 \x1b[0m - CR tag start from 1 to 18 in read 1, and barcodes.txt are barcode whitelist,\n");
     fprintf(stderr, "#   each barcode per line. Cell barcode will be corrected while hamming distance <= 1.\n");
@@ -100,7 +100,7 @@ int fastq_parse2_usage()
     fprintf(stderr, "#\x1b[33m UR,R1:19-30\x1b[0m - UR tag start from 19-30 in read 1.\n");
     fprintf(stderr, "#\x1b[34m R1,R2:1-100\x1b[0m - Sequence from 1 to 100 in read 2 output to read 1 file. \n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -rule '\x1b[32mCR,R1:1-10,bc1.txt,CB,1;\x1b[33mCR,R1:11-20,bc2.txt,CB,1;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse2 -rule '\x1b[32mCR,R1:1-10,bc1.txt,CB,1;\x1b[33mCR,R1:11-20,bc2.txt,CB,1;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "#\x1b[32m CR,R1:1-10,bc1.txt,CB,1;\x1b[33mCR,R1:11-20,bc2.txt,CB,1\x1b[0m - This cell barcode consist of two segments, first segment start\n");
     fprintf(stderr, "#   from 1 to 10 in read 1, and whitelist is bc1.txt, and second segment start from 11 to 20, and whitelist is bc2.txt.\n");

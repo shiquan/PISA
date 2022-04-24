@@ -9,8 +9,8 @@ int usage()
     fprintf(stderr, "Contact: Quan SHI [shiquan(AT)genomics.cn]\n");
     fprintf(stderr, "\nCommands:\n");
     fprintf(stderr, "\n--- Processing FASTQ/FASTQ+\n");
+    fprintf(stderr, "    parse2     A new generic tool to parse barcodes from FASTQ.\n");
     fprintf(stderr, "    parse      Parse barcodes from FASTQ reads to FASTQ+.\n");
-    fprintf(stderr, "    parse2     Another generic tool to parse barcodes from FASTQ.\n");
     //fprintf(stderr, "    pick       Pick FASTQ+ records with tags.\n");
     //fprintf(stderr, "    attrcnt    Count raw reads and tag values per cell for FASTQ+.\n");
     fprintf(stderr, "    fsort      Sort FASTQ+ records by barcodes.\n");
