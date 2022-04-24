@@ -60,7 +60,7 @@ static struct args {
     .smart_pair  = 0,
     .qual_thres  = 20,
     .dropN       = 0,
-    .chunk_size  = 1000000,
+    .chunk_size  = 1000,
     .n_thread    = 4,
     .raw_reads   = 0,
     .reads_pass_qc = 0,
