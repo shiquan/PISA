@@ -636,7 +636,7 @@ static void write_out(void *_p)
 
 extern int fastq_parse2_usage();
 
-int fastq_parse3(int argc, char **argv)
+int fastq_parse2(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
@@ -682,7 +682,7 @@ int fastq_parse3(int argc, char **argv)
 }
 
 
-int fastq_parse2(int argc, char **argv)
+int fastq_parse3(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
