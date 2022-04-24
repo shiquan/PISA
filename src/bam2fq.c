@@ -206,19 +206,12 @@ int bam2fq(int argc, char **argv)
             kputc('\n', &str);
         }
         else {
-            char *qual = calloc(1, b->core.l_qseq+1);
+            char *qual;
             get_quality(b, &qual);
 
             kputc('@', &str); kputs((char*)b->data, &str); kputs(name.s, &str); kputc('\n', &str);
             kputs(seq, &str);
-            // int i;
-            //uint8_t *s = bam_get_seq(b);
-            //for (i = 0; i < b->core.l_qseq; ++i) kputc("=ACMGRSVTWYHKDBN"[bam_seqi(s, i)], &str);
-            kputc('\n', &str);
-            kputs("+\n", &str);
-            //s = bam_get_qual(b);
-            //if (s[0] == 0xff) for (i = 0; i < b->core.l_qseq; ++i) kputc('I', &str);
-            //else for (i = 0; i < b->core.l_qseq; ++i) kputc(s[i] + 33, &str);
+            kputs("\n+\n", &str);
             kputs(qual, &str);            
             kputc('\n', &str);
             free(qual);

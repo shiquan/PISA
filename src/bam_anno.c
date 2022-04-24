@@ -889,9 +889,10 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
         }
     }
 
+    int ret = ann->type == type_intergenic ? 0 : 1;
     gtf_anno_destroy(ann);
     
-    return ann->type == type_intergenic ? 0 : 1;
+    return ret;
 }
 
 int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)

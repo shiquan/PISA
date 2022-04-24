@@ -110,20 +110,20 @@ int fastq_parse2_usage()
 }
 int fsort_usage()
 {
-    fprintf(stderr, "# Sort reads by tags and deduplicate.\n");
+    fprintf(stderr, "# Sort reads by tags.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m fsort -tags CB,UR -list cell_barcodes_top10K.txt -@ 5 -o sorted.fq.gz in.fq\n");
     fprintf(stderr, "\nOptions:\n");
     fprintf(stderr, " -tags    [TAGS]     Tags, such as CB,UR. Order of these tags is sensitive.\n");
     //fprintf(stderr, " -dedup              Remove dna copies with same tags. Only keep reads have the best quality.\n");
     //fprintf(stderr, " -dup-tag [TAG]      Tag name of duplication counts. Use with -dedup only. [DU]\n");
-    fprintf(stderr, " -list    [FILE]     White list for first tag, usually for cell barcodes.\n");
+    //  fprintf(stderr, " -list    [FILE]     White list for first tag, usually for cell barcodes.\n");
     fprintf(stderr, " -@       [INT]      Threads to compress file.\n");
     fprintf(stderr, " -o       [fq.gz]    bgzipped output fastq file.\n");
     fprintf(stderr, " -m       [mem]      Memory per thread. [1G]\n");
     fprintf(stderr, " -p                  Input fastq is smart pairing.\n");
     fprintf(stderr, " -T       [prefix]   Write temporary files to PREFIX.nnnn.tmp\n");
-    fprintf(stderr, " -report  [csv]      Summapry report.\n");
+//     fprintf(stderr, " -report  [csv]      Summapry report.\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -141,8 +141,8 @@ int fastq_stream_usage()
     fprintf(stderr, " -fa                 Stream FASTQ output instead of FASTQ.\n");
     // fprintf(stderr, " -rename           Rename output reads\n");
     fprintf(stderr, " -tmpdir\n");
-    fprintf(stderr, " -t           Threads.\n");
-    fprintf(stderr, " -o         [FILE]   Path to output file.\n");
+    fprintf(stderr, " -t       [INT]      Threads.\n");
+    fprintf(stderr, " -o       [FILE]     Path to output file.\n");
     fprintf(stderr, " -nw                 Disable warning messages.\n");
     fprintf(stderr, "\n");
     return 1;
@@ -246,7 +246,7 @@ int anno_usage()
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -bed peak.bed -tag PK -vcf in.vcf.gz -vtag VF -o anno.bam in.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -gtf genes.gtf -o anno.bam in.bam\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -gtf genes.gtf -o anno.bam in.sam\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -gtf genes.gtf -o anno.bam -sam in.sam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -o        [BAM]       Output bam file.\n");
     fprintf(stderr, " -report   [csv]       Summary report.\n");
@@ -305,13 +305,13 @@ int bam_corr_usage()
     fprintf(stderr, " -@        [INT]       Thread to compress BAM file.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mExamples\x1b[0m :\n");
-    fprintf(stderr, " // Two groups of reads have same cell barcode (CB) and gene (GN) but their UMIs (UY) differ by only one base. The UMI of less supported\n");
-    fprintf(stderr, " // is corrected to the UMI with higher support. UB save the checked or corrected UMI.\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m corr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
+    fprintf(stderr, " // Two groups of reads have same cell barcode (CB) and gene (GN) but their raw UMIs (UR) differ by only one base. The UMI of less \n");
+    fprintf(stderr, " // supported is corrected to the UMI with higher support. UB save the checked or corrected UMI.\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m corr -tag UR -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
     fprintf(stderr, " // Same with above. Besides, if two or more groups of reads have same CB and UB but different GN, the GN with the most supporting reads\n");
     fprintf(stderr, " // is kept for UMI counting, and the other read groups are discarded. In case of a tie for maximal read support, all read groups are\n");
     fprintf(stderr, " // discarded, as the gene cannot be confidently assigned (Cell Ranger method).\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m corr -cr -tag UY -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m corr -cr -tag UR -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -447,11 +447,11 @@ int depth_usage()
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth -cb CB -umi UB -tags GN -region in.bed -o depth.tsv sorted.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth -cb CB -umi UB sorted.bam chr1:1-2:+\n");
     fprintf(stderr, "\nOptions : \n");
-    fprintf(stderr, " -cb       [TAG]      Cell Barcode, or other tag used for grouping reads.\n");
-    fprintf(stderr, " -list     [FILE]     Cell barcode white list.\n");
+    fprintf(stderr, " -tag      [TAG]      Tag used for grouping reads.\n");
+    fprintf(stderr, " -list     [FILE]     Candidate list for -tag.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. If set, only count unique UMIs for each location.\n");
     fprintf(stderr, " -bed      [BED]      Target BED region file. If the strand in column six set, only count reads with the same strand.\n");
-    fprintf(stderr, " -tags     [TAG]      Only count reads with the defined tags.\n");
+    //fprintf(stderr, " -tags     [TAG]      Only count reads with the defined tags.\n");
     fprintf(stderr, " -o        [FILE]     Output depth file. [stdout].\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. [20]\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack bam. [4]\n");

@@ -59,6 +59,11 @@ static struct args {
 
 static void memory_release()
 {
+    kstring_t run = {0,0,0};
+    kputs("rm -rf ", &run);
+    kputs(args.tempdir, &run);
+    if (system(run.s) == -1) warnings("Failed to run %s", run.s);
+    free(run.s);
     if (args.run_script) free(args.run_script);
     fastq_handler_destory(args.fastq);    
 }
