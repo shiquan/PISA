@@ -7,6 +7,7 @@ int frag_count_usage()
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count2 -bed peaks.bed -t 10 -list barcodes.txt -outdir exp fragments.tsv.gz\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -list     [FILE]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
+    fprintf(stderr, " -bed      [BED]      Peaks.\n");
     fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this fold.\n");
     fprintf(stderr, " -prefix   [STR]      Prefix of output files.\n");
     fprintf(stderr, " -t        [INT]      Threads.\n");
@@ -78,10 +79,11 @@ int fastq_parse2_usage()
     fprintf(stderr, " -q       [INT]     Drop reads if average sequencing quality below this value.\n");
     fprintf(stderr, " -dropN             Drop reads if N base in sequence or barcode.\n");
     fprintf(stderr, " -report  [csv]     Summary report.\n");
+    fprintf(stderr, " -order             Keep input order.\n");
     fprintf(stderr, " -t       [INT]     Threads. [4]\n");
     fprintf(stderr, " -x                 Predefined code for specific library.\n");
-    fprintf(stderr, "          * C4      Library structure for DNBelab C4 RNA kit v1.");
-    
+    fprintf(stderr, "          * C4      Library structure for DNBelab C4 RNA kit v1.\n");
+
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[31m\x1b[1mNotice\x1b[0m :\n");
     //fprintf(stderr, " * \x1b[1mPISA\x1b[0m parse requires -config, -rule, or -x option to specify cell barcode and UMI locations in the raw read files.\n");

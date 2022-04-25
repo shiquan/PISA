@@ -33,7 +33,7 @@ static struct args {
     int qual_thres;
     int dropN;
     int chunk_size;
-
+    int order;
     int no_warnings;
     // stats of reads
     uint64_t raw_reads;
@@ -59,6 +59,7 @@ static struct args {
     .r2          = NULL,
     .smart_pair  = 0,
     .qual_thres  = 20,
+    .order       = 0,
     .dropN       = 0,
     .chunk_size  = 1000,
     .n_thread    = 4,
@@ -362,7 +363,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
         else if (strcmp(a, "-q") == 0) var = &qual_thres;
         else if (strcmp(a, "-x") == 0) var = &code;
-        
+        else if (strcmp(a, "-order") == 0) {
+            args.order = 1;
+            continue;
+        }
         else if (strcmp(a, "-p") == 0) {
             args.smart_pair = 1;
             continue;
@@ -634,16 +638,8 @@ static void write_out(void *_p)
     if (fp2 != fp1) fflush(fp2);
 }
 
-extern int fastq_parse2_usage();
-
-int fastq_parse2(int argc, char **argv)
+void fastq_parse_order()
 {
-    double t_real;
-    t_real = realtime();
-    
-    if (parse_args(argc, argv)) return fastq_parse2_usage();
-
-        
     hts_tpool *p = hts_tpool_init(args.n_thread);
     hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
     hts_tpool_result *r;
@@ -674,22 +670,10 @@ int fastq_parse2(int argc, char **argv)
     }
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
-    write_report();
-    memory_release();
-    LOG_print("Real time: %.3f sec; CPU: %.3f sec; Peak RSS: %.3f GB.", realtime() - t_real, cputime(), peakrss() / 1024.0 / 1024.0 / 1024.0);
-
-    return 0;    
 }
 
-
-int fastq_parse3(int argc, char **argv)
+void fastq_parse_unorder()
 {
-    double t_real;
-    t_real = realtime();
-    
-    if (parse_args(argc, argv)) return fastq_parse2_usage();
-
-    
     struct bseq_pool *b;
 
 #pragma omp parallel private(b) num_threads(args.n_thread)
@@ -703,6 +687,20 @@ int fastq_parse3(int argc, char **argv)
 #pragma omp critical (write)
         write_out(b);            
     }
+}
+
+extern int fastq_parse2_usage();
+int fastq_parse2(int argc, char **argv)
+{
+    double t_real;
+    t_real = realtime();
+    
+    if (parse_args(argc, argv)) return fastq_parse2_usage();
+
+    if (args.order)
+        fastq_parse_order();
+    else
+        fastq_parse_unorder();
     
     write_report();
     memory_release();

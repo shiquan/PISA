@@ -92,9 +92,6 @@ test: $(HTSLIB) $(HTSVERSION)
 PISA: $(HTSLIB) $(LIBZ) liba.a $(AOBJ)
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
 
-debug: $(HTSLIB) $(LIBZ) liba.a $(AOBJ)
-	$(CC) $(DEBUGFLAGS) $(INCLUDES) -o PISA src/main.c $(AOBJ) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
-
 git:
 	@-echo '#define PISA_VERSION "$(PACKAGE_VERSION)"' > pisa_version.h
 	@-git push

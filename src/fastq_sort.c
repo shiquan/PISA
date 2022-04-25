@@ -107,7 +107,7 @@ static int parse_args(int argc, char **argv)
     if (args.input_fname == NULL ) error("No input fastq specified.");
     if (args.output_fname == NULL) error("Output file should be specified.");
     
-    if (tags == NULL) error("-tag must be set.");
+    if (tags == NULL) error("-tags must be set.");
 
     args.tags = str2tag(tags);
     /* kstring_t str = {0,0,0}; */
