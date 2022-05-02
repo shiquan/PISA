@@ -924,7 +924,7 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
         if (itr->n == 0) continue; // no hit
         for (i = 0; i < itr->n; ++i) {
             struct bed *bed = (struct bed*)itr->rets[i];
-            if (bed->start > s->start || bed->end <= s->end) continue; // not covered
+            if (bed->start > s->end || bed->end <= s->start) continue; // not covered
             temp.l = 0;
             
             if (bed->name == -1) {          
