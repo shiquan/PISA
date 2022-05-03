@@ -430,8 +430,8 @@ static int parse_args(int argc, char **argv)
 }
 
 struct pair {
-    int start;
-    int end;
+    int start; // 1 based
+    int end; // 1 based
 };
 struct isoform {
     int n;
@@ -917,14 +917,15 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
     struct isoform *isf = bend_sam_isoform(b);
     
     for (j = 0; j < isf->n; ++j) {
-        // struct region_itr *itr = bed_query(args.B, name, c->pos, endpos, BED_STRAND_IGN);
         struct pair *s = &isf->p[j];
         struct region_itr *itr = bed_query(args.B, name, s->start, s->end, BED_STRAND_IGN);
         if (itr == NULL) continue; // query failed
         if (itr->n == 0) continue; // no hit
         for (i = 0; i < itr->n; ++i) {
             struct bed *bed = (struct bed*)itr->rets[i];
-            if (bed->start > s->end || bed->end <= s->start) continue; // not covered
+            // bed->start is 0 based
+            if (bed->start >= s->end || bed->end < s->start) continue; // not covered
+            
             temp.l = 0;
             
             if (bed->name == -1) {          

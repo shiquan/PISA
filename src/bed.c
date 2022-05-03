@@ -322,7 +322,7 @@ struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, in
     int i;
     for (i = 0; i < itr->n;) {
         struct bed *bed = itr->rets[i];
-        if (bed->start > end || bed->end < start) {
+        if (bed->start >= end || bed->end < start) { // start is 0 base
             memmove(itr->rets+i, itr->rets+i+1, (itr->n-i-1)*sizeof(void*));
             itr->n--;
             continue;
