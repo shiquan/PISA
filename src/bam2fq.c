@@ -106,6 +106,67 @@ void memory_release()
     fclose(args.out);
 }
 
+// reverse(), get_read(), and get_qual() copied from samtools/bam_fastq.c
+// please refer to orginal resource if you use it
+static char *reverse(char *str)
+{
+    int i = strlen(str)-1,j=0;
+    char ch;
+    while (i>j) {
+        ch = str[i];
+        str[i]= str[j];
+        str[j] = ch;
+        i--;
+        j++;
+    }
+    return str;
+}
+int8_t seq_comp_table[16] = { 0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15 };
+
+/* return the read, reverse complemented if necessary */
+static char *get_read(const bam1_t *rec)
+{
+    int len = rec->core.l_qseq + 1;
+    char *read = calloc(1, len);
+    char *seq = (char *)bam_get_seq(rec);
+    int n;
+
+    if (!read) return NULL;
+
+    for (n=0; n < rec->core.l_qseq; n++) {
+        if (rec->core.flag & BAM_FREVERSE) read[n] = seq_nt16_str[seq_comp_table[bam_seqi(seq,n)]];
+        else                               read[n] = seq_nt16_str[bam_seqi(seq,n)];
+    }
+    if (rec->core.flag & BAM_FREVERSE) reverse(read);
+    return read;
+}
+
+/*
+ * get and decode the quality from a BAM record
+ */
+static int get_quality(const bam1_t *rec, char **qual_out)
+{
+    char *quality = calloc(1, rec->core.l_qseq + 1);
+    char *q = (char *)bam_get_qual(rec);
+    int n;
+
+    if (!quality) return -1;
+
+    if (*q == '\xff') {
+        free(quality);
+        *qual_out = NULL;
+        return 0;
+    }
+
+    for (n=0; n < rec->core.l_qseq; n++) {
+        quality[n] = q[n]+33;
+    }
+    if (rec->core.flag & BAM_FREVERSE) reverse(quality);
+    *qual_out = quality;
+    return 0;
+}
+
+
 extern int bam2fq_usage();
 int bam2fq(int argc, char **argv)
 {
@@ -136,27 +197,26 @@ int bam2fq(int argc, char **argv)
         }
         
         if (filter == 1) continue;
+
+        char *seq = get_read(b);
         
         if (args.fasta) {
             kputc('>', &str); kputs((char*)b->data, &str); kputs(name.s, &str); kputc('\n', &str);
-            int i;
-            uint8_t *s = bam_get_seq(b);
-            for (i = 0; i < b->core.l_qseq; ++i) kputc("=ACMGRSVTWYHKDBN"[bam_seqi(s, i)], &str);
+            kputs(seq, &str);
             kputc('\n', &str);
         }
         else {
-            kputc('@', &str); kputs((char*)b->data, &str); kputs(name.s, &str); kputc('\n', &str);
-            int i;
-            uint8_t *s = bam_get_seq(b);
-            for (i = 0; i < b->core.l_qseq; ++i) kputc("=ACMGRSVTWYHKDBN"[bam_seqi(s, i)], &str);
-            kputc('\n', &str);
-            kputs("+\n", &str);
-            s = bam_get_qual(b);
-            if (s[0] == 0xff) for (i = 0; i < b->core.l_qseq; ++i) kputc('I', &str);
-            else for (i = 0; i < b->core.l_qseq; ++i) kputc(s[i] + 33, &str);
-            kputc('\n', &str);
-        }
+            char *qual=NULL; // set to NULL, to disable warnings
+            get_quality(b, &qual);
 
+            kputc('@', &str); kputs((char*)b->data, &str); kputs(name.s, &str); kputc('\n', &str);
+            kputs(seq, &str);
+            kputs("\n+\n", &str);
+            kputs(qual, &str);            
+            kputc('\n', &str);
+            free(qual);
+        }
+        free(seq);
         fputs(str.s, args.out);
     }
     if (str.m) free(str.s);

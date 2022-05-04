@@ -146,6 +146,7 @@ static int parse_args(int argc, char **argv)
                 kputs(str.s+s[i], &tmp);
             }
             dict_push(args.barcodes, tmp.s);
+            free(s);
         }
         if (dict_size(args.barcodes) == 0) error("Empty list.");
         

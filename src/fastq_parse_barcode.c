@@ -10,6 +10,10 @@
 #include "htslib/kseq.h"
 #include "sim_search.h"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 KHASH_MAP_INIT_STR(str, int)
 typedef kh_str_t strhash_t;
 
@@ -67,12 +71,6 @@ struct fq_data {
     int cr_exact_match;
 };
 
-#define FQ_FLAG_PASS          0
-#define FQ_FLAG_BC_EXACTMATCH 1
-#define FQ_FLAG_BC_FAILURE    2
-#define FQ_FLAG_READ_QUAL     3
-#define FQ_FLAG_SAMPLE_FAIL   4
-
 extern int kstr_copy(kstring_t *a, kstring_t *b);
 
 static struct args {
@@ -110,8 +108,8 @@ static struct args {
 
     // file handler
     // inputs could be gzipped fastq or unzipped
-    gzFile r1_fp;
-    gzFile r2_fp;
+    //gzFile r1_fp;
+    //gzFile r2_fp;
     // All outputs will be unzipped for performance
     FILE *out1_fp;
     FILE *out2_fp;
@@ -163,8 +161,8 @@ static struct args {
     .m_name = 0,
     .cbhash = NULL,
 
-    .r1_fp = NULL,
-    .r2_fp = NULL,
+    //.r1_fp = NULL,
+    //.r2_fp = NULL,
     .out1_fp = NULL,
     .out2_fp = NULL,
     .cbdis_fp = NULL,
@@ -1007,8 +1005,8 @@ void full_details()
 }
 static void memory_release()
 {
-    if (args.r1_fp) gzclose(args.r1_fp);
-    if (args.r2_fp) gzclose(args.r2_fp);
+    //if (args.r1_fp) gzclose(args.r1_fp);
+    //if (args.r2_fp) gzclose(args.r2_fp);
     if (args.out1_fp) fclose(args.out1_fp);
     if (args.out2_fp) fclose(args.out2_fp);
     if (args.barcode_dis_fp) fclose(args.barcode_dis_fp);
@@ -1128,53 +1126,34 @@ static int parse_args(int argc, char **argv)
 }
 
 extern int fastq_parse_usage();
-static void *process(void *shared, int step, void *_data)
-{
-    struct args *aux = (struct args *)shared;
-    struct bseq_pool *data = (struct bseq_pool*)_data;
 
-    if (step == 0) {
-        struct bseq_pool *b = fastq_read(aux->fastq, &args);
-        return b;
-    }
-    else if (step == 1) {
-        return run_it(data);        
-    }
-    else if (step == 2) {
-        write_out(data);
-        return 0;
-    }
-    return 0;
-}
-void kt_pipeline(int n_threads, void *(*func)(void*, int, void*), void *shared_data, int n_steps);
-
-int fastq_prase_barcodes(int argc, char **argv)
+int fastq_parse_barcodes(int argc, char **argv)
 {
     double t_real;
     t_real = realtime();
     
     if (parse_args(argc, argv)) return fastq_parse_usage();
 
-    if (args.n_thread == 1) {
-        for (;;) {
-            struct bseq_pool *b = fastq_read(args.fastq, &args);
-            if (b == NULL) break;
-            b = run_it(b);
-            write_out(b);
-        }
+    
+    struct bseq_pool *b;
+
+#pragma omp parallel private(b) num_threads(args.n_thread)
+    for (;;) {
+        
+#pragma omp critical (read)
+        b = fastq_read(args.fastq, &args);
+        if (b == NULL) break;
+        b = run_it(b);
+        
+#pragma omp critical (write)
+        write_out(b);            
     }
-
-    kt_pipeline(args.n_thread, process, &args, 3);
     
-    cell_barcode_count_pair_write();
-
     report_write();
-    
-    // full_details();
     
     memory_release();
 
     config_destory();
-    LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());    
+    LOG_print("Real time: %.3f sec; CPU: %.3f sec; Peak RSS: %.3f GB.", realtime() - t_real, cputime(), peakrss() / 1024.0 / 1024.0 / 1024.0);
     return 0;
 }

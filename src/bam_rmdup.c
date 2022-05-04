@@ -20,6 +20,7 @@ static struct args {
     BGZF *out;
     FILE *fp_report;
     bam_hdr_t *hdr;
+    int disable_warnings;
     //int as_SE;
 } args = {
     .input_fname  = NULL,
@@ -34,6 +35,7 @@ static struct args {
     .out          = NULL,
     .fp_report    = NULL,
     .hdr          = NULL,
+    .disable_warnings = 0,
     //.as_SE        = 0,
 };
 static int parse_args(int argc, char **argv)
@@ -55,6 +57,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-q") == 0) var = &qual_thres;
         else if (strcmp(a, "-k") == 0) {
             args.keep_dup = 1;
+            continue;
+        }
+        else if (strcmp(a, "-nw") == 0) {
+            args.disable_warnings = 1;
             continue;
         }
         //else if (strcmp(a, "-S") == 0) {
@@ -146,9 +152,10 @@ static inline char *pick_tag_name(const bam1_t *b, int n_tag, char **tags)
     for (i = 0; i < args.n_tag; ++i) {
         uint8_t *tag = bam_aux_get(b, args.tags[i]);        
         if (!tag){
-            error("No %s tag at alignment. %d:%lld", args.tags[i], c->tid, c->pos+1);
-            //if (str.l) free(str.s);
-            //return NULL;
+            if (args.disable_warnings == 0)
+                warnings("No %s tag at alignment. %d:%ld", args.tags[i], c->tid, c->pos+1);
+            if (str.l) free(str.s);
+            return NULL;
         }
         kputs((char*)tag, &str);
     }
@@ -216,10 +223,14 @@ static void push_buffer(bam1_t *b)
         r->dup = 0;
         
         char *bc = pick_tag_name(b, args.n_tag, args.tags);
-        if (buf.bcs == NULL) buf.bcs = dict_init();
-        r->idx = dict_query(buf.bcs, bc);
-        if (r->idx == -1) r->idx = dict_push(buf.bcs, bc);
-        free(bc);
+        if (bc == NULL) {
+            r->idx = -1;
+        } else {
+            if (buf.bcs == NULL) buf.bcs = dict_init();
+            r->idx = dict_query(buf.bcs, bc); 
+            if (r->idx == -1) r->idx = dict_push(buf.bcs, bc);
+            free(bc);
+        }
     }
     buf.n++;
 }
@@ -251,7 +262,9 @@ static void dump_best()
         struct rcd *r = &buf.r[i];
         //LOG_print("idx,%d\tdup,%d\tchecked:%d", r->idx, r->dup, r->checked);
         if (r->b->core.qual < args.qual_thres) continue;
-        if (r->idx != -1) all_reads++;
+        if (r->idx == -1) continue;
+        // if (r->idx != -1)
+        all_reads++;
         if (r->dup == 1) {
             duplicate++;
             if (args.keep_dup == 0) continue;
@@ -339,7 +352,6 @@ int bam_rmdup(int argc, char **argv)
     bam_destroy1(b);
     memory_release();
     
-    LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
-    
+    LOG_print("Real time: %.3f sec; CPU: %.3f sec; Peak RSS: %.3f GB.", realtime() - t_real, cputime(), peakrss() / 1024.0 / 1024.0 / 1024.0);    
     return 0;
 }

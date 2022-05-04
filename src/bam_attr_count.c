@@ -160,6 +160,7 @@ void counts_destroy(struct counts *cnt)
     free(cnt->counts);
     dict_destroy(cnt->bc_dict);
     if (cnt->group_dict) dict_destroy(cnt->group_dict);
+    free(cnt);
 }
 int counts_push(struct counts *cnt, bam1_t *b)
 {

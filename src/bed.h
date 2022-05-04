@@ -28,7 +28,11 @@ struct bed_spec {
     struct dict *name;    
 
     struct bed_idx *idx;
-    struct _ctg_idx *ctg;
+    struct _ctg_idx {
+        int offset;
+        int idx;
+    } *ctg;
+    // struct _ctg_idx *ctg;
     int n,m;
     struct bed *bed;
 };
@@ -41,6 +45,7 @@ struct var {
 struct bed_spec *bed_spec_init();
 void bed_spec_destroy(struct bed_spec *B);
 struct bed_spec *bed_read(const char *fname);
+// start is 0 based
 struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, int end, int strand);
 int bed_check_overlap(const struct bed_spec *B, char *name, int start, int end, int strand);
 char* bed_seqname(struct bed_spec *B, int id);

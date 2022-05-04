@@ -83,7 +83,7 @@ static struct args {
     .enable_corr       = 0,
     .G                 = NULL,
     .n_thread          = 1,
-    .buffer_size       = 1000000, // 1M
+    .buffer_size       = 1000, // 
     .file_th           = 1,
     .fp                = NULL,
     .ks                = NULL,
@@ -195,7 +195,7 @@ static struct sam_pool* sam_pool_read(kstream_t *s, int buffer_size)
     
     return p;
 }
-static bam_hdr_t *sam_parse_header(kstream_t *s, kstring_t *line)
+bam_hdr_t *sam_parse_header(kstream_t *s, kstring_t *line)
 {
     bam_hdr_t *h = NULL;
     kstring_t str = {0,0,0};
@@ -261,7 +261,7 @@ static void summary_report(struct args *opts)
         fprintf(opts->fp_report, "Mapping quality corrected reads,%"PRIu64"\n", summary->n_corr);
 }
 
-static int parse_name_str(kstring_t *s)
+int parse_name_str(kstring_t *s)
 {
     // CL100053545L1C001R001_2|||BC:Z:TTTCATGA|||CR:Z:TANTGGTAGCCACTAT|||PL:i:20
     // CL100053545L1C001R001_2 .. CR:Z:TANTGGTAGCCACTAT ..
@@ -488,7 +488,7 @@ int bam_pool_qual_corr(struct sam_pool *p)
     }
     return corred;
 }
-static int sam_safe_check(kstring_t *str)
+int sam_safe_check(kstring_t *str)
 {
     int i;
     int s = 0;
@@ -627,6 +627,9 @@ static int parse_args(int argc, char **argv)
         if (args.file_th <1) args.file_th = 1;
         hts_set_threads(args.fp_out, args.file_th);
     }
+    // set compress level from 6 to 0, save ~1x runtime, but will also increase ~0.5x file size
+    if (args.fp_out->is_bgzf)
+        args.fp_out->fp.bgzf->compress_level = 2;
 
     if (args.enable_corr) {
         if (args.gtf_fname == NULL) error("-gtf is required if mapping quality correction enabled.");
@@ -749,6 +752,6 @@ int sam2bam(int argc, char **argv)
     
     memory_release();
 
-    LOG_print("Real time: %.3f sec; CPU: %.3f sec", realtime() - t_real, cputime());
+    LOG_print("Real time: %.3f sec; CPU: %.3f sec; Peak RSS: %.3f GB.", realtime() - t_real, cputime(), peakrss() / 1024.0 / 1024.0 / 1024.0);
     return 0;
 }

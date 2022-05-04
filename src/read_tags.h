@@ -3,11 +3,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "dict.h"
+#include "fastq.h"
+
+#define MAX_ID_LENGTH 254
 
 struct dict *str2tag(const char *seq);
+int fname_query_tag(const char *p, const char *tag);
 
-extern char **fastq_name_pick_tags(char *name, struct dict *dict);
+char *fname_pick_tag(const char *p, const char *tag);
+char *fname_concat_tag(char *p, const char *tag, const char *val);
+char *fname_update_tag(char *p, const char *tag, const char *val);
+char *fname_update_tags(char *p, struct dict *tags, char **vals);
+char **fname_pick_tags(const char *p, struct dict *dict);
+char *fname_tagvalstr(const char *p, struct dict *dict);
 
-char *read_name_pick_tag(char *name, const char *tag);
+char *vals2str(char **vals, int n);
 
 #endif

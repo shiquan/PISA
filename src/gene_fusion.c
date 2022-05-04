@@ -7,7 +7,7 @@
 #include "number.h"
 #include "dict.h"
 
-struct args {
+static struct args {
     const char *input_fname;
     int qual_thres;
     const char *gene_tag;

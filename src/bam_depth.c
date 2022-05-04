@@ -58,7 +58,7 @@ static int parse_args(int argc, char **argv)
         const char *a = argv[i++];
         const char **var = 0;
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
-        if (strcmp(a, "-cb") == 0) var = &args.tag;
+        if (strcmp(a, "-tag") == 0) var = &args.tag;
         else if (strcmp(a, "-list") == 0) var = &args.bc_list;
         else if (strcmp(a, "-umi") == 0) var = &args.umi_tag;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
@@ -87,14 +87,14 @@ static int parse_args(int argc, char **argv)
 
     if (args.input_fname == 0) error("No input bam.");
 
-    if (args.region_fname && region) error("-bed is conflict with region.\n");
-    
+    if (args.region_fname && region) error("-bed is conflict with region.");
+    if (args.region_fname == NULL && region == NULL) error("Required a bed file or region.");
     if (threads) args.n_thread = str2int((char*)threads);
     
     if (mapq) {
         args.mapq_thres = str2int(mapq); 
     }
-    
+
     if (args.bc_list) {
         args.barcodes = dict_init();
         dict_read(args.barcodes, args.bc_list);

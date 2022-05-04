@@ -13,15 +13,6 @@ enum exon_type {
     type_intergenic,
 };
 
-static char *exon_type_names[] = {
-    "Unknown", "Exon", "Intron", "ExonIntron", "Antisense", "Splice", "Ambiguous", "Intergenic"
-};
-
-
-static char *RE_tags[] = {
-    "U", "E", "N", "C", "A", "S", "V", "I",
-};
-
 struct trans_type {
     int trans_id;
     enum exon_type type;
@@ -41,27 +32,7 @@ struct gtf_anno_type {
     struct gene_type *a;
 };
 
-static enum exon_type RE_map[256] = {
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  4,  0,  3,  0,  1,  0,  0,  0,  7,  0,  0,  0,  0,  2,  0, 
-     0,  0,  0,  5,  0,  0,  6,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-};
-
-static enum exon_type RE_type_map(char c) {
-    return RE_map[(uint8_t)c];
-}
-
+enum exon_type RE_type_map(uint8_t c);
+const char *RE_tag_name(int i);
+const char *exon_type_name(int i);
 #endif
