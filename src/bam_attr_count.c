@@ -328,7 +328,7 @@ int bam_count_attr(int argc, char *argv[])
     if (args.group_tag) cnt->group_dict = dict_init();
     
     if (args.barcode_fname) {
-        dict_read(cnt->bc_dict, args.barcode_fname);
+        dict_read(cnt->bc_dict, args.barcode_fname, 0);
         cnt->m = dict_size(cnt->bc_dict);
         cnt->n = cnt->m;
         cnt->counts = malloc( cnt->m *sizeof(struct counts_per_bcode));

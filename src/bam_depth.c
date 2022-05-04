@@ -97,7 +97,7 @@ static int parse_args(int argc, char **argv)
 
     if (args.bc_list) {
         args.barcodes = dict_init();
-        dict_read(args.barcodes, args.bc_list);
+        dict_read(args.barcodes, args.bc_list, 0);
         if (dict_size(args.barcodes) == 0) error("Barcode list is empty?");
     }
     

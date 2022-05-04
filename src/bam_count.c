@@ -8,7 +8,7 @@
 #include "htslib/sam.h"
 #include "htslib/bgzf.h"
 #include "pisa_version.h" // mex output
-
+#include "read_tags.h"
 // from v0.10, -ttype supported
 #include "read_anno.h"
 #include "biostring.h"
@@ -22,7 +22,7 @@ static struct args {
     const char *output_fname;
     const char *outdir; // v0.4, support Market Exchange Format (MEX) for sparse matrices
         
-    const char *tag; // cell barcode tag
+    struct dict *tags; // a cell barcode tag or two tags for spatial coordinates
     const char *anno_tag; // feature tag
     const char *umi_tag;
 
@@ -62,7 +62,7 @@ static struct args {
     .whitelist_fname = NULL,
     .output_fname    = NULL,
     .outdir          = NULL,
-    .tag             = NULL,
+    .tags            = NULL,
     .anno_tag        = NULL,
     .umi_tag         = NULL,
 
@@ -105,7 +105,8 @@ static void memory_release()
 {
     //bam_hdr_destroy(args.hdr);
     //sam_close(args.fp_in);
-
+    if (args.tags) dict_destroy(args.tags);
+    
     close_bam_files(args.files);
     
     int i;
@@ -127,11 +128,13 @@ static int parse_args(int argc, char **argv)
     const char *mapq = NULL;
     const char *n_thread = NULL;
     const char *region_types = NULL;
+    const char *tag_str = NULL;
+    
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
         const char **var = 0;
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
-        if (strcmp(a, "-tag") == 0 || strcmp(a, "-cb") == 0) var = &args.tag;
+        if (strcmp(a, "-tags") == 0 || strcmp(a, "-cb") == 0) var = &tag_str;
         else if (strcmp(a, "-anno-tag") == 0) var = &args.anno_tag;
         else if (strcmp(a, "-list") == 0) var = &args.whitelist_fname;
         else if (strcmp(a, "-umi") == 0) var = &args.umi_tag;
@@ -187,9 +190,11 @@ static int parse_args(int argc, char **argv)
         warnings("PISA now support MEX format. Old cell X gene expression format is very poor performance. Try -outdir instead of -o.");
     }
     
-    if (args.tag == 0 && args.alias_file_cb == 0)
+    if (tag_str == 0 && args.alias_file_cb == 0)
         error("No cell barcode specified and -file-barcode disabled.");
 
+    if (tag_str) args.tags = str2tag(tag_str);
+    
     if (args.anno_tag == 0) error("No anno tag specified.");
 
     if (n_thread) args.n_thread = str2int((char*)n_thread);
@@ -217,7 +222,7 @@ static int parse_args(int argc, char **argv)
     args.barcodes = dict_init();
 
     if (args.whitelist_fname) {
-        dict_read(args.barcodes, args.whitelist_fname);
+        dict_read(args.barcodes, args.whitelist_fname, 1);
         if (dict_size(args.barcodes) == 0) error("Barcode list is empty?");
     }
 
@@ -245,33 +250,39 @@ static int parse_args(int argc, char **argv)
 
 int count_matrix_core(bam1_t *b, char *tag)
 {
-    if (args.tag) {
-        uint8_t *tag0 = bam_aux_get(b, args.tag);
-        if (!tag0) return 1;
-
-        tag = (char*)(tag0+1);
+    kstring_t tmp = {0,0,0};
+    if (args.tags) {
+        int i;
+        for (i = 0; i < dict_size(args.tags); ++i) {
+            uint8_t *tag0 = bam_aux_get(b, dict_name(args.tags,i));
+            if (!tag0) goto skip_this_record;
+            tag0 = tag0 + 1;
+            if (tmp.m) kputc('\t', &tmp);
+            kputs((char*)tag0, &tmp);
+        }
+        tag = tmp.s;
     }
     else if (args.alias_file_cb) {
         assert(tag);
     }
     
     uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
-    if (!anno_tag) return 1;
+    if (!anno_tag) goto skip_this_record;
 
     if (args.umi_tag) {
         uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
-        if (!umi_tag) return 1;
+        if (!umi_tag) goto skip_this_record;
     }
 
     int unspliced = 0;
     int spanning = 0;
     if (args.velocity) {
         uint8_t *data = bam_aux_get(b, args.region_type_tag);
-        if (!data) return 1;
-        if (RE_type_map(data[1]) == type_unknown) return 1;
-        if (RE_type_map(data[1]) == type_antisense) return 1;
-        if (RE_type_map(data[1]) == type_ambiguous) return 1;
-        if (RE_type_map(data[1]) == type_intergenic)  return 1;
+        if (!data) goto skip_this_record;
+        if (RE_type_map(data[1]) == type_unknown) goto skip_this_record;
+        if (RE_type_map(data[1]) == type_antisense) goto skip_this_record;
+        if (RE_type_map(data[1]) == type_ambiguous) goto skip_this_record;
+        if (RE_type_map(data[1]) == type_intergenic)  goto skip_this_record;
         if (RE_type_map(data[1]) == type_exon_intron || RE_type_map(data[1]) == type_intron)
             unspliced = 1;
         if (RE_type_map(data[1]) == type_exon_intron) spanning = 1;
@@ -280,7 +291,7 @@ int count_matrix_core(bam1_t *b, char *tag)
     int cell_id;
     if (args.whitelist_fname) {
         cell_id = dict_query(args.barcodes, tag);
-        if (cell_id == -1) return 1;
+        if (cell_id == -1) goto skip_this_record;
     }
     else {
         cell_id = dict_push(args.barcodes, tag);
@@ -297,7 +308,7 @@ int count_matrix_core(bam1_t *b, char *tag)
     if (args.one_hit == 1 && n_gene >1) {
         free(str.s);
         free(s);
-        return 1;
+        goto skip_this_record;
     }
     
     int i;
@@ -360,7 +371,12 @@ int count_matrix_core(bam1_t *b, char *tag)
     }
     free(str.s);
     free(s);
+    free(tmp.s);
     return 0;
+
+skip_this_record:
+    if (tmp.m) free(tmp.s);
+    return 1;
 }
 
 static void update_counts()
