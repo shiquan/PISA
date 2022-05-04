@@ -204,8 +204,8 @@ int dict_push2(struct dict *D, char const *key, int idx)
     D->count[ret]++;
     return ret;
 }
-
-int dict_read(struct dict *D, const char *fname)
+// allow space in the key??
+int dict_read(struct dict *D, const char *fname, int allow_space)
 {
     gzFile fp;
     fp = gzopen(fname, "r");
@@ -220,10 +220,12 @@ int dict_read(struct dict *D, const char *fname)
             warnings("\"Barcode\" in %s looks like a title, skip it. ", fname);
             continue; // emit header
         }
-        char *p = str.s;
-        char *e = str.s + str.l;
-        while (p < e && !isspace(*p)) p++;
-        *p = '\0';
+        if (allow_space == 0) {
+            char *p = str.s;
+            char *e = str.s + str.l;
+            while (p < e && !isspace(*p)) p++;
+            *p = '\0';
+        }
         dict_push1(D, str.s); // v0.4, init whitelist but not increase count
     }
     if (str.m) free(str.s);

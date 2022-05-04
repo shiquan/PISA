@@ -140,7 +140,7 @@ static int parse_args(int argc, char **argv)
     dict_set_value(args.cells);
 
     if (args.barcode_list)
-        dict_read(args.cells, args.barcode_list);
+        dict_read(args.cells, args.barcode_list, 0);
 
     if (args.disable_offset) {
         args.reverse_offset = 0;

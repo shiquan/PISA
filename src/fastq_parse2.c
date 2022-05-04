@@ -115,7 +115,7 @@ struct dict *build_mis(struct dict *wl)
 struct dict *read_wl(const char *fn, int mis)
 {
     struct dict *wl = dict_init();
-    if ( dict_read(wl, fn) ) {
+    if ( dict_read(wl, fn, 0) ) {
         dict_destroy(wl);
         error("Failed to read barcodes from %s.", fn);
     }
