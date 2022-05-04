@@ -11,10 +11,10 @@
 
 KSTREAM_INIT(gzFile, gzread, 8193)
     
-struct _ctg_idx {
-    int offset;
-    int idx;
-};
+/* struct _ctg_idx { */
+/*     int offset; */
+/*     int idx; */
+/* }; */
 
 struct bed_idx {
     struct region_index *idx;
@@ -118,18 +118,22 @@ static void bed_build_index(struct bed_spec *B)
     qsort(B->bed, B->n, sizeof(struct bed), cmpfunc);
 
     B->ctg = malloc(dict_size(B->seqname)*sizeof(struct _ctg_idx));
-    memset(B->ctg, 0, sizeof(struct _ctg_idx)*dict_size(B->seqname));
-    
+    //memset(B->ctg, 0, sizeof(struct _ctg_idx)*dict_size(B->seqname));    
     B->idx = malloc(dict_size(B->seqname)*sizeof(struct bed_idx));
     
     int i;
-    for (i = 0; i < dict_size(B->seqname); ++i)
+    for (i = 0; i < dict_size(B->seqname); ++i) {
+        // init ctg
+        B->ctg[i].offset = 0;
+        B->ctg[i].idx = -1;
+        // init idx
         B->idx[i].idx = region_index_create();
+    }
 
     for (i = 0; i < B->n; ++i) {
         struct bed *bed = &B->bed[i];
         B->ctg[bed->seqname].offset++;
-        if (B->ctg[bed->seqname].idx == 0) B->ctg[bed->seqname].idx = i+1;
+        if (B->ctg[bed->seqname].idx == -1) B->ctg[bed->seqname].idx = i; // 0-based
         index_bin_push(B->idx[bed->seqname].idx, bed->start, bed->end, bed);
     }
 }
@@ -156,7 +160,16 @@ static int parse_str(struct bed_spec *B, kstring_t *str)
     bed->start   = start;
     bed->end     = end;
     bed->name    = -1;
-    if (n >= 4) bed->name = dict_push(B->name, str->s+s[3]);
+
+    if (n >= 4) {
+        char *name = str->s+s[3];
+        if (strlen(name) == 1) {
+            if (name[0] == '.' || name[0] == '*') bed->name = -1;
+            else  bed->name = dict_push(B->name, name);
+        } else {
+            bed->name = dict_push(B->name, name);  
+        } 
+    }
 
     bed->strand = -1; // undefined
     if (n >= 6) {
@@ -300,7 +313,7 @@ struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, in
         return NULL;
     }
     
-    int st = B->ctg[id].idx-1; // 0 based
+    int st = B->ctg[id].idx; // 0 based
     if (end < B->bed[st].start) return NULL; // out of range
 
     struct region_index *idx = B->idx[id].idx;
@@ -309,7 +322,7 @@ struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, in
     int i;
     for (i = 0; i < itr->n;) {
         struct bed *bed = itr->rets[i];
-        if (bed->start > end || bed->end < start) {
+        if (bed->start >= end || bed->end < start) { // start is 0 base
             memmove(itr->rets+i, itr->rets+i+1, (itr->n-i-1)*sizeof(void*));
             itr->n--;
             continue;

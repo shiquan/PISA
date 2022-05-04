@@ -28,25 +28,6 @@ enum feature_type {
     feature_Selenocysteine,
 };
 
-static const char *feature_type_names[] = {
-    // The following feature types are required: "gene", "transcript"
-    "gene",
-    "transcript",
-    // The features "CDS", "start_codon", "stop_codon", "5UTR", "3UTR", "inter", "inter_CNS", "intron_CNS" and "exon" are optional.
-    "CDS",
-    "start_codon",
-    "stop_codon",
-    "5UTR",
-    "3UTR",
-    "inter",
-    "inter_CNS",
-    "intron_CNS",
-    "exon",
-    "five_prime_utr",
-    "three_prime_utr",
-    "Selenocysteine"
-    // All other features will be ignored. The types must have the correct capitalization shown here.
-};
 struct gtf {
     int seqname;
     int source;
@@ -67,7 +48,7 @@ struct gtf {
 struct _ctg_idx;
 
 struct gtf_ctg {
-    //struct dict *gene_idx;  
+    struct dict *gene_idx;  
     struct region_index *idx;    
     int n_gtf, m_gtf;
     struct gtf **gtf; 
@@ -92,5 +73,6 @@ struct gtf_spec *gtf_read(const char *fname, int filter);
 struct gtf_spec *gtf_read_lite(const char *fname); // only read necessary info
 struct region_itr *gtf_query(struct gtf_spec const *G, char *name, int start, int end);
 void gtf_destroy(struct gtf_spec *G);
+void gtf_dump(struct gtf_spec *G, const char *fname);
 
 #endif

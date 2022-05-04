@@ -287,9 +287,9 @@ void build_index1(struct bc_corr *bc)
         filter_umi_gene(bc);
 }
 
-void build_index2(struct dict *cell_bc, int i, int n)
+void build_index2(void *cell_bc, long int i, int n)
 {
-    struct bc_corr *bc0 = dict_query_value(cell_bc, i);
+    struct bc_corr *bc0 = dict_query_value((struct dict *)cell_bc, i);
     build_index1(bc0);      
 }
 kh_bc_t *select_umi_hash(struct dict *Cindex, int n, const char **tags)
@@ -389,7 +389,7 @@ struct dict *build_index(const char *fn, int cr_method, int n_tag, const char **
     bam_hdr_t *hdr = sam_hdr_read(fp);
     hts_set_threads(fp, args.file_th);
     bam1_t *b = bam_init1();
-    int i;
+    int i = 0;
     for (;;) {
         if (sam_read1(fp, hdr, b) < 0) break;
         bam1_core_t *c = &b->core;

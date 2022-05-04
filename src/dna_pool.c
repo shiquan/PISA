@@ -23,7 +23,7 @@ static const unsigned char seq_nt16_table[256] = {
 
 static const char seq_nt16_str[] = "=ACMGRSVTWYHKDBN";
 
-static const int seq_nt16_int[] = { 4, 0, 1, 4, 2, 4, 4, 4, 3, 4, 4, 4, 4, 4, 4, 4 };
+// static const int seq_nt16_int[] = { 4, 0, 1, 4, 2, 4, 4, 4, 3, 4, 4, 4, 4, 4, 4, 4 };
 
 void PISA_dna_destroy(struct PISA_dna_pool *p)
 {

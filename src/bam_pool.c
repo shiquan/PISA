@@ -8,10 +8,26 @@ struct bam_pool *bam_pool_create()
     p->bam = NULL;
     return p;
 }
+struct bam_pool *bam_pool_init(int size)
+{
+    struct bam_pool *p = malloc(sizeof(*p));
+    p->m = size;
+    p->n = 0;
+    
+    if (p->m > 0) {
+        p->bam = malloc(p->m*sizeof(bam1_t));
+        memset(p->bam, 0, p->m*sizeof(bam1_t));
+    } else {
+        p->bam = NULL;    
+    }
+    
+    return p;
+}
+
 void bam_read_pool(struct bam_pool *p, htsFile *fp, bam_hdr_t *h, int chunk_size)
 {
     p->n = 0;
-    int ret;
+    int ret = -1;
     do {
         if (p->n >= chunk_size) break;
         if (p->n == p->m) {
@@ -26,7 +42,7 @@ void bam_read_pool(struct bam_pool *p, htsFile *fp, bam_hdr_t *h, int chunk_size
         p->n++;
     } while(1);
 
-    if (ret < -1) warnings("Truncated file?");    
+    if (ret < -1) warnings("Truncated file?");
 }
 void bam_pool_destory(struct bam_pool *p)
 {
