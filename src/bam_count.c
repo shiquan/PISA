@@ -96,9 +96,10 @@ struct counts {
 
     uint32_t unspliced;
     struct PISA_dna_pool *up;
-
+    
     uint32_t spanning;
     struct PISA_dna_pool *sp;
+
 };
 
 static void memory_release()
@@ -256,9 +257,17 @@ int count_matrix_core(bam1_t *b, char *tag)
         for (i = 0; i < dict_size(args.tags); ++i) {
             uint8_t *tag0 = bam_aux_get(b, dict_name(args.tags,i));
             if (!tag0) goto skip_this_record;
-            tag0 = tag0 + 1;
             if (tmp.m) kputc('\t', &tmp);
-            kputs((char*)tag0, &tmp);
+            if (*tag0 == 'S' || *tag0 == 's' || *tag0 == 'c' || *tag0 == 'i' || *tag0 == 'I') {
+                int64_t va = bam_aux2i(tag0);
+                kputw(va, &tmp);
+            } else if (*tag0 == 'f' || *tag0 == 'd') {
+                double va = bam_aux2f(tag0);
+                kputd(va, &tmp);
+            } else if (*tag0 == 'H' || *tag0 == 'Z') {
+                char *va = bam_aux2Z(tag0);
+                kputs(va, &tmp);
+            }
         }
         tag = tmp.s;
     }
