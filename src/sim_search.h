@@ -9,6 +9,7 @@ typedef struct similarity_search_aux ss_t;
 
 extern void set_levenshtein();
 extern void set_hamming();
+extern void set_mix();
 
 extern ss_t *ss_init();
 extern char *ss_query(ss_t *S, char *seq, int e, int *i);
