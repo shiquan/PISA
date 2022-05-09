@@ -321,15 +321,30 @@ int levnshn_dist_calc(uint64_t a, uint64_t b)
     return dist;
 }
 
-static int use_levenshtein_distance = 0;
+// static int use_levenshtein_distance = 0;
 
-void set_levenshtein()
+// 1 for hamming distance
+// 2 for levenshtein distance
+// 3 for mixed 
+static int dist_method = 1;
+
+void set_method(int i)
 {
-    use_levenshtein_distance = 1;    
+    dist_method = i;
 }
 void set_hamming()
 {
-    use_levenshtein_distance = 0;
+    set_method(1);
+    //use_levenshtein_distance = 0;
+}
+void set_levenshtein()
+{
+    set_method(2);
+    //use_levenshtein_distance = 1;    
+}
+void set_mix()
+{
+    set_method(3);
 }
 char *ss_query(ss_t *S, char *seq, int e, int *exact)
 {
@@ -339,7 +354,7 @@ char *ss_query(ss_t *S, char *seq, int e, int *exact)
     uint64_t q = enc64(seq);
     khint_t k = kh_get(ss64, S->d0, q);
     
-    if (k != kh_end(S->d0)) return decode64(q);
+    if (k != kh_end(S->d0)) return decode64(q); // exactly match
 
     *exact = 0;
     int i;
@@ -372,10 +387,32 @@ char *ss_query(ss_t *S, char *seq, int e, int *exact)
     
     int hit = -1;
     for (i = 0; i < set->n; ++i) {
-        int dist = use_levenshtein_distance == 1 ?  levnshn_dist_calc(S->cs[set->ele[i].ele], q) : hamming_dist_calc(S->cs[set->ele[i].ele], q);
+        int dist = 0;
+        if (dist_method == 1) {
+            dist = hamming_dist_calc(S->cs[set->ele[i].ele], q);
+        } else if (dist_method == 2) {
+            dist = levnshn_dist_calc(S->cs[set->ele[i].ele], q);
+        } else if (dist_method == 3) {
+            dist = hamming_dist_calc(S->cs[set->ele[i].ele], q);
+        } else {
+            error("Unknown dist method.");
+        }
+
         if (dist <= e) {
             if (hit != -1) goto multi_hits;
             hit = set->ele[i].ele;
+        }
+    }
+    // mix method, if hamming dist not work, use levenshtein instead. Wang Zhifeng report there are ~5% reads offset
+    // 1 position in ad153 library, 20220223
+    if (hit == -1 && dist_method == 3) {
+        for (i = 0; i < set->n; ++i) {
+            int dist;
+            dist = levnshn_dist_calc(S->cs[set->ele[i].ele], q);
+            if (dist <= e) {
+                if (hit != -1) goto multi_hits;
+                hit = set->ele[i].ele;
+            }
         }
     }
     
@@ -393,11 +430,14 @@ char *ss_query(ss_t *S, char *seq, int e, int *exact)
 int main()
 {
     ss_t *S = ss_init();    
-    ss_push(S,"CTTCGATGGT");
-    ss_push(S,"ACTTCTATGC");
+    ss_push(S,"CGATCGTCAG");
+    // ss_push(S,"ACTTCTATGC");
+
+    set_levenshtein();
     int exact;
-    char *s1 = ss_query(S, "CTTCTATGGT", 1, &exact);
-    char *s2 = ss_query(S, "ACTTCTATGA", 2, &exact);
+    char *s1 = ss_query(S, "GATCGTCAGC", 1, &exact);
+    char *s2 = ss_query(S, "GATCGTCAGC", 2, &exact);
+
     fprintf(stderr, "%s\t%s\n", s1, s2);
     return 0;
 }

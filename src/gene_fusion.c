@@ -256,7 +256,7 @@ static int parse_args(int argc, const char **argv)
     dict_set_value(args.cell_barcodes);
 
     if (args.cell_list) {
-        dict_read(args.cell_barcodes, args.cell_list);
+        dict_read(args.cell_barcodes, args.cell_list, 0);
         fixed_barcodes = 1;
     }
     

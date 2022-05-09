@@ -53,6 +53,9 @@ int fastq_parse_usage()
     fprintf(stderr, " -dropN             Drop reads if N base in sequence or barcode.\n");
     fprintf(stderr, " -report  [csv]     Summary report.\n");
     fprintf(stderr, " -t       [INT]     Threads. [4]\n");
+    fprintf(stderr, " -dist    1|2|3     Distance scoring method. 1 for hamming distance, 2 for levenshtein, 3 for mix.\n");
+    fprintf(stderr, "                    If set 3, hamming dist will applied first, if no hit, try levenshtein then.\n");
+    
     //fprintf(stderr, " -x                 Preset read structure. Use one of codes predefined below.\n");
     //fprintf(stderr, "        - C4v1      MGI DNBelab C4 RNA v1/v2 kit\n");
     //fprintf(stderr, "        - 10Xv3     10X Genomics 3' v3 kit. Use barcode whitelist from \"3M-febrary-2018.txt.gz\"\n");
@@ -116,7 +119,7 @@ int fsort_usage()
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m fsort -tags CB,UR -list cell_barcodes_top10K.txt -@ 5 -o sorted.fq.gz in.fq\n");
     fprintf(stderr, "\nOptions:\n");
-    fprintf(stderr, " -tags    [TAGS]     Tags, such as CB,UR. Order of these tags is sensitive.\n");
+    fprintf(stderr, " -tags    [TAGs]     Tags, such as CB,UR. Order of these tags is sensitive.\n");
     //fprintf(stderr, " -dedup              Remove dna copies with same tags. Only keep reads have the best quality.\n");
     //fprintf(stderr, " -dup-tag [TAG]      Tag name of duplication counts. Use with -dedup only. [DU]\n");
     //  fprintf(stderr, " -list    [FILE]     White list for first tag, usually for cell barcodes.\n");
@@ -135,7 +138,7 @@ int fastq_stream_usage()
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m stream -script run.sh reads.fq.gz\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -tags    [TAGS]     Tags to define read blocks.\n");
+    fprintf(stderr, " -tags    [TAGs]     Tags to define read blocks.\n");
     fprintf(stderr, " -script  [FILE]     User defined bash script, process $FQ and generate results to stdout.\n");
     fprintf(stderr, " -min     [INT]      Mininal reads per block to process.  [2]\n");
     fprintf(stderr, " -keep               Output unprocessed FASTQ+ records.\n");
@@ -158,7 +161,7 @@ int assemble_usage()
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -t       [INT]      Threads.\n");
     fprintf(stderr, " -o       [fastq]    Output fastq.\n");
-    fprintf(stderr, " -tag     [TAGS]     Tags of read block.\n");
+    fprintf(stderr, " -tag     [TAGs]     Tags of read block.\n");
     fprintf(stderr, " -p                  Input fastq is smart paired.\n");
     fprintf(stderr, " -dis     [FILE]     Assembled length distribution.\n");
     //fprintf(stderr, " -report  [csv]      Summary information.\n");
@@ -175,7 +178,7 @@ int segment_usage()
     fprintf(stderr, "-o        [fastq]     Trimed fastq.\n");
     fprintf(stderr, "-sl       [INT]       Seed length for mapping consensus sequence.\n");
     fprintf(stderr, "-t        [INT]       Threads.\n");
-    fprintf(stderr, "-tag      [TAGS]      Tags for each read block.\n");
+    fprintf(stderr, "-tag      [TAGs]      Tags for each read block.\n");
     fprintf(stderr, "-pb       [TAG]       Phase block tag. Default tag is PB.\n");
     fprintf(stderr, "-k                    Keep all reads even no segments detected.\n");
     fprintf(stderr, "-sum      [csv]       Summary report.\n");
@@ -215,7 +218,7 @@ int rmdup_usage()
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m rmdup -tags CB,UR -o rmdup.bam in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, "   -tags  [TAGS]       Barcode tags to group reads.\n");
+    fprintf(stderr, "   -tags  [TAGs]       Barcode tags to group reads.\n");
     fprintf(stderr, "   -@     [INT]        Threads to unpack BAM.\n");
     fprintf(stderr, "   -o     [BAM]        Output bam.\n");
     fprintf(stderr, "   -q     [INT]        Map Quality Score cutoff.\n");
@@ -234,7 +237,7 @@ int pick_usage()
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m pick -tags CB,GN -list cell_barcodes.txt in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -tags    [TAGS]       Barcode tags.\n");
+    fprintf(stderr, " -tags    [TAGs]       Barcode tags.\n");
     fprintf(stderr, " -list    [FILE]       Barcode white list, tag values in related column will be apply.\n");
     fprintf(stderr, " -o       [BAM]        Output file.\n");
     fprintf(stderr, " -q       [INT]        Map Quality Score cutoff.\n");
@@ -269,7 +272,7 @@ int anno_usage()
 
     fprintf(stderr, "\nOptions for GTF file :\n");
     fprintf(stderr, " -gtf      [GTF]       GTF annotation file. gene_id,transcript_id is required for each record.\n");
-    fprintf(stderr, " -tags     [TAGS]      Attribute names, more details see `\x1b[31m\x1b[1mNotice\x1b[0m` below. [TX,GN,GX,RE]\n");
+    fprintf(stderr, " -tags     [TAGs]      Attribute names, more details see `\x1b[31m\x1b[1mNotice\x1b[0m` below. [TX,GN,GX,RE]\n");
     fprintf(stderr, " -ignore-strand        Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be annotated.\n");
     fprintf(stderr, " -splice               Reads covered exon-intron edge will also be annotated with all tags.\n");
     fprintf(stderr, " -intron               Reads covered intron regions will also be annotated with all tags.\n");
@@ -301,7 +304,7 @@ int bam_corr_usage()
     fprintf(stderr, " -o        [BAM]       Output bam.\n");
     fprintf(stderr, " -tag      [TAG]       Tag to correct.\n");
     fprintf(stderr, " -new-tag  [TAG]       Create a new tag for corrected barcodes.\n");
-    fprintf(stderr, " -tags-block  [TAGS]   Tags to define read group. For example, if set to GN (gene), reads in the same gene will be grouped together.\n");
+    fprintf(stderr, " -tags-block  [TAGs]   Tags to define read group. For example, if set to GN (gene), reads in the same gene will be grouped together.\n");
     fprintf(stderr, " -cr                   Enable CellRanger like UMI correction method. See `\x1b[31m\x1b[1mExamples\x1b[0m` for details.\n");
     fprintf(stderr, " -e                    Maximal hamming distance to define similar barcode, default is 1.\n");
     fprintf(stderr, " -@        [INT]       Thread to compress BAM file.\n");
@@ -326,7 +329,7 @@ int bam_attr_usage()
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -cb       [TAG]      Cell Barcode, or other tag used for grouping reads.\n");
     fprintf(stderr, " -list     [FILE]     Cell barcode white list.\n");
-    fprintf(stderr, " -tags     [TAGS]     Tags to count.\n");
+    fprintf(stderr, " -tags     [TAGs]     Tags to count.\n");
     fprintf(stderr, " -dedup               Deduplicate the atrributes in each tag.\n");
     fprintf(stderr, " -all-tags            Only records with all tags be count.\n");
     fprintf(stderr, " -group    [TAG]      Group tag, count all tags for each group seperately.\n");
@@ -346,7 +349,7 @@ int bam_extract_usage()
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m extract -tags CB,UR,GN -o tags.tsv in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -tags     [TAGS]     Tags to be extracted.\n");
+    fprintf(stderr, " -tags     [TAGs]     Tags to be extracted.\n");
     fprintf(stderr, " -o        [FILE]     Output file. tsv format\n");
     fprintf(stderr, " -n                   Print read name.\n");
     fprintf(stderr, " -q                   Map Quality Score threshold.\n");
@@ -362,8 +365,10 @@ int bam_count_usage()
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count -cb CB -anno-tag GN -umi UB -outdir exp aln.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count [options] aln1.bam,aln2.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count -file-barcode -sample-list bam_files.txt -outdir exp\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count -tags Cx,Cy -anno-tag GN -umi UB -outdir exp -velo aln.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -cb       [TAG]      Cell barcode tag.\n");
+    //fprintf(stderr, " -cb       [TAG]      Cell barcode tag.\n");
+    fprintf(stderr, " -tags/-cb [TAGs]     A cell barcode tag or two tags of spatial coordinates for spatial data.\n");
     fprintf(stderr, " -anno-tag [TAG]      Annotation tag, gene or peak.\n");
     fprintf(stderr, " -list     [FILE]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
     //fprintf(stderr, " -o        [FILE]     Output matrix.\n");
@@ -395,7 +400,7 @@ int bam2fq_usage()
     fprintf(stderr, "# Convert BAM into fastq.\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m bam2fq -tags CB,UB,GN -o out.fq aln.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -tags     [TAGS]     Export tags in read name.\n");        
+    fprintf(stderr, " -tags     [TAGs]     Export tags in read name.\n");        
     fprintf(stderr, " -f                   Filter records if specified tags not all exist.\n");
     fprintf(stderr, " -fa                  Output fasta instead of fastq.\n");
     fprintf(stderr, " -o        [fastq]    Output file.\n");
@@ -403,8 +408,8 @@ int bam2fq_usage()
     fprintf(stderr, "\n");
     //fprintf(stderr, "* Following options are experimental. \n");
     //fprintf(stderr, "* Merge overlapped reads from same molecular.\n");
-    //fprintf(stderr, " -tag      [TAGS]     Tags to group reads.\n");
-    //fprintf(stderr, " -i        [TAGS]     Inhert these tags to merged reads.\n");
+    //fprintf(stderr, " -tag      [TAGs]     Tags to group reads.\n");
+    //fprintf(stderr, " -i        [TAGs]     Inhert these tags to merged reads.\n");
     //fprintf(stderr, " -strand              Only check the overlapped reads from same strand.\n");
     //fprintf(stderr, "\n");
     return 1;
@@ -415,8 +420,8 @@ int bam_impute_usage()
     fprintf(stderr, "* Imputate empty tag by existed tags.\n");
     fprintf(stderr, "bam_impute in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, "  -impute  [TAGS]     Tags to impute.\n");
-    fprintf(stderr, "  -block   [TAGS]     Tags to identify each block.\n");
+    fprintf(stderr, "  -impute  [TAGs]     Tags to impute.\n");
+    fprintf(stderr, "  -block   [TAGs]     Tags to identify each block.\n");
     fprintf(stderr, "  -dist    [INT]      Distance between reads from same block will be imputed.\n");
     fprintf(stderr, "  -k                   Keep unclassified reads in the output.\n");
     fprintf(stderr, "  -@       [INT]      Threads to unpack BAM.\n");
