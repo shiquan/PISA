@@ -527,6 +527,7 @@ static void *run_it(void *_p)
     for (i = 0; i < p->n; ++i) {
         struct bseq *b = &p->s[i];
         int j;
+        b->flag = FQ_FLAG_PASS;
         for (j = 0; j < args.n_bc; ++j) {
             struct bc_reg *r = &args.bcs[j];
             kstring_t str = {0,0,0};
@@ -539,7 +540,7 @@ static void *run_it(void *_p)
                 if (r->corr_tag) {
                     int ex;
                     char *val0 = correct_bc(r0->wl, val, &ex);
-                    if (ex) b->flag = FQ_FLAG_BC_EXACTMATCH;
+                    if (ex && b->flag == FQ_FLAG_PASS) b->flag = FQ_FLAG_BC_EXACTMATCH;
                     if (val0 == NULL) {
                         b->flag = FQ_FLAG_BC_FAILURE;
                     } else {
