@@ -103,7 +103,7 @@ struct ret *query_count_write(struct bed_spec *B, int ci, const char *fn)
     ret->counts = 0;
     ret->bc = dict_init();
 
-    if (wl == 1) dict_read(cc, args.barcode_list);
+    if (wl == 1) dict_read(cc, args.barcode_list, 0);
     
     int j;
     j = B->ctg[ci].idx ;
