@@ -202,7 +202,7 @@ char *correct_bc(struct dict *wl, const char *val, int *exact)
         for (j = 0; j < l; ++j) {
             char o = str.s[j];
             str.s[j] = 'N';
-            idx = dict_query(wl, str.s);
+            idx = dict_query2(wl, str.s);
             if (idx > 0) {
                 free(str.s);
                 return dict_name(wl, idx);
