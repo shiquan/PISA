@@ -39,15 +39,10 @@ static struct args {
     int n_thread;
     int one_hit;
     
-    //htsFile *fp_in;
-    //bam_hdr_t *hdr;
-
-    // all reads = spliced reads + unspliced reads
-    // unspliced reads = spanning reads + intron reads
-    uint64_t n_record;  // all reads
-    uint64_t n_record1; // spliced
-    uint64_t n_record2; // unspliced
-    uint64_t n_record3; // spanning
+    //uint64_t n_record;  
+    uint64_t n_record1; // no zero records in spliced matrix
+    uint64_t n_record2; // no zero records in unspliced
+    uint64_t n_record3; // no zero records in spanning
     int alias_file_cb;
     
     const char *region_type_tag;
@@ -77,7 +72,7 @@ static struct args {
     .n_thread        = 5,
     //.fp_in           = NULL,
     //.hdr             = NULL,
-    .n_record        = 0,
+    //.n_record        = 0,
     .n_record1       = 0,
     .n_record2       = 0,
     .n_record3       = 0,
@@ -416,9 +411,13 @@ static void update_counts()
                     count->spanning = size;
                 }
             }
-            args.n_record += count->count;
-            args.n_record2 += count->unspliced;
-            args.n_record3 += count->spanning;
+            // args.n_record += count->count;
+            // args.n_record2 += count->unspliced;
+            // args.n_record3 += count->spanning;
+            if (count->count > 0) args.n_record1++;
+            if (count->unspliced > 0) args.n_record2++;
+            if (count->spanning > 0) args.n_record3++;
+            
         }
     }
 }
@@ -429,13 +428,13 @@ static void write_outs()
 
     if (n_barcode == 0) error("No barcode found.");
     if (n_feature == 0) error("No feature found.");
-    if (args.n_record == 0) {
+    if (args.n_record1 == 0) {
         warnings("No anntated record found.");
         return;
     }
-    args.n_record1 = args.n_record;
+    // args.n_record1 = args.n_record;
 
-    if (args.velocity) args.n_record1 = args.n_record - args.n_record2;
+    // if (args.velocity) args.n_record1 = args.n_record - args.n_record2;
     
     if (args.outdir) {
         kstring_t barcode_str = {0,0,0};
