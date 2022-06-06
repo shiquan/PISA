@@ -414,7 +414,7 @@ static void update_counts()
             // args.n_record += count->count;
             // args.n_record2 += count->unspliced;
             // args.n_record3 += count->spanning;
-            if (count->count > 0) args.n_record1++;
+            if (count->count > 0 && count->count != count->unspliced) args.n_record1++;
             if (count->unspliced > 0) args.n_record2++;
             if (count->spanning > 0) args.n_record3++;
             
