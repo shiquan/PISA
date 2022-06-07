@@ -135,24 +135,27 @@ struct dict *read_wl_cached(const char **bcs, int l, int mis)
     if (mis == 0) return wl;
     return build_mis(wl);
 }
+
+void bseq_subset_str0(kstring_t *from, kstring_t *to, int st, int ed)
+{
+    if (st == -1) kputs(from->s, to);
+    else if (ed == -1) kputs(from->s+st, to);
+    else {
+        kputsn(from->s+st, ed - st, to);
+        kputs("", to);
+    }
+}
 char *bseq_subset_seq(struct bseq *b, int rd, int st, int ed)
 {
     kstring_t str = {0,0,0};
-
+    
     if (rd == 1) {
-        if (st == -1) kputs(b->s0.s, &str);
-        else if (ed == -1) kputs(b->s1.s+st, &str);
-        else {
-            kputsn(b->s0.s+st, ed - st, &str);
-            kputs("", &str);
-        }
+        kstring_t *from = &b->s0;
+        bseq_subset_str0(from, &str, st, ed);
+
     } else if (rd == 2) {
-        if (st == -1) kputs(b->s1.s, &str);
-        else if (ed == -1) kputs(b->s1.s+st, &str);
-        else {
-            kputsn(b->s1.s+st, ed -st, &str);
-            kputs("", &str);
-        }
+        kstring_t *from = &b->s1;
+        bseq_subset_str0(from, &str, st, ed);
     } else {
         error("Only support 2 reads now.");
     }
@@ -162,25 +165,13 @@ char *bseq_subset_qual(struct bseq *b, int rd, int st, int ed)
 {
     kstring_t str = {0,0,0};
     if (rd == 1) {
-        if (b->q0.l == 0 || b->q0.l < st) return NULL;        
-        if (st == -1) {
-            kputs(b->q0.s, &str);
-        } else if (ed > st){
-            kputsn(b->q0.s+st, ed - st, &str);
-            kputs("", &str);
-        } else {
-            kputs(b->q0.s+st, &str);
-        }
+        if (b->q0.l == 0) return NULL; 
+        kstring_t *from = &b->q0;
+        bseq_subset_str0(from, &str, st, ed);
     } else if (rd == 2) {
-        if (b->q1.l == 0) return NULL;
-        if (st == -1) {
-            kputs(b->q1.s, &str);
-        } else if (ed > st) {
-            kputsn(b->q1.s+st, ed - st, &str);
-            kputs("", &str);
-        } else {
-            kputs(b->q1.s+st, &str);
-        }
+        if (b->q1.l == 0) return NULL; 
+        kstring_t *from = &b->q1;
+        bseq_subset_str0(from, &str, st, ed);
     } else {
         error("Only support 2 reads now.");
     }
