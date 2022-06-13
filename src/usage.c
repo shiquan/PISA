@@ -280,9 +280,9 @@ int anno_usage()
     fprintf(stderr, " -ctag     [TAG]       Tag name for TSS annotation. Need set with -tss.\n");
 
     fprintf(stderr, "\nOptions for VCF file :\n");
-    fprintf(stderr, " -vcf      [VCF/BCF]   Varaints.\n");
+    fprintf(stderr, " -vcf      [VCF/BCF]   Varaints file in vcf or bcf format. In default, only annotate alternative alleles.\n");
     fprintf(stderr, " -vtag     [TAG]       Tag name. Set with -vcf.\n");
-    
+    fprintf(stderr, " -ref-alt              Annotate ref allele.\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
     fprintf(stderr, " * If input is SAM format, will try to parse the tags in the read name.\n");
     fprintf(stderr, " * For GTF mode, this program will set tags in default, you could also reset them by -tags.\n");

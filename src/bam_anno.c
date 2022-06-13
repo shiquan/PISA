@@ -65,6 +65,8 @@ static struct args {
     int tss_mode;
     int anno_only;
 
+    int ref_alt;
+    
     int input_sam;
     gzFile fp_sam;
     kstream_t *ks;
@@ -117,6 +119,8 @@ static struct args {
     .chunk_size      = 100000,
     .anno_only       = 0,
 
+    .ref_alt         = 0,
+    
     .input_sam       = 0,
     .fp_sam          = NULL,
     .ks              = NULL,
@@ -296,6 +300,11 @@ static int parse_args(int argc, char **argv)
 
         else if (strcmp(a, "-vcf") == 0) var = &args.vcf_fname;
         else if (strcmp(a, "-vtag") == 0) var = &args.vtag;
+        else if (strcmp(a, "-ref-alt") == 0) {
+            args.ref_alt = 1;
+            continue;
+        }
+        
         else if (strcmp(a, "-ctag") == 0) var = &args.ctag;
         
         else if (strcmp(a, "-anno-only") == 0) {
@@ -987,7 +996,7 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
     return 0;
 }
 
-extern int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag);
+extern int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag, int ref_alt);
 extern int sam_safe_check(kstring_t *str);
 extern int parse_name_str(kstring_t *s);
 void *run_it(void *_d)
@@ -1078,7 +1087,7 @@ void *run_it(void *_d)
             if (bam_bed_anno(b, args.B, stat)) ann = 1;
 
         if (args.V)
-            if (bam_vcf_anno(b, args.hdr, args.V, args.vtag)) ann = 1;
+            if (bam_vcf_anno(b, args.hdr, args.V, args.vtag, args.ref_alt)) ann = 1;
         
         if (args.chr_binding) {
             char *v = args.chr_binding[b->core.tid];
