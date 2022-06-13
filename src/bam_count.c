@@ -20,7 +20,7 @@ static struct args {
     const char *input_fname;
     const char *whitelist_fname;
     const char *output_fname;
-    const char *outdir; // v0.4, support Market Exchange Format (MEX) for sparse matrices
+    const char *outdir; // v0.4, support Market EXchange format (MEX) for sparse matrices
         
     struct dict *tags; // a cell barcode tag or two tags for spatial coordinates
     const char *anno_tag; // feature tag
@@ -414,7 +414,8 @@ static void update_counts()
             // args.n_record += count->count;
             // args.n_record2 += count->unspliced;
             // args.n_record3 += count->spanning;
-            if (count->count > 0 && count->count != count->unspliced) args.n_record1++;
+            // if (count->count > 0 && count->count != count->unspliced) args.n_record1++;
+            if (count->count > count->unspliced) args.n_record1++;
             if (count->unspliced > 0) args.n_record2++;
             if (count->spanning > 0) args.n_record3++;
             

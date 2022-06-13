@@ -45,6 +45,7 @@ static int bam_seqpos(bam1_t *a, int pos)
     return -1;
 }
 
+// 0 on ref, 1 on mismatch, -1 on other situation
 int reads_match_var(struct bed *bed, bam1_t *b)
 {
     int st = bam_seqpos(b, bed->start);
@@ -69,17 +70,18 @@ int reads_match_var(struct bed *bed, bam1_t *b)
         }
     }
 
+    if (mis == 0) return 0;
     if (mis) {
         for (i = st, j = 0; i < c->l_qseq && j < v->alt->l; ++i,++j) {
             if ("=ACMGRSVTWYHKDBN"[bam_seqi(seq, i)] != v->alt->s[j])
-                return 1;
+                return -1;
         }
-        return 0;
+        return 1;
     }
             
-    return 1;       
+    return 1;    
 }
-int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag)
+int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag, int ref_alt)
 { 
     bam1_core_t *c;
     c = &b->core;
@@ -102,14 +104,19 @@ int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *
     for (i = 0; i < itr->n; ++i) {
         struct bed *bed = (struct bed*)itr->rets[i];
         if (bed->start > endpos || bed->end <= c->pos) continue; // not covered
-        if (reads_match_var(bed, b) != 0) continue; // no variant contained
-        
+        int ret = reads_match_var(bed, b);
         temp.l = 0;
 
-        // "," is not compatible with PISA count, change to "-" from v0.10
-        //if (bed->name == -1) ksprintf(&temp, "%s,%d,%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->alt->s);
-        if (bed->name == -1) ksprintf(&temp, "%s_%d_%s_%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->alt->s);
-        else kputs(dict_name(B->name,bed->name), &temp);
+        if (ret == -1) continue;
+
+        if (ret == 1) {
+            // "," is not compatible with PISA count, change to "-" from v0.10
+            //if (bed->name == -1) ksprintf(&temp, "%s,%d,%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->alt->s);
+            if (bed->name == -1) ksprintf(&temp, "%s_%d_%s_%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->alt->s);
+            else kputs(dict_name(B->name,bed->name), &temp);
+        } else if (ref_alt == 1) {
+            ksprintf(&temp, "%s_%d_%s_%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->ref->s);
+        }
         
         if (temp.l)
             dict_push(val, temp.s);
