@@ -307,7 +307,7 @@ int count_matrix_core(bam1_t *b, char *tag)
     int n_gene;
     int *s = str_split(&str, &n_gene); // seperator ; or ,
 
-    // Sometime two or more genes or functional regions can overlapped with each other, if default PISA counts the reads for both of these regions.
+    // Sometime two or more genes or functional regions can overlapped with each other, in default PISA counts the reads for both of these regions.
     // But if -one-hit set, these reads will be filtered.
     if (args.one_hit == 1 && n_gene >1) {
         free(str.s);
@@ -335,16 +335,17 @@ int count_matrix_core(bam1_t *b, char *tag)
             c = PISA_idx_push(v, cell_id);
         //if (c->data == NULL) {
             struct counts *counts = malloc(sizeof(struct counts));
+            memset(counts, 0, sizeof(struct counts));
+            //counts->count = 0;
+            //counts->unspliced = 0;
+            //counts->spanning = 0;
+
             if (args.umi_tag)  {
                 counts->p = PISA_dna_pool_init();
                 counts->up = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
                 counts->sp = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
             }
-            else {
-                counts->count = 0;
-                counts->unspliced = 0;
-                counts->spanning = 0;
-            }
+            
             c->data = counts;
         }
 
