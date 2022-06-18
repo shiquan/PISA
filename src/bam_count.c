@@ -40,9 +40,10 @@ static struct args {
     int one_hit;
     
     //uint64_t n_record;  
-    uint64_t n_record1; // no zero records in spliced matrix
-    uint64_t n_record2; // no zero records in unspliced
-    uint64_t n_record3; // no zero records in spanning
+    uint64_t n_record1; //  records in spliced matrix
+    uint64_t n_record2; //  records in unspliced
+    uint64_t n_record3; //  records in spanning
+    uint64_t n_record4; //  records in antisense
     int alias_file_cb;
     
     const char *region_type_tag;
@@ -76,6 +77,7 @@ static struct args {
     .n_record1       = 0,
     .n_record2       = 0,
     .n_record3       = 0,
+    .n_record4       = 0,
     .alias_file_cb   = 0,
     
     .region_type_tag = "RE",
@@ -95,6 +97,8 @@ struct counts {
     uint32_t spanning;
     struct PISA_dna_pool *sp;
 
+    uint32_t antisense;
+    struct PISA_dna_pool *as;
 };
 
 static void memory_release()
@@ -280,16 +284,17 @@ int count_matrix_core(bam1_t *b, char *tag)
 
     int unspliced = 0;
     int spanning = 0;
+    int antisense = 0; // v0.12
     if (args.velocity) {
         uint8_t *data = bam_aux_get(b, args.region_type_tag);
         if (!data) goto skip_this_record;
         if (RE_type_map(data[1]) == type_unknown) goto skip_this_record;
-        if (RE_type_map(data[1]) == type_antisense) goto skip_this_record;
         if (RE_type_map(data[1]) == type_ambiguous) goto skip_this_record;
         if (RE_type_map(data[1]) == type_intergenic)  goto skip_this_record;
-        if (RE_type_map(data[1]) == type_exon_intron || RE_type_map(data[1]) == type_intron)
-            unspliced = 1;
-        if (RE_type_map(data[1]) == type_exon_intron) spanning = 1;
+
+        if (RE_type_map(data[1]) == type_exon_intron || RE_type_map(data[1]) == type_intron) unspliced = 1;
+        else if (RE_type_map(data[1]) == type_exon_intron) spanning = 1;
+        else if (RE_type_map(data[1]) == type_antisense) antisense = 1;
     }
     
     int cell_id;
@@ -344,6 +349,7 @@ int count_matrix_core(bam1_t *b, char *tag)
                 counts->p = PISA_dna_pool_init();
                 counts->up = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
                 counts->sp = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
+                counts->as = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
             }
             
             c->data = counts;
@@ -360,8 +366,11 @@ int count_matrix_core(bam1_t *b, char *tag)
             if (args.velocity && unspliced)
                 PISA_dna_push(count->up, val);
 
-            if (args.velocity && spanning)
+            else if (args.velocity && spanning)
                 PISA_dna_push(count->sp, val);
+
+            else if (args.velocity && antisense)
+                PISA_dna_push(count->as, val);
         }
         else {
             struct counts *count = c->data;
@@ -372,6 +381,9 @@ int count_matrix_core(bam1_t *b, char *tag)
 
             if (args.velocity && spanning)
                 count->spanning++;
+
+            if (args.velocity && antisense)
+                count->antisense++;
         }
     }
     free(str.s);
@@ -410,6 +422,10 @@ static void update_counts()
                     size = count->sp->l;
                     PISA_dna_destroy(count->sp);
                     count->spanning = size;
+
+                    size = count->as->l;
+                    PISA_dna_destroy(count->as);
+                    count->antisense = size;
                 }
             }
             // args.n_record += count->count;
@@ -419,7 +435,7 @@ static void update_counts()
             if (count->count > count->unspliced) args.n_record1++;
             if (count->unspliced > 0) args.n_record2++;
             if (count->spanning > 0) args.n_record3++;
-            
+            if (count->antisense > 0) args.n_record4++;
         }
     }
 }
@@ -434,22 +450,21 @@ static void write_outs()
         warnings("No anntated record found.");
         return;
     }
-    // args.n_record1 = args.n_record;
 
-    // if (args.velocity) args.n_record1 = args.n_record - args.n_record2;
-    
     if (args.outdir) {
         kstring_t barcode_str = {0,0,0};
         kstring_t feature_str = {0,0,0};
         kstring_t mex_str = {0,0,0};
         kstring_t unspliced_str = {0,0,0};
         kstring_t spanning_str = {0,0,0};
-        
+        kstring_t antisense_str = {0,0,0};
+    
         kputs(args.outdir, &barcode_str);
         kputs(args.outdir, &feature_str);
         kputs(args.outdir, &mex_str);
         kputs(args.outdir, &unspliced_str);
         kputs(args.outdir, &spanning_str);
+        kputs(args.outdir, &antisense_str);
         
         if (args.outdir[strlen(args.outdir)-1] != '/') {
             kputc('/', &barcode_str);
@@ -457,14 +472,16 @@ static void write_outs()
             kputc('/', &mex_str);
             kputc('/', &unspliced_str);
             kputc('/', &spanning_str);
+            kputc('/', &antisense_str);
         }
-
+    
         if (args.prefix) {
             kputs(args.prefix, &barcode_str);
             kputs(args.prefix, &feature_str);
             kputs(args.prefix, &mex_str);
             kputs(args.prefix, &unspliced_str);
             kputs(args.prefix, &spanning_str);
+            kputs(args.prefix, &antisense_str);
         }
         
         kputs("barcodes.tsv.gz", &barcode_str);
@@ -476,6 +493,7 @@ static void write_outs()
 
         kputs("unspliced.mtx.gz", &unspliced_str);
         kputs("spanning.mtx.gz", &spanning_str);
+        kputs("antisense.mtx.gz", &antisense_str);
         
         BGZF *barcode_fp = bgzf_open(barcode_str.s, "w");
         bgzf_mt(barcode_fp, args.n_thread, 256);
@@ -486,6 +504,7 @@ static void write_outs()
         kstring_t str = {0,0,0};
         kstring_t str2 = {0,0,0};
         kstring_t str3 = {0,0,0};
+        kstring_t str4 = {0,0,0};
         
         for (i = 0; i < n_barcode; ++i) {
             kputs(dict_name(args.barcodes, i), &str);
@@ -522,6 +541,7 @@ static void write_outs()
 
         BGZF *unspliced_fp = NULL;
         BGZF *spanning_fp = NULL;
+        BGZF *antisense_fp = NULL;
         if (args.velocity) {
             unspliced_fp = bgzf_open(unspliced_str.s, "w");
             if (unspliced_fp == NULL) error("%s : %s.", unspliced_str.s, strerror(errno));
@@ -543,6 +563,15 @@ static void write_outs()
             kputc('\n', &str3);
             ksprintf(&str3, "%d\t%d\t%" PRIu64 "\n", n_feature, n_barcode, args.n_record3);
 
+            antisense_fp = bgzf_open(antisense_str.s, "w");
+            if (antisense_fp == NULL) error("%s : %s.", antisense_str.s, strerror(errno));
+        
+            bgzf_mt(antisense_fp, args.n_thread, 256);
+            kputs("%%MatrixMarket matrix coordinate integer general\n", &str3);
+            kputs("% Generated by PISA ", &str4);
+            kputs(PISA_VERSION, &str4);
+            kputc('\n', &str4);
+            ksprintf(&str4, "%d\t%d\t%" PRIu64 "\n", n_feature, n_barcode, args.n_record4);
         }
         
         for (i = 0; i < n_feature; ++i) {
@@ -556,6 +585,7 @@ static void write_outs()
                     if (spliced > 0) ksprintf(&str, "%d\t%d\t%u\n", i+1, v->data[j].idx+1, spliced);
                     if (count->unspliced > 0) ksprintf(&str2, "%d\t%d\t%u\n", i+1, v->data[j].idx+1, count->unspliced);
                     if (count->spanning > 0)  ksprintf(&str3, "%d\t%d\t%u\n", i+1, v->data[j].idx+1, count->spanning);
+                    if (count->antisense > 0) ksprintf(&str4, "%d\t%d\t%u\n", i+1, v->data[j].idx+1, count->antisense);
                 }
                 else
                     ksprintf(&str, "%d\t%d\t%u\n", i+1, v->data[j].idx+1, count->count);
@@ -577,6 +607,9 @@ static void write_outs()
                     if (l != str3.l) error("Failed to write file.");
                     str3.l = 0;
 
+                    l = bgzf_write(antisense_fp, str4.s, str4.l);
+                    if (l != str4.l) error("Failed to write file.");
+                    str4.l = 0;
                 }
             }
         }
@@ -596,17 +629,25 @@ static void write_outs()
             if (l != str3.l) error("Failed to wirte.");
         }
 
+        if (str4.l) {
+            l = bgzf_write(antisense_fp, str4.s, str4.l);
+            if (l != str4.l) error("Failed to wirte.");
+        }
+
         free(str.s);
         if (str2.m) free(str2.s);
         if (str3.m) free(str3.s);
+        if (str4.m) free(str4.s);
         free(mex_str.s);
         free(barcode_str.s);
         free(feature_str.s);
         if (unspliced_str.m) free(unspliced_str.s);
         if (spanning_str.m) free(spanning_str.s);
+        if (antisense_str.m) free(antisense_str.s);
         bgzf_close(mex_fp);
         if (unspliced_fp) bgzf_close(unspliced_fp);
         if (spanning_fp) bgzf_close(spanning_fp);
+        if (antisense_fp) bgzf_close(antisense_fp);
     }
     
     // header

@@ -276,6 +276,7 @@ int anno_usage()
     fprintf(stderr, " -ignore-strand        Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be annotated.\n");
     fprintf(stderr, " -splice               Reads covered exon-intron edge will also be annotated with all tags.\n");
     fprintf(stderr, " -intron               Reads covered intron regions will also be annotated with all tags.\n");
+    fprintf(stderr, " -as                   Annotate antisense RNAs. **experiment**\n");
     fprintf(stderr, " -tss                  Annotate reads start from TSS, designed for capped library. **experiment**\n");
     fprintf(stderr, " -ctag     [TAG]       Tag name for TSS annotation. Need set with -tss.\n");
 
