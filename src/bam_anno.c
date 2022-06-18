@@ -60,6 +60,8 @@ static struct args {
     int ignore_strand;
     int splice_consider;
     int intron_consider;
+    int antisense;
+    
     int n_thread;
     int chunk_size;
     int tss_mode;
@@ -114,6 +116,8 @@ static struct args {
     .ignore_strand   = 0,
     .splice_consider = 0,
     .intron_consider = 0,
+    .antisense       = 0,
+    
     .map_qual        = 0,
     .n_thread        = 4,
     .chunk_size      = 100000,
@@ -234,7 +238,7 @@ static char **chr_binding(const char *fname, bam_hdr_t *hdr)
 // RE for region type
 //
 static char TX_tag[2] = "TX";
-static char AN_tag[2] = "AN";
+// static char AN_tag[2] = "AN";
 static char GN_tag[2] = "GN";
 static char GX_tag[2] = "GX";
 static char RE_tag[2] = "RE";
@@ -280,6 +284,10 @@ static int parse_args(int argc, char **argv)
         }
         else if (strcmp(a, "-intron") == 0) {
             args.intron_consider = 1;
+            continue;
+        }
+        else if (strcmp(a, "-as") == 0) {
+            args.antisense = 1;
             continue;
         }
         
@@ -396,7 +404,7 @@ static int parse_args(int argc, char **argv)
             if (n != 5) error("-tags required five tag names.");
             
             memcpy(TX_tag, str.s+s[0], 2*sizeof(char));
-            memcpy(AN_tag, str.s+s[1], 2*sizeof(char));
+            // memcpy(AN_tag, str.s+s[1], 2*sizeof(char));
             memcpy(GN_tag, str.s+s[2], 2*sizeof(char));
             memcpy(GX_tag, str.s+s[3], 2*sizeof(char));
             memcpy(RE_tag, str.s+s[4], 2*sizeof(char));
@@ -603,7 +611,7 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g)
     struct trans_type *tp = malloc(sizeof(*tp));
     tp->trans_id = g->transcript_id;
     tp->type = type_unknown;
-   
+    
     int exon;
     int last_exon = -1;
     int i = 0;
@@ -701,7 +709,7 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
 {
     // 
     if (ann->type == type_unknown) return;
-    else if (ann->type == type_intron && args.intron_consider == 0) return;  // for default, only annotate intron type 
+    else if (ann->type == type_intron && args.intron_consider == 0) return;  
     else if (ann->type == type_exon_intron && args.splice_consider == 0 && args.intron_consider == 0) return; // 
     else if (ann->type == type_ambiguous) return;
 
@@ -712,7 +720,7 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
     int i;
     for (i = 0; i < ann->n; ++i) {
         struct gene_type *g = &ann->a[i];
-        if (g->type == ann->type) {
+        if (g->type == ann->type || ann->type == type_antisense) { // todo: antisense tx?
             char *gene = NULL;
             char *id = NULL;
             if (g->gene_name != -1) gene = dict_name(G->gene_name, g->gene_name);
@@ -768,7 +776,6 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
     memset(ann, 0, sizeof(*ann));
     ann->type = type_unknown;
 
-
     struct region_itr *itr = gtf_query(G, name, c->pos, endpos);
 
     // non-overlap, intergenic
@@ -794,17 +801,19 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
             if (b->core.flag & BAM_FREVERSE) {
                 if (g0->strand == GTF_STRAND_FWD) {
                     antisense = 1;
-                    continue;
+                    // continue;
                 }
             }
             else {
                 if (g0->strand == GTF_STRAND_REV) {
                     antisense = 1;
-                    continue;
+                    // continue;
                 }
             }
         }
-        
+
+        if (antisense == 1 && args.antisense == 0) continue;
+
         int j;
         for (j = 0; j < g0->n_gtf; ++j) {
             struct gtf const *g1 = g0->gtf[j];
@@ -817,10 +826,9 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
     
     // stat type
     gtf_anno_most_likely_type(ann);
-    if (ann->type == type_unknown) {
-        if (antisense == 1) ann->type = type_antisense;
-        else ann->type = type_intergenic; // not fully convered
-    }
+
+    if (antisense == 1) ann->type = type_antisense;
+    if (ann->type == type_unknown) ann->type = type_intergenic; // not fully convered
     
     if (args.debug_mode) {
         fprintf(stderr, "%s   ", b->data);
@@ -837,7 +845,7 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     // cleanup all exist tags
     uint8_t *data;
     if ((data = bam_aux_get(b, TX_tag)) != NULL) bam_aux_del(b, data);
-    if ((data = bam_aux_get(b, AN_tag)) != NULL) bam_aux_del(b, data);
+    // if ((data = bam_aux_get(b, AN_tag)) != NULL) bam_aux_del(b, data);
     if ((data = bam_aux_get(b, GN_tag)) != NULL) bam_aux_del(b, data);
     if ((data = bam_aux_get(b, GX_tag)) != NULL) bam_aux_del(b, data);
     if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
@@ -1098,7 +1106,7 @@ void *run_it(void *_d)
         }
 
       check_continue:
-        if (args.anno_only && ann == 0) {
+        if (args.anno_only && ann == 0) { // if only export annotated reads, intergenic reads will be filter
             b->core.flag |= BAM_FQCFAIL;
         } 
     }
