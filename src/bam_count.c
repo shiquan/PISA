@@ -360,17 +360,19 @@ int count_matrix_core(bam1_t *b, char *tag)
             assert(umi_tag);
             char *val = (char*)(umi_tag+1);
             assert(c->data);
-            struct counts *count = c->data;
-            PISA_dna_push(count->p, val);
 
-            if (args.velocity && unspliced)
-                PISA_dna_push(count->up, val);
-
-            else if (args.velocity && spanning)
-                PISA_dna_push(count->sp, val);
-
-            else if (args.velocity && antisense)
+            if (args.velocity && antisense) {
                 PISA_dna_push(count->as, val);
+            } else {
+                struct counts *count = c->data;
+                PISA_dna_push(count->p, val);
+                
+                if (args.velocity && unspliced)
+                    PISA_dna_push(count->up, val);
+                
+                else if (args.velocity && spanning)
+                    PISA_dna_push(count->sp, val);
+            }
         }
         else {
             struct counts *count = c->data;
