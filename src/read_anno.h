@@ -11,6 +11,7 @@ enum exon_type {
     type_splice,        // junction read map two or more exome
     type_ambiguous,     // junction read map to isoform(s) but skip some isoforms between, or map to intron
     type_intergenic,
+    type_antisense_intron,
 };
 
 struct trans_type {

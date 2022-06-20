@@ -34,6 +34,7 @@ struct read_stat {
     uint64_t reads_in_exonintron;
     uint64_t reads_in_intron;
     uint64_t reads_antisense;
+    uint64_t reads_antisenseintron;
     uint64_t reads_ambiguous;
 
     uint64_t reads_tss;
@@ -827,7 +828,17 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
     // stat type
     gtf_anno_most_likely_type(ann);
 
-    if (antisense == 1) ann->type = type_antisense;
+    if (antisense == 1) {
+        if (ann->type == type_unknown) ann->type = type_antisense;
+        else if (ann->type == type_exon)  ann->type = type_antisense;
+        else if (ann->type == type_splice)  ann->type = type_antisense;
+        else if (ann->type == type_intron) ann->type = type_antisense_intron;
+        else if (ann->type == type_exon_intron) ann->type = type_antisense_intron;
+        else if (ann->type == type_ambiguous) ann->type = type_antisense; // ?
+        else if (ann->type == type_intergenic) ann->type = type_intergenic; // should not come here
+        else error("Unknown type.");
+    }
+    
     if (ann->type == type_unknown) ann->type = type_intergenic; // not fully convered
     
     if (args.debug_mode) {
@@ -863,6 +874,7 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     else if (ann->type == type_ambiguous) stat->reads_ambiguous++; // new transcript
     else if (ann->type == type_intergenic) stat->reads_in_intergenic++;
     else if (ann->type == type_antisense) stat->reads_antisense++;
+    else if (ann->type == type_antisense_intron) stat->reads_antisenseintron++;
     else error("Unknown type? %s", exon_type_name(ann->type));
     
     if (args.tss_mode == 1) {
@@ -870,7 +882,7 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
         
         if (ann->type == type_exon || ann->type == type_splice) {
             kstring_t str = {0,0,0};
-
+            
             int i;
             for (i = 0; i < ann->n; ++i) {
                 struct gene_type *g = &ann->a[i];
@@ -1144,6 +1156,7 @@ static void write_out(void *_d)
         s0->reads_in_exon += s1->reads_in_exon;
         s0->reads_in_intron += s1->reads_in_intron;
         s0->reads_antisense += s1->reads_antisense;
+        s0->reads_antisenseintron += s1->reads_antisenseintron;
         s0->reads_ambiguous += s1->reads_ambiguous;
         s0->reads_in_exonintron += s1->reads_in_exonintron;
         s0->reads_tss += s1->reads_tss;
@@ -1174,7 +1187,13 @@ void write_report()
             fprintf(args.fp_report, "Reads Mapped to Exonic Regions,%.1f%%\n", (float)s0->reads_in_exon/args.reads_pass_qc*100);
             fprintf(args.fp_report, "Reads Mapped to Intronic Regions,%.1f%%\n", (float)s0->reads_in_intron/args.reads_pass_qc*100);
             fprintf(args.fp_report, "Reads Mapped to both Exonic and Intronic Regions,%.1f%%\n", (float)s0->reads_in_exonintron/args.reads_pass_qc*100);
-            fprintf(args.fp_report, "Reads Mapped Antisense to Gene,%.1f%%\n", (float)s0->reads_antisense/args.reads_pass_qc*100);
+            if (s0->reads_antisenseintron > 0) {
+                fprintf(args.fp_report, "Reads Mapped Antisense Exon,%.1f%%\n", (float)s0->reads_antisense/args.reads_pass_qc*100);
+                fprintf(args.fp_report, "Reads Mapped Antisense Intron,%.1f%%\n", (float)s0->reads_antisenseintron/args.reads_pass_qc*100);
+            } else {
+                fprintf(args.fp_report, "Reads Mapped Antisense to Gene,%.1f%%\n", (float)s0->reads_antisense/args.reads_pass_qc*100);
+            }
+            
             fprintf(args.fp_report, "Reads Mapped to Intergenic Regions,%.1f%%\n", (float)s0->reads_in_intergenic/args.reads_pass_qc*100);
             fprintf(args.fp_report, "Reads Mapped to Gene but Failed to Interpret Type,%.1f%%\n", (float)s0->reads_ambiguous/args.reads_pass_qc*100);
             if (s0->reads_tss>0) {
