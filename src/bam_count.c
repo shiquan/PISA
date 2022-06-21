@@ -295,6 +295,7 @@ int count_matrix_core(bam1_t *b, char *tag)
         if (RE_type_map(data[1]) == type_exon_intron || RE_type_map(data[1]) == type_intron) unspliced = 1;
         else if (RE_type_map(data[1]) == type_exon_intron) spanning = 1;
         else if (RE_type_map(data[1]) == type_antisense) antisense = 1;
+        else if (RE_type_map(data[1]) == type_antisense_intron) antisense = 1;
     }
     
     int cell_id;

@@ -1188,8 +1188,8 @@ void write_report()
             fprintf(args.fp_report, "Reads Mapped to Intronic Regions,%.1f%%\n", (float)s0->reads_in_intron/args.reads_pass_qc*100);
             fprintf(args.fp_report, "Reads Mapped to both Exonic and Intronic Regions,%.1f%%\n", (float)s0->reads_in_exonintron/args.reads_pass_qc*100);
             if (s0->reads_antisenseintron > 0) {
-                fprintf(args.fp_report, "Reads Mapped Antisense Exon,%.1f%%\n", (float)s0->reads_antisense/args.reads_pass_qc*100);
-                fprintf(args.fp_report, "Reads Mapped Antisense Intron,%.1f%%\n", (float)s0->reads_antisenseintron/args.reads_pass_qc*100);
+                fprintf(args.fp_report, "Reads Mapped Antisense to Exon,%.1f%%\n", (float)s0->reads_antisense/args.reads_pass_qc*100);
+                fprintf(args.fp_report, "Reads Mapped Antisense to Intron,%.1f%%\n", (float)s0->reads_antisenseintron/args.reads_pass_qc*100);
             } else {
                 fprintf(args.fp_report, "Reads Mapped Antisense to Gene,%.1f%%\n", (float)s0->reads_antisense/args.reads_pass_qc*100);
             }
