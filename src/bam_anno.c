@@ -524,33 +524,40 @@ static void gene_most_likely_type(struct gene_type *g)
         struct trans_type *t = &g->a[i];
         if (t->type == type_unknown) continue;
         else if (t->type == type_exon) {
-            g->type = type_exon;
+            g->type = t->type;
             return; // exon is already the best hit
         }
         else if (t->type == type_intron) {
-            if (g->type == type_unknown) g->type = type_intron; //
-            else if (g->type == type_antisense) g->type = type_intron;
-            else if (g->type == type_antisense_intron) g->type = type_intron;            
+            if (g->type == type_unknown) g->type = t->type;
+            else if (g->type == type_antisense) g->type = t->type;
+            else if (g->type == type_antisense_intron) g->type = t->type;
         }
         else if (t->type == type_exon_intron) {
-            if (g->type == type_unknown) g->type = type_exon_intron; //
-            else if (g->type == type_intron) g->type = type_exon_intron; //
-            else if (g->type == type_antisense) g->type = type_intron;
-            else if (g->type == type_antisense_intron) g->type = type_intron;
+            if (g->type == type_unknown) g->type = t->type;
+            else if (g->type == type_intron) g->type = t->type;
+            else if (g->type == type_antisense) g->type = t->type;
+            else if (g->type == type_antisense_intron) g->type = t->type;
         }
         else if (t->type == type_splice) {
             g->type = type_splice; // same with exon
             return;
         }
         else if (t->type == type_ambiguous) {
-            if (g->type == type_unknown) g->type = type_ambiguous; // 
-            else if (g->type == type_intron) g->type = type_ambiguous; // should not happen?
-            else if (g->type == type_antisense) g->type = type_intron;
-            else if (g->type == type_antisense_intron) g->type = type_intron;
+            if (g->type == type_unknown) g->type = t->type;
+            else if (g->type == type_intron) g->type = t->type; // should not happen?
+            else if (g->type == type_antisense) g->type = t->type;
+            else if (g->type == type_antisense_intron) g->type = t->type;
+        }
+        else if (t->type == type_antisense) {
+            if (g->type == type_unknown) g->type = t->type;
+            else if (g->type == type_antisense_intron) g->type = t->type;
+        }
+        else if (t->type == type_antisense_intron) {
+            if (g->type == type_unknown) g->type = t->type;
         }
     }
-    
 }
+
 static void gtf_anno_most_likely_type(struct gtf_anno_type *ann)
 {
     int i;
@@ -563,30 +570,37 @@ static void gtf_anno_most_likely_type(struct gtf_anno_type *ann)
         struct gene_type *g = &ann->a[i];
         if (g->type == type_unknown) continue;
         else if (g->type == type_exon) {
-            ann->type = type_exon;
+            ann->type = g->type;
             return; // exon is already the best hit
         }
         else if (g->type == type_intron) {
-            if (ann->type == type_unknown) ann->type = type_intron;
-            else if (ann->type == type_antisense) ann->type = type_intron;
-            else if (ann->type == type_antisense_intron) ann->type = type_intron;
+            if (ann->type == type_unknown) ann->type = g->type;
+            else if (ann->type == type_antisense) ann->type = g->type;
+            else if (ann->type == type_antisense_intron) ann->type = g->type;
         }
         else if (g->type == type_exon_intron) {
-            if (ann->type == type_unknown) ann->type = type_exon_intron;
-            else if (ann->type == type_intron) ann->type = type_exon_intron;
-            else if (ann->type == type_antisense) ann->type = type_intron;
-            else if (ann->type == type_antisense_intron) ann->type = type_intron;
+            if (ann->type == type_unknown) ann->type = g->type;
+            else if (ann->type == type_intron) ann->type = g->type;
+            else if (ann->type == type_antisense) ann->type = g->type;
+            else if (ann->type == type_antisense_intron) ann->type = g->type;
         }
         else if (g->type == type_splice) {
-            ann->type = type_splice; // same with exon
+            ann->type = g->type; // same with exon
             return;
         }
         else if (g->type == type_ambiguous) {
-            if (ann->type == type_unknown) ann->type = type_ambiguous; // better than unknown
-            else if (ann->type == type_intron) ann->type = type_ambiguous;
-            else if (ann->type == type_antisense) ann->type = type_intron;
-            else if (ann->type == type_antisense_intron) ann->type = type_intron;
+            if (ann->type == type_unknown) ann->type = g->type; // better than unknown
+            else if (ann->type == type_intron) ann->type = g->type;
+            else if (ann->type == type_antisense) ann->type = g->type;
+            else if (ann->type == type_antisense_intron) ann->type = g->type;
         }
+        else if (g->type == type_antisense) {
+            if (ann->type == type_unknown) ann->type = g->type;
+            else if (ann->type == type_antisense_intron) ann->type = g->type;
+        }
+        else if (g->type == type_antisense_intron) {
+            if (ann->type == type_unknown) ann->type = g->type;
+        }            
     }
 }
 
@@ -810,10 +824,10 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
     // https://github.com/shiquan/PISA/wiki/4.-Annotate-alignment-records-with-GTF-or-BED
 
     struct isoform *S = bend_sam_isoform(b);
-
     int i;
     for (i = 0; i < itr->n; ++i) {
         int antisense = 0; // DO NOT CHANGE HERE
+            
         struct gtf const *g0 = (struct gtf*)itr->rets[i];
         if (g0->start > c->pos+1 || endpos > g0->end) continue; // not fully covered
 
@@ -857,7 +871,9 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
         else error("Unknown type.");
     }
     */
-    if (ann->type == type_unknown) ann->type = type_intergenic; // not fully convered
+    if (ann->type == type_unknown) {
+        ann->type = type_intergenic; // not fully convered
+    }
     
     if (args.debug_mode) {
         fprintf(stderr, "%s   ", b->data);
