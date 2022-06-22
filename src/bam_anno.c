@@ -555,7 +555,7 @@ static void gene_most_likely_type(struct gene_type *g)
         else if (t->type == type_antisense_intron) {
             if (g->type == type_unknown) g->type = t->type;
         }
-        else error("Unknown gnene annotation type.")
+        else error("Unknown gnene annotation type.");
     }
 }
 
@@ -602,7 +602,7 @@ static void gtf_anno_most_likely_type(struct gtf_anno_type *ann)
         else if (g->type == type_antisense_intron) {
             if (ann->type == type_unknown) ann->type = g->type;
         }
-        else error("Unknown gnene annotation type.")
+        else error("Unknown gnene annotation type.");
     }
 }
 
@@ -750,7 +750,7 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
     else if (ann->type == type_exon_intron && args.splice_consider == 0 && args.intron_consider == 0) return; // 
     else if (ann->type == type_ambiguous) return;
     else if (ann->type == type_antisense && args.antisense == 0) return;
-    else if (ann->type != type_antisense_intron && args.antisense == 0) return;
+    else if (ann->type == type_antisense_intron && args.antisense == 0) return;
     
     // only exon or splice come here
     kstring_t gene_name = {0,0,0};
