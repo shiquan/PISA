@@ -848,7 +848,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
             }
         }
 
-        if (antisense == 1 && args.antisense == 0) continue;
+        // if (antisense == 1 && args.antisense == 0) continue;
 
         int j;
         for (j = 0; j < g0->n_gtf; ++j) {
@@ -902,7 +902,9 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
 
     bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)RE_tag_name(ann->type));
 
-    gtf_anno_string(b, ann, G);
+    // in default, not annotate gene name for antisense
+    if (args.antisense == 0 && ann->type != type_antisense && ann->type != type_antisense_intron)
+        gtf_anno_string(b, ann, G);
 
     if (ann->type == type_exon) stat->reads_in_exon++;
     else if (ann->type == type_splice) stat->reads_in_exon++; // reads cover two exomes
