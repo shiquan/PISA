@@ -555,6 +555,7 @@ static void gene_most_likely_type(struct gene_type *g)
         else if (t->type == type_antisense_intron) {
             if (g->type == type_unknown) g->type = t->type;
         }
+        else error("Unknown gnene annotation type.")
     }
 }
 
@@ -600,7 +601,8 @@ static void gtf_anno_most_likely_type(struct gtf_anno_type *ann)
         }
         else if (g->type == type_antisense_intron) {
             if (ann->type == type_unknown) ann->type = g->type;
-        }            
+        }
+        else error("Unknown gnene annotation type.")
     }
 }
 
@@ -700,6 +702,7 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
         else if (tp->type == type_intron) tp->type = type_antisense_intron;
         else if (tp->type == type_exon_intron) tp->type = type_antisense_intron;
         else if (tp->type == type_ambiguous) tp->type = type_antisense; // ?
+        //else if (tp->type == type_unknown)
     }
 
     return tp;  
