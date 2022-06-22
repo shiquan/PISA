@@ -749,7 +749,9 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
     else if (ann->type == type_intron && args.intron_consider == 0) return;  
     else if (ann->type == type_exon_intron && args.splice_consider == 0 && args.intron_consider == 0) return; // 
     else if (ann->type == type_ambiguous) return;
-
+    else if (ann->type == type_antisense && args.antisense == 0) return;
+    else if (ann->type != type_antisense_intron && args.antisense == 0) return;
+    
     // only exon or splice come here
     kstring_t gene_name = {0,0,0};
     kstring_t gene_id   = {0,0,0};
@@ -757,7 +759,8 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
     int i;
     for (i = 0; i < ann->n; ++i) {
         struct gene_type *g = &ann->a[i];
-        if (g->type == ann->type || ann->type == type_antisense) { // todo: antisense tx?
+        //if (g->type == ann->type || ann->type == type_antisense) { // todo: antisense tx?
+        if (g->type == ann->type) { // from v0.12, antisense also be annotated
             char *gene = NULL;
             char *id = NULL;
             if (g->gene_name != -1) gene = dict_name(G->gene_name, g->gene_name);
@@ -849,7 +852,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
         }
 
         // if (antisense == 1 && args.antisense == 0) continue;
-
+        // from v0.12, annotate detailed coverage information for antisense also
         int j;
         for (j = 0; j < g0->n_gtf; ++j) {
             struct gtf const *g1 = g0->gtf[j];
@@ -902,9 +905,8 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
 
     bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)RE_tag_name(ann->type));
 
-    // in default, not annotate gene name for antisense
-    if (args.antisense == 0 && ann->type != type_antisense && ann->type != type_antisense_intron)
-        gtf_anno_string(b, ann, G);
+    // in default, not annotate gene name for Antisense
+    gtf_anno_string(b, ann, G);
 
     if (ann->type == type_exon) stat->reads_in_exon++;
     else if (ann->type == type_splice) stat->reads_in_exon++; // reads cover two exomes
