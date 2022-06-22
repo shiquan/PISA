@@ -516,7 +516,7 @@ static void gtf_anno_print(struct gtf_anno_type *ann, struct gtf_spec const *G)
     }
 }
 
-// type_exon == type_splice > type_exon_intron > type_ambiguous > type_intron > type_anitisense == type_unknown
+// type_exon == type_splice > type_exon_intron > type_ambiguous > type_intron > type_anitisense > type_antisense_intron == type_unknown
 static void gene_most_likely_type(struct gene_type *g)
 {
     int i;
@@ -529,10 +529,14 @@ static void gene_most_likely_type(struct gene_type *g)
         }
         else if (t->type == type_intron) {
             if (g->type == type_unknown) g->type = type_intron; //
+            else if (g->type == type_antisense) g->type = type_intron;
+            else if (g->type == type_antisense_intron) g->type = type_intron;            
         }
         else if (t->type == type_exon_intron) {
             if (g->type == type_unknown) g->type = type_exon_intron; //
-            else if (g->type == type_intron) g->type = type_exon_intron; //            
+            else if (g->type == type_intron) g->type = type_exon_intron; //
+            else if (g->type == type_antisense) g->type = type_intron;
+            else if (g->type == type_antisense_intron) g->type = type_intron;
         }
         else if (t->type == type_splice) {
             g->type = type_splice; // same with exon
@@ -541,6 +545,8 @@ static void gene_most_likely_type(struct gene_type *g)
         else if (t->type == type_ambiguous) {
             if (g->type == type_unknown) g->type = type_ambiguous; // 
             else if (g->type == type_intron) g->type = type_ambiguous; // should not happen?
+            else if (g->type == type_antisense) g->type = type_intron;
+            else if (g->type == type_antisense_intron) g->type = type_intron;
         }
     }
     
@@ -561,11 +567,15 @@ static void gtf_anno_most_likely_type(struct gtf_anno_type *ann)
             return; // exon is already the best hit
         }
         else if (g->type == type_intron) {
-            if (ann->type == type_unknown) ann->type = type_intron; 
+            if (ann->type == type_unknown) ann->type = type_intron;
+            else if (ann->type == type_antisense) ann->type = type_intron;
+            else if (ann->type == type_antisense_intron) ann->type = type_intron;
         }
         else if (g->type == type_exon_intron) {
             if (ann->type == type_unknown) ann->type = type_exon_intron;
-            else if (ann->type == type_intron) ann->type = type_exon_intron; 
+            else if (ann->type == type_intron) ann->type = type_exon_intron;
+            else if (ann->type == type_antisense) ann->type = type_intron;
+            else if (ann->type == type_antisense_intron) ann->type = type_intron;
         }
         else if (g->type == type_splice) {
             ann->type = type_splice; // same with exon
@@ -574,6 +584,8 @@ static void gtf_anno_most_likely_type(struct gtf_anno_type *ann)
         else if (g->type == type_ambiguous) {
             if (ann->type == type_unknown) ann->type = type_ambiguous; // better than unknown
             else if (ann->type == type_intron) ann->type = type_ambiguous;
+            else if (ann->type == type_antisense) ann->type = type_intron;
+            else if (ann->type == type_antisense_intron) ann->type = type_intron;
         }
     }
 }
@@ -607,7 +619,7 @@ static enum exon_type query_exon(int start, int end, struct gtf const *G, int *e
 }
 
 // for each transcript, return a type of alignment record
-static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g)
+static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, int antisense)
 {
     struct trans_type *tp = malloc(sizeof(*tp));
     tp->trans_id = g->transcript_id;
@@ -666,9 +678,16 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g)
         else if (t0 == type_exon_intron) {
             tp->type = t0;
             break;
-        }
-        
+        }        
     }
+    if (antisense == 1) {
+        if (tp->type == type_exon)  tp->type = type_antisense;
+        else if (tp->type == type_splice)  tp->type = type_antisense;
+        else if (tp->type == type_intron) tp->type = type_antisense_intron;
+        else if (tp->type == type_exon_intron) tp->type = type_antisense_intron;
+        else if (tp->type == type_ambiguous) tp->type = type_antisense; // ?
+    }
+
     return tp;  
 }
 
@@ -791,25 +810,24 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
     // https://github.com/shiquan/PISA/wiki/4.-Annotate-alignment-records-with-GTF-or-BED
 
     struct isoform *S = bend_sam_isoform(b);
-    
-    int antisense = 0;
+
     int i;
     for (i = 0; i < itr->n; ++i) {
+        int antisense = 0; // DO NOT CHANGE HERE
         struct gtf const *g0 = (struct gtf*)itr->rets[i];
         if (g0->start > c->pos+1 || endpos > g0->end) continue; // not fully covered
 
         if (args.ignore_strand == 0) {
             if (b->core.flag & BAM_FREVERSE) {
                 if (g0->strand == GTF_STRAND_FWD) {
-                    antisense = 1;
-                    // continue;
+                     antisense = 1; 
                 }
             }
             else {
                 if (g0->strand == GTF_STRAND_REV) {
                     antisense = 1;
-                    // continue;
                 }
+                
             }
         }
 
@@ -819,7 +837,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
         for (j = 0; j < g0->n_gtf; ++j) {
             struct gtf const *g1 = g0->gtf[j];
             if (g1->type != feature_transcript) continue;
-            struct trans_type *a = gtf_anno_core(S, g1);
+            struct trans_type *a = gtf_anno_core(S, g1, antisense);
             gtf_anno_push(a, ann, g1->gene_id, g1->gene_name);
             free(a);
         }
@@ -827,7 +845,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
     
     // stat type
     gtf_anno_most_likely_type(ann);
-
+    /*
     if (antisense == 1) {
         if (ann->type == type_unknown) ann->type = type_antisense;
         else if (ann->type == type_exon)  ann->type = type_antisense;
@@ -838,7 +856,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
         else if (ann->type == type_intergenic) ann->type = type_intergenic; // should not come here
         else error("Unknown type.");
     }
-    
+    */
     if (ann->type == type_unknown) ann->type = type_intergenic; // not fully convered
     
     if (args.debug_mode) {
