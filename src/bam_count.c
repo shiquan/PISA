@@ -446,7 +446,7 @@ int count_matrix_core(bam1_t *b, char *tag)
 
             char *val0 = NULL;
             if (args.stereoseq) {
-                char *val0 = stereoseq_decode(val, 10);
+                val0 = stereoseq_decode(val, 10);
                 debug_print("%s",val0);
             }
 
