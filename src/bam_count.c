@@ -321,8 +321,8 @@ char *stereoseq_decode(char *str, int length)
         default:
             error("Invalid hexadecimal digit %c", str[i]);
         }
-        i++;
     }
+    
     for ( ; i < length/2; ++i) {
         kputs("AA", &tmp);
         i++;
