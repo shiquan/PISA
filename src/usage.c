@@ -376,6 +376,7 @@ int bam_count_usage()
     //fprintf(stderr, " -o        [FILE]     Output matrix.\n");
     fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this fold.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
+    fprintf(stderr, " -stereoseq           Stereoseq pipeline pack UMI to hex string. Need set this option to decode UMIs.\n");
     fprintf(stderr, " -one-hit             Skip if a read hits more than 1 gene or peak.\n");
     // fprintf(stderr, " -corr                Enable correct UMIs. Similar UMIs defined as amming distance <= 1.\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. Default is 20.\n");
