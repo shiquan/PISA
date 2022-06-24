@@ -165,6 +165,7 @@ static int parse_args(int argc, char **argv)
         }
         else if (strcmp(a, "-stereoseq") == 0) {
             args.stereoseq = 1;
+            continue;
         }
         else if (strcmp(a, "-corr") == 0) {
             //args.enable_corr_umi = 1;
