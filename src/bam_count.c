@@ -325,7 +325,6 @@ char *stereoseq_decode(char *str, int length)
     
     for ( ; i < length/2; ++i) {
         kputs("AA", &tmp);
-        i++;
     }
 
     return tmp.s;
