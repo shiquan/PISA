@@ -38,6 +38,8 @@ static struct args {
     int enable_corr_umi;
     int n_thread;
     int one_hit;
+
+    int stereoseq;
     
     //uint64_t n_record;  
     uint64_t n_record1; //  records in spliced matrix
@@ -70,6 +72,9 @@ static struct args {
     .use_dup         = 0,
     .enable_corr_umi = 0,
     .one_hit         = 0,
+
+    .stereoseq       = 0,
+    
     .n_thread        = 5,
     //.fp_in           = NULL,
     //.hdr             = NULL,
@@ -158,7 +163,9 @@ static int parse_args(int argc, char **argv)
             args.one_hit = 1;
             continue;
         }
-        
+        else if (strcmp(a, "-stereoseq") == 0) {
+            args.stereoseq = 1;
+        }
         else if (strcmp(a, "-corr") == 0) {
             //args.enable_corr_umi = 1;
             warnings("Option -corr has been removed since v0.8, to correct UMIs please use `PISA corr` instead.");
@@ -246,6 +253,81 @@ static int parse_args(int argc, char **argv)
         free(str.s);
     }
     return 0;
+}
+// decode UMI hex to [ACGT]s
+char *stereoseq_decode(char *str, int length)
+{
+    kstring_t tmp = {0,0,0};
+    int l = strlen(str);
+    if (l*2 > length) error("Decode string longer than expect.");
+    int i;
+    for (i = 0; i < l; ++i) {
+        switch(str[i]) {
+        case '0':
+            kputs("AA", &tmp);
+            break;
+        case '1':
+            kputs("CA", &tmp);
+            break;
+        case '2':
+            kputs("GA", &tmp);
+            break;
+        case '3':
+            kputs("TA", &tmp);
+            break;
+        case '4':
+            kputs("AC", &tmp);
+            break;
+        case '5':
+            kputs("CC", &tmp);
+            break;
+        case '6':
+            kputs("GC", &tmp);
+            break;
+        case '7':
+            kputs("TC", &tmp);
+            break;
+        case '8':
+            kputs("AG", &tmp);
+            break;
+        case '9':
+            kputs("CG", &tmp);
+            break;
+        case 'A':
+        case 'a':
+            kputs("GG", &tmp);
+            break;
+        case 'B':
+        case 'b':
+            kputs("TG", &tmp);
+            break;
+        case 'C':
+        case 'c':
+            kputs("AT", &tmp);
+            break;
+        case 'D':
+        case 'd':
+            kputs("CT", &tmp);
+            break;
+        case 'E':
+        case 'e':
+            kputs("GT", &tmp);
+            break;
+        case 'F':
+        case 'f':
+            kputs("TT", &tmp);
+            break;
+        default:
+            error("Invalid hexadecimal digit %c", str[i]);
+        }
+        i++;
+    }
+    for ( ; i < length/2; ++i) {
+        kputs("AA", &tmp);
+        i++;
+    }
+
+    return tmp.s;
 }
 
 int count_matrix_core(bam1_t *b, char *tag)
@@ -361,20 +443,29 @@ int count_matrix_core(bam1_t *b, char *tag)
             assert(umi_tag);
             char *val = (char*)(umi_tag+1);
             assert(c->data);
+
+            char *val0 = NULL;
+            if (args.stereoseq) {
+                char *val0 = stereoseq_decode(val, 10);
+                debug_print("%s",val0);
+            }
+
             struct counts *count = c->data;
             
             if (args.velocity && antisense) {
-                PISA_dna_push(count->as, val);
+                PISA_dna_push(count->as, val0 ? val0 : val); 
             } else {
                 // total
-                PISA_dna_push(count->p, val);
+                PISA_dna_push(count->p, val0 ? val0 : val);
                 
                 if (args.velocity && unspliced)
-                    PISA_dna_push(count->up, val);
+                    PISA_dna_push(count->up, val0 ? val0 : val);
                 
                 else if (args.velocity && spanning)
-                    PISA_dna_push(count->sp, val);
+                    PISA_dna_push(count->sp, val0 ? val0 : val);
             }
+            
+            if (val0) free(val0);
         }
         else {
             struct counts *count = c->data;
