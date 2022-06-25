@@ -112,12 +112,14 @@ void close_bam_files(struct bam_files *files)
 
 int read_bam_files(struct bam_files *files, bam1_t *b)
 {
-    struct bam_file *file = &files->files[files->i];
+    if (files->i == files->n) return -1; // for muti-threads
     
-    while (file->state == file_closed && files->i < files->n) 
-        files->i++;
+    struct bam_file *file = &files->files[files->i];
 
-    if (files->i == files->n) return -1;
+    while (file->state == file_closed && files->i < files->n) {
+        files->i++;
+        if (files->i == files->n) return -1;
+    }
     
     if (file->state == file_not_open) {
         file->fp = hts_open(file->fname, "r");

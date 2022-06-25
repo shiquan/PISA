@@ -53,15 +53,12 @@ static uint8_t *PISA_dna_pack(const char *seq, int l)
         p[i>>1] = seq_nt16_table[(unsigned char)seq[i]] << 4 | seq_nt16_table[(unsigned char)seq[i+1]];
     return p;
 }
-// return index of query sequence, because all the sequence save in the pool by order, the index is not stable
-int PISA_dna_query0(struct PISA_dna_pool *p, const char *seq)
+int PISA_dna_query1(struct PISA_dna_pool *p, uint8_t *a, int l)
 {
-    if (p->len == 0 || p->l== 0) return -1;
-    int l = strlen(seq);    
-    if (p->len != l) error("Try to insert an unequal length sequence. %s, %d vs %d.", seq, l, p->len);
-    uint8_t *a = PISA_dna_pack(seq, l);
-    int i = 0, j = p->l > 0 ? p->l-1 : 0;
+    if (p->l == 0) return -1;
+    int i = 0, j =  p->l-1;
     int l2 = l&~1;
+
     for (;;) {
         if (j < i) break;
         int ret;
@@ -83,8 +80,16 @@ int PISA_dna_query0(struct PISA_dna_pool *p, const char *seq)
         if (ret > 0) j = m;
         else i = m;
     }
-
     return -1;
+}
+// return index of query sequence, because all the sequence save in the pool by order, the index is not stable
+int PISA_dna_query0(struct PISA_dna_pool *p, const char *seq)
+{
+    if (p->len == 0 || p->l== 0) return -1;
+    int l = strlen(seq);    
+    if (p->len != l) error("Try to insert an unequal length sequence. %s, %d vs %d.", seq, l, p->len);
+    uint8_t *a = PISA_dna_pack(seq, l);
+    return PISA_dna_query1(p, a, l);
 }
 int PISA_idx_query0(struct PISA_dna_pool *p, const int idx)
 {
@@ -176,14 +181,11 @@ void PISA_dna_pool_print(struct PISA_dna_pool *p) {
     free(str.s);
 }
 
-static int PISA_dna_push_core(struct PISA_dna_pool *p, const char *seq)
+static int PISA_dna_push_core1(struct PISA_dna_pool *p, uint8_t *a, int l)
 {
-    //PISA_dna_pool_print(p);
-    int l = strlen(seq);
-    if (p->len == 0) p->len = l;
-    if (p->len != l) error("Try to insert an unequal length sequence. %s, %d vs %d.", seq, l, p->len);
-    uint8_t *a = PISA_dna_pack(seq, l);
     enlarge_pool(p);
+    if (p->len == 0) p->len = l;
+    if (p->len != l) error("Try to insert an unequal length sequence. %d vs %d.", l, p->len);
 
     if (p->l ==0) {
         p->data[0].dna = a;
@@ -231,6 +233,13 @@ static int PISA_dna_push_core(struct PISA_dna_pool *p, const char *seq)
     }
     return -1;
 }
+static int PISA_dna_push_core(struct PISA_dna_pool *p, const char *seq)
+{
+    //PISA_dna_pool_print(p);
+    int l = strlen(seq);
+    uint8_t *a = PISA_dna_pack(seq, l);
+    return PISA_dna_push_core1(p, a, l);
+}
 struct PISA_dna *PISA_dna_push(struct PISA_dna_pool *p, const char *seq)
 {
     int idx = PISA_dna_push_core(p, seq);
@@ -269,6 +278,21 @@ struct PISA_dna *PISA_idx_query(struct PISA_dna_pool *p, const int idx)
     return &p->data[ret];
 }
 
+struct PISA_dna_pool *PISA_pool_merge(struct PISA_dna_pool *p1,
+                                      struct PISA_dna_pool *p2)
+{
+    int i;
+    for (i = 0; i < p2->l; ++i) {
+        int idx = PISA_dna_query1(p1, p2->data[i].dna, p2->len);
+        if (idx == -1) {            
+            uint8_t *a = malloc(p2->len&~1);
+            memcpy(a, p2->data[i].dna, p2->len&~1);
+            idx = PISA_dna_push_core1(p1, a, p2->len);
+        }
+        p1->data[idx].count++;
+    }
+    return p1;
+}
 
 
 #ifdef _DNA_POOL_MAIN

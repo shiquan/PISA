@@ -380,7 +380,7 @@ int bam_count_usage()
     fprintf(stderr, " -one-hit             Skip if a read hits more than 1 gene or peak.\n");
     // fprintf(stderr, " -corr                Enable correct UMIs. Similar UMIs defined as amming distance <= 1.\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. Default is 20.\n");
-    fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");
+    fprintf(stderr, " -t        [INT]      Threads.\n");
     fprintf(stderr, " -ttag     [TAG]      Region type tag. [RE]\n");
     fprintf(stderr, " -velo                Generate spliced and unspliced matrix files for RNA velocity analysis.\n");
     fprintf(stderr, " -ttype    [TYPE]     Region type used to count. Set `E,S` to count exon enclosed reads. Set `N,C` to count intron overlapped reads.\n");
