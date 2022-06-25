@@ -7,11 +7,13 @@
 #include "htslib/kstring.h"
 #include "htslib/sam.h"
 #include "htslib/bgzf.h"
+#include "htslib/thread_pool.h"
 #include "pisa_version.h" // mex output
 #include "read_tags.h"
 // from v0.10, -ttype supported
 #include "read_anno.h"
 #include "biostring.h"
+#include "bam_pool.h"
 
 // accept file list
 #include "bam_files.h"
@@ -36,17 +38,19 @@ static struct args {
     int mapq_thres;
     int use_dup;
     int enable_corr_umi;
-    int n_thread;
     int one_hit;
 
     int stereoseq;
+
+    int n_thread;
+    int chunk_size;
     
     //uint64_t n_record;  
     uint64_t n_record1; //  records in spliced matrix
     uint64_t n_record2; //  records in unspliced
     uint64_t n_record3; //  records in spanning
     uint64_t n_record4; //  records in antisense
-    int alias_file_cb;
+    //int alias_file_cb;
     
     const char *region_type_tag;
     int n_type;
@@ -76,6 +80,7 @@ static struct args {
     .stereoseq       = 0,
     
     .n_thread        = 5,
+    .chunk_size      = 10000000,
     //.fp_in           = NULL,
     //.hdr             = NULL,
     //.n_record        = 0,
@@ -83,7 +88,7 @@ static struct args {
     .n_record2       = 0,
     .n_record3       = 0,
     .n_record4       = 0,
-    .alias_file_cb   = 0,
+    //.alias_file_cb   = 0,
     
     .region_type_tag = "RE",
     .n_type          = 0,
@@ -146,7 +151,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-outdir") == 0) var = &args.outdir;
         else if (strcmp(a, "-q") == 0) var = &mapq;
-        else if (strcmp(a, "-@") == 0) var = &n_thread;
+        else if (strcmp(a, "-t") == 0 || strcmp(a, "-@") == 0) var = &n_thread;
         else if (strcmp(a, "-ttag") == 0) var = &args.region_type_tag;
         else if (strcmp(a, "-ttype") == 0) var = &region_types;
         else if (strcmp(a, "-prefix") == 0) var = &args.prefix;
@@ -174,7 +179,8 @@ static int parse_args(int argc, char **argv)
         }
 
         else if (strcmp(a, "-file-barcode") ==0) {
-            args.alias_file_cb = 1;
+            //args.alias_file_cb = 1;
+            error("-file-barcode is removed since v0.12.");
             continue;
         }        
         
@@ -198,10 +204,10 @@ static int parse_args(int argc, char **argv)
         warnings("PISA now support MEX format. Old cell X gene expression format is very poor performance. Try -outdir instead of -o.");
     }
     
-    if (tag_str == 0 && args.alias_file_cb == 0)
-        error("No cell barcode specified and -file-barcode disabled.");
+    if (tag_str == 0) // && args.alias_file_cb == 0)
+        error("No cell barcode specified disabled.");
 
-    if (tag_str) args.tags = str2tag(tag_str);
+    args.tags = str2tag(tag_str);
     
     if (args.anno_tag == 0) error("No anno tag specified.");
 
@@ -330,15 +336,125 @@ char *stereoseq_decode(char *str, int length)
     return tmp.s;
 }
 
-int count_matrix_core(bam1_t *b, char *tag)
+struct ret {
+    struct dict *features;
+    struct dict *barcodes;
+};
+void merge_counts(struct ret *ret)
 {
+    if (ret == NULL) return;
+    int i;
+    for (i = 0; i < dict_size(ret->features); ++i) {
+        char *feature = dict_name(ret->features, i);
+        int idx = dict_query(args.features, feature);
+        if (idx < 0) {
+            idx = dict_push(args.features, feature);
+        }
+        struct PISA_dna_pool *v0 = dict_query_value(ret->features, i);
+        struct PISA_dna_pool *v = dict_query_value(args.features, idx);
+        if (v == NULL) {
+            v = PISA_dna_pool_init();
+            dict_assign_value(args.features, idx, v);
+        }
+        
+        int j;
+        for (j = 0; j < v0->l; ++j) {
+            struct PISA_dna *d = &v0->data[j];
+            if (d->idx == -1) continue; // cell barcode cached but no record
+            //debug_print("%d", d->idx);
+            char *barcode = dict_name(ret->barcodes,d->idx);
+            assert(barcode);
+            int cell_id = dict_query(args.barcodes, barcode);
+            if (cell_id == -1) {
+                cell_id = dict_push(args.barcodes, barcode);
+            }
+            struct PISA_dna *c = PISA_idx_query(v, cell_id);
+            if (c == NULL) {
+                c = PISA_idx_push(v, cell_id);
+                struct counts *counts = malloc(sizeof(struct counts));
+                memset(counts, 0, sizeof(struct counts));
+                counts->p = PISA_dna_pool_init();
+                if (args.umi_tag) {
+                    counts->up = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
+                    counts->sp = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
+                    counts->as = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
+                }
+                c->data = counts;
+            }
+            
+            struct counts *counts = c->data;
+            struct counts *c0 = d->data;
+            PISA_pool_merge(counts->p, c0->p);
+            
+            if (args.velocity == 1) {
+                PISA_pool_merge(counts->up, c0->up);
+                PISA_pool_merge(counts->sp, c0->sp);
+                PISA_pool_merge(counts->as, c0->as);
+
+                PISA_dna_destroy(c0->up);
+                PISA_dna_destroy(c0->sp);
+                PISA_dna_destroy(c0->as);
+            }
+            
+            PISA_dna_destroy(c0->p);
+        }
+        PISA_idx_destroy(v0);
+    }
+    dict_destroy(ret->features);
+    dict_destroy(ret->barcodes);
+    free(ret);
+}
+//struct ret *count_matrix_core(bam1_t *b, char *tag)
+static void *run_it(void *_p)
+{
+    struct bam_pool *p = (struct bam_pool*)_p;
+    if (p == NULL) return NULL;
+    //debug_print("%d",p->n);
+    struct ret *ret = malloc(sizeof(*ret));
+    ret->features = dict_init();
+    ret->barcodes = dict_init();
+    dict_set_value(ret->features);
+    dict_set_value(ret->barcodes);
+
+    if (args.whitelist_fname) {
+        dict_read(ret->barcodes, args.whitelist_fname, 1);
+    }
+    
     kstring_t tmp = {0,0,0};
-    if (args.tags) {
+    kstring_t str = {0,0,0};
+    char *tag = NULL;
+    
+    int record;
+    for (record = 0; record < p->n; ++record) {
+        tmp.l = 0;
+        str.l = 0;
+        
+        bam1_t *b = &p->bam[record];
+        if (args.n_type > 0) {
+            uint8_t *data = bam_aux_get(b, args.region_type_tag);
+            if (!data) continue;
+            int region_type_flag = 0;
+            int k;
+            for (k = 0; k < args.n_type; ++k) {
+                if (args.region_types[k] == RE_type_map(data[1])) {
+                    region_type_flag = 1;
+                    break;
+                }
+            }
+            if (region_type_flag == 0) continue;
+        }
+        
+        //if (args.tags) {
+
         int i;
         for (i = 0; i < dict_size(args.tags); ++i) {
             uint8_t *tag0 = bam_aux_get(b, dict_name(args.tags,i));
-            if (!tag0) goto skip_this_record;
-            if (tmp.m) kputc('\t', &tmp);
+            if (!tag0) {
+                tmp.l = 0;
+                break;
+            }
+                    
+            if (tmp.l) kputc('\t', &tmp);
             if (*tag0 == 'S' || *tag0 == 's' || *tag0 == 'c' || *tag0 == 'i' || *tag0 == 'I') {
                 int64_t va = bam_aux2i(tag0);
                 kputw(va, &tmp);
@@ -349,146 +465,149 @@ int count_matrix_core(bam1_t *b, char *tag)
                 char *va = bam_aux2Z(tag0);
                 kputs(va, &tmp);
             }
-        }
-        tag = tmp.s;
-    }
-    else if (args.alias_file_cb) {
-        assert(tag);
-    }
-    
-    uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
-    if (!anno_tag) goto skip_this_record;
-
-    if (args.umi_tag) {
-        uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
-        if (!umi_tag) goto skip_this_record;
-    }
-
-    int unspliced = 0;
-    int spanning = 0;
-    int antisense = 0; // v0.12
-    if (args.velocity) {
-        uint8_t *data = bam_aux_get(b, args.region_type_tag);
-        if (!data) goto skip_this_record;
-        if (RE_type_map(data[1]) == type_unknown) goto skip_this_record;
-        if (RE_type_map(data[1]) == type_ambiguous) goto skip_this_record;
-        if (RE_type_map(data[1]) == type_intergenic)  goto skip_this_record;
-
-        if (RE_type_map(data[1]) == type_exon_intron || RE_type_map(data[1]) == type_intron) unspliced = 1;
-        else if (RE_type_map(data[1]) == type_exon_intron) spanning = 1;
-        else if (RE_type_map(data[1]) == type_antisense) antisense = 1;
-        else if (RE_type_map(data[1]) == type_antisense_intron) antisense = 1;
-    }
-    
-    int cell_id;
-    if (args.whitelist_fname) {
-        cell_id = dict_query(args.barcodes, tag);
-        if (cell_id == -1) goto skip_this_record;
-    }
-    else {
-        cell_id = dict_push(args.barcodes, tag);
-    }
-
-    // for each feature
-    kstring_t str = {0,0,0};
-    kputs((char*)(anno_tag+1), &str);
-    int n_gene;
-    int *s = str_split(&str, &n_gene); // seperator ; or ,
-
-    // Sometime two or more genes or functional regions can overlapped with each other, in default PISA counts the reads for both of these regions.
-    // But if -one-hit set, these reads will be filtered.
-    if (args.one_hit == 1 && n_gene >1) {
-        free(str.s);
-        free(s);
-        goto skip_this_record;
-    }
-    
-    int i;
-    for (i = 0; i < n_gene; ++i) {
-        // Features (Gene or Region)
-        char *val = str.s + s[i];
-        
-        int idx = dict_query(args.features, val);
-        if (idx == -1) idx = dict_push(args.features, val);
-
-        struct PISA_dna_pool *v = dict_query_value(args.features, idx);
-
-        if (v == NULL) {
-            v = PISA_dna_pool_init();
-            dict_assign_value(args.features, idx, v);
-        } 
-        // not store cell barcode for each hash, use id number instead to reduce memory
-        struct PISA_dna *c= PISA_idx_query(v, cell_id);
-        if (c == NULL) {
-            c = PISA_idx_push(v, cell_id);
-        //if (c->data == NULL) {
-            struct counts *counts = malloc(sizeof(struct counts));
-            memset(counts, 0, sizeof(struct counts));
-            //counts->count = 0;
-            //counts->unspliced = 0;
-            //counts->spanning = 0;
-
-            if (args.umi_tag)  {
-                counts->p = PISA_dna_pool_init();
-                counts->up = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
-                counts->sp = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
-                counts->as = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
-            }
             
-            c->data = counts;
         }
+        
+        if (tmp.l == 0) continue;
+        tag = tmp.s;
 
+        //else if (args.alias_file_cb) {
+        //            assert(tag);
+        //}
+        
+        uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
+        //if (!anno_tag) goto skip_this_record;
+        if (!anno_tag) continue;
+        
         if (args.umi_tag) {
             uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
-            assert(umi_tag);
-            char *val = (char*)(umi_tag+1);
-            assert(c->data);
+            // if (!umi_tag) goto skip_this_record;
+            if (!umi_tag) continue;
+        }
+        
+        int unspliced = 0;
+        int spanning = 0;
+        int antisense = 0; // v0.12
+        if (args.velocity) {
+            uint8_t *data = bam_aux_get(b, args.region_type_tag);
+            // if (!data) goto skip_this_record;
+            if (!data) continue;
+            if (RE_type_map(data[1]) == type_unknown)  continue; //goto skip_this_record;
+            if (RE_type_map(data[1]) == type_ambiguous) continue; //goto skip_this_record;
+            if (RE_type_map(data[1]) == type_intergenic) continue; // goto skip_this_record;
 
-            char *val0 = NULL;
-            if (args.stereoseq) {
-                val0 = stereoseq_decode(val, 10);
-                debug_print("%s",val0);
-            }
-
-            struct counts *count = c->data;
-            
-            if (args.velocity && antisense) {
-                PISA_dna_push(count->as, val0 ? val0 : val); 
-            } else {
-                // total
-                PISA_dna_push(count->p, val0 ? val0 : val);
-                
-                if (args.velocity && unspliced)
-                    PISA_dna_push(count->up, val0 ? val0 : val);
-                
-                else if (args.velocity && spanning)
-                    PISA_dna_push(count->sp, val0 ? val0 : val);
-            }
-            
-            if (val0) free(val0);
+            if (RE_type_map(data[1]) == type_exon_intron || RE_type_map(data[1]) == type_intron) unspliced = 1;
+            else if (RE_type_map(data[1]) == type_exon_intron) spanning = 1;
+            else if (RE_type_map(data[1]) == type_antisense) antisense = 1;
+            else if (RE_type_map(data[1]) == type_antisense_intron) antisense = 1;
+        }
+        
+        int cell_id;
+        if (args.whitelist_fname) {
+            cell_id = dict_query(ret->barcodes, tag);
+            if (cell_id == -1) continue; // goto skip_this_record;
         }
         else {
-            struct counts *count = c->data;
-            count->count++;
-
-            if (args.velocity && unspliced)
-                count->unspliced++;
-
-            if (args.velocity && spanning)
-                count->spanning++;
-
-            if (args.velocity && antisense)
-                count->antisense++;
+            cell_id = dict_push(ret->barcodes, tag);
         }
-    }
-    free(str.s);
-    free(s);
-    free(tmp.s);
-    return 0;
+        
+        // for each feature
+        kputs((char*)(anno_tag+1), &str);
+        int n_gene;
+        int *s = str_split(&str, &n_gene); // seperator ; or ,
+        
+        // Sometime two or more genes or functional regions can overlapped with each other, in default PISA counts the reads for both of these regions.
+        // But if -one-hit set, these reads will be filtered.
+        if (args.one_hit == 1 && n_gene >1) {
+            // free(str.s);
+            free(s);
+            // goto skip_this_record;
+            continue;
+        }
+        
+        //int i;
+        for (i = 0; i < n_gene; ++i) {
+            // Features (Gene or Region)
+            char *val = str.s + s[i];
+            
+            int idx = dict_query(ret->features, val);
+            if (idx == -1) idx = dict_push(ret->features, val);
 
-skip_this_record:
+            struct PISA_dna_pool *v = dict_query_value(ret->features, idx);
+
+            if (v == NULL) {
+                v = PISA_dna_pool_init();
+                dict_assign_value(ret->features, idx, v);
+            }
+            // not store cell barcode for each hash, use id number instead to reduce memory
+            struct PISA_dna *c= PISA_idx_query(v, cell_id);
+            if (c == NULL) {
+                c = PISA_idx_push(v, cell_id);
+                //if (c->data == NULL) {
+                struct counts *counts = malloc(sizeof(struct counts));
+                memset(counts, 0, sizeof(struct counts));
+                
+                if (args.umi_tag)  {
+                    counts->p = PISA_dna_pool_init();
+                    counts->up = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
+                    counts->sp = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
+                    counts->as = args.velocity == 1 ? PISA_dna_pool_init() : NULL;
+                }
+                
+                c->data = counts;
+            }
+            
+            if (args.umi_tag) {
+                uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
+                assert(umi_tag);
+                char *val = (char*)(umi_tag+1);
+                assert(c->data);
+                
+                char *val0 = NULL;
+                if (args.stereoseq) {
+                    val0 = stereoseq_decode(val, 10);
+                }
+                
+                struct counts *count = c->data;
+                
+                if (args.velocity && antisense) {
+                    PISA_dna_push(count->as, val0 ? val0 : val); 
+                } else {
+                    // total
+                    PISA_dna_push(count->p, val0 ? val0 : val);
+                    
+                    if (args.velocity && unspliced)
+                        PISA_dna_push(count->up, val0 ? val0 : val);
+                    
+                    else if (args.velocity && spanning)
+                        PISA_dna_push(count->sp, val0 ? val0 : val);
+                }
+                
+                if (val0) free(val0);
+            }
+            else {
+                struct counts *count = c->data;
+                count->count++;
+                
+                if (args.velocity && unspliced)
+                    count->unspliced++;
+                
+                if (args.velocity && spanning)
+                    count->spanning++;
+                
+                if (args.velocity && antisense)
+                    count->antisense++;
+            }
+        }
+        free(s);
+    }
+
+    if (str.m) free(str.s);
     if (tmp.m) free(tmp.s);
-    return 1;
+
+    bam_pool_destory(p);
+    
+    return ret;
 }
 
 static void update_counts()
@@ -777,27 +896,20 @@ static void write_outs()
 
 }
 
-int count_matrix(int argc, char **argv)
+struct bam_pool *read_files_pool(struct bam_files *files, int size)
 {
-    double t_real;
-    t_real = realtime();
-    if (parse_args(argc, argv)) return bam_count_usage();
-        
-    bam1_t *b;
+    struct bam_pool *p = bam_pool_init(size);
 
     int ret;
-    b = bam_init1();
-    int region_type_flag = 0;
     
-    for (;;) {
-        //ret = sam_read1(args.fp_in, args.hdr, b);
-        ret = read_bam_files(args.files, b);
+    for (p->n = 0; p->n < p->m;) {
+        ret = read_bam_files(files, &p->bam[p->n]);
         if (ret < 0) break;
         bam_hdr_t *hdr = get_hdr(args.files);
-
-        char *alias = get_alias(args.files);
-        if (args.alias_file_cb == 1 && !alias)
-            error("No alias found for %s", get_fname(args.files));
+        bam1_t *b =  &p->bam[p->n];
+        // char *alias = get_alias(args.files);
+        // if (args.alias_file_cb == 1 && !alias)
+        // error("No alias found for %s", get_fname(args.files));
         
         bam1_core_t *c;
         c = &b->core;
@@ -806,32 +918,57 @@ int count_matrix(int argc, char **argv)
         if (c->qual < args.mapq_thres) continue;
         if (args.use_dup == 0 && c->flag & BAM_FDUP) continue;
         
-        if (args.n_type > 0) {
+        p->n++;
+    }
 
-            uint8_t *data = bam_aux_get(b, args.region_type_tag);
-            if (!data) continue;
+    if (p->n == 0) {
+        bam_pool_destory(p);
+        return NULL;
+    }
+    return p;
+}
 
-            region_type_flag = 0;
-            int k;
-            for (k = 0; k < args.n_type; ++k) {
-                if (args.region_types[k] == RE_type_map(data[1])) {
-                    region_type_flag = 1;
-                    break;
-                }
+int count_matrix(int argc, char **argv)
+{
+    double t_real;
+    t_real = realtime();
+    if (parse_args(argc, argv)) return bam_count_usage();
+
+    hts_tpool *p = hts_tpool_init(args.n_thread);
+    hts_tpool_process *q = hts_tpool_process_init(p, args.n_thread*2, 0);
+    hts_tpool_result *r;
+    
+    for (;;) {
+        struct bam_pool *pool = read_files_pool(args.files, args.chunk_size);
+        if (pool == NULL) break;
+        int block;
+        do {
+            block = hts_tpool_dispatch2(p, q, run_it, pool, 1);
+            if ((r = hts_tpool_next_result(q))) {
+                struct ret *ret = (struct ret*)hts_tpool_result_data(r);
+                //write_out(d);
+                merge_counts(ret);
+                hts_tpool_delete_result(r, 0);
             }
-
-            if (region_type_flag == 0) continue;
         }
-        
-        count_matrix_core(b, alias);
+        while (block == -1);
     }
     
-    bam_destroy1(b);
+    hts_tpool_process_flush(q);
     
-    if (ret != -1) warnings("Truncated file?");   
+    while ((r = hts_tpool_next_result(q))) {
+        struct ret *ret = (struct ret*)hts_tpool_result_data(r);
+        //write_out(d);
+        merge_counts(ret);
+        hts_tpool_delete_result(r, 0);
+    }
+    hts_tpool_process_destroy(q);
+    hts_tpool_destroy(p);
 
+    debug_print("Update counts..");
     update_counts();
 
+    debug_print("Write counts..");
     write_outs();
     
     memory_release();

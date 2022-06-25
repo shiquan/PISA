@@ -36,4 +36,7 @@ struct PISA_dna *PISA_idx_push(struct PISA_dna_pool *p, const int idx);
 struct PISA_dna *PISA_idx_push1(struct PISA_dna_pool *p, const int idx, void *data);
 struct PISA_dna *PISA_idx_query(struct PISA_dna_pool *p, const int idx);
 
+struct PISA_dna_pool *PISA_pool_merge(struct PISA_dna_pool *p1,struct PISA_dna_pool *p2);
+                                      
+
 #endif
