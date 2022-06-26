@@ -398,6 +398,7 @@ void merge_counts(struct ret *ret)
             }
             
             PISA_dna_destroy(c0->p);
+            free(c0);
         }
         PISA_idx_destroy(v0);
     }
