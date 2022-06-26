@@ -343,7 +343,7 @@ struct ret {
 void merge_counts(struct ret *ret)
 {
     if (ret == NULL) return;
-    debug_print("merge counts ...")
+    debug_print("merge counts ...");
     int i;
     for (i = 0; i < dict_size(ret->features); ++i) {
         char *feature = dict_name(ret->features, i);
