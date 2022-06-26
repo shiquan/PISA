@@ -385,19 +385,27 @@ void merge_counts(struct ret *ret)
             
             struct counts *counts = c->data;
             struct counts *c0 = d->data;
-            PISA_pool_merge(counts->p, c0->p);
-            
-            if (args.velocity == 1) {
-                PISA_pool_merge(counts->up, c0->up);
-                PISA_pool_merge(counts->sp, c0->sp);
-                PISA_pool_merge(counts->as, c0->as);
 
-                PISA_dna_destroy(c0->up);
-                PISA_dna_destroy(c0->sp);
-                PISA_dna_destroy(c0->as);
+            if (args.umi_tag) {
+                PISA_pool_merge(counts->p, c0->p);
+                
+                if (args.velocity == 1) {
+                    PISA_pool_merge(counts->up, c0->up);
+                    PISA_pool_merge(counts->sp, c0->sp);
+                    PISA_pool_merge(counts->as, c0->as);
+                    
+                    PISA_dna_destroy(c0->up);
+                    PISA_dna_destroy(c0->sp);
+                    PISA_dna_destroy(c0->as);
+                }
+                PISA_dna_destroy(c0->p);
+            } else {
+                counts->count += c0->count;
+                if (args.velocity == 1) {
+                    counts->unspliced += c0->unspliced;
+                    counts->spanning += c0->spanning;
+                }
             }
-            
-            PISA_dna_destroy(c0->p);
             free(c0);
         }
         PISA_idx_destroy(v0);
