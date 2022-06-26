@@ -894,7 +894,6 @@ static void write_outs()
         fclose(out);
         free(temp);
     }
-
 }
 
 struct bam_pool *read_files_pool(struct bam_files *files, int size)
@@ -956,7 +955,7 @@ int count_matrix(int argc, char **argv)
     }
     
     hts_tpool_process_flush(q);
-    
+ 
     while ((r = hts_tpool_next_result(q))) {
         struct ret *ret = (struct ret*)hts_tpool_result_data(r);
         //write_out(d);
@@ -966,6 +965,39 @@ int count_matrix(int argc, char **argv)
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
 
+    debug_print("Update counts..");
+    update_counts();
+
+    debug_print("Write counts..");
+    write_outs();
+    
+    memory_release();
+    
+    LOG_print("Real time: %.3f sec; CPU: %.3f sec; Peak RSS: %.3f GB.", realtime() - t_real, cputime(), peakrss() / 1024.0 / 1024.0 / 1024.0);
+    return 0;
+}
+int count_matrix1(int argc, char **argv)
+{
+    double t_real;
+    t_real = realtime();
+    if (parse_args(argc, argv)) return bam_count_usage();
+
+#pragma omp parallel num_threads(args.n_thread)
+    for (;;) {
+        
+        struct bam_pool *pool = NULL;
+
+#pragma omp critical (read)
+        pool = read_files_pool(args.files, args.chunk_size);
+        if (pool == NULL) break;
+
+        struct ret *ret = run_it(pool);
+        
+#pragma omp critical (merge)
+        merge_counts(ret);
+
+    }
+    
     debug_print("Update counts..");
     update_counts();
 
