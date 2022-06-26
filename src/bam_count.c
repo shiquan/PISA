@@ -220,10 +220,10 @@ static int parse_args(int argc, char **argv)
     }
 
     if (args.input_fname) {
-        args.files = init_bam_line(args.input_fname, args.n_thread);
+        args.files = init_bam_line(args.input_fname, args.n_thread > 5 ? 5 : args.n_thread);
     }
     else if (args.sample_list) {
-        args.files = init_bam_list(args.sample_list, args.n_thread);
+        args.files = init_bam_list(args.sample_list, args.n_thread > 5 ? 5 : args.n_thread);
     }
     else error("Not found input bam file.");
 
