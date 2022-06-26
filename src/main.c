@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     extern int bam_pick(int argc, char *argv[]);
     extern int bam_corr_umi(int argc, char **argv);
     extern int bam_extract_tags(int argc, char **argv);
-    extern int count_matrix(int argc, char *argv[]);
+    extern int count_matrix1(int argc, char *argv[]);
     extern int bam2fq(int argc, char *argv[]);
     extern int bam2frag(int argc, char **argv);
     extern int gene_fusion(int argc, char **argv);
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "extract") == 0) return bam_extract_tags(argc-1, argv+1);
     else if (strcmp(argv[1], "pick") == 0) return bam_pick(argc-1, argv+1);
     else if (strcmp(argv[1], "bam2frag") == 0) return bam2frag(argc-1, argv+1);
-    else if (strcmp(argv[1], "count") == 0) return count_matrix(argc-1, argv+1);
+    else if (strcmp(argv[1], "count") == 0) return count_matrix1(argc-1, argv+1);
     else if (strcmp(argv[1], "count2") == 0) return fragment_count(argc-1, argv+1);
     else if (strcmp(argv[1], "fusion") == 0) return gene_fusion(argc-1, argv+1);
     // else if (strcmp(argv[1], "genecov") == 0) return gene_cov(argc-1, argv+1);
