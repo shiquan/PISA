@@ -343,6 +343,7 @@ struct ret {
 void merge_counts(struct ret *ret)
 {
     if (ret == NULL) return;
+    debug_print("merge counts ...")
     int i;
     for (i = 0; i < dict_size(ret->features); ++i) {
         char *feature = dict_name(ret->features, i);
@@ -409,7 +410,7 @@ static void *run_it(void *_p)
 {
     struct bam_pool *p = (struct bam_pool*)_p;
     if (p == NULL) return NULL;
-    //debug_print("%d",p->n);
+    debug_print("%d",p->n);
     struct ret *ret = malloc(sizeof(*ret));
     ret->features = dict_init();
     ret->barcodes = dict_init();
