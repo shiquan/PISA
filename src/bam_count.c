@@ -80,7 +80,7 @@ static struct args {
     .stereoseq       = 0,
     
     .n_thread        = 5,
-    .chunk_size      = 10000000,
+    .chunk_size      = 1000000,
     //.fp_in           = NULL,
     //.hdr             = NULL,
     //.n_record        = 0,
