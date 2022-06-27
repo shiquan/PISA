@@ -493,34 +493,24 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
             if (e != NULL) {
                 // put empty space to unconverted value
                 kstring_t tmp = {0,0,0};
-                if (*s == 'S' || *s == 's') {
-                    kputc(' ', &tmp);
-                    kputsn((char*)s,2,&tmp);
-                    //uint16_t va = bam_aux2i(s);
-                    //kputw(va, &tmp);
-                    kputs("", &tmp);
-                } else if (*s == 'C' || *s == 'c') {
-                    kputc(' ', &tmp);
-                    kputsn((char*)s,1,&tmp);
-                    kputs("", &tmp);
-                    //uint8_t va = bam_aux2i(s);
-                    //kputw(va, &tmp);
+
+                if (*s == 'C' || *s == 'c') {
+                    uint8_t va = bam_aux2i(s);
+                    kputw(va, &tmp);
+                } else if (*s == 'S' || *s == 's') {
+                    uint16_t va = bam_aux2i(s);
+                    kputw(va, &tmp);
                 } else if (*s == 'i' || *s == 'I') {
-                    kputc(' ', &tmp);
-                    kputsn((char*)s,4,&tmp);
-                    kputs("", &tmp);                    
-                    //uint32_t va = bam_aux2i(s);
-                    //kputw(va, &tmp);
+                    uint32_t va = bam_aux2i(s);
+                    kputw(va, &tmp);
                 } else if (*s == 'f' || *s == 'd') {
-                    kputc(' ', &tmp);
-                    kputsn((char*)s,8,&tmp);
-                    kputs("", &tmp);                    
-                    //double va = bam_aux2f(s);
-                    //kputd(va, &tmp);
+                    double va = bam_aux2f(s);
+                    kputd(va, &tmp);
                 } else if (*s == 'H' || *s == 'Z') {
                     char *va = bam_aux2Z(s);
                     kputs(va, &tmp);
                 }
+               
                 vals[idx] = tmp.s; //strndup((char*)(s+1), s0-s-1);
                 count ++;
             } else {
@@ -873,32 +863,59 @@ static void write_outs()
             int n;
             for (i = 0; i < n_barcode; ++i) {
                 char *name = dict_name(args.barcodes, i);
+                kputs(name, &str);
+                /*
+                debug_print("%s", name);
 
-                kstring_t temp = {0,0,0};
-                kputs(name, &temp);
-                int *s = ksplit(&temp, '\t', &n);
-                int j;
-                for (j = 0; j < n; ++j) {
-                    if (j) kputc('\t', &str);
-                    uint8_t *p = (uint8_t*)(temp.s + s[j]);
-                    if (*p == ' ') {
-                        p++;
-                        if (*p == 'S' || *p == 's' || *p == 'c' || *p == 'C' || *p == 'i' || *p == 'I') {
-                            int64_t va = bam_aux2i(p);
+                char *s0 = name;
+                char *end = name + strlen(name);
+
+                for (; *s0 && s0 != end;) {
+                    if (*s0 == ' ') {
+                        s0++;
+                        uint8_t type = *s0++;
+                        if (type == 'c') {
+                            int8_t va = le_to_i8(s0);
+                            s0 = s0 + 1;
+                        } else if (type == 'C') {
+                            uint8_t va = *s0;
+                            s0 = s0 + 1;
+                        } else if (type == 's') {
+                            int16_t va = le_to_i16(s0);
+                            s0 = s0 + 2;
+                        } else if (type == 'S') {
+                            uint16_t va = le_to_u16(s0);
+                            s0 = s0 + 2;
+                        } else if (type == 'i') {
+                            int32_t va = le_to_i32(s0);
                             kputw(va, &str);
-                        } else if (*p == 'f' || *p == 'd') {
-                            double va = bam_aux2f(p);
+                            s0 = s0 + 4;
+                        } else if (type == 'I') {
+                            uint32_t va = le_to_u32(s0);
+                            kputw(va, &str);
+                            s0 = s0 + 4;
+                        } else if (type == 'f') {
+                            float va = le_to_float(s0);
                             kputd(va, &str);
+                            s0 = s0 + 4;
+                        } else if (type == 'd') {
+                            double va = le_to_double(s0);
+                            kputd(va, &str);
+                            s0 = s0 + 8;
                         } else {
-                            error("Unknown type : %s", p);
+                            error("Unknown type : %s", s0);
                         }
+                    } else if (*s0 == '\t') {
+                        kputc('\t', &str);
+                        s0++;
                     } else {
-                        kputs((char*)p, &str);
+                        char *val = s0;
+                        for (;*s0 && s0 != end && *s0 != '\t'; ++s0);
+                        kputsn(val, s0- val,&str);
+                        kputs("", &str);
                     }
-                }
-                free(s);
-                if (temp.m) free(temp.s);
-                // kputs(dict_name(args.barcodes, i), &str);
+                    }
+                */
                 kputc('\n', &str);
             }
             l = bgzf_write(barcode_fp, str.s, str.l);
