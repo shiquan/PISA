@@ -466,7 +466,7 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
     if (l == 1) {
         uint8_t *data = bam_aux_get(b, dict_name(tags,0));
         if (!data) return NULL;
-        return strdup(data+1);
+        return strdup((char*)(data+1));
     }
     
     kstring_t str = {0,0,0};
