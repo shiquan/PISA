@@ -880,7 +880,7 @@ static void write_outs()
                 int j;
                 for (j = 0; j < n; ++j) {
                     if (j) kputc('\t', &str);
-                    uint8_t *p = temp.s + s[j];                    
+                    uint8_t *p = (uint8_t*)(temp.s + s[j]);
                     if (*p == ' ') {
                         p++;
                         if (*p == 'S' || *p == 's' || *p == 'c' || *p == 'C' || *p == 'i' || *p == 'I') {
@@ -893,7 +893,7 @@ static void write_outs()
                             error("Unknown type : %s", p);
                         }
                     } else {
-                        kputs(p, &str);
+                        kputs((char*)p, &str);
                     }
                 }
                 free(s);
