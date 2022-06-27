@@ -8,6 +8,7 @@
 #include "htslib/sam.h"
 #include "htslib/bgzf.h"
 #include "htslib/thread_pool.h"
+#include "htslib/hts_endian.h"
 #include "pisa_version.h" // mex output
 #include "read_tags.h"
 // from v0.10, -ttype supported
@@ -414,6 +415,108 @@ void merge_counts(struct ret *ret)
     dict_destroy(ret->barcodes);
     free(ret);
 }
+
+static inline int aux_type2size(uint8_t type)
+{
+    switch (type) {
+    case 'A': case 'c': case 'C':
+        return 1;
+    case 's': case 'S':
+        return 2;
+    case 'i': case 'I': case 'f':
+        return 4;
+    case 'd':
+        return 8;
+    case 'Z': case 'H': case 'B':
+        return type;
+    default:
+        return 0;
+    }
+}
+static inline uint8_t *skip_aux(uint8_t *s, uint8_t *end)
+{
+    int size;
+    uint32_t n;
+    if (s >= end) return end;
+    size = aux_type2size(*s); ++s; // skip type
+    switch (size) {
+    case 'Z':
+    case 'H':
+        while (s < end && *s) ++s;
+        return s < end ? s + 1 : end;
+    case 'B':
+        if (end - s < 5) return NULL;
+        size = aux_type2size(*s); ++s;
+        n = le_to_u32(s);
+        s += 4;
+        if (size == 0 || end - s < size * n) return NULL;
+        return s + size * n;
+    case 0:
+        return NULL;
+    default:
+        if (end - s < size) return NULL;
+        return s + size;
+    }
+}
+
+static char *retrieve_tags(bam1_t *b, struct dict *tags)
+{
+    int l = dict_size(tags);
+
+    if (l == 1) {
+        uint8_t *data = bam_aux_get(b, dict_name(tags,0));
+        if (!data) return NULL;
+        return strdup(data+1);
+    }
+    
+    kstring_t str = {0,0,0};
+    char tag[2];
+
+    uint8_t *s, *end;
+    char **vals = malloc(l*sizeof(char**));
+    memset(vals,0, l*sizeof(char**));
+    
+    s = bam_get_aux(b);
+    end = b->data + b->l_data;
+    while (s != NULL && end - s >= 3) {
+        tag[0] = s[0];
+        tag[1] = s[1];
+        int idx = dict_query(tags, tag);
+        if (idx != -1) {
+            // Check the tag value is valid and complete
+            uint8_t *e = skip_aux(s, end);
+            if ((*s == 'Z' || *s == 'H') && *(e - 1) != '\0') {
+                error("Corrupted aux data for read %s", bam_get_qname(b));
+            }
+            if (e != NULL) {
+                vals[idx] = strdup(s+1);
+                //return s;
+            } else {
+                error("Corrupted aux data for read %s", bam_get_qname(b));
+            }
+        }
+        s = skip_aux(s, end);
+    }
+    
+    int i;
+    for (i = 0; i < l; ++i) {
+        if (vals[i] == NULL) {
+            int j;
+            for (j = i+1; j < l; ++j) {
+                if (vals[j]) free(vals[j]);
+            }
+            free(vals);
+            if (str.m) free(str.s);
+            return NULL;
+        }
+        if (i) kputc('\t', &str);
+        kputs(vals[i], &str);
+        free(vals[i]);
+    }
+
+    free(vals);
+    return str.s;
+}
 //struct ret *count_matrix_core(bam1_t *b, char *tag)
 static void *run_it(void *_p)
 {
@@ -432,8 +535,7 @@ static void *run_it(void *_p)
     
     kstring_t tmp = {0,0,0};
     kstring_t str = {0,0,0};
-    char *tag = NULL;
-    
+
     int record;
     for (record = 0; record < p->n; ++record) {
         tmp.l = 0;
@@ -456,6 +558,9 @@ static void *run_it(void *_p)
         
         //if (args.tags) {
 
+        // todo: perform improvement
+        char *tag = retrieve_tags(b,args.tags);
+        /*
         int i;
         for (i = 0; i < dict_size(args.tags); ++i) {
             uint8_t *tag0 = bam_aux_get(b, dict_name(args.tags,i));
@@ -480,10 +585,9 @@ static void *run_it(void *_p)
         
         if (tmp.l == 0) continue;
         tag = tmp.s;
+        */
 
-        //else if (args.alias_file_cb) {
-        //            assert(tag);
-        //}
+        if (tag == NULL) continue;
         
         uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
         //if (!anno_tag) goto skip_this_record;
@@ -494,7 +598,7 @@ static void *run_it(void *_p)
             // if (!umi_tag) goto skip_this_record;
             if (!umi_tag) continue;
         }
-        
+
         int unspliced = 0;
         int spanning = 0;
         int antisense = 0; // v0.12
@@ -512,6 +616,7 @@ static void *run_it(void *_p)
             else if (RE_type_map(data[1]) == type_antisense_intron) antisense = 1;
         }
         
+        
         int cell_id;
         if (args.whitelist_fname) {
             cell_id = dict_query(ret->barcodes, tag);
@@ -520,6 +625,7 @@ static void *run_it(void *_p)
         else {
             cell_id = dict_push(ret->barcodes, tag);
         }
+        free(tag);
         
         // for each feature
         kputs((char*)(anno_tag+1), &str);
@@ -535,7 +641,7 @@ static void *run_it(void *_p)
             continue;
         }
         
-        //int i;
+        int i;
         for (i = 0; i < n_gene; ++i) {
             // Features (Gene or Region)
             char *val = str.s + s[i];
