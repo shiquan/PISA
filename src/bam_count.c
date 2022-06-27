@@ -495,25 +495,25 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
                 kstring_t tmp = {0,0,0};
                 if (*s == 'S' || *s == 's') {
                     kputc(' ', &tmp);
-                    kputsn(s,2,&tmp);
+                    kputsn((char*)s,2,&tmp);
                     //uint16_t va = bam_aux2i(s);
                     //kputw(va, &tmp);
                     kputs("", &tmp);
                 } else if (*s == 'C' || *s == 'c') {
                     kputc(' ', &tmp);
-                    kputsn(s,1,&tmp);
+                    kputsn((char*)s,1,&tmp);
                     kputs("", &tmp);
                     //uint8_t va = bam_aux2i(s);
                     //kputw(va, &tmp);
                 } else if (*s == 'i' || *s == 'I') {
                     kputc(' ', &tmp);
-                    kputsn(s,4,&tmp);
+                    kputsn((char*)s,4,&tmp);
                     kputs("", &tmp);                    
                     //uint32_t va = bam_aux2i(s);
                     //kputw(va, &tmp);
                 } else if (*s == 'f' || *s == 'd') {
                     kputc(' ', &tmp);
-                    kputsn(s,8,&tmp);
+                    kputsn((char*)s,8,&tmp);
                     kputs("", &tmp);                    
                     //double va = bam_aux2f(s);
                     //kputd(va, &tmp);
@@ -880,7 +880,7 @@ static void write_outs()
                 int j;
                 for (j = 0; j < n; ++j) {
                     if (j) kputc('\t', &str);
-                    char *p = temp.s + s[j];                    
+                    uint8_t *p = temp.s + s[j];                    
                     if (*p == ' ') {
                         p++;
                         if (*p == 'S' || *p == 's' || *p == 'c' || *p == 'C' || *p == 'i' || *p == 'I') {
