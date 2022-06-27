@@ -415,7 +415,7 @@ void merge_counts(struct ret *ret)
     dict_destroy(ret->barcodes);
     free(ret);
 }
-
+//copy from sam.c
 static inline int aux_type2size(uint8_t type)
 {
     switch (type) {
@@ -470,7 +470,7 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
     }
     
     kstring_t str = {0,0,0};
-    char tag[2];
+    char tag[3]; tag[2] = '\0';
 
     uint8_t *s, *end;
     char **vals = malloc(l*sizeof(char**));
@@ -478,9 +478,11 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
     
     s = bam_get_aux(b);
     end = b->data + b->l_data;
+    int count = 0;
     while (s != NULL && end - s >= 3) {
-        tag[0] = s[0];
-        tag[1] = s[1];
+        if (count == l) break;
+        tag[0] = *s++;
+        tag[1] = *s++;
         int idx = dict_query(tags, tag);
         if (idx != -1) {
             // Check the tag value is valid and complete
@@ -489,12 +491,30 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
                 error("Corrupted aux data for read %s", bam_get_qname(b));
             }
             if (e != NULL) {
-                vals[idx] = strdup((char*)(s+1));
-                //return s;
+                kstring_t tmp = {0,0,0};
+                if (*s == 'S' || *s == 's') {
+                    uint16_t va = bam_aux2i(s);
+                    kputw(va, &tmp);
+                } else if (*s == 'C' || *s == 'c') {
+                    uint8_t va = bam_aux2i(s);
+                    kputw(va, &tmp);
+                } else if (*s == 'i' || *s == 'I') {
+                    uint32_t va = bam_aux2i(s);
+                    kputw(va, &tmp);
+                } else if (*s == 'f' || *s == 'd') {
+                    double va = bam_aux2f(s);
+                    kputd(va, &tmp);
+                } else if (*s == 'H' || *s == 'Z') {
+                    char *va = bam_aux2Z(s);
+                    kputs(va, &tmp);
+                }
+                vals[idx] = tmp.s; //strndup((char*)(s+1), s0-s-1);
+                count ++;
             } else {
                 error("Corrupted aux data for read %s", bam_get_qname(b));
             }
         }
+        
         s = skip_aux(s, end);
     }
     
@@ -555,6 +575,33 @@ static void *run_it(void *_p)
             }
             if (region_type_flag == 0) continue;
         }
+                
+        uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
+        //if (!anno_tag) goto skip_this_record;
+        if (!anno_tag) continue;
+        
+        if (args.umi_tag) {
+            uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
+            // if (!umi_tag) goto skip_this_record;
+            if (!umi_tag) continue;
+        }
+
+        int unspliced = 0;
+        int spanning = 0;
+        int antisense = 0; // v0.12
+        if (args.velocity) {
+            uint8_t *data = bam_aux_get(b, args.region_type_tag);
+            // if (!data) goto skip_this_record;
+            if (!data) continue;
+            if (RE_type_map(data[1]) == type_unknown)  continue; //goto skip_this_record;
+            if (RE_type_map(data[1]) == type_ambiguous) continue; //goto skip_this_record;
+            if (RE_type_map(data[1]) == type_intergenic) continue; // goto skip_this_record;
+
+            if (RE_type_map(data[1]) == type_exon_intron || RE_type_map(data[1]) == type_intron) unspliced = 1;
+            else if (RE_type_map(data[1]) == type_exon_intron) spanning = 1;
+            else if (RE_type_map(data[1]) == type_antisense) antisense = 1;
+            else if (RE_type_map(data[1]) == type_antisense_intron) antisense = 1;
+        }
         
         //if (args.tags) {
 
@@ -589,43 +636,16 @@ static void *run_it(void *_p)
 
         if (tag == NULL) continue;
         
-        uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
-        //if (!anno_tag) goto skip_this_record;
-        if (!anno_tag) continue;
-        
-        if (args.umi_tag) {
-            uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
-            // if (!umi_tag) goto skip_this_record;
-            if (!umi_tag) continue;
-        }
-
-        int unspliced = 0;
-        int spanning = 0;
-        int antisense = 0; // v0.12
-        if (args.velocity) {
-            uint8_t *data = bam_aux_get(b, args.region_type_tag);
-            // if (!data) goto skip_this_record;
-            if (!data) continue;
-            if (RE_type_map(data[1]) == type_unknown)  continue; //goto skip_this_record;
-            if (RE_type_map(data[1]) == type_ambiguous) continue; //goto skip_this_record;
-            if (RE_type_map(data[1]) == type_intergenic) continue; // goto skip_this_record;
-
-            if (RE_type_map(data[1]) == type_exon_intron || RE_type_map(data[1]) == type_intron) unspliced = 1;
-            else if (RE_type_map(data[1]) == type_exon_intron) spanning = 1;
-            else if (RE_type_map(data[1]) == type_antisense) antisense = 1;
-            else if (RE_type_map(data[1]) == type_antisense_intron) antisense = 1;
-        }
-        
-        
         int cell_id;
         if (args.whitelist_fname) {
             cell_id = dict_query(ret->barcodes, tag);
+            free(tag);
             if (cell_id == -1) continue; // goto skip_this_record;
         }
         else {
             cell_id = dict_push(ret->barcodes, tag);
+            free(tag);
         }
-        free(tag);
         
         // for each feature
         kputs((char*)(anno_tag+1), &str);
