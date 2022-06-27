@@ -489,7 +489,7 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
                 error("Corrupted aux data for read %s", bam_get_qname(b));
             }
             if (e != NULL) {
-                vals[idx] = strdup(s+1);
+                vals[idx] = strdup((char*)(s+1));
                 //return s;
             } else {
                 error("Corrupted aux data for read %s", bam_get_qname(b));
