@@ -221,10 +221,10 @@ static int parse_args(int argc, char **argv)
     }
 
     if (args.input_fname) {
-        args.files = init_bam_line(args.input_fname, args.n_thread);
+        args.files = init_bam_line(args.input_fname, args.n_thread > 10 ? 10 : args.n_thread);
     }
     else if (args.sample_list) {
-        args.files = init_bam_list(args.sample_list, args.n_thread);
+        args.files = init_bam_list(args.sample_list, args.n_thread > 10 ? 10 : args.n_thread);
     }
     else error("Not found input bam file.");
 
@@ -491,19 +491,32 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
                 error("Corrupted aux data for read %s", bam_get_qname(b));
             }
             if (e != NULL) {
+                // put empty space to unconverted value
                 kstring_t tmp = {0,0,0};
                 if (*s == 'S' || *s == 's') {
-                    uint16_t va = bam_aux2i(s);
-                    kputw(va, &tmp);
+                    kputc(' ', &tmp);
+                    kputsn(s,2,&tmp);
+                    //uint16_t va = bam_aux2i(s);
+                    //kputw(va, &tmp);
+                    kputs("", &tmp);
                 } else if (*s == 'C' || *s == 'c') {
-                    uint8_t va = bam_aux2i(s);
-                    kputw(va, &tmp);
+                    kputc(' ', &tmp);
+                    kputsn(s,1,&tmp);
+                    kputs("", &tmp);
+                    //uint8_t va = bam_aux2i(s);
+                    //kputw(va, &tmp);
                 } else if (*s == 'i' || *s == 'I') {
-                    uint32_t va = bam_aux2i(s);
-                    kputw(va, &tmp);
+                    kputc(' ', &tmp);
+                    kputsn(s,4,&tmp);
+                    kputs("", &tmp);                    
+                    //uint32_t va = bam_aux2i(s);
+                    //kputw(va, &tmp);
                 } else if (*s == 'f' || *s == 'd') {
-                    double va = bam_aux2f(s);
-                    kputd(va, &tmp);
+                    kputc(' ', &tmp);
+                    kputsn(s,8,&tmp);
+                    kputs("", &tmp);                    
+                    //double va = bam_aux2f(s);
+                    //kputd(va, &tmp);
                 } else if (*s == 'H' || *s == 'Z') {
                     char *va = bam_aux2Z(s);
                     kputs(va, &tmp);
@@ -855,15 +868,43 @@ static void write_outs()
         kstring_t str2 = {0,0,0};
         kstring_t str3 = {0,0,0};
         kstring_t str4 = {0,0,0};
-        
-        for (i = 0; i < n_barcode; ++i) {
-            kputs(dict_name(args.barcodes, i), &str);
-            kputc('\n', &str);
-        }
-        int l = bgzf_write(barcode_fp, str.s, str.l);
-        if (l != str.l) error("Failed to write.");
-        bgzf_close(barcode_fp);
+        int l;
+        if (1) {
+            int n;
+            for (i = 0; i < n_barcode; ++i) {
+                char *name = dict_name(args.barcodes, i);
 
+                kstring_t temp = {0,0,0};
+                kputs(name, &temp);
+                int *s = ksplit(&temp, '\t', &n);
+                int j;
+                for (j = 0; j < n; ++j) {
+                    if (j) kputc('\t', &str);
+                    char *p = temp.s + s[j];                    
+                    if (*p == ' ') {
+                        p++;
+                        if (*p == 'S' || *p == 's' || *p == 'c' || *p == 'C' || *p == 'i' || *p == 'I') {
+                            int64_t va = bam_aux2i(p);
+                            kputw(va, &str);
+                        } else if (*p == 'f' || *p == 'd') {
+                            double va = bam_aux2f(p);
+                            kputd(va, &str);
+                        } else {
+                            error("Unknown type : %s", p);
+                        }
+                    } else {
+                        kputs(p, &str);
+                    }
+                }
+                free(s);
+                if (temp.m) free(temp.s);
+                // kputs(dict_name(args.barcodes, i), &str);
+                kputc('\n', &str);
+            }
+            l = bgzf_write(barcode_fp, str.s, str.l);
+            if (l != str.l) error("Failed to write.");
+            bgzf_close(barcode_fp);
+        }
         str.l = 0;
         BGZF *feature_fp = bgzf_open(feature_str.s, "w");
         bgzf_mt(feature_fp, args.n_thread, 256);
