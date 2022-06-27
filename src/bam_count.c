@@ -860,7 +860,6 @@ static void write_outs()
         kstring_t str4 = {0,0,0};
         int l;
         if (1) {
-            int n;
             for (i = 0; i < n_barcode; ++i) {
                 char *name = dict_name(args.barcodes, i);
                 kputs(name, &str);
