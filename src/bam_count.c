@@ -45,6 +45,8 @@ static struct args {
 
     int n_thread;
     int chunk_size;
+
+    int bin_size;
     
     //uint64_t n_record;  
     uint64_t n_record1; //  records in spliced matrix
@@ -82,6 +84,8 @@ static struct args {
     
     .n_thread        = 5,
     .chunk_size      = 10000000,
+    .bin_size        = 1,
+    
     //.fp_in           = NULL,
     //.hdr             = NULL,
     //.n_record        = 0,
@@ -140,6 +144,7 @@ static int parse_args(int argc, char **argv)
     const char *n_thread = NULL;
     const char *region_types = NULL;
     const char *tag_str = NULL;
+    const char *bin_size = NULL;
     
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
@@ -157,6 +162,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-ttype") == 0) var = &region_types;
         else if (strcmp(a, "-prefix") == 0) var = &args.prefix;
         else if (strcmp(a, "-sample-list") == 0) var = &args.sample_list;
+        else if (strcmp(a, "-bin") == 0) var = &bin_size;
         else if (strcmp(a, "-dup") == 0) {
             args.use_dup = 1;
             continue;
@@ -260,6 +266,10 @@ static int parse_args(int argc, char **argv)
         free(s);
         free(str.s);
     }
+
+    if (bin_size) args.bin_size = str2int(bin_size);
+
+    assert(args.bin_size >=1);
     return 0;
 }
 // decode UMI hex to [ACGT]s
@@ -496,15 +506,18 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
 
                 if (*s == 'C' || *s == 'c') {
                     uint8_t va = bam_aux2i(s);
+                    if (args.bin_size > 1) va = (uint8_t)(va/args.bin_size)*args.bin_size;
                     kputw(va, &tmp);
                 } else if (*s == 'S' || *s == 's') {
                     uint16_t va = bam_aux2i(s);
+                    if (args.bin_size > 1) va = (uint16_t)(va/args.bin_size)*args.bin_size;
                     kputw(va, &tmp);
                 } else if (*s == 'i' || *s == 'I') {
                     uint32_t va = bam_aux2i(s);
+                    if (args.bin_size > 1) va = (uint32_t)(va/args.bin_size)*args.bin_size;
                     kputw(va, &tmp);
                 } else if (*s == 'f' || *s == 'd') {
-                    double va = bam_aux2f(s);
+                    double va = bam_aux2f(s);                    
                     kputd(va, &tmp);
                 } else if (*s == 'H' || *s == 'Z') {
                     char *va = bam_aux2Z(s);
