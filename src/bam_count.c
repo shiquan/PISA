@@ -83,7 +83,7 @@ static struct args {
     .stereoseq       = 0,
     
     .n_thread        = 5,
-    .chunk_size      = 10000000,
+    .chunk_size      = 1000000,
     .bin_size        = 1,
     
     //.fp_in           = NULL,
@@ -145,7 +145,8 @@ static int parse_args(int argc, char **argv)
     const char *region_types = NULL;
     const char *tag_str = NULL;
     const char *bin_size = NULL;
-    
+    const char *chunk_size = NULL;
+
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -163,6 +164,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-prefix") == 0) var = &args.prefix;
         else if (strcmp(a, "-sample-list") == 0) var = &args.sample_list;
         else if (strcmp(a, "-bin") == 0) var = &bin_size;
+        else if (strcmp(a, "-chunk-size") == 0) var = &chunk_size;
         else if (strcmp(a, "-dup") == 0) {
             args.use_dup = 1;
             continue;
@@ -219,7 +221,8 @@ static int parse_args(int argc, char **argv)
     if (args.anno_tag == 0) error("No anno tag specified.");
 
     if (n_thread) args.n_thread = str2int((char*)n_thread);
-
+    if (chunk_size) args.chunk_size = str2int((char*)chunk_size);
+    
     if (args.outdir) {
          struct stat sb;
          if (stat(args.outdir, &sb) != 0) error("Directory %s is not exist.", args.outdir);
