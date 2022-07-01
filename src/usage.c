@@ -385,9 +385,8 @@ int bam_count_usage()
     fprintf(stderr, " -ttag     [TAG]      Region type tag. [RE]\n");
     fprintf(stderr, " -velo                Generate spliced and unspliced matrix files for RNA velocity analysis.\n");
     fprintf(stderr, " -ttype    [TYPE]     Region type used to count. Set `E,S` to count exon enclosed reads. Set `N,C` to count intron overlapped reads.\n");
-    fprintf(stderr, " -file-barcode        No cell barcode tag in the bam, but alias file name as cell barcode. This option must use with -sample-list.\n");
-    fprintf(stderr, " -sample-list [FILE]  A list of bam files. First column of this file should be path of bam files. Optional second column is the \n");
-    fprintf(stderr, "                      sample or cell name. This option is useful for one cell per bam experiment, like Smartseq.\n");
+    //fprintf(stderr, " -file-barcode        No cell barcode tag in the bam, but alias file name as cell barcode. This option must use with -sample-list.\n");
+    fprintf(stderr, " -sample-list [FILE]  A list of bam files. Each path per line.\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
     fprintf(stderr, " * Region type (RE), which label functional region reads mapped, is annotated by `\x1b[1mPISA\x1b[0m anno`. Optional -ttype can be set\n");
     fprintf(stderr, "   to one of region types(E/S/C/N) or combination to count reads mapped to these functional regions only.\n");
