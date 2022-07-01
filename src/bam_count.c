@@ -354,7 +354,6 @@ struct ret {
 void merge_counts(struct ret *ret)
 {
     if (ret == NULL) return;
-    debug_print("merge counts ...");
     int i;
     for (i = 0; i < dict_size(ret->features); ++i) {
         char *feature = dict_name(ret->features, i);
@@ -558,7 +557,6 @@ static void *run_it(void *_p)
 {
     struct bam_pool *p = (struct bam_pool*)_p;
     if (p == NULL) return NULL;
-    debug_print("%d",p->n);
     struct ret *ret = malloc(sizeof(*ret));
     ret->features = dict_init();
     ret->barcodes = dict_init();
@@ -1170,10 +1168,8 @@ int count_matrix(int argc, char **argv)
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
 
-    debug_print("Update counts..");
     update_counts();
 
-    debug_print("Write counts..");
     write_outs();
     
     memory_release();
@@ -1203,10 +1199,8 @@ int count_matrix1(int argc, char **argv)
 
     }
     
-    debug_print("Update counts..");
     update_counts();
 
-    debug_print("Write counts..");
     write_outs();
     
     memory_release();
