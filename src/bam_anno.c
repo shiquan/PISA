@@ -38,6 +38,7 @@ struct read_stat {
     uint64_t reads_ambiguous;
 
     uint64_t reads_tss;
+    uint64_t reads_anno_genes;
 };
 
 static struct args {
@@ -742,16 +743,18 @@ void gtf_anno_push(struct trans_type *a, struct gtf_anno_type *ann, int gene_id,
     g->a[g->n].type = a->type;
     g->n++;
 }
-void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const *G)
+// return 1 if annotate more than one gene, otherwise return 0
+int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const *G)
 {
+    int ret = 0;
     // 
-    if (ann->type == type_unknown) return;
-    else if (ann->type == type_intron && args.intron_consider == 0) return;  
-    else if (ann->type == type_exon_intron && args.splice_consider == 0 && args.intron_consider == 0) return; // 
-    else if (ann->type == type_ambiguous) return;
-    else if (ann->type == type_antisense && args.antisense == 0) return;
-    else if (ann->type == type_antisense_intron && args.antisense == 0) return;
-    
+    if (ann->type == type_unknown) return ret;
+    else if (ann->type == type_intron && args.intron_consider == 0) return ret;
+    else if (ann->type == type_exon_intron && args.splice_consider == 0 && args.intron_consider == 0) return ret; // 
+    else if (ann->type == type_ambiguous) return ret;
+    else if (ann->type == type_antisense && args.antisense == 0) return ret;
+    else if (ann->type == type_antisense_intron && args.antisense == 0) return ret;
+
     // only exon or splice come here
     kstring_t gene_name = {0,0,0};
     kstring_t gene_id   = {0,0,0};
@@ -770,6 +773,7 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
                 kputc(';', &gene_name);
                 kputc(';', &gene_id);
                 kputc(';', &trans_id);
+                ret = 1;
             }
 
             if (gene == NULL && id == NULL) error("No gene name or gene id in gtf? %s", (char*)b->data);
@@ -799,6 +803,7 @@ void gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const
         free(gene_name.s);
         free(trans_id.s);
     }
+    return ret;
 }
 
 struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam_hdr_t *h)
@@ -906,7 +911,9 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)RE_tag_name(ann->type));
 
     // in default, not annotate gene name for Antisense
-    gtf_anno_string(b, ann, G);
+    int overlap = gtf_anno_string(b, ann, G);
+
+    if (overlap) stat->reads_anno_genes++;
 
     if (ann->type == type_exon) stat->reads_in_exon++;
     else if (ann->type == type_splice) stat->reads_in_exon++; // reads cover two exomes
@@ -1201,6 +1208,7 @@ static void write_out(void *_d)
         s0->reads_ambiguous += s1->reads_ambiguous;
         s0->reads_in_exonintron += s1->reads_in_exonintron;
         s0->reads_tss += s1->reads_tss;
+        s0->reads_anno_genes += s1->reads_anno_genes;
     }
     bam_pool_destory(dat->p);
 
@@ -1237,6 +1245,7 @@ void write_report()
             
             fprintf(args.fp_report, "Reads Mapped to Intergenic Regions,%.1f%%\n", (float)s0->reads_in_intergenic/args.reads_pass_qc*100);
             fprintf(args.fp_report, "Reads Mapped to Gene but Failed to Interpret Type,%.1f%%\n", (float)s0->reads_ambiguous/args.reads_pass_qc*100);
+            fprintf(args.fp_report, "Reads Mapped to Overlapped genes,%.1f%%\n", (float)s0->reads_anno_genes/args.reads_pass_qc*100);
             if (s0->reads_tss>0) {
                 fprintf(args.fp_report, "Reads map start from TSS,%.1f%%\n", (float)s0->reads_tss/args.reads_pass_qc*100);
             }
