@@ -222,7 +222,7 @@ static int parse_args(int argc, char **argv)
 
     if (n_thread) args.n_thread = str2int((char*)n_thread);
     if (chunk_size) args.chunk_size = str2int((char*)chunk_size);
-    
+
     if (args.outdir) {
          struct stat sb;
          if (stat(args.outdir, &sb) != 0) error("Directory %s is not exist.", args.outdir);
