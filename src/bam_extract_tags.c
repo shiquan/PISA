@@ -131,15 +131,16 @@ int bam_extract_tags(int argc, char **argv)
                 if (*tag == 'S' || *tag == 's' || *tag == 'c' || *tag == 'i' || *tag == 'I') {
                     int64_t va = bam_aux2i(tag);
                     kputw(va, &str);
-                } else if (*tag == 'f' || *tag == 'd') {
+                }
+                else if (*tag == 'f' || *tag == 'd') {
                     double va = bam_aux2f(tag);
                     kputd(va, &str);
-                } else if (*tag == 'H' || *tag == 'Z') {
+                }
+                else if (*tag == 'H' || *tag == 'Z') {
                     char *va = bam_aux2Z(tag);
                     kputs(va, &str);
                 }
-                
-                if (*tag == 'A') kputc(tag[1], &str);
+                else if (*tag == 'A') kputc(tag[1], &str);
                 else kputs((char*)(tag+1), &str);
             }
         }

@@ -96,6 +96,7 @@ int fastq_parse2_usage()
     fprintf(stderr, "   TAG and locaion parts are mandatory, and whitelist, corrected TAG and mismatch are optional.\n");
     fprintf(stderr, "   Futhermore, multiply tags seperated by \';\'. In location part, R1 stands for raw read 1, R2 stands for raw read 2.\n");
     fprintf(stderr, "   In tag part, R1 stands for output read 1 while R2 stands for output read 2. Here are some examples.\n");
+    fprintf(stderr, " * PISA/parse2 read FASTQ files by using libz APIs which is not work in parallel, increase the number of threads.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse2 -rule '\x1b[32mCR,R1:1-18,barcodes.txt,CB,1;\x1b[33mUR,R1:19-30;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
     fprintf(stderr, "\n");
