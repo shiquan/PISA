@@ -1,4 +1,5 @@
 # PISA
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6787430.svg)](https://doi.org/10.5281/zenodo.6787430)
 
 * [PISA Manual](https://github.com/shiquan/PISA/blob/master/PISA_manual.pdf) 
 * Online wiki [https://github.com/shiquan/PISA/wiki](https://github.com/shiquan/PISA/wiki)
