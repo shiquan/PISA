@@ -667,7 +667,7 @@ char *GTF_transid(struct gtf_spec *G, int id)
     return dict_name(G->transcript_id, id);
 }
 
-void write_gtf_fp(struct gtf_spec *G, struct gtf *gtf, FILE *fp)
+void write_gtf_fp(struct gtf_spec *G, struct gtf *gtf, FILE *fp, struct dict *keys)
 {
     fputs(dict_name(G->name,gtf->seqname), fp);
     if (gtf->source == -1)fputs("\t.\t", fp);
@@ -685,6 +685,10 @@ void write_gtf_fp(struct gtf_spec *G, struct gtf *gtf, FILE *fp)
         int i;
         for (i = 0; i < dict_size(gtf->attr); ++i) {
             char *name = dict_name(gtf->attr, i);
+            if (keys) {
+                int ret = dict_query(keys,name);
+                if (ret == -1) continue;
+            }
             fprintf(fp, " %s", name);
             char *val = dict_query_value(gtf->attr, i);
             if (val) fprintf(fp, " \"%s\";", val);
@@ -694,10 +698,10 @@ void write_gtf_fp(struct gtf_spec *G, struct gtf *gtf, FILE *fp)
     fputc('\n', fp);
     
     int i;
-    for (i = 0; i < gtf->n_gtf; ++i) write_gtf_fp(G, gtf->gtf[i], fp);
+    for (i = 0; i < gtf->n_gtf; ++i) write_gtf_fp(G, gtf->gtf[i], fp, keys);
 }
 
-void gtf_dump(struct gtf_spec *G, const char *fname)
+void gtf_dump(struct gtf_spec *G, const char *fname, struct dict *keys)
 {
     FILE *fp = fopen(fname, "w");
     if (fp == NULL) error("%s : %s.", fname, strerror(errno));
@@ -706,7 +710,7 @@ void gtf_dump(struct gtf_spec *G, const char *fname)
         struct gtf_ctg *ctg = dict_query_value(G->name, i);
         for (j = 0; j < ctg->n_gtf; ++j) {
             struct gtf *gtf = ctg->gtf[j];
-            write_gtf_fp(G, gtf, fp);
+            write_gtf_fp(G, gtf, fp, keys);
         }
     }
     fclose(fp);
