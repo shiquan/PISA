@@ -533,10 +533,17 @@ static void *run_it(void *data)
 {
     struct bam_pool *p = (struct bam_pool*)data;
     int i;
-    int c = 0;
+    int cnt = 0;
     for (i = 0; i < p->n; ++i) {
         bam1_t *b = &p->bam[i];
-        c += update_new_tag(args.Cindex, args.n_block, (const char**)args.blocks, args.tag, args.new_tag, b);
+        bam1_core_t *c = &b->core;
+        if (c->flag & BAM_FQCFAIL ||
+            c->flag & BAM_FSECONDARY ||
+            c->flag & BAM_FSUPPLEMENTARY ||
+            c->flag & BAM_FUNMAP ||
+            c->flag & BAM_FDUP) continue;
+        
+        cnt += update_new_tag(args.Cindex, args.n_block, (const char**)args.blocks, args.tag, args.new_tag, b);
     }
     
     return p;
