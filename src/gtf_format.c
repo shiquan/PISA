@@ -32,7 +32,9 @@ int gtf_format(int argc, char **argv)
         
         if (strcmp(a, "-o") == 0 || strcmp(a, "-out") == 0)
             var = &output_fname;
-        else if(strcmp(a, "-f") == 0) {
+        else if (strcmp(a, "-key") == 0)
+            var = &key_str;
+        else if (strcmp(a, "-f") == 0) {
             only_exon = 1;
             continue;
         }
