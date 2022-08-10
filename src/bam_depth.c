@@ -25,9 +25,11 @@ static struct args {
     int strand;
 
     bam_hdr_t *hdr;
-
+    
     int mapq_thres;
     int n_thread;
+
+    int ignore_strand;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
@@ -46,6 +48,7 @@ static struct args {
     .strand      = BED_STRAND_UNK,
     .mapq_thres  = 20,
     .n_thread    = 4,
+    .ignore_strand = 0
 };
 
 static int parse_args(int argc, char **argv)
@@ -65,7 +68,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-q") == 0) var = &mapq;
         else if (strcmp(a, "-@") == 0) var = &threads;
         else if (strcmp(a, "-bed") == 0) var = &args.region_fname;
-        
+        else if (strcmp(a, "-i") == 0) {
+            args.ignore_strand = 1;
+            continue;
+        }
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -130,7 +136,6 @@ static int parse_args(int argc, char **argv)
                 str.s[j]=0;
                 if (args.tid == -1) {
                     args.tid = sam_hdr_name2tid(args.hdr, s);
-                    //debug_print("%s", s);
                     if (args.tid == -1) error("Not found this chromosome at header. %s", str.s);
                     s = str.s+j+1;
                 }
@@ -178,7 +183,7 @@ static void memory_release()
 struct depth {
     int pos;
     int depth;
-
+    int strand;
     struct dict *bc;
     struct depth *next;
     struct depth *before;
@@ -201,6 +206,8 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
     struct depth *head = NULL;
     struct depth *tail = NULL;
 
+    int strand0;
+    
     if (itr) {
         while ((result = sam_itr_multi_next(args.fp, itr, b)) >= 0) {
             bam1_core_t *c = &b->core;
@@ -210,15 +217,18 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
             if (c->flag & BAM_FQCFAIL) continue;
             if (c->flag & BAM_FDUP) continue;
 
-            if (strand == BED_STRAND_FWD && c->flag & BAM_FREVERSE) continue;
-            if (strand == BED_STRAND_REV && !(c->flag & BAM_FREVERSE)) continue;
+            if (c->flag & BAM_FREVERSE) strand0 = BED_STRAND_REV;
+            else strand0 = BED_STRAND_FWD;
+            
+            if (strand == BED_STRAND_FWD && strand0 == BED_STRAND_REV) continue;
+            if (strand == BED_STRAND_REV && strand0 == BED_STRAND_FWD) continue;
             
             uint8_t *data = NULL;
             if (args.barcodes) {
                 data = bam_aux_get(b, args.tag);
                 if (data == NULL) continue;
                 int idx = dict_query(args.barcodes, (char*)(data+1));
-                if (idx == -1) continue;                
+                if (idx == -1) continue;
             }
 
             if (args.umi_tag) {
@@ -234,14 +244,18 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
                     dict_destroy(head->bc);
                 }
                 if (head->pos > start && head->pos <= end)
-                    fprintf(args.out, "%s\t%d\t%c\t%d\n", args.hdr->target_name[tid], head->pos, ".+-"[strand+1], head->depth);
+                    fprintf(args.out, "%s\t%d\t%c\t%d\n",
+                            args.hdr->target_name[tid],
+                            head->pos,
+                            ".+-"[head->strand+1],
+                            head->depth);
                 struct depth *tmp = head;
                 head = head->next;
                 
                 if (head) head->before = NULL;
                 free(tmp);
             }
-            
+
             for (i = 0; i < b->core.n_cigar; ++i) {
                 int cig = bam_cigar_op(bam_get_cigar(b)[i]);
                 int ncig = bam_cigar_oplen(bam_get_cigar(b)[i]);
@@ -249,20 +263,20 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
                     int j;
                     for (j = 0; j < ncig; ++j) {
                         if (pos <= start) { pos++; continue;}
-                        if (pos > end) { pos++; continue;}
-
+                        if (pos > end) { pos++; continue;} // todo:
                         if (head == NULL) {
                             head = depth_init();
                             head->pos = pos;
                             head->next = NULL;
                             head->before = NULL;
+                            head->strand = strand0;
                             tail = head;
                         }
 
                         struct depth *cur;
                         
                         for (cur = tail; cur != NULL; cur = cur->before) {
-                            if (cur->pos == pos) {
+                            if (cur->pos == pos && cur->strand == strand0) {
                                 if (args.umi_tag) {
                                     if (cur->bc == NULL) cur->bc = dict_init();
                                     dict_push(cur->bc, (char*)(data+1));
@@ -276,6 +290,7 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
                                 new->pos = pos;
                                 new->next = cur->next;
                                 new->before = cur;
+                                new->strand = strand0;
                                 if (cur->next) cur->next->before = new;
                                 cur->next = new;
 
@@ -288,9 +303,25 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
                                 if (cur == tail) tail = new;
                                 
                                 break;
-                            }                            
+                            }   
                         }
-                        
+
+                        if (cur == NULL) {
+                            struct depth *new = depth_init();
+                            new->pos = pos;
+                            new->next = head;
+                            new->before = NULL;
+                            new->strand = strand0;
+
+                            head->before = new;
+
+                            if (args.umi_tag) {
+                                if (new->bc == NULL) new->bc = dict_init();
+                                dict_push(new->bc, (char*)(data+1));
+                            }
+                            else new->depth++;
+                            head = new;
+                        }
                         pos++;
                     }
                 }
@@ -312,7 +343,7 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
                 dict_destroy(cur->bc);
             }
             if (cur->pos > start && cur->pos <= end)
-                fprintf(args.out, "%s\t%d\t%c\t%d\n", args.hdr->target_name[tid], cur->pos, ".+-"[strand+1], cur->depth);
+                fprintf(args.out, "%s\t%d\t%c\t%d\n", args.hdr->target_name[tid], cur->pos, ".+-"[cur->strand+1], cur->depth);
             struct depth *tmp = cur;
             cur = cur->next;
             if (cur) cur->before = NULL;
@@ -325,7 +356,7 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
         hts_itr_destroy(itr);
     }
     bam_destroy1(b);
-    return 0;    
+    return 0;
 }
 
 extern int depth_usage();
