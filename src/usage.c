@@ -463,7 +463,7 @@ int depth_usage()
     fprintf(stderr, " -list     [FILE]     Candidate list for -tag.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. If set, only count unique UMIs for each location.\n");
     fprintf(stderr, " -bed      [BED]      Target BED region file. If the strand in column six set, only count reads with the same strand.\n");
-    fprintf(stderr, " -i                   Ignore strand.\n");
+    //fprintf(stderr, " -i                   Ignore strand.\n");
     //fprintf(stderr, " -tags     [TAG]      Only count reads with the defined tags.\n");
     fprintf(stderr, " -o        [FILE]     Output depth file. [stdout].\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. [20]\n");
