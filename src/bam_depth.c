@@ -28,8 +28,6 @@ static struct args {
     
     int mapq_thres;
     int n_thread;
-
-    int ignore_strand;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
@@ -48,7 +46,6 @@ static struct args {
     .strand      = BED_STRAND_UNK,
     .mapq_thres  = 20,
     .n_thread    = 4,
-    .ignore_strand = 0
 };
 
 static int parse_args(int argc, char **argv)
@@ -68,10 +65,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-q") == 0) var = &mapq;
         else if (strcmp(a, "-@") == 0) var = &threads;
         else if (strcmp(a, "-bed") == 0) var = &args.region_fname;
-        else if (strcmp(a, "-i") == 0) {
-            args.ignore_strand = 1;
-            continue;
-        }
+        
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
