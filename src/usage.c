@@ -454,13 +454,16 @@ int depth_usage()
 {
     fprintf(stderr, "# Count coverage depth or unique UMIs for genome locations.\n");
     fprintf(stderr, "\nUsage : \x1b[1mPISA\x1b[0m depth [options] sorted.bam [region]\n\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth -cb CB -umi UB -tags GN -region in.bed -o depth.tsv sorted.bam\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth -cb CB -umi UB sorted.bam chr1:1-2:+\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth sorted.bam chr1:1-2\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth sorted.bam chr1:1-2:+\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth -tag CB -list cells.txt -umi UB -region in.bed -o depth.tsv sorted.bam\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth -tag CB -list cells.txt -umi UB sorted.bam chr1:1-2:+\n");
     fprintf(stderr, "\nOptions : \n");
     fprintf(stderr, " -tag      [TAG]      Tag used for grouping reads.\n");
     fprintf(stderr, " -list     [FILE]     Candidate list for -tag.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. If set, only count unique UMIs for each location.\n");
     fprintf(stderr, " -bed      [BED]      Target BED region file. If the strand in column six set, only count reads with the same strand.\n");
+    fprintf(stderr, " -i                   Ignore strand.\n");
     //fprintf(stderr, " -tags     [TAG]      Only count reads with the defined tags.\n");
     fprintf(stderr, " -o        [FILE]     Output depth file. [stdout].\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. [20]\n");
