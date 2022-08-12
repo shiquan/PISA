@@ -28,11 +28,14 @@ static struct args {
     
     int mapq_thres;
     int n_thread;
+
+    int ignore_strand;
+    int split_by_tag;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
     .bc_list     = NULL,
-    .tag         = "CB",
+    .tag         = NULL,
     .umi_tag     = NULL,
     .barcodes    = NULL,
     .region_fname = NULL,
@@ -46,6 +49,8 @@ static struct args {
     .strand      = BED_STRAND_UNK,
     .mapq_thres  = 20,
     .n_thread    = 4,
+    .ignore_strand = 0,
+    .split_by_tag= 0
 };
 
 static int parse_args(int argc, char **argv)
@@ -65,7 +70,14 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-q") == 0) var = &mapq;
         else if (strcmp(a, "-@") == 0) var = &threads;
         else if (strcmp(a, "-bed") == 0) var = &args.region_fname;
-        
+        else if (strcmp(a, "-split") == 0) {
+            args.split_by_tag = 1;
+            continue;
+        }
+        else if (strcmp(a, "-is") == 0) {
+            args.ignore_strand = 1;
+            continue;
+        }
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -95,8 +107,11 @@ static int parse_args(int argc, char **argv)
         args.mapq_thres = str2int(mapq); 
     }
 
+    if (args.split_by_tag == 1 && args.tag == NULL) error("-tag is required which set -split.");
+    if (args.tag) args.barcodes = dict_init();
+    
     if (args.bc_list) {
-        args.barcodes = dict_init();
+        // args.barcodes = dict_init();
         dict_read(args.barcodes, args.bc_list, 0);
         if (dict_size(args.barcodes) == 0) error("Barcode list is empty?");
     }
@@ -178,6 +193,7 @@ struct depth {
     int pos;
     int depth;
     int strand;
+    int id;
     struct dict *bc;
     struct depth *next;
     struct depth *before;
@@ -187,6 +203,7 @@ static struct depth *depth_init()
 {
     struct depth *d = malloc(sizeof(*d));
     memset(d, 0, sizeof(*d));
+    d->id = -1;
     return d;
 }
 
@@ -211,20 +228,31 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
             if (c->flag & BAM_FQCFAIL) continue;
             if (c->flag & BAM_FDUP) continue;
 
-            if (c->flag & BAM_FREVERSE) strand0 = BED_STRAND_REV;
-            else strand0 = BED_STRAND_FWD;
+            if (args.ignore_strand) strand0 = BED_STRAND_UNK;
+            else {
+                if (c->flag & BAM_FREVERSE) strand0 = BED_STRAND_REV;
+                else strand0 = BED_STRAND_FWD;
+            }
             
             if (strand == BED_STRAND_FWD && strand0 == BED_STRAND_REV) continue;
             if (strand == BED_STRAND_REV && strand0 == BED_STRAND_FWD) continue;
             
             uint8_t *data = NULL;
-            if (args.barcodes) {
+            int id = -1;
+            
+            if (args.bc_list) {
                 data = bam_aux_get(b, args.tag);
                 if (data == NULL) continue;
-                int idx = dict_query(args.barcodes, (char*)(data+1));
-                if (idx == -1) continue;
+                id = dict_query(args.barcodes, (char*)(data+1));
+                if (id == -1) continue;
             }
-
+            if (args.split_by_tag && id == -1) {
+                data = bam_aux_get(b, args.tag);
+                if (data == NULL) continue;
+                id = dict_query(args.barcodes, (char*)(data+1));
+                if (id == -1) id = dict_push(args.barcodes, (char*)(data+1));
+            }
+            
             if (args.umi_tag) {
                 data = bam_aux_get(b, args.umi_tag);
                 if (data == NULL) continue;                
@@ -237,12 +265,23 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
                     head->depth = dict_size(head->bc);
                     dict_destroy(head->bc);
                 }
-                if (head->pos > start && head->pos <= end)
-                    fprintf(args.out, "%s\t%d\t%c\t%d\n",
-                            args.hdr->target_name[tid],
-                            head->pos,
-                            ".+-"[head->strand+1],
-                            head->depth);
+                if (head->pos > start && head->pos <= end) {
+                    if (args.split_by_tag == 0) {
+                        fprintf(args.out, "%s\t%d\t%c\t%d\n",
+                                args.hdr->target_name[tid],
+                                head->pos,
+                                ".+-"[head->strand+1],
+                                head->depth);
+                    } else {
+                        fprintf(args.out, "%s\t%d\t%c\t%d\t%s\n",
+                                args.hdr->target_name[tid],
+                                head->pos,
+                                ".+-"[head->strand+1],
+                                head->depth,
+                                dict_name(args.barcodes, head->id)
+                            );
+                    }
+                }
                 struct depth *tmp = head;
                 head = head->next;
                 
@@ -264,13 +303,14 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
                             head->next = NULL;
                             head->before = NULL;
                             head->strand = strand0;
+                            head->id = id;
                             tail = head;
                         }
 
                         struct depth *cur;
                         
                         for (cur = tail; cur != NULL; cur = cur->before) {
-                            if (cur->pos == pos && cur->strand == strand0) {
+                            if (cur->pos == pos && cur->strand == strand0 && cur->id == id) {
                                 if (args.umi_tag) {
                                     if (cur->bc == NULL) cur->bc = dict_init();
                                     dict_push(cur->bc, (char*)(data+1));
@@ -285,6 +325,8 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
                                 new->next = cur->next;
                                 new->before = cur;
                                 new->strand = strand0;
+                                new->id = id;
+                                
                                 if (cur->next) cur->next->before = new;
                                 cur->next = new;
 
@@ -306,7 +348,8 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
                             new->next = head;
                             new->before = NULL;
                             new->strand = strand0;
-
+                            new->id = id;
+                            
                             head->before = new;
 
                             if (args.umi_tag) {
@@ -336,8 +379,22 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
                 cur->depth = dict_size(cur->bc);
                 dict_destroy(cur->bc);
             }
-            if (cur->pos > start && cur->pos <= end)
-                fprintf(args.out, "%s\t%d\t%c\t%d\n", args.hdr->target_name[tid], cur->pos, ".+-"[cur->strand+1], cur->depth);
+            if (cur->pos > start && cur->pos <= end) {
+                if (args.split_by_tag == 0) {
+                    fprintf(args.out, "%s\t%d\t%c\t%d\n",
+                            args.hdr->target_name[tid],
+                            cur->pos, ".+-"[cur->strand+1],
+                            cur->depth);
+                } else {
+                    fprintf(args.out, "%s\t%d\t%c\t%d\t%s\n",
+                            args.hdr->target_name[tid],
+                            cur->pos,
+                            ".+-"[cur->strand+1],
+                            cur->depth,
+                            dict_name(args.barcodes, cur->id));
+                }
+            }
+            
             struct depth *tmp = cur;
             cur = cur->next;
             if (cur) cur->before = NULL;
