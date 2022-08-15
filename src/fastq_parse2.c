@@ -549,10 +549,11 @@ static void *run_it(void *_p)
                 //debug_print("%s", tmp);
                 name1 = fname_update_tag(tmp,r->corr_tag, corr.s);
                 free(tmp);
-                // if corrected, create new tag, otherwise keep empty
-                b->n0.l = 0;
-                kputs(name1, &b->n0);
             }
+            // if corrected, create new tag, otherwise keep empty
+            b->n0.l = 0;
+            kputs(name1, &b->n0);
+            
             free(name1);
             free(str.s);
             if (corr.m) free(corr.s);
