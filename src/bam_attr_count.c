@@ -171,7 +171,6 @@ int counts_push(struct counts *cnt, bam1_t *b)
             if (!va) return 0;
         }
     }
-    
 
     uint8_t *tag = bam_aux_get(b, args.cb_tag);
     if (!tag) return 1; // skip records without cell Barcodes
