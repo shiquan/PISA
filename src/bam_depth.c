@@ -310,11 +310,15 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
                 id = dict_query(args.barcodes, (char*)(data+1));
                 if (id == -1) continue;
             }
-            if (args.split_by_tag && id == -1) {
-                data = bam_aux_get(b, args.tag);
-                if (data == NULL) continue;
-                id = dict_query(args.barcodes, (char*)(data+1));
-                if (id == -1) id = dict_push(args.barcodes, (char*)(data+1));
+            if (args.split_by_tag) {
+                if (id == -1) {
+                    data = bam_aux_get(b, args.tag);
+                    if (data == NULL) continue;
+                    id = dict_query(args.barcodes, (char*)(data+1));
+                    if (id == -1) id = dict_push(args.barcodes, (char*)(data+1));
+                }
+            } else {
+                id = -1;
             }
             
             if (args.umi_tag) {

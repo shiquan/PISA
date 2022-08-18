@@ -176,16 +176,40 @@ int counts_push(struct counts *cnt, bam1_t *b)
     uint8_t *tag = bam_aux_get(b, args.cb_tag);
     if (!tag) return 1; // skip records without cell Barcodes
 
-    char *name = (char*)(tag+1);
+    kstring_t str = {0,0,0};
+
+    if (*tag == 'Z' || *tag == 'H') {
+        kputs((char*)(tag+1), &str);
+    } else if (*tag == 'A') {
+        kputc(tag[1], &str);
+        kputs("", &str);
+    } else if (*tag == 'C' || *tag == 'c') {
+        uint8_t va = bam_aux2i(tag);
+        kputw(va, &str);
+    } else if (*tag == 'S' || *tag == 's') {
+        uint16_t va = bam_aux2i(tag);
+        kputw(va, &str);
+    } else if (*tag == 'i' || *tag == 'I') {
+        uint32_t va = bam_aux2i(tag);
+        kputw(va, &str);
+    } else if (*tag == 'f' || *tag == 'd') {
+        double va = bam_aux2f(tag); 
+        kputd(va, &str);
+    } else if (*tag == 'H' || *tag == 'Z') {
+        char *va = bam_aux2Z(tag);
+        kputs(va, &str);
+    } else {
+        error("Corrupted aux data for read %s", bam_get_qname(b));
+    }
     int id = -1; // individual index
     
     if (args.is_dyn_alloc == 0) {
-        id = dict_query(cnt->bc_dict, name);
+        id = dict_query(cnt->bc_dict, str.s);
         if (id == -1) return 1;
-        dict_push(cnt->bc_dict, name); // increase count
+        dict_push(cnt->bc_dict, str.s); // increase count
     }
     else {
-        id = dict_push(cnt->bc_dict, name);
+        id = dict_push(cnt->bc_dict, str.s);
         if (dict_size(cnt->bc_dict) >= cnt->m) {
             cnt->m = cnt->m == 0 ? 1024 : cnt->m<<1;
             cnt->counts = realloc(cnt->counts, cnt->m*sizeof(struct counts_per_bcode));
@@ -198,6 +222,8 @@ int counts_push(struct counts *cnt, bam1_t *b)
             cnt->n = cnt->m;
         }
     }
+    free(str.s);
+    
     struct counts_per_bcode *bc = &cnt->counts[id];
 
     // check region types
