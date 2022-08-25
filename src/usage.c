@@ -84,6 +84,7 @@ int fastq_parse2_usage()
     fprintf(stderr, " -report  [csv]     Summary report.\n");
     fprintf(stderr, " -order             Keep input order.\n");
     fprintf(stderr, " -t       [INT]     Threads. [4]\n");
+    //fprintf(stderr, " -suffix  [STRING]  Suffix string for corrected barcode.\n");
     fprintf(stderr, " -x                 Predefined code for specific library.\n");
     fprintf(stderr, "          * C4      Library structure for DNBelab C4 RNA kit v1.\n");
 
@@ -462,9 +463,9 @@ int depth_usage()
     fprintf(stderr, " -tag      [TAG]      Tag used for grouping reads.\n");
     fprintf(stderr, " -list     [FILE]     Candidate list for -tag.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. If set, only count unique UMIs for each location.\n");
-    fprintf(stderr, " -bed      [BED]      Target BED region file. If the strand in column six set, only count reads with the same strand.\n");
-    //fprintf(stderr, " -i                   Ignore strand.\n");
-    //fprintf(stderr, " -tags     [TAG]      Only count reads with the defined tags.\n");
+    fprintf(stderr, " -split               Group reads by tag id.\n");
+    fprintf(stderr, " -is                  Ignore strand.\n");
+    fprintf(stderr, " -bed      [BED]      Target BED region file. \n");
     fprintf(stderr, " -o        [FILE]     Output depth file. [stdout].\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. [20]\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack bam. [4]\n");

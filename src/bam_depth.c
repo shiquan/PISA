@@ -28,11 +28,14 @@ static struct args {
     
     int mapq_thres;
     int n_thread;
+
+    int ignore_strand;
+    int split_by_tag;
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
     .bc_list     = NULL,
-    .tag         = "CB",
+    .tag         = NULL,
     .umi_tag     = NULL,
     .barcodes    = NULL,
     .region_fname = NULL,
@@ -46,6 +49,8 @@ static struct args {
     .strand      = BED_STRAND_UNK,
     .mapq_thres  = 20,
     .n_thread    = 4,
+    .ignore_strand = 0,
+    .split_by_tag= 0
 };
 
 static int parse_args(int argc, char **argv)
@@ -65,7 +70,14 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-q") == 0) var = &mapq;
         else if (strcmp(a, "-@") == 0) var = &threads;
         else if (strcmp(a, "-bed") == 0) var = &args.region_fname;
-        
+        else if (strcmp(a, "-split") == 0) {
+            args.split_by_tag = 1;
+            continue;
+        }
+        else if (strcmp(a, "-is") == 0) {
+            args.ignore_strand = 1;
+            continue;
+        }
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -95,8 +107,11 @@ static int parse_args(int argc, char **argv)
         args.mapq_thres = str2int(mapq); 
     }
 
+    if (args.split_by_tag == 1 && args.tag == NULL) error("-tag is required which set -split.");
+    if (args.tag) args.barcodes = dict_init();
+    
     if (args.bc_list) {
-        args.barcodes = dict_init();
+        // args.barcodes = dict_init();
         dict_read(args.barcodes, args.bc_list, 0);
         if (dict_size(args.barcodes) == 0) error("Barcode list is empty?");
     }
@@ -176,8 +191,15 @@ static void memory_release()
 
 struct depth {
     int pos;
-    int depth;
-    int strand;
+    
+    int dep1; // unknown strand or forward
+    int dep2; // reverse strand
+    struct dict *bc1;
+    struct dict *bc2;
+
+    // int depth;
+    // int strand;
+    int id;
     struct dict *bc;
     struct depth *next;
     struct depth *before;
@@ -187,9 +209,65 @@ static struct depth *depth_init()
 {
     struct depth *d = malloc(sizeof(*d));
     memset(d, 0, sizeof(*d));
+    d->id = -1;
     return d;
 }
 
+static void print_node(struct depth *d, int tid)
+{
+    if (args.ignore_strand) {
+        fprintf(args.out, "%s\t%d\t.\t%d\n", args.hdr->target_name[tid], d->pos, d->dep1);
+    } else {
+        fprintf(args.out, "%s\t%d\t+\t%d\n", args.hdr->target_name[tid], d->pos, d->dep1);
+        fprintf(args.out, "%s\t%d\t-\t%d\n", args.hdr->target_name[tid], d->pos, d->dep2);
+    }
+}
+static void print_node_id(struct depth *d, int tid, int id)
+{
+    if (args.ignore_strand) {
+        fprintf(args.out, "%s\t%d\t.\t%d\t%s\n",args.hdr->target_name[tid], d->pos, d->dep1, dict_name(args.barcodes, id));
+    } else {
+        fprintf(args.out, "%s\t%d\t+\t%d\t%s\n",args.hdr->target_name[tid], d->pos, d->dep1, dict_name(args.barcodes, id));
+        fprintf(args.out, "%s\t%d\t-\t%d\t%s\n",args.hdr->target_name[tid], d->pos, d->dep2, dict_name(args.barcodes, id));
+    }
+}
+
+static void print_node_id0(int pos, int tid, int id)
+{
+    if (args.ignore_strand) {
+        fprintf(args.out, "%s\t%d\t.\t0\t%s\n",args.hdr->target_name[tid], pos, dict_name(args.barcodes, id));
+    } else {
+        fprintf(args.out, "%s\t%d\t+\t0\t%s\n",args.hdr->target_name[tid], pos, dict_name(args.barcodes, id));
+        fprintf(args.out, "%s\t%d\t-\t0\t%s\n",args.hdr->target_name[tid], pos, dict_name(args.barcodes, id));
+    }
+}
+static void print_node0(int pos, int tid)
+{
+    if (args.split_by_tag == 0) {
+        if (args.ignore_strand) {
+            fprintf(args.out, "%s\t%d\t.\t0\n", args.hdr->target_name[tid], pos);
+        } else {
+            fprintf(args.out, "%s\t%d\t+\t0\n", args.hdr->target_name[tid], pos);
+            fprintf(args.out, "%s\t%d\t-\t0\n", args.hdr->target_name[tid], pos);
+        }
+    } else {
+        int id;
+        for (id = 0; id < dict_size(args.barcodes); ++id) {
+            print_node_id0(pos, tid, id);
+        }
+    }
+}
+static void update_depth(struct depth *d)
+{
+    if (d->bc1 && d->dep1 == 0) {
+        d->dep1 = dict_size(d->bc1);
+        dict_destroy(d->bc1);
+    }
+    if (d->bc2 && d->dep2 == 0) {
+        d->dep2 = dict_size(d->bc2);
+        dict_destroy(d->bc2);
+    }
+}
 int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int end, const int strand)
 {
     hts_itr_t *itr = sam_itr_queryi(idx, tid, start, end);
@@ -203,6 +281,9 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
     int strand0;
     
     if (itr) {
+
+        int last = start+1;
+        
         while ((result = sam_itr_multi_next(args.fp, itr, b)) >= 0) {
             bam1_core_t *c = &b->core;
             if (c->qual < args.mapq_thres) continue;
@@ -211,43 +292,83 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
             if (c->flag & BAM_FQCFAIL) continue;
             if (c->flag & BAM_FDUP) continue;
 
-            if (c->flag & BAM_FREVERSE) strand0 = BED_STRAND_REV;
-            else strand0 = BED_STRAND_FWD;
+            if (args.ignore_strand) strand0 = BED_STRAND_UNK;
+            else {
+                if (c->flag & BAM_FREVERSE) strand0 = BED_STRAND_REV;
+                else strand0 = BED_STRAND_FWD;
+            }
             
             if (strand == BED_STRAND_FWD && strand0 == BED_STRAND_REV) continue;
             if (strand == BED_STRAND_REV && strand0 == BED_STRAND_FWD) continue;
             
             uint8_t *data = NULL;
-            if (args.barcodes) {
+            int id = -1;
+            
+            if (args.bc_list) {
                 data = bam_aux_get(b, args.tag);
                 if (data == NULL) continue;
-                int idx = dict_query(args.barcodes, (char*)(data+1));
-                if (idx == -1) continue;
+                id = dict_query(args.barcodes, (char*)(data+1));
+                if (id == -1) continue;
             }
-
+            if (args.split_by_tag) {
+                if (id == -1) {
+                    data = bam_aux_get(b, args.tag);
+                    if (data == NULL) continue;
+                    id = dict_query(args.barcodes, (char*)(data+1));
+                    if (id == -1) id = dict_push(args.barcodes, (char*)(data+1));
+                }
+            } else {
+                id = -1;
+            }
+            
             if (args.umi_tag) {
                 data = bam_aux_get(b, args.umi_tag);
-                if (data == NULL) continue;                
+                if (data == NULL) continue;         
             }
 
             int i;
-            int pos = c->pos+1;
+            int pos = c->pos+1;            
             while (head && head->pos < pos) {
-                if (head->bc && head->depth == 0) {
-                    head->depth = dict_size(head->bc);
-                    dict_destroy(head->bc);
-                }
-                if (head->pos > start && head->pos <= end)
-                    fprintf(args.out, "%s\t%d\t%c\t%d\n",
-                            args.hdr->target_name[tid],
-                            head->pos,
-                            ".+-"[head->strand+1],
-                            head->depth);
-                struct depth *tmp = head;
-                head = head->next;
                 
-                if (head) head->before = NULL;
-                free(tmp);
+                int last_pos = head->pos;
+                int last_id = 0;
+                while (head && head->pos == last_pos) {
+
+                    update_depth(head);
+
+                    if (head->pos > start && head->pos <= end) {
+                        // todo
+                        for (; last < head->pos; ++last) {
+                            print_node0(last, tid);
+                        }
+                        last = head->pos +1;
+                        
+                        if (args.split_by_tag == 0) {
+                            print_node(head, tid);
+                        } else {
+                            if (last_id < head->id) {
+                                for (; last_id < head->id; last_id++) {
+                                    print_node_id0(last_pos, tid, last_id);
+                                }
+                            }
+
+                            print_node_id(head, tid, head->id);
+                            
+                            last_id = head->id+1;
+                        }
+                    }
+
+                    struct depth *tmp = head;
+                    head = head->next;
+                    
+                    if (head) head->before = NULL;
+                    free(tmp);
+                }
+                if (args.split_by_tag) {
+                    for (; last_id < dict_size(args.barcodes); last_id++) {
+                        print_node_id0(last_pos, tid, last_id);
+                    }
+                }
             }
 
             for (i = 0; i < b->core.n_cigar; ++i) {
@@ -263,36 +384,83 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
                             head->pos = pos;
                             head->next = NULL;
                             head->before = NULL;
-                            head->strand = strand0;
+                            // head->strand = strand0;
+                            head->id = id;
                             tail = head;
                         }
 
                         struct depth *cur;
                         
                         for (cur = tail; cur != NULL; cur = cur->before) {
-                            if (cur->pos == pos && cur->strand == strand0) {
-                                if (args.umi_tag) {
-                                    if (cur->bc == NULL) cur->bc = dict_init();
-                                    dict_push(cur->bc, (char*)(data+1));
-                                }
-                                else cur->depth++;
+                            if (cur->pos == pos) {
+                                if (cur->id == id) {
+                                    if (strand0 == BED_STRAND_UNK || strand0 == BED_STRAND_FWD) {
+                                        if (args.umi_tag) {
+                                            if (cur->bc1 == NULL) cur->bc1 = dict_init();
+                                            dict_push(cur->bc1, (char*)(data+1));
+                                        }
+                                        else cur->dep1++;
+                                    } else {
+                                        if (args.umi_tag) {
+                                            if (cur->bc2 == NULL) cur->bc2 = dict_init();
+                                            dict_push(cur->bc2, (char*)(data+1));
+                                        }
+                                        else cur->dep2++;
+                                    }
+                                    break;
+                                } else if (cur->id > id) {
+                                    continue;
+                                } else { // cur->id < id
+                                    struct depth *new = depth_init();
+                                    new->pos = pos;
+                                    new->next = cur->next;
+                                    new->before = cur;
+                                    new->id = id;
                                 
-                                break;
+                                    if (cur->next) cur->next->before = new;
+                                    cur->next = new;
+
+                                    if (strand0 == BED_STRAND_UNK || strand0 == BED_STRAND_FWD) {
+                                        if (args.umi_tag) {
+                                            if (new->bc1 == NULL) new->bc1 = dict_init();
+                                            dict_push(new->bc1, (char*)(data+1));
+                                        }
+                                        else new->dep1++;
+                                    } else {
+                                        if (args.umi_tag) {
+                                            if (new->bc2 == NULL) new->bc2 = dict_init();
+                                            dict_push(new->bc2, (char*)(data+1));
+                                    }
+                                        else new->dep2++;
+                                    }
+
+                                    if (cur == tail) tail = new;                                
+                                    break;
+                                }
                             }
                             else if (cur->pos < pos) {
                                 struct depth *new = depth_init();
                                 new->pos = pos;
                                 new->next = cur->next;
                                 new->before = cur;
-                                new->strand = strand0;
+                                new->id = id;
+                                
                                 if (cur->next) cur->next->before = new;
                                 cur->next = new;
 
-                                if (args.umi_tag) {
-                                    if (new->bc == NULL) new->bc = dict_init();
-                                    dict_push(new->bc, (char*)(data+1));
+                                if (strand0 == BED_STRAND_UNK || strand0 == BED_STRAND_FWD) {
+                                    if (args.umi_tag) {
+                                        if (new->bc1 == NULL) new->bc1 = dict_init();
+                                        dict_push(new->bc1, (char*)(data+1));
+                                    }
+                                    else new->dep1++;
+                                } else {
+                                    if (args.umi_tag) {
+                                        if (new->bc2 == NULL) new->bc2 = dict_init();
+                                        dict_push(new->bc2, (char*)(data+1));
+                                    }
+                                    else new->dep2++;
                                 }
-                                else new->depth++;
 
                                 if (cur == tail) tail = new;
                                 
@@ -305,15 +473,23 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
                             new->pos = pos;
                             new->next = head;
                             new->before = NULL;
-                            new->strand = strand0;
-
+                            new->id = id;
+                            
                             head->before = new;
-
-                            if (args.umi_tag) {
-                                if (new->bc == NULL) new->bc = dict_init();
-                                dict_push(new->bc, (char*)(data+1));
+                            if (strand0 == BED_STRAND_UNK || strand0 == BED_STRAND_FWD) {
+                                if (args.umi_tag) {
+                                    if (new->bc1 == NULL) new->bc1 = dict_init();
+                                    dict_push(new->bc1, (char*)(data+1));
+                                }
+                                else new->dep1++;
+                            } else {
+                                if (args.umi_tag) {
+                                    if (new->bc2 == NULL) new->bc2 = dict_init();
+                                    dict_push(new->bc2, (char*)(data+1));
+                                }
+                                else new->dep2++;
                             }
-                            else new->depth++;
+                            
                             head = new;
                         }
                         pos++;
@@ -331,19 +507,50 @@ int bam2depth(const hts_idx_t *idx, const int tid, const int start, const int en
         
         struct depth *cur = head;
         while (cur) {
-            //for (cur = head; cur != NULL; cur = cur->next) {
-            if (cur->bc && cur->depth == 0) {
-                cur->depth = dict_size(cur->bc);
-                dict_destroy(cur->bc);
+            int last_pos = cur->pos;
+            int last_id = 0;
+            while (cur && cur->pos == last_pos) {
+
+                update_depth(cur);
+
+                if (cur->pos > start && cur->pos <= end) {
+                    // todo
+                    for (; last < cur->pos; ++last) {
+                        print_node0(last, tid);
+                    }
+                    last = cur->pos+1;
+                    
+                    if (args.split_by_tag == 0) {
+                        print_node(cur, tid);
+                    } else {
+                        if (last_id < cur->id) {
+                            for (; last_id < cur->id; last_id++) {
+                                print_node_id0(last_pos, tid, last_id);
+                            }
+                        }
+
+                        print_node_id(cur, tid, cur->id);
+                        last_id = cur->id +1;
+                    }
+                }
+                
+                struct depth *tmp = cur;
+                cur = cur->next;
+                if (cur) cur->before = NULL;
+                free(tmp);
             }
-            if (cur->pos > start && cur->pos <= end)
-                fprintf(args.out, "%s\t%d\t%c\t%d\n", args.hdr->target_name[tid], cur->pos, ".+-"[cur->strand+1], cur->depth);
-            struct depth *tmp = cur;
-            cur = cur->next;
-            if (cur) cur->before = NULL;
-            free(tmp);
+
+            if (args.split_by_tag) {
+                for (; last_id < dict_size(args.barcodes); last_id++) {
+                    print_node_id0(last_pos, tid, last_id);
+                }
+            }
         }
-        
+
+        for (; last < end; ++last) {
+            print_node0(last, tid);
+        }
+
         if (result < -1)
             warnings("Failed to retrieve region due to truncated file or corrupt bam index.");
         
