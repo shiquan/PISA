@@ -110,7 +110,7 @@ static int parse_args(int argc, char **argv)
     }
     
     if (qual) args.qual_thres = str2int((char*)qual);
-    if (args.qual_thres) args.qual_thres = 0;
+    if (args.qual_thres < 0) args.qual_thres = 0;
     if (file_th) args.file_th = str2int(file_th);
     assert (args.file_th > 0);
 
