@@ -367,7 +367,7 @@ int bam_count_usage()
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count -cb CB -anno-tag GN -umi UB -outdir exp aln.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count [options] aln1.bam,aln2.bam\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count -file-barcode -sample-list bam_files.txt -outdir exp\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count -cb RG -sample-list bam_files.txt -outdir exp\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count -tags Cx,Cy -anno-tag GN -umi UB -outdir exp -velo aln.bam\n");
     fprintf(stderr, "\nOptions :\n");
     //fprintf(stderr, " -cb       [TAG]      Cell barcode tag.\n");
@@ -375,7 +375,7 @@ int bam_count_usage()
     fprintf(stderr, " -anno-tag [TAG]      Annotation tag, gene or peak.\n");
     fprintf(stderr, " -list     [FILE]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
     //fprintf(stderr, " -o        [FILE]     Output matrix.\n");
-    fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this fold.\n");
+    fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this folder.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
     fprintf(stderr, " -stereoseq           Stereoseq pipeline pack UMI to hex string. Need set this option to decode UMIs.\n");
     fprintf(stderr, " -bin      [INT]      Window size for each bin. Can be set if -tags specify spatial coordinates.[1]\n");
@@ -392,8 +392,8 @@ int bam_count_usage()
     fprintf(stderr, " * Region type (RE), which label functional region reads mapped, is annotated by `\x1b[1mPISA\x1b[0m anno`. Optional -ttype can be set\n");
     fprintf(stderr, "   to one of region types(E/S/C/N) or combination to count reads mapped to these functional regions only.\n");
     fprintf(stderr, " * If you want count from more than one bam file, there are two ways to set the parameter. By seperating bam files with ',' or by\n");
-    fprintf(stderr, "   setting -sample-list option. But if you want alias each bam with a predefined cell name, only -sample-list supported.\n");
-    fprintf(stderr, " * -cb conflict with -file-barcode. \x1b[1mPISA\x1b[0m read cell barcode from bam tag or alias name list. Not both.\n");
+    fprintf(stderr, "   setting -sample-list option. \n");
+    // fprintf(stderr, " * -cb conflict with -file-barcode. \x1b[1mPISA\x1b[0m read cell barcode from bam tag or alias name list. Not both.\n");
     fprintf(stderr, " * If -velo set, spliced and unspliced folders will be created at outdir.\n");
     fprintf(stderr,"\n");
     return 1;
