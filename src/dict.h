@@ -16,6 +16,7 @@ int dict_push(struct dict *D, char const *key);
 int dict_push1(struct dict *D, char const *key);
 int dict_push2(struct dict *D, char const *key, int idx);
 int dict_read(struct dict *D, const char *fname, int allow_space);
+int dict_read2(struct dict *D, const char *fname, int *val);
 
 char *dict_name(const struct dict *D, int idx);
 

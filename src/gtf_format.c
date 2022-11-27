@@ -4,13 +4,13 @@
 
 int gtf_format_usage()
 {
-    fprintf(stderr, "# format and order GTF file.\n");
+    fprintf(stderr, "# Format and reorder GTF file.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m gtffmt in.gtf\n");
     fprintf(stderr, "\nOptions:\n");
     fprintf(stderr, " -o    [FILE]    Output GTF file\n");
     fprintf(stderr, " -f              Only export gene, transcript, and exon records.\n");
-    fprintf(stderr, " -key  [all]     Export keys in optional fields, export all keys in default.\n");
+    fprintf(stderr, " -key  [all]     Export selected keys in optional fields.\n");
     fprintf(stderr, "\n");
     return 1;
 }

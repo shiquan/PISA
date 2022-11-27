@@ -235,6 +235,46 @@ int dict_read(struct dict *D, const char *fname, int allow_space)
     if (dict_size(D) == 0) return 1;
     return 0;
 }
+// read tab with value, col 1 is key, col 2 is val
+int dict_read2(struct dict *D, const char *fname, int *val)
+{
+    *val = 0;
+    gzFile fp;
+    fp = gzopen(fname, "r");
+    CHECK_EMPTY(fp, "%s : %s.", fname, strerror(errno));
+    kstream_t *ks = ks_init(fp);
+    kstring_t str = {0,0,0};
+    int ret;
+    while (ks_getuntil(ks, 2, &str, &ret)>=0){
+        if (str.l == 0) continue;
+        if (str.s[0] == '#') continue;
+        if (strcmp(str.s, "Barcode") == 0) {
+            warnings("\"Barcode\" in %s looks like a title, skip it. ", fname);
+            continue; // emit header
+        }
+
+        int n;
+        int *s = ksplit(&str, '\t', &n);
+        int idx = dict_push1(D, str.s + s[0]); // init whitelist but not increase count
+
+        if (n > 1) {
+            if (*val == 0) {
+                dict_set_value(D);
+                *val = 1;
+            }
+
+            char *v = strdup(str.s + s[1]);
+            dict_assign_value(D, idx, v);
+        }
+        free(s);
+    }
+    if (str.m) free(str.s);
+    ks_destroy(ks);
+    gzclose(fp);
+
+    if (dict_size(D) == 0) return 1;
+    return 0;
+}
 
 char **dict_names(struct dict *D)
 {
