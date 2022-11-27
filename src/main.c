@@ -6,7 +6,7 @@ int usage()
 {
     fprintf(stderr, "\n\x1b[1mPISA\x1b[0m - a collection of tools for single cell data pre-processing and interpretation.\n");
     fprintf(stderr, "Version: %s + htslib: %s\n", PISA_VERSION, HTS_VERSION_TEXT);
-    fprintf(stderr, "Contact: Quan SHI [shiquan(AT)genomics.cn]\n");
+    fprintf(stderr, "Homepage: https://github.com/shiquan/PISA\n");
     fprintf(stderr, "\nCommands:\n");
     fprintf(stderr, "\n--- Processing FASTQ/FASTQ+\n");
     fprintf(stderr, "    parse2     A new generic tool to parse barcodes from FASTQ.\n");
@@ -30,10 +30,19 @@ int usage()
     fprintf(stderr, "    bam2frag   Generate fragment file.\n");
     fprintf(stderr, "    depth      Coverage depth/UMI for target regions.\n");
     fprintf(stderr, "    addtags    Add tag string to BAM alignments.\n");
+    fprintf(stderr, "    callept    Call expressed peak tags (EPTs) for RNA library.\n");
 
     fprintf(stderr, "\n--- Processing fragment file.\n");
     fprintf(stderr, "    count2     Count peak X cell matrix from fragment file.\n");
 
+
+    //fprintf(stderr, "\n--- Processing BED\n");
+    //fprintf(stderr, "    mergebed   Merge BED files.\n");
+
+    //fprintf(stderr, "\n--- Integrated pipelines\n");
+    //fprintf(stderr, "    pipe0      Process sorted BAMs to gene expression and EPTs counts.\n");
+
+        
     fprintf(stderr, "\n--- Some experimental ideas. Not stable, just for test.\n");
     fprintf(stderr, "    fusion     Predict gene fusion based on UMIs. **experiment**\n");
     fprintf(stderr, "    gtffmt     Format and reorder GTF file. **experiment**\n");
@@ -64,6 +73,8 @@ int main(int argc, char *argv[])
     extern int gene_fusion(int argc, char **argv);
     extern int depth_main(int argc, char **argv);
     extern int add_tags(int argc, char **argv);
+
+    extern int callept_main(int argc, char **argv);
 
     // process fragment
     extern int fragment_count(int argc, char **argv);
@@ -96,6 +107,7 @@ int main(int argc, char *argv[])
     // else if (strcmp(argv[1], "overlap") == 0) return fastq_overlap(argc-1, argv+1);
     // else if (strcmp(argv[1], "impute") == 0) return LFR_impute(argc-1, argv+1);
     else if (strcmp(argv[1], "depth") == 0) return depth_main(argc-1, argv+1);
+    else if (strcmp(argv[1], "callept") == 0) return callept_main(argc-1, argv+1);
     else if (strcmp(argv[1], "addtags") == 0) return add_tags(argc-1, argv+1);
     else if (strcmp(argv[1], "gtffmt") == 0) return gtf_format(argc-1, argv+1);
     else return usage();

@@ -62,7 +62,8 @@ LIB_OBJ = src/barcode_list.o \
 	src/bam_files.o \
 	src/biostring.o \
 	src/read_anno.o \
-	src/kthread.o
+	src/kthread.o \
+        src/coverage.o
 
 AOBJ = src/bam_anno.o \
 	src/bam_count.o \
@@ -82,7 +83,8 @@ AOBJ = src/bam_anno.o \
 	src/fragment_count.o \
 	src/fastq_stream.o \
 	src/fastq_parse2.o \
-	src/gtf_format.o
+	src/gtf_format.o \
+        src/callept.o
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@

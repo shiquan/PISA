@@ -5,6 +5,7 @@
 #include "region_index.h"
 #include "dict.h"
 #include "htslib/kstring.h"
+#include "htslib/sam.h"
 
 #define BED_STRAND_FWD 0
 #define BED_STRAND_REV 1
@@ -53,5 +54,10 @@ int bed_name2id(struct bed_spec *B, char *name);
 int bed_spec_push(struct bed_spec *B, struct bed *bed);
 struct bed_spec *bed_read_vcf(const char *fn);
 void bed_spec_merge0(struct bed_spec *B, int strand);
+void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length);
 void bed_spec_var_destroy(struct bed_spec *B);
+void bed_spec_write0(struct bed_spec *B, FILE *out);
+void bed_spec_write(struct bed_spec *B, const char *fn);
+void bed_spec_seqname_from_bam(struct bed_spec *B, bam_hdr_t *hdr);
+    
 #endif

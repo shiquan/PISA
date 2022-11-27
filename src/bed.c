@@ -75,9 +75,54 @@ void debug_print_bed(struct bed_spec *B)
         fprintf(stderr, "%s\t%d\t%d\n", bed_seqname(B, B->bed[i].seqname), B->bed[i].start, B->bed[i].end);
     }
 }
+
+void bed_spec_shrink(struct bed_spec *B, int upstream, int downstream)
+{
+    int i;
+    for (i = 0; i < B->n; ++i) {
+        struct bed *bed = &B->bed[i];
+        bed->start = bed->start + upstream;
+        bed->end = bed->end - downstream;
+        if (bed->end <= bed->start) {
+            bed->start = 0;
+            bed->end = 0;
+        }
+    }
+}
+void bed_spec_expand(struct bed_spec *B, int upstream, int downstream)
+{
+    int i;
+    for (i = 0; i < B->n; ++i) {
+        struct bed *bed = &B->bed[i];
+        bed->start = bed->start - upstream;
+        if (bed->start < 0) bed->start = 0;
+        bed->end = bed->end + downstream;
+    }
+}
+void bed_spec_remove0(struct bed_spec *B)
+{
+    int i;
+    for (i = 0; i < B->n;) {
+        struct bed *bed = &B->bed[i];
+        if (bed->start == 0 && bed->end == 0) {
+            if (B->n == i+1) {
+                B->n = 0; // empty
+                break;
+            }
+            memmove(B->bed+i, B->bed+i+1, (B->n-i-1)*sizeof(struct bed));
+            B->n--;
+            continue;
+        }
+        ++i;
+    }
+}
+void bed_spec_sort(struct bed_spec *B)
+{
+    qsort(B->bed, B->n, sizeof(struct bed), cmpfunc);    
+}
 void bed_spec_merge0(struct bed_spec *B, int strand)
 {
-    qsort(B->bed, B->n, sizeof(struct bed), cmpfunc);
+    bed_spec_sort(B);
     int i, j;
 
     for (i = 0; i < B->n; ++i) {
@@ -112,6 +157,26 @@ void bed_spec_merge0(struct bed_spec *B, int strand)
     }
     
     B->n = i+1;
+}
+
+void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length)
+{
+    bed_spec_merge0(B, strand);
+    if (gap > 0) {
+        bed_spec_expand(B, 0, gap);
+        bed_spec_shrink(B, 0, gap);
+    }
+
+    int i;
+    for (i = 0; i < B->n; ++i) {
+        struct bed *bed = &B->bed[i];
+        if (bed->end - bed->start < min_length) {
+            bed->start = 0;
+            bed->end = 0;
+        }
+    }
+    bed_spec_sort(B);
+    bed_spec_remove0(B);
 }
 static void bed_build_index(struct bed_spec *B)
 {
@@ -351,4 +416,36 @@ int bed_check_overlap(const struct bed_spec *B, char *name, int start, int end, 
     if (itr == NULL) return 0;
     region_itr_destroy(itr);
     return 1;
+}
+void bed_spec_write0(struct bed_spec *B, FILE *out)
+{
+    int i;
+    for (i = 0; i < B->n; ++i) {
+        struct bed *bed = &B->bed[i];
+        fprintf(out, "%s\t%d\t%d\t%s\t.\t%c\n", dict_name(B->seqname, bed->seqname),
+                bed->start, bed->end, bed->name == -1 ? "." : dict_name(B->name, bed->name),
+                ".+-"[bed->strand+1]
+            );
+    }
+}
+
+void bed_spec_write(struct bed_spec *B, const char *fn)
+{
+    FILE *fp;
+    if (fn == NULL) fp = stdout;
+    else {
+        fp = fopen(fn, "w");
+        if (fp == NULL) error("%s : %s", fn, strerror(errno));
+    }
+
+    bed_spec_write0(B, fp);
+
+    fclose(fp);
+}
+void bed_spec_seqname_from_bam(struct bed_spec *B, bam_hdr_t *hdr)
+{
+    if (dict_size(B->seqname) > 0) error("Init non-empty seqnames.");
+    int i;
+    for (i = 0; i < hdr->n_targets; ++i)
+        dict_push(B->seqname, hdr->target_name[i]);
 }
