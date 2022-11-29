@@ -171,12 +171,10 @@ void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length)
     for (i = 0; i < B->n; ++i) {
         struct bed *bed = &B->bed[i];
         if (bed->end - bed->start < min_length) {
-            bed->start = 0;
-            bed->end = 0;
+            bed->seqname = -1;
         }
     }
-    bed_spec_sort(B);
-    bed_spec_remove0(B);
+    bed_spec_merge0(B, strand);
 }
 static void bed_build_index(struct bed_spec *B)
 {
