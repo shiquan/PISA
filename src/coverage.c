@@ -133,7 +133,7 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
         char *umi = NULL;
         int id = -1;
         
-        if (bc) {
+        if (bc_tag && bc) {
             data = bam_aux_get(b, bc_tag);
             if (data == NULL) continue;
             id = dict_query(bc, (char*)(data+1));
