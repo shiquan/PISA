@@ -168,26 +168,30 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
             if (cig == BAM_CMATCH || cig == BAM_CEQUAL || cig == BAM_CDIFF) {
                 int j;
                 for (j = 0; j < ncig; ++j) {
-                    if (pos <= start) { pos++; continue;}
+                    if (pos <= start) { pos++; continue;} // overlapped but not fully enclosed reads, at this moment last_start should be NULL
                     if (pos > end) { i = b->core.n_cigar; break; } // skip this record
-                    // pos++; continue;} // todo:
+                    
                     if (head == NULL) {
                         head = depth_init();
                         head->pos = pos;
                         tail = head;
-                        last_start = head;
+                        // head is not always point to last_start, consider spliced reads may start from far away positions
+                        //last_start = head;
                     }
 
+                    // this is for fully enclosed or left covered reads 
                     if (cur && cur->pos == c->pos+1) last_start = cur; // start pos of current record, start to compare for next record
                     
                     //         header     tail
                     //         |          |
-                    // id:     123412341234
-                    // pos:    111122223333
+                    // id:     123412341234  for cell id ...
+                    // pos:    111122223333  for each position ...
+                    //
                     if (cur == NULL) { // first pos, track from start pos of last read
-                        cur = last_start;
-                        debug_print("last: %d, pos: %d", cur->pos, pos);
-                        assert(cur->pos <= pos);
+                        // debug_print("new : %s", bam_get_qname(b));
+                        cur = last_start == NULL ? head : last_start; // if right covered, start from head for safty
+                        // debug_print("last: %d, pos: %d", cur->pos, pos);
+                        // assert(cur->pos <= pos);
                         for (; cur != NULL; cur = cur->next) {
                             if (cur->pos == pos) {                                
                                 depth_increase(cur, id, umi, strand0);
@@ -199,21 +203,25 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
                                 new->next = cur;
                                 new->before = cur->before;
                                 if (cur->before) cur->before->next = new;
-                                else head = new;
-                                depth_increase(new, id, umi, strand0);
+                                else {
+                                    assert(cur == head);
+                                    head->before = new;
+                                    head = new;
+                                }
                                 cur = new;
+                                depth_increase(cur, id, umi, strand0);
                                 break;
-                            }   
+                            }
                         }
                         
                         if (cur == NULL) { // update tail
                             struct depth *new = depth_init();
-                            new->pos = pos;
-                            depth_increase(new, id, umi, strand0);
-                            tail->next = new;
+                            new->pos = pos;                         
                             new->before = tail;
+                            tail->next = new;
                             tail = new;
                             cur = new;
+                            depth_increase(cur, id, umi, strand0);
                         }
                     }
                     else { // not the first one, count start from cur
@@ -229,24 +237,28 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
                                 new->next = cur;
                                 new->before = cur->before;
                                 if (cur->before) cur->before->next = new;
-                                else head = new;
-                                
-                                depth_increase(new, id, umi, strand0);
+                                else {
+                                    debug_print("cur: %d, head: %d", cur->pos, head->pos);
+                                    assert(cur == head);
+                                    head->before = new;
+                                    head = new;
+                                } 
                                 cur = new;
+                                depth_increase(cur, id, umi, strand0);
                                 break;
                             }
                             cur = cur->next; // next record
                         }
                             
                         if (cur == NULL) {
+                            assert(tail);
                             struct depth *new = depth_init();
                             new->pos = pos;
                             new->before = tail;
-                            new->next = NULL;
-                            depth_increase(new, id, umi, strand0);
                             tail->next = new;
                             tail = new;
                             cur = new;
+                            depth_increase(cur, id, umi, strand0);
                         }
                     }
                     pos++;
@@ -259,6 +271,9 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
                 pos += ncig;
             }
         }
+
+        // assert(tail);
+        debug_print("%s\t%d", bam_get_qname(b), last_start ? last_start->pos : -1);
     }
     
     if (result < -1)
