@@ -208,6 +208,7 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
                                     head->before = new;
                                     head = new;
                                 }
+                                cur->before = new;
                                 cur = new;
                                 depth_increase(cur, id, umi, strand0);
                                 break;
@@ -238,11 +239,12 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
                                 new->before = cur->before;
                                 if (cur->before) cur->before->next = new;
                                 else {
-                                    debug_print("cur: %d, head: %d", cur->pos, head->pos);
+                                    //debug_print("cur: %d, head: %d", cur->pos, head->pos);
                                     assert(cur == head);
                                     head->before = new;
                                     head = new;
-                                } 
+                                }
+                                cur->before = new;
                                 cur = new;
                                 depth_increase(cur, id, umi, strand0);
                                 break;
@@ -273,7 +275,7 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
         }
 
         // assert(tail);
-        debug_print("%s\t%d", bam_get_qname(b), last_start ? last_start->pos : -1);
+        // debug_print("%s\t%d", bam_get_qname(b), last_start ? last_start->pos : -1);
     }
     
     if (result < -1)
