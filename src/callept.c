@@ -125,14 +125,15 @@ static int parse_args(int argc, char **argv)
         args.mapq_thres = str2int(mapq); 
     }
 
-    if (args.tag) args.barcodes = dict_init();
-    
-    if (args.bc_list) {
-        int val = 0;
-        dict_read2(args.barcodes, args.bc_list, &val);
-        if (dict_size(args.barcodes) == 0) error("Barcode list is empty?");
+    if (args.tag) {
+        if (args.bc_list) {
+            args.barcodes = dict_init();
+            int val = 0;
+            dict_read2(args.barcodes, args.bc_list, &val);
+            if (dict_size(args.barcodes) == 0) error("Barcode list is empty?");
+        }
     }
-    
+
     args.fp = hts_open(args.input_fname, "r");
     if (args.fp == NULL) error("%s : %s.", args.input_fname, strerror(errno));
     
