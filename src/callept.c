@@ -3,6 +3,7 @@
 #include "coverage.h"
 #include "bed.h"
 #include "number.h"
+#include <omp.h>
 
 static struct args {
     const char *input_fname;
@@ -137,7 +138,7 @@ static int parse_args(int argc, char **argv)
     args.fp = hts_open(args.input_fname, "r");
     if (args.fp == NULL) error("%s : %s.", args.input_fname, strerror(errno));
     
-    hts_set_threads(args.fp, args.n_thread);
+    // hts_set_threads(args.fp, args.n_thread);
 
     args.idx = sam_index_load(args.fp, args.input_fname);
     if (args.idx == NULL) error("Failed to load bam index of %s", args.input_fname);
@@ -177,6 +178,8 @@ int callept(struct bed_spec *B, hts_idx_t *idx, int tid, int start, int end)
     struct bed b1 = {tid, -1, 0, 0, 0, NULL};
     struct bed b2 = {tid, -1, 0, 0, 1, NULL};
 
+    if (args.ignore_strand) b1.strand = -1;
+    
     for (;;) {
         if (d == NULL) break;
         
@@ -251,18 +254,25 @@ int callept(struct bed_spec *B, hts_idx_t *idx, int tid, int start, int end)
 int callept_main(int argc, char **argv)
 {
     if (parse_args(argc, argv)) return callept_usage();
-    struct bed_spec *B = bed_spec_init();
-    bed_spec_seqname_from_bam(B, args.hdr);
-    
     int i;
+    
+    //omp_lock_t writelock;
+    //omp_init_lock(&writelock);
+    
+//#pragma omp parallel for num_threads(args.n_thread) schedule(dynamic)
     for (i = 0; i < args.hdr->n_targets; ++i) {
         LOG_print("Process %s ..", args.hdr->target_name[i]);
+        struct bed_spec *B = bed_spec_init();
+        bed_spec_seqname_from_bam(B, args.hdr);
+        //hts_idx_t *idx;
+        //htsFile *fp = hts_open(args.input_fname, "r");
+        //idx = sam_index_load(fp, args.input_fname);
         int len = args.hdr->target_len[i];
         int last = 0;
         int end = last + ws;
         if (end > len) end = len;
         
-        for (;;) {
+        while (1) {
             callept(B, args.idx, i, last, end);
 
             if (end == len) break;
@@ -270,12 +280,18 @@ int callept_main(int argc, char **argv)
             end = end + ws;
             if (end > len) end = len;
         }
+
+        //hts_idx_destroy(idx);
+        //hts_close(fp);
+        bed_spec_merge2(B, 1, args.max_gap, args.min_length);
+
+        //omp_set_lock(&writelock);
+        bed_spec_write0(B, args.out);
+        //omp_unset_lock(&writelock);
+        bed_spec_destroy(B);
     }
 
-    bed_spec_merge2(B, 1, args.max_gap, args.min_length);
-    bed_spec_write0(B, args.out);
-
-    bed_spec_destroy(B);
+    //omp_destroy_lock(&writelock);
     memory_release();
     
     return 0;
