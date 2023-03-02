@@ -146,6 +146,7 @@ void bed_spec_merge0(struct bed_spec *B, int strand)
             }
             if (bed->seqname != bed0->seqname) {
                 memmove(B->bed+i+1, B->bed+j, (B->n-j)*sizeof(struct bed));
+                B->n = B->n -j;
                 break;
             }
             // check strand sensitive
