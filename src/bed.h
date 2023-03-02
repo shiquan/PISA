@@ -12,6 +12,8 @@
 #define BED_STRAND_UNK -1
 #define BED_STRAND_IGN -1
 
+#define strand_is_minus(a) (a)==1
+
 struct bed {    
     int seqname;
     int name;
@@ -45,7 +47,10 @@ struct var {
 
 struct bed_spec *bed_spec_init();
 void bed_spec_destroy(struct bed_spec *B);
+
+struct bed_spec *bed_read0(struct bed_spec *B, const char *fname);
 struct bed_spec *bed_read(const char *fname);
+
 // start is 0 based
 struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, int end, int strand);
 int bed_check_overlap(const struct bed_spec *B, char *name, int start, int end, int strand);
@@ -53,8 +58,11 @@ char* bed_seqname(struct bed_spec *B, int id);
 int bed_name2id(struct bed_spec *B, char *name);
 int bed_spec_push(struct bed_spec *B, struct bed *bed);
 struct bed_spec *bed_read_vcf(const char *fn);
+
 void bed_spec_merge0(struct bed_spec *B, int strand);
+void bed_spec_merge1(struct bed_spec *B, int strand, int up, int down, int min_length);
 void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length);
+
 void bed_spec_var_destroy(struct bed_spec *B);
 void bed_spec_write0(struct bed_spec *B, FILE *out);
 void bed_spec_write(struct bed_spec *B, const char *fn);

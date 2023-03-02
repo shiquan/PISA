@@ -76,27 +76,33 @@ void debug_print_bed(struct bed_spec *B)
     }
 }
 
-void bed_spec_shrink(struct bed_spec *B, int upstream, int downstream)
+void bed_spec_shrink(struct bed_spec *B, int up, int down)
 {
     int i;
     for (i = 0; i < B->n; ++i) {
         struct bed *bed = &B->bed[i];
-        bed->start = bed->start + upstream;
-        bed->end = bed->end - downstream;
+        bed->start = bed->start + up;
+        bed->end = bed->end - down;
         if (bed->end <= bed->start) {
             bed->start = 0;
             bed->end = 0;
         }
     }
 }
-void bed_spec_expand(struct bed_spec *B, int upstream, int downstream)
+void bed_spec_expand(struct bed_spec *B, int up, int down)
 {
     int i;
     for (i = 0; i < B->n; ++i) {
         struct bed *bed = &B->bed[i];
-        bed->start = bed->start - upstream;
-        if (bed->start < 0) bed->start = 0;
-        bed->end = bed->end + downstream;
+        if (strand_is_minus(bed->strand)) {
+            bed->start = bed->start - down;
+            if (bed->start < 0) bed->start = 0;
+            bed->end = bed->end + up;
+        } else {
+            bed->start = bed->start - up;
+            if (bed->start < 0) bed->start = 0;
+            bed->end = bed->end + down;
+        }
     }
 }
 void bed_spec_remove0(struct bed_spec *B)
@@ -127,6 +133,9 @@ void bed_spec_merge0(struct bed_spec *B, int strand)
 
     for (i = 0; i < B->n; ++i) {
         struct bed *bed0 = &B->bed[i];
+
+        if (strand == 0) bed0->strand = BED_STRAND_UNK; // reset strand
+
         for (j = i+1; j < B->n; ++j) {
             struct bed *bed = &B->bed[j];
             if (bed->seqname == -1) continue;
@@ -158,7 +167,11 @@ void bed_spec_merge0(struct bed_spec *B, int strand)
     
     B->n = i+1;
 }
-
+void bed_spec_merge1(struct bed_spec *B, int strand, int up, int down, int min_length)
+{
+    bed_spec_expand(B, up, down);
+    bed_spec_merge0(B, strand);    
+}
 void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length)
 {
     bed_spec_merge0(B, strand);
@@ -176,6 +189,8 @@ void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length)
     }
     bed_spec_merge0(B, strand);
 }
+
+
 static void bed_build_index(struct bed_spec *B)
 {
     qsort(B->bed, B->n, sizeof(struct bed), cmpfunc);
@@ -257,7 +272,7 @@ int bed_spec_push(struct bed_spec *B, struct bed *bed)
     return B->n++;
 }
 
-struct bed_spec *bed_read(const char *fname)
+struct bed_spec *bed_read0(struct bed_spec *B, const char *fname)
 {
     gzFile fp;
     fp = gzopen(fname, "r");
@@ -266,9 +281,7 @@ struct bed_spec *bed_read(const char *fname)
     kstream_t *ks = ks_init(fp);
     kstring_t str = {0,0,0};
     int ret;
-    struct bed_spec *B = bed_spec_init();
     int line = 0;
-    
     while (ks_getuntil(ks, 2, &str, &ret)>=0) {
         line ++;
         if (str.l == 0) {
@@ -282,15 +295,24 @@ struct bed_spec *bed_read(const char *fname)
     free(str.s);
     gzclose(fp);
     ks_destroy(ks);
+    return B;
+}
+
+struct bed_spec *bed_read(const char *fname)
+{
+    struct bed_spec *B = bed_spec_init();
+
+    B = bed_read0(B, fname);
 
     if (B->n == 0) {
         bed_spec_destroy(B);
         return NULL;
     }
-
+    
     bed_build_index(B);
     return B;
 }
+
 static struct var *var_init()
 {
     struct var *v = malloc(sizeof(*v));
