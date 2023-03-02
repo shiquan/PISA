@@ -151,7 +151,9 @@ void bed_spec_merge0(struct bed_spec *B, int strand)
             // check strand sensitive
             if (strand == 1 && bed->strand != bed0->strand) continue;
             
-            if (bed->start >= bed0->end) break; // nonoverlap, move to next record
+            //if (bed->start >= bed0->end) break; // nonoverlap, move to next record
+            // merge if bed0->end == bed->start
+            if (bed->start > bed0->end) break; // nonoverlap, move to next record
             if (bed0->end < bed->end) bed0->end = bed->end; // enlarge overlapped region
             
             bed->seqname = -1; // reset this record
