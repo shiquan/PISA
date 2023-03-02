@@ -24,6 +24,8 @@ static int cmpfunc(const void *_a, const void *_b)
 {
     struct bed *a = (struct bed*)_a;
     struct bed *b = (struct bed*)_b;
+    if (a->seqname == -1) return 1;
+    if (b->seqname == -1) return -1;
     if (a->seqname != b->seqname) return a->seqname - b->seqname;
     if (a->start != b->start) return a->start - b->start;
     return a->end - b->end;
@@ -133,20 +135,21 @@ void bed_spec_merge0(struct bed_spec *B, int strand)
 
     for (i = 0; i < B->n; ++i) {
         struct bed *bed0 = &B->bed[i];
-
+        if (bed0->seqname == -1) continue;
+        
         if (strand == 0) bed0->strand = BED_STRAND_UNK; // reset strand
 
         for (j = i+1; j < B->n; ++j) {
             struct bed *bed = &B->bed[j];
             if (bed->seqname == -1) continue;
-            if (bed0->seqname == -1) { // last record has been reset
-                memcpy(bed0, bed, sizeof(struct bed));
-                bed->seqname = -1; //reset
-                continue;
-            }
+
+            /* if (bed0->seqname == -1) { // last record has been reset */
+            /*     memcpy(bed0, bed, sizeof(struct bed)); */
+            /*     bed->seqname = -1; //reset */
+            /*     continue; */
+            /* } */
             if (bed->seqname != bed0->seqname) {
-                memmove(B->bed+i+1, B->bed+j, (B->n-j)*sizeof(struct bed));
-                B->n = B->n -j;
+                // memmove(B->bed+i+1, B->bed+j, (B->n-j)*sizeof(struct bed));
                 break;
             }
             // check strand sensitive
@@ -160,9 +163,11 @@ void bed_spec_merge0(struct bed_spec *B, int strand)
             bed->seqname = -1; // reset this record
         }
 
-        if (bed0->seqname == -1) break; // last record
+        // if (bed0->seqname == -1) break; // last record
     }
 
+    bed_spec_sort(B);
+    
     for (i = B->n-1; i >= 0; --i) {
         struct bed *bed = &B->bed[i];
         if(bed->seqname!= -1) break;
