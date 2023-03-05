@@ -47,7 +47,7 @@ static struct args {
     .ignore_strand = 0,
     .min_length = 50,
     .max_gap = 50,
-    .cutoff = 1
+    .cutoff = 10
 };
 
 static int callept_usage()
@@ -62,12 +62,12 @@ static int callept_usage()
     fprintf(stderr, " -list     [FILE]     Candidate list for -tag.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. If set, only count unique UMIs for each location.\n");
     fprintf(stderr, " -is                  Ignore strand.\n");
-    fprintf(stderr, " -gap      [INT]      Maximum gap to merge nearby peaks. [50]\n");
-    fprintf(stderr, " -min-length  [INT]   Minimum peak length. [200]\n");
-    fprintf(stderr, " -cutoff   [INT]      Cutoff of depth. [1]\n");
+    fprintf(stderr, " -gap      [INT]      Maximum gap to merge nearby peaks. [%d]\n", args.max_gap);
+    fprintf(stderr, " -min-length  [INT]   Minimum peak length. [%d]\n", args.min_length);
+    fprintf(stderr, " -cutoff   [INT]      Cutoff of depth. [%d]\n", args.cutoff);
     fprintf(stderr, " -o        [FILE]     Output EPTs in bed format. [stdout].\n");
-    fprintf(stderr, " -q        [INT]      Minimal map quality to filter. [20]\n");
-    fprintf(stderr, " -t        [INT]      Threads. [4]\n");
+    fprintf(stderr, " -q        [INT]      Minimal map quality to filter. [%d]\n", args.mapq_thres);
+    fprintf(stderr, " -t        [INT]      Threads. [%d]\n", args.n_thread);
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
     fprintf(stderr, " * Requires sorted and indexed BAM as input.\n");
     fprintf(stderr, " * Compares with `MACS2` and other peak callers, PISA callept considers UMIs and strand of reads.\n");
