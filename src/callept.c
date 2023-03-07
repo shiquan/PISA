@@ -286,7 +286,7 @@ int callept_main(int argc, char **argv)
         bed_spec_merge2(B, 1, args.max_gap, args.min_length);
 
         //omp_set_lock(&writelock);
-        bed_spec_write0(B, args.out);
+        bed_spec_write0(B, args.out, 0);
         //omp_unset_lock(&writelock);
         bed_spec_destroy(B);
     }

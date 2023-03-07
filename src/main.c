@@ -38,6 +38,7 @@ int usage()
 
     fprintf(stderr, "\n--- Processing BED\n");
     fprintf(stderr, "    mergebed   Merge BED files.\n");
+    fprintf(stderr, "    annobed    Annotate BED files with genes and functional elements.\n");
 
     //fprintf(stderr, "\n--- Integrated pipelines\n");
     //fprintf(stderr, "    pipe0      Process sorted BAMs to gene expression and EPTs counts.\n");
@@ -81,7 +82,8 @@ int main(int argc, char *argv[])
 
     // process BED
     extern int mergebed(int argc, char **argv);
-
+    extern int annobed_main(int argc, char **argv);
+    
     // process GTF
     extern int gtf_format(int argc, char **argv);
     
@@ -100,7 +102,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "pick") == 0) return bam_pick(argc-1, argv+1);
 
     else if (strcmp(argv[1], "mergebed") == 0) return mergebed(argc-1, argv+1);
-    
+    else if (strcmp(argv[1], "annobed") == 0) return annobed_main(argc-1, argv+1);
     else if (strcmp(argv[1], "bam2frag") == 0) return bam2frag(argc-1, argv+1);
     else if (strcmp(argv[1], "count") == 0) return count_matrix1(argc-1, argv+1);
     else if (strcmp(argv[1], "count2") == 0) return fragment_count(argc-1, argv+1);

@@ -10,11 +10,36 @@
 #include <zlib.h>
 
 KSTREAM_INIT(gzFile, gzread, 8193)
-    
-/* struct _ctg_idx { */
-/*     int offset; */
-/*     int idx; */
-/* }; */
+
+static const char *bed_anno_type[] = {
+    "unknown",
+    "multigenes",
+    "whole_gene",
+    "utr3",
+    "utr5",
+    "exon",
+    "multiexons",
+    "exonintron",
+    "intron",
+    "antisense_utr3",
+    "antisense_utr5",
+    "antisense_exon",
+    "antisense_intron",
+    "antisense_complex",
+    "intergenic"
+};
+
+const char *bed_typename(int type)
+{
+    return bed_anno_type[type];
+}
+
+struct bed_ext *bed_ext_init()
+{
+    struct bed_ext *e = malloc(sizeof(*e));
+    memset(e, 0, sizeof(*e));
+    return e;
+}
 
 struct bed_idx {
     struct region_index *idx;
@@ -48,6 +73,26 @@ struct bed_spec *bed_spec_init()
     return B;
 }
 
+void bed_ext_destroy(struct bed_ext *e)
+{
+    if (e) {
+        if (e->genes) {
+            int i;
+            for (i = 0; i < e->n; ++i)
+                if (e->genes[i]) free(e->genes[i]);
+            free(e->genes);
+        }
+        free(e);
+    }
+}
+void bed_spec_ext_destroy(struct bed_spec *B)
+{
+    int i;
+    for (i = 0; i < B->n; ++i) {
+        struct bed_ext *e = (struct bed_ext *)B->bed[i].data;
+        if (e) bed_ext_destroy(e);
+    }
+}
 void bed_spec_destroy(struct bed_spec *B)
 {
     int i;
@@ -445,19 +490,54 @@ int bed_check_overlap(const struct bed_spec *B, char *name, int start, int end, 
     region_itr_destroy(itr);
     return 1;
 }
-void bed_spec_write0(struct bed_spec *B, FILE *out)
+// chrom, start, end, name, score[reserved], strand,
+// ext: n_gene, gene(s), functional type, nearby gene for integenic, nearby distance
+void bed_spec_write0(struct bed_spec *B, FILE *out, int ext)
 {
     int i;
     for (i = 0; i < B->n; ++i) {
         struct bed *bed = &B->bed[i];
-        fprintf(out, "%s\t%d\t%d\t%s\t.\t%c\n", dict_name(B->seqname, bed->seqname),
+        fprintf(out, "%s\t%d\t%d\t%s\t.\t%c", dict_name(B->seqname, bed->seqname),
                 bed->start, bed->end, bed->name == -1 ? "." : dict_name(B->name, bed->name),
                 ".+-"[bed->strand+1]
             );
+
+        if (ext) {
+            struct bed_ext *e = (struct bed_ext*)bed->data;
+            fputc('\t', out);
+            
+            if (e == NULL) fputs("0\t.\tintergenic\t.\t0", out);
+            else {
+                if (e->distance == 0) {
+                    fprintf(out, "%d\t", e->n);
+                    
+                    if (e->n == 1) {
+                        fputs(e->genes[0], out);                    
+                    } else {
+                        if (e->n > 3) {
+                            fprintf(out, "%s,...,%s", e->genes[0], e->genes[e->n-1]);
+                        } else {
+                            int k;
+                            for (k = 0; k < e->n; ++k) {
+                                if (k) fputc(',', out);
+                                fputs(e->genes[k], out);
+                            }
+                        }
+                    }
+                    fprintf(out, "\t%s\t.\t0", bed_typename(e->type));
+                    
+                } else {
+                    if (e->n == 0) fputs("0\t.\tintergenic\t.\t0", out);
+                    else fprintf(out, "0\t.\tintergenic\t%s\t%d", e->genes[0], e->distance);
+                }
+            }
+        }
+        
+        fputc('\n', out);
     }
 }
 
-void bed_spec_write(struct bed_spec *B, const char *fn)
+void bed_spec_write(struct bed_spec *B, const char *fn, int ext)
 {
     FILE *fp;
     if (fn == NULL) fp = stdout;
@@ -466,7 +546,7 @@ void bed_spec_write(struct bed_spec *B, const char *fn)
         if (fp == NULL) error("%s : %s", fn, strerror(errno));
     }
 
-    bed_spec_write0(B, fp);
+    bed_spec_write0(B, fp, ext);
 
     fclose(fp);
 }

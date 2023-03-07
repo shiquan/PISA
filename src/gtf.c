@@ -551,6 +551,8 @@ struct gtf_spec *gtf_spec_init()
     l = sizeof(feature_type_names)/sizeof(feature_type_names[0]);
     for (i = 0; i < l; ++i) 
         dict_push(G->features, (char*)feature_type_names[i]);
+
+    // todo: more features..
     
     return G;
 }
