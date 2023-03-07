@@ -24,6 +24,36 @@ struct bed {
     void *data;
 };
 
+// definition of BED annotation types
+#define BAT_MULTIGENES       1
+#define BAT_WHOLEGENE        2
+#define BAT_UTR3             3
+#define BAT_UTR5             4
+#define BAT_EXON             5
+#define BAT_MULTIEXONS       6
+#define BAT_EXONINTRON       7
+#define BAT_INTRON           8
+#define BAT_ANTISENSEUTR3    9
+#define BAT_ANTISENSEUTR5    10
+#define BAT_ANTISENSEEXON    11
+#define BAT_ANTISENSEINTRON  12
+#define BAT_ANTISENSECOMPLEX 13
+#define BAT_INTERGENIC       14
+
+extern const char *bed_typename(int type);
+
+struct bed_ext {
+    int n;
+    char **genes;
+
+    int type;
+
+    // distance to nearby gene, 0 for enclosed region
+    int distance; 
+};
+
+extern struct bed_ext *bed_ext_init();
+
 struct _ctg_idx;
 
 struct bed_spec {
@@ -46,6 +76,8 @@ struct var {
 };
 
 struct bed_spec *bed_spec_init();
+
+void bed_spec_ext_destroy(struct bed_spec *B);
 void bed_spec_destroy(struct bed_spec *B);
 
 struct bed_spec *bed_read0(struct bed_spec *B, const char *fname);
@@ -64,8 +96,8 @@ void bed_spec_merge1(struct bed_spec *B, int strand, int up, int down, int min_l
 void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length);
 
 void bed_spec_var_destroy(struct bed_spec *B);
-void bed_spec_write0(struct bed_spec *B, FILE *out);
-void bed_spec_write(struct bed_spec *B, const char *fn);
+void bed_spec_write0(struct bed_spec *B, FILE *out, int ext);
+void bed_spec_write(struct bed_spec *B, const char *fn, int ext);
 void bed_spec_seqname_from_bam(struct bed_spec *B, bam_hdr_t *hdr);
     
 #endif

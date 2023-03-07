@@ -2,6 +2,7 @@
 #define RD_ANNO_HEADER
 #include "utils.h"
 
+// todo: merge with bed annotation types
 enum exon_type {
     type_unknown = 0,  // unknown type, init state
     type_exon,     // read full covered in exon

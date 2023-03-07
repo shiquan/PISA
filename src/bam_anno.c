@@ -857,7 +857,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
         }
 
         // if (antisense == 1 && args.antisense == 0) continue;
-        // from v0.12, annotate detailed coverage information for antisense also
+        // from v0.12, also annotate detailed coverage information for antisense
         int j;
         for (j = 0; j < g0->n_gtf; ++j) {
             struct gtf const *g1 = g0->gtf[j];
