@@ -6,8 +6,8 @@ static enum exon_type RE_map[256] = {
      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  4,  8,  3,  0,  1,  0,  0,  0,  7,  0,  0,  0,  0,  2,  0, 
-     0,  0,  0,  5,  0,  0,  6,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
+     0,  5,  6,  3,  0,  1,  0,  0,  0,  8,  0,  0,  0,  0,  4,  0, 
+     0,  0,  0,  2,  0,  0,  7,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
@@ -17,7 +17,7 @@ static enum exon_type RE_map[256] = {
      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
-     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 
+     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
 };
 
 enum exon_type RE_type_map(uint8_t c) {
@@ -25,7 +25,9 @@ enum exon_type RE_type_map(uint8_t c) {
 
 }
 static const char *RE_tags[] = {
-    "U", "E", "N", "C", "A", "S", "V", "I", "B"
+    "U", "E", "S", "C",
+    "N", "A", "B",
+    "V", "I"
 };
 
 const char *RE_tag_name(int i) {
@@ -34,12 +36,12 @@ const char *RE_tag_name(int i) {
 
 static const char *exon_type_names[] = {
     "Unknown",
-    "Exon", "Intron", "ExonIntron",
+    "Exon",  "Splice",  "ExonIntron",
+    "Intron",
     "Antisense",
-    "Splice",
+    "AntisenseIntron",
     "Ambiguous",
-    "Intergenic",
-    "AntisenseIntron"
+    "Intergenic"
 };
 
 const char *exon_type_name(int i) {

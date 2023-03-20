@@ -24,7 +24,10 @@ struct bed {
     void *data;
 };
 
+#define BAT_COUNT    15
+
 // definition of BED annotation types
+#define BAT_UNKNOWN          0
 #define BAT_MULTIGENES       1
 #define BAT_WHOLEGENE        2
 #define BAT_UTR3             3
@@ -91,9 +94,9 @@ int bed_name2id(struct bed_spec *B, char *name);
 int bed_spec_push(struct bed_spec *B, struct bed *bed);
 struct bed_spec *bed_read_vcf(const char *fn);
 
-void bed_spec_merge0(struct bed_spec *B, int strand);
-void bed_spec_merge1(struct bed_spec *B, int strand, int up, int down, int min_length);
-void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length);
+void bed_spec_merge0(struct bed_spec *B, int strand, int check_name);
+void bed_spec_merge1(struct bed_spec *B, int strand, int up, int down, int min_length, int check_name);
+void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length, int check_name);
 
 void bed_spec_var_destroy(struct bed_spec *B);
 void bed_spec_write0(struct bed_spec *B, FILE *out, int ext);

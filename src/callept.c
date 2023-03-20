@@ -283,7 +283,7 @@ int callept_main(int argc, char **argv)
 
         //hts_idx_destroy(idx);
         //hts_close(fp);
-        bed_spec_merge2(B, 1, args.max_gap, args.min_length);
+        bed_spec_merge2(B, 1, args.max_gap, args.min_length, 0);
 
         //omp_set_lock(&writelock);
         bed_spec_write0(B, args.out, 0);
