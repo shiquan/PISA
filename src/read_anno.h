@@ -6,13 +6,13 @@
 enum exon_type {
     type_unknown = 0,  // unknown type, init state
     type_exon,     // read full covered in exon
-    type_intron,        // read full covered in intron, with same strand of gene
-    type_exon_intron,   // read cover exon and nearby intron
-    type_antisense,     // read map on antisense
     type_splice,        // junction read map two or more exome
+    type_exon_intron,   // read cover exon and nearby intron
+    type_intron,        // read full covered in intron, with same strand of gene
+    type_antisense,     // read map on antisense
+    type_antisense_intron,
     type_ambiguous,     // junction read map to isoform(s) but skip some isoforms between, or map to intron
     type_intergenic,
-    type_antisense_intron,
 };
 
 struct trans_type {
@@ -30,6 +30,7 @@ struct gene_type {
 
 struct gtf_anno_type {
     enum exon_type type;
+    // struct gtf *exon;
     int n, m;
     struct gene_type *a;
 };

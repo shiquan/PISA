@@ -367,6 +367,13 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
     gtf_copy(exon_gtf, gtf);
     //dict_assign_value(tx_gtf->query, idx, exon_gtf);
 
+
+    // update coding signature
+    if (exon_gtf->type == feature_CDS) {
+        tx_gtf->coding = 1;
+        gene_gtf->coding = 1;
+    }
+    
     return 0;
 }
 
@@ -387,17 +394,17 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
         return 1;
     }
     
-    if (filter > 0 &&
-        qry != feature_gene &&
-        qry != feature_exon &&
-        qry != feature_transcript) {
-        //qry != feature_CDS &&
-        //qry != feature_5UTR &&
-        //qry != feature_3UTR) {
-        free(s);
-        return 0;
+    if ((filter &0x3) & FILTER_TRANS) {
+        if (qry != feature_gene && qry != feature_exon &&
+            qry != feature_transcript) {
+            //qry != feature_CDS &&
+            //qry != feature_5UTR &&
+            //qry != feature_3UTR) {
+            free(s);
+            return 0;
+        }
     }
-    
+
     struct gtf gtf;
     gtf_reset(&gtf);
     gtf.seqname = dict_push(G->name, str->s + s[0]);
@@ -432,17 +439,19 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
             gtf.gene_name = dict_push(G->gene_name, pp->val);
         else if (strcmp(pp->key, "transcript_id") == 0) 
             gtf.transcript_id = dict_push(G->transcript_id, pp->val);
-        else if (filter != FILTER_ATTRS) { // todo: update to dict structure
-            //int attr_id = dict_push(G->attrs, pp->key);
-            dict_push(G->attrs, pp->key);
-            if (gtf.attr == NULL) {
-                gtf.attr = dict_init();
-                dict_set_value(gtf.attr);
-            }
-            int idx = dict_push(gtf.attr, pp->key);
-            if (pp->val != NULL) {
-                char *val = strdup(pp->val);
-                dict_assign_value(gtf.attr, idx, val);
+        else {
+            if ((filter & 0x3) & FILTER_ATTRS) { // todo: update to dict structure
+                //int attr_id = dict_push(G->attrs, pp->key);
+                dict_push(G->attrs, pp->key);
+                if (gtf.attr == NULL) {
+                    gtf.attr = dict_init();
+                    dict_set_value(gtf.attr);
+                }
+                int idx = dict_push(gtf.attr, pp->key);
+                if (pp->val != NULL) {
+                    char *val = strdup(pp->val);
+                    dict_assign_value(gtf.attr, idx, val);
+                }
             }
         }
         free(pp->key);
@@ -601,7 +610,7 @@ struct gtf_spec *gtf_read(const char *fname, int f)
 
 struct gtf_spec *gtf_read_lite(const char *fname)
 {
-    return gtf_read(fname, FILTER_ATTRS);
+    return gtf_read(fname, 1);
 }
 struct region_itr *gtf_query(struct gtf_spec const *G, char *name, int start, int end)
 {

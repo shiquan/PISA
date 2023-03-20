@@ -63,6 +63,8 @@ static struct args {
     int splice_consider;
     int intron_consider;
     int antisense;
+
+    int exon_level;
     
     int n_thread;
     int chunk_size;
@@ -119,6 +121,7 @@ static struct args {
     .splice_consider = 0,
     .intron_consider = 0,
     .antisense       = 0,
+    .exon_level      = 0,
     
     .map_qual        = 0,
     .n_thread        = 4,
@@ -237,13 +240,14 @@ static char **chr_binding(const char *fname, bam_hdr_t *hdr)
 // GN for gene name,
 // GX for gene id,
 // AN for transcript name but read mapped on antisense,
-// RE for region type
-//
+// RE for region type,
+// EX for exon name [Gene_EXn].
 static char TX_tag[2] = "TX";
 // static char AN_tag[2] = "AN";
 static char GN_tag[2] = "GN";
 static char GX_tag[2] = "GX";
 static char RE_tag[2] = "RE";
+static char EX_tag[2] = "EX";
 
 extern struct bed_spec *bed_read_vcf(const char *fn);
 extern bam_hdr_t *sam_parse_header(kstream_t *s, kstring_t *line);
@@ -290,6 +294,10 @@ static int parse_args(int argc, char **argv)
         }
         else if (strcmp(a, "-as") == 0) {
             args.antisense = 1;
+            continue;
+        }
+        else if (strcmp(a, "-exon") == 0) {
+            args.exon_level = 1;
             continue;
         }
         
@@ -403,13 +411,15 @@ static int parse_args(int argc, char **argv)
             if (str.l != 14) error("Bad format of -tags, require five tags and splited by ','.");
             int n;
             int *s = ksplit(&str, ',', &n);
-            if (n != 5) error("-tags required five tag names.");
+            if (n != 4 && n != 5) error("-tags required 4 or 5 tag names.");
             
             memcpy(TX_tag, str.s+s[0], 2*sizeof(char));
             // memcpy(AN_tag, str.s+s[1], 2*sizeof(char));
-            memcpy(GN_tag, str.s+s[2], 2*sizeof(char));
-            memcpy(GX_tag, str.s+s[3], 2*sizeof(char));
-            memcpy(RE_tag, str.s+s[4], 2*sizeof(char));
+            memcpy(GN_tag, str.s+s[1], 2*sizeof(char));
+            memcpy(GX_tag, str.s+s[2], 2*sizeof(char));
+            memcpy(RE_tag, str.s+s[3], 2*sizeof(char));
+            if (args.exon_level && n == 5) memcpy(EX_tag, str.s + s[4], 2*sizeof(char));
+            
             free(str.s);
             free(s);
         }
@@ -518,6 +528,7 @@ static void gtf_anno_print(struct gtf_anno_type *ann, struct gtf_spec const *G)
 }
 
 // type_exon == type_splice > type_exon_intron > type_ambiguous > type_intron > type_anitisense > type_antisense_intron == type_unknown
+// 
 static void gene_most_likely_type(struct gene_type *g)
 {
     int i;
@@ -905,7 +916,8 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     if ((data = bam_aux_get(b, GN_tag)) != NULL) bam_aux_del(b, data);
     if ((data = bam_aux_get(b, GX_tag)) != NULL) bam_aux_del(b, data);
     if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
-
+    if ((data = bam_aux_get(b, EX_tag)) != NULL) bam_aux_del(b, data);
+    
     struct gtf_anno_type *ann = bam_gtf_anno_core(b, G, args.hdr);
 
     bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)RE_tag_name(ann->type));

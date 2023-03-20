@@ -8,13 +8,15 @@ static struct args {
     int upstream;
     int downstream;
     int stranded;
+    int check_name;
 } args = {
     .n_file = 0,
     .input_fnames = NULL,
     .output_fname = NULL,
     .upstream = 0,
     .downstream = 0,
-    .stranded = 1
+    .stranded = 1,
+    .check_name = 0
 };
 
 static int mergebed_usage()
@@ -28,7 +30,8 @@ static int mergebed_usage()
     fprintf(stderr, "-s              Ignore strand.\n");
     fprintf(stderr, "-up   [INT]     Enlarge regions upstream.\n");
     fprintf(stderr, "-down [INT]     Enlarge regions downstream.\n");
-
+    fprintf(stderr, "-name           Merge regions by bed name.\n");
+    
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
     fprintf(stderr, " * This tool accepts 3 columns or 6 columns bed file(s), strand (+/-) is set in column 6.\n");
     fprintf(stderr, " * By default, merging is done with respect to strandness unless -s is set.\n");
@@ -56,7 +59,11 @@ static int parse_args(int argc, char **argv)
             args.stranded = 0;
             continue;
         }
-
+        else if (strcmp(a, "-name") == 0) {
+            args.check_name = 1;
+            continue;
+        }
+        
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -97,7 +104,7 @@ int mergebed(int argc, char **argv)
         B = bed_read0(B, args.input_fnames[i]);
     }
 
-    bed_spec_merge1(B, args.stranded, args.upstream, args.downstream, 0);
+    bed_spec_merge1(B, args.stranded, args.upstream, args.downstream, 0, args.check_name);
     
     bed_spec_write(B, args.output_fname, 0);
 

@@ -173,7 +173,7 @@ void bed_spec_sort(struct bed_spec *B)
 {
     qsort(B->bed, B->n, sizeof(struct bed), cmpfunc);    
 }
-void bed_spec_merge0(struct bed_spec *B, int strand)
+void bed_spec_merge0(struct bed_spec *B, int strand, int check_name)
 {
     bed_spec_sort(B);
     int i, j;
@@ -199,7 +199,7 @@ void bed_spec_merge0(struct bed_spec *B, int strand)
             }
             // check strand sensitive
             if (strand == 1 && bed->strand != bed0->strand) continue;
-            
+            if (check_name && bed->name != -1 && bed0->name != -1 && bed->name != bed0->name) continue;
             //if (bed->start >= bed0->end) break; // nonoverlap, move to next record
             // merge if bed0->end == bed->start
             if (bed->start > bed0->end) break; // nonoverlap, move to next record
@@ -220,14 +220,14 @@ void bed_spec_merge0(struct bed_spec *B, int strand)
     
     B->n = i+1;
 }
-void bed_spec_merge1(struct bed_spec *B, int strand, int up, int down, int min_length)
+void bed_spec_merge1(struct bed_spec *B, int strand, int up, int down, int min_length, int check_name)
 {
     bed_spec_expand(B, up, down);
-    bed_spec_merge0(B, strand);    
+    bed_spec_merge0(B, strand, check_name);    
 }
-void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length)
+void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length, int check_name)
 {
-    bed_spec_merge0(B, strand);
+    bed_spec_merge0(B, strand, check_name);
     if (gap > 0) {
         bed_spec_expand(B, 0, gap);
         bed_spec_shrink(B, 0, gap);
@@ -240,7 +240,7 @@ void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length)
             bed->seqname = -1;
         }
     }
-    bed_spec_merge0(B, strand);
+    bed_spec_merge0(B, strand, check_name);
 }
 
 

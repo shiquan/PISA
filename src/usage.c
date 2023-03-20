@@ -273,10 +273,11 @@ int anno_usage()
 
     fprintf(stderr, "\nOptions for GTF file :\n");
     fprintf(stderr, " -gtf      [GTF]       GTF annotation file. gene_id,transcript_id is required for each record.\n");
-    fprintf(stderr, " -tags     [TAGs]      Attribute names, more details see `\x1b[31m\x1b[1mNotice\x1b[0m` below. [TX,GN,GX,RE]\n");
+    fprintf(stderr, " -tags     [TAGs]      Attribute names, more details see `\x1b[31m\x1b[1mNotice\x1b[0m` below. [TX,GN,GX,RE,EX]\n");
     fprintf(stderr, " -ignore-strand        Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be annotated.\n");
     fprintf(stderr, " -splice               Reads covered exon-intron edge will also be annotated with all tags.\n");
     fprintf(stderr, " -intron               Reads covered intron regions will also be annotated with all tags.\n");
+    fprintf(stderr, " -exon                 Generate exon level annotation. Put exon name (Gene_EXn) in EX tag. **experiment**\n");
     fprintf(stderr, " -as                   Annotate antisense RNAs. **experiment**\n");
     fprintf(stderr, " -tss                  Annotate reads start from TSS, designed for capped library. **experiment**\n");
     fprintf(stderr, " -ctag     [TAG]       Tag name for TSS annotation. Need set with -tss.\n");
@@ -294,6 +295,7 @@ int anno_usage()
     fprintf(stderr, "   GX : Gene ID.\n");
     fprintf(stderr, "   RE : Region type, E (exon), N (intron), C (exon and intron), S (junction reads cover isoforms properly), V (ambiguous reads),\n");
     fprintf(stderr, "        I (intergenic), A (antisense or antisense exon), B (antisense intron)\n");
+    fprintf(stderr, "   EX : Exon name. This tag is generated when set -exon.\n");
     fprintf(stderr, "\n");
     return 1;
 }
