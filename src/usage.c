@@ -471,6 +471,7 @@ int depth_usage()
     fprintf(stderr, " -o        [FILE]     Output depth file. [stdout].\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. [20]\n");
     fprintf(stderr, " -@        [INT]      Threads to unpack bam. [4]\n");
+    fprintf(stderr, " -0                   Print uncoverage regions.\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
     fprintf(stderr, " * Requires sorted and indexed BAM as input.\n");
     fprintf(stderr, " * Compares with `samtools depth`, PISA depth considers UMIs and strand of reads.\n");

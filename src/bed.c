@@ -492,52 +492,70 @@ int bed_check_overlap(const struct bed_spec *B, char *name, int start, int end, 
 }
 // chrom, start, end, name, score[reserved], strand,
 // ext: n_gene, gene(s), functional type, nearby gene for integenic, nearby distance
-void bed_spec_write0(struct bed_spec *B, FILE *out, int ext)
+void bed_spec_write0(struct bed_spec *B, FILE *out, int ext, int gene_as_name)
 {
     int i;
     for (i = 0; i < B->n; ++i) {
         struct bed *bed = &B->bed[i];
-        fprintf(out, "%s\t%d\t%d\t%s\t.\t%c", dict_name(B->seqname, bed->seqname),
-                bed->start, bed->end, bed->name == -1 ? "." : dict_name(B->name, bed->name),
-                ".+-"[bed->strand+1]
-            );
-
         if (ext) {
             struct bed_ext *e = (struct bed_ext*)bed->data;
-            fputc('\t', out);
-            
-            if (e == NULL) fputs("0\t.\tintergenic\t.\t0", out);
-            else {
-                if (e->distance == 0) {
-                    fprintf(out, "%d\t", e->n);
-                    
-                    if (e->n == 1) {
-                        fputs(e->genes[0], out);                    
+            if (e) {
+                kstring_t name = {0,0,0};
+                if (e->n == 1) {
+                    kputs(e->genes[0], &name);  
+                } else {
+                    if (e->n > 3) {
+                        ksprintf(&name, "%s,...,%s", e->genes[0], e->genes[e->n-1]);
                     } else {
-                        if (e->n > 3) {
-                            fprintf(out, "%s,...,%s", e->genes[0], e->genes[e->n-1]);
-                        } else {
-                            int k;
-                            for (k = 0; k < e->n; ++k) {
-                                if (k) fputc(',', out);
-                                fputs(e->genes[k], out);
-                            }
+                        int k;
+                        for (k = 0; k < e->n; ++k) {
+                            if (k) kputc(',', &name);
+                            kputs(e->genes[k], &name);
                         }
                     }
+                }
+                
+                if (gene_as_name && name.m > 0) {
+                    fprintf(out, "%s\t%d\t%d\t%s\t.\t%c", dict_name(B->seqname, bed->seqname),
+                            bed->start, bed->end, name.s, //bed->name == -1 ? "." : dict_name(B->name, bed->name),
+                            ".+-"[bed->strand+1]
+                        );
+                } else {
+                    fprintf(out, "%s\t%d\t%d\t%s\t.\t%c", dict_name(B->seqname, bed->seqname),
+                            bed->start, bed->end, bed->name == -1 ? "." : dict_name(B->name, bed->name),
+                            ".+-"[bed->strand+1]
+                        );                
+                }
+                fputc('\t', out);
+                if (e->distance == 0) {
+                    fprintf(out, "%d\t", e->n);
+                    fputs(name.s, out);
                     fprintf(out, "\t%s\t.\t0", bed_typename(e->type));
-                    
                 } else {
                     if (e->n == 0) fputs("0\t.\tintergenic\t.\t0", out);
                     else fprintf(out, "0\t.\tintergenic\t%s\t%d", e->genes[0], e->distance);
                 }
+                if (name.m) free(name.s);
+            } else {
+                fprintf(out, "%s\t%d\t%d\t%s\t.\t%c\t0\t.\tintergenic\t.\t0", dict_name(B->seqname, bed->seqname),
+                        bed->start, bed->end, bed->name == -1 ? "." : dict_name(B->name, bed->name),
+                        ".+-"[bed->strand+1]
+                    );
             }
+            
+            
+        } else {
+            fprintf(out, "%s\t%d\t%d\t%s\t.\t%c", dict_name(B->seqname, bed->seqname),
+                    bed->start, bed->end, bed->name == -1 ? "." : dict_name(B->name, bed->name),
+                    ".+-"[bed->strand+1]
+                );
         }
         
         fputc('\n', out);
     }
 }
 
-void bed_spec_write(struct bed_spec *B, const char *fn, int ext)
+void bed_spec_write(struct bed_spec *B, const char *fn, int ext, int gene_as_name)
 {
     FILE *fp;
     if (fn == NULL) fp = stdout;
@@ -546,7 +564,7 @@ void bed_spec_write(struct bed_spec *B, const char *fn, int ext)
         if (fp == NULL) error("%s : %s", fn, strerror(errno));
     }
 
-    bed_spec_write0(B, fp, ext);
+    bed_spec_write0(B, fp, ext, gene_as_name);
 
     fclose(fp);
 }

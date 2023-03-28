@@ -9,7 +9,78 @@ struct depth *depth_init()
     d->id = -1;
     return d;
 }
+void depth_destroy(struct depth *d)
+{
+    for (;d;) {
+        struct depth *tmp = d;
+        d = d->next;
+        free(tmp);
+    }
+}
+struct depth *find_mostleft(struct depth *cur)
+{
+    if (!cur) return NULL;
+    struct depth *d = cur;
+    for (; d->left; d = d->left);
+    return d;
+}
 
+struct depth *find_mostright(struct depth *cur)
+{
+    if (!cur) return NULL;
+    struct depth *d = cur;
+    for (; d->right; d=d->right);
+    return d;
+}
+
+void depth_summary(struct depth *d) {
+    struct depth *tmp = d;
+    
+    int i = 0;
+    while (tmp) {
+        tmp = tmp->next;
+        i++;
+    }
+    debug_print("summary : %d", i);
+}
+struct depth *depth_cut_branch(struct depth *head)
+{
+    // depth_summary(head);
+    struct depth *cur = head;
+    head = find_mostleft(head); // update first node
+    
+    for (; cur;) {
+        struct depth *before = cur->before;
+        struct depth *next = cur->next;
+        
+        struct depth *head0 = cur;
+        struct depth *tail0 = cur;
+
+        head0 = find_mostleft(cur);
+        tail0 = find_mostright(cur);
+
+        head0->before = before;
+        if (before) head0->before->next = head0;
+        
+        tail0->next = next;
+        if (next) tail0->next->before = tail0;
+        
+        struct depth *cur0;
+        //int i = 0;
+        for (cur0 = head0; cur0 != tail0; cur0=cur0->next) {
+            //i++;
+            cur0->next = cur0->right;
+            if (cur0->next) cur0->next->before = cur0;
+            cur0->left = NULL;
+            cur0->right = NULL;
+        }
+        //debug_print("i : %d", i);
+        cur = next; // move to next node
+    }
+    // depth_summary(head);
+    return head;
+    
+}
 void update_depth(struct depth *d)
 {
     if (d->bc1 && d->dep1 == 0) {
@@ -22,8 +93,9 @@ void update_depth(struct depth *d)
     }
 }
 
-int depth_increase(struct depth *d, int id, char *umi, int strand0)
+int depth_increase(struct depth *d, int id, char const *umi, int strand0)
 {
+    if (!d) return 1;
     if (d->id == -1) d->id = id;
     if (d->id == id) {
         if (strand0 == BED_STRAND_UNK || strand0 == BED_STRAND_FWD) {
@@ -39,9 +111,9 @@ int depth_increase(struct depth *d, int id, char *umi, int strand0)
             }
             else d->dep2++;
         }
-        
-    } else if (d->id > id) {
-        if (d->right) return depth_increase(d->right, id, umi, strand0);
+    }
+    else if (d->id < id) {
+        if (d->right && d->right->id <= id) return depth_increase(d->right, id, umi, strand0);
         int pos = d->pos;
         struct depth *new = depth_init();
         new->pos = pos;
@@ -59,9 +131,12 @@ int depth_increase(struct depth *d, int id, char *umi, int strand0)
             }
             else new->dep2++;
         }
+        new->right = d->right;
+        if (new->right) new->right->left = new;
         d->right = new;
-    } else { // cur->id < id
-        if (d->left) return depth_increase(d->left, id, umi, strand0);
+        new->left = d;
+    } else { // d->id > id
+        if (d->left && d->left->id >= id) return depth_increase(d->left, id, umi, strand0);
         int pos = d->pos;
         struct depth *new = depth_init();
         new->pos = pos;
@@ -79,7 +154,10 @@ int depth_increase(struct depth *d, int id, char *umi, int strand0)
             }
             else new->dep2++;
         }
+        new->left = d->left;
+        if (new->left) new->left->right = new;
         d->left = new;
+        new->right = d;
     }
     return 0;
 }
@@ -94,7 +172,8 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
                         const char *umi_tag,
                         const int split_by_tag,
                         const int alias_tag,
-                        const int *alias_idx
+                        const int *alias_idx,
+                        int fix_barcodes
     )
 {
     hts_itr_t *itr = sam_itr_queryi(idx, tid, start, end);
@@ -112,7 +191,7 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
     
     // int last = start+1;
         
-    while ((result = sam_itr_multi_next(fp, itr, b)) >= 0) {
+    while ((result = sam_itr_next(fp, itr, b)) >= 0) {
         bam1_core_t *c = &b->core;
         if (c->qual < mapq_thres) continue;
         if (c->flag & BAM_FSECONDARY) continue;
@@ -132,20 +211,27 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
         uint8_t *data = NULL;
         char *umi = NULL;
         int id = -1;
-        
-        if (bc_tag && bc) {
+
+        if (bc_tag) {
+            // skip if no BC tag
             data = bam_aux_get(b, bc_tag);
             if (data == NULL) continue;
-            id = dict_query(bc, (char*)(data+1));
-            if (id == -1) continue;
-            if (alias_tag) {
-                id = alias_idx[id];
+
+            // check whitelist or flexible list
+            if (bc && fix_barcodes) {
+                id = dict_query(bc, (char*)(data+1));
+                if (id == -1) continue;
+                if (alias_tag) {
+                    id = alias_idx[id];
+                }
             }
         }
+        
         if (split_by_tag) {
             if (id == -1) {
-                data = bam_aux_get(b, bc_tag);
-                if (data == NULL) continue;
+                // data = bam_aux_get(b, bc_tag);
+                assert(data);
+                // if (data == NULL) continue;
                 id = dict_query(bc, (char*)(data+1));
                 if (id == -1) id = dict_push(bc, (char*)(data+1));
             }
@@ -193,7 +279,7 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
                         // debug_print("last: %d, pos: %d", cur->pos, pos);
                         // assert(cur->pos <= pos);
                         for (; cur != NULL; cur = cur->next) {
-                            if (cur->pos == pos) {                                
+                            if (cur->pos == pos) {
                                 depth_increase(cur, id, umi, strand0);
                                 break;
                             }
@@ -283,7 +369,9 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
     
     hts_itr_destroy(itr);
 
+    head = depth_cut_branch(head);
     struct depth *cur = head;
+
     while (cur) {
         update_depth(cur);
         cur = cur->next;
