@@ -106,7 +106,7 @@ int mergebed(int argc, char **argv)
 
     bed_spec_merge1(B, args.stranded, args.upstream, args.downstream, 0, args.check_name);
     
-    bed_spec_write(B, args.output_fname, 0);
+    bed_spec_write(B, args.output_fname, 0, 0);
 
     bed_spec_destroy(B);
 

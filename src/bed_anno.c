@@ -11,9 +11,11 @@ static struct args {
     
     int upstream;
     int downstream;
-
+    
     int stranded;
 
+    int gene_as_name;
+    
     struct gtf_spec *G;
     struct bed_spec *B;
     struct bed_anno_sum *summary;
@@ -25,6 +27,7 @@ static struct args {
     .upstream     = 0,
     .downstream   = 0,
     .stranded     = 1,
+    .gene_as_name = 0,
     .G            = NULL,
     .B            = NULL,
     .summary      = NULL
@@ -45,6 +48,7 @@ static int bedanno_usage()
     fprintf(stderr, "-o      [FILE]    Output bed file.\n");
     fprintf(stderr, "-report [FILE]    Summary report. Export in STDERR by default.\n");
     fprintf(stderr, "-s                Ignore strand.\n");
+    fprintf(stderr, "-gene-name        Set annatated gene as bed name (column 4).\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mOutput format\x1b[0m :\n");
     fprintf(stderr, "chromosome,start(0based),end(1based),name,score,strand,number of covered genes, cover gene name(s),type,nearest gene name,distance to nearby gene\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
@@ -71,7 +75,10 @@ static int parse_args(int argc, char **argv)
             args.stranded = 0;
             continue;
         }
-
+        else if (strcmp(a, "-gene-name") == 0) {
+            args.gene_as_name = 1;
+            continue;
+        }
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -346,7 +353,6 @@ int annobed_main(int argc, char **argv)
                 if (ret != 0) continue; // nonoverlapped
             }
             
-            
             // for stranded, reannotate antisense 
             if (b->strand != -1 && g0->strand != b->strand) {
                 if (a[k].type == BAT_MULTIEXONS) a[k].type = BAT_ANTISENSECOMPLEX;
@@ -430,7 +436,7 @@ int annobed_main(int argc, char **argv)
         free(a);
     }
 
-    bed_spec_write(args.B, args.output_fname, 1);
+    bed_spec_write(args.B, args.output_fname, 1, args.gene_as_name);
     
     summary_report();
     memory_release();

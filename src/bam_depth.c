@@ -17,6 +17,8 @@ static struct args {
     const char *region_fname;
     
     struct dict *barcodes;
+    int fix_barcodes;
+    
     htsFile *fp;
     hts_idx_t *idx;
     FILE *out; // 
@@ -32,6 +34,7 @@ static struct args {
     int mapq_thres;
     int n_thread;
 
+    int print_0;
     int ignore_strand;
     int split_by_tag;
     int alias_tag;
@@ -46,6 +49,8 @@ static struct args {
     .tag         = NULL,
     .umi_tag     = NULL,
     .barcodes    = NULL,
+    .fix_barcodes= 0,
+    
     .region_fname = NULL,
     .fp          = NULL,
     .idx         = NULL,
@@ -57,6 +62,7 @@ static struct args {
     .strand      = BED_STRAND_UNK,
     .mapq_thres  = 20,
     .n_thread    = 4,
+    .print_0     = 0,
     .ignore_strand = 0,
     .split_by_tag= 0,
     .alias_tag   = 0,
@@ -132,21 +138,23 @@ static void print_node0(int pos, int tid, FILE *out)
 int depth2file(struct depth *d, int tid, int start, int end, FILE *out)
 {
     int last = start + 1;
-    
+    // struct depth *d = _d;
     while (d) {
         int last_pos = d->pos;
         int last_id = 0;
         while (d && d->pos == last_pos) {
             if (d->pos > start && d->pos <= end) {
-                for (; last < d->pos; ++last) {
-                    print_node0(last, tid, out);
+                if (args.print_0) {
+                    for (; last < d->pos; ++last) {
+                        print_node0(last, tid, out);
+                    }
+                    last = d->pos +1;
                 }
-                last = d->pos +1;
                 
                 if (args.split_by_tag == 0) {
                     print_node(d, tid, out);
                 } else {
-                    if (last_id < d->id) {
+                    if (args.print_0 && last_id < d->id) {
                         for (; last_id < d->id; last_id++) {
                             print_node_id0(last_pos, tid, last_id, out);
                         }
@@ -168,13 +176,13 @@ int depth2file(struct depth *d, int tid, int start, int end, FILE *out)
             int n = 0;
             if (args.alias_tag) n = dict_size(args.alias);
             else n = dict_size(args.barcodes);
-            for (; last_id < n; last_id++) {
+            for (; args.print_0 && last_id < n; last_id++) {
                 print_node_id0(last_pos, tid, last_id, out);
             }
         }
     }
 
-    for (; last <= end; ++last) {
+    for (; args.print_0 && last <= end; ++last) {
         print_node0(last, tid, out);
     }
     
@@ -198,6 +206,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-q") == 0) var = &mapq;
         else if (strcmp(a, "-@") == 0) var = &threads;
         else if (strcmp(a, "-bed") == 0) var = &args.region_fname;
+        else if (strcmp(a, "-0") == 0) {
+            args.print_0 = 1;
+            continue;
+        }
         else if (strcmp(a, "-split") == 0) {
             args.split_by_tag = 1;
             continue;
@@ -267,6 +279,7 @@ static int parse_args(int argc, char **argv)
                 }
             }
         }
+        args.fix_barcodes = 1;
     }
     
     args.fp = hts_open(args.input_fname, "r");
@@ -295,7 +308,7 @@ static int parse_args(int argc, char **argv)
             struct depth *d = bam2depth(args.idx, tid, bed->start, bed->end, bed->strand,
                                         args.fp, args.mapq_thres, args.ignore_strand,
                                         args.barcodes, args.tag, args.umi_tag, args.split_by_tag,
-                                        args.alias_tag, args.alias_idx);
+                                        args.alias_tag, args.alias_idx, args.fix_barcodes);
             depth2file(d, tid, bed->start, bed->end, args.out);
         }
     }
@@ -346,8 +359,9 @@ static int parse_args(int argc, char **argv)
         struct depth *d = bam2depth(args.idx, args.tid, args.start, args.end, args.strand,
                                     args.fp, args.mapq_thres, args.ignore_strand,
                                     args.barcodes, args.tag, args.umi_tag, args.split_by_tag,
-                                    args.alias_tag, args.alias_idx);       
+                                    args.alias_tag, args.alias_idx, args.fix_barcodes);
         depth2file(d, args.tid, args.start, args.end, args.out);
+        // depth_destroy(d);        
     }
     else { // whole genome
         int i;
@@ -361,9 +375,11 @@ static int parse_args(int argc, char **argv)
                 struct depth *d = bam2depth(args.idx, i, last, end, args.strand,
                                             args.fp, args.mapq_thres, args.ignore_strand,
                                             args.barcodes, args.tag, args.umi_tag,
-                                            args.split_by_tag, args.alias_tag, args.alias_idx);
+                                            args.split_by_tag, args.alias_tag, args.alias_idx,
+                                            args.fix_barcodes);
 
                 depth2file(d, i, last, end, args.out);
+                // depth_destroy(d);
                 if (end == len) break;
                 
                 last = end;

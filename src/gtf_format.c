@@ -51,8 +51,8 @@ int gtf_format(int argc, char **argv)
         error("Unknown argument, %s", a);
     }
 
-    if (output_fname == NULL) error("No output.");
-    if (input_fname  == NULL) error("No input.");
+    if (output_fname == NULL) error("Please specify output file by -o.");
+    if (input_fname  == NULL) error("No input specified.");
 
     struct dict *keys = NULL;
     if (key_str) {

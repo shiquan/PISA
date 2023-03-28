@@ -17,17 +17,18 @@ struct depth {
     // int depth;
     // int strand;
     int id;
-    struct dict *bc;
+    // struct dict *bc;
     struct depth *next;
     struct depth *before;
 
-    // a tree for different ids
+    // a subtree for different ids
     struct depth *left;
     struct depth *right;
 };
 
 struct depth *depth_init();
 
+void depth_destroy(struct depth *d);
 
 struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, const int end,
                         const int strand,
@@ -39,7 +40,8 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
                         const char *umi_tag,
                         const int split_by_tag,
                         const int alias_tag,
-                        const int *alias_idx
+                        const int *alias_idx,
+                        int fix_barcodes
     );
 
 #endif

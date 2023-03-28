@@ -99,8 +99,8 @@ void bed_spec_merge1(struct bed_spec *B, int strand, int up, int down, int min_l
 void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length, int check_name);
 
 void bed_spec_var_destroy(struct bed_spec *B);
-void bed_spec_write0(struct bed_spec *B, FILE *out, int ext);
-void bed_spec_write(struct bed_spec *B, const char *fn, int ext);
+void bed_spec_write0(struct bed_spec *B, FILE *out, int ext, int gene_as_name);
+void bed_spec_write(struct bed_spec *B, const char *fn, int ext, int gene_as_name);
 void bed_spec_seqname_from_bam(struct bed_spec *B, bam_hdr_t *hdr);
     
 #endif

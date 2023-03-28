@@ -171,7 +171,7 @@ int callept(struct bed_spec *B, hts_idx_t *idx, int tid, int start, int end)
 {
     struct depth *d = bam2depth(idx, tid, start, end, BED_STRAND_UNK, args.fp, args.mapq_thres,
                                 args.ignore_strand, args.barcodes, args.tag, args.umi_tag,
-                                0, 0, NULL);
+                                0, 0, NULL, 0);
 
     if (d == NULL) return 1;
     
@@ -286,7 +286,7 @@ int callept_main(int argc, char **argv)
         bed_spec_merge2(B, 1, args.max_gap, args.min_length, 0);
 
         //omp_set_lock(&writelock);
-        bed_spec_write0(B, args.out, 0);
+        bed_spec_write0(B, args.out, 0, 0);
         //omp_unset_lock(&writelock);
         bed_spec_destroy(B);
     }
