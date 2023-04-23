@@ -437,13 +437,18 @@ int annobed_main(int argc, char **argv)
         }
 
         struct bed_ext *e = (struct bed_ext*)b->data;
-        
-        if (e) {
-            args.summary[e->type].count++;
-            args.summary[e->type].cov += b->end - b->start;
+
+        if (b->seqname == -1) {
+            args.summary[BAT_UNKNOWNCHRS].count++;
+            args.summary[BAT_UNKNOWNCHRS].cov+= b->end - b->start;
         } else {
-            args.summary[BAT_INTERGENIC].count++;
-            args.summary[BAT_INTERGENIC].cov += b->end - b->start;            
+            if (e) {
+                args.summary[e->type].count++;
+                args.summary[e->type].cov += b->end - b->start;
+            } else {
+                args.summary[BAT_INTERGENIC].count++;
+                args.summary[BAT_INTERGENIC].cov += b->end - b->start;            
+            }
         }
         free(a);
     }

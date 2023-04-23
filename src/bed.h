@@ -24,7 +24,7 @@ struct bed {
     void *data;
 };
 
-#define BAT_COUNT    15
+#define BAT_COUNT    16
 
 // definition of BED annotation types
 #define BAT_UNKNOWN          0
@@ -42,6 +42,7 @@ struct bed {
 #define BAT_ANTISENSEINTRON  12
 #define BAT_ANTISENSECOMPLEX 13
 #define BAT_INTERGENIC       14
+#define BAT_UNKNOWNCHRS      15
 
 extern const char *bed_typename(int type);
 

@@ -26,7 +26,8 @@ static const char *bed_anno_type[] = {
     "antisense_exon",
     "antisense_intron",
     "antisense_complex",
-    "intergenic"
+    "intergenic",
+    "unknown_chromosome"
 };
 
 const char *bed_typename(int type)
