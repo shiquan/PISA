@@ -15,6 +15,8 @@ static struct args {
     int stranded;
 
     int gene_as_name;
+
+    int skip_chrs;
     
     struct gtf_spec *G;
     struct bed_spec *B;
@@ -28,6 +30,7 @@ static struct args {
     .downstream   = 0,
     .stranded     = 1,
     .gene_as_name = 0,
+    .skip_chrs    = 0,
     .G            = NULL,
     .B            = NULL,
     .summary      = NULL
@@ -49,6 +52,7 @@ static int bedanno_usage()
     fprintf(stderr, "-report [FILE]    Summary report. Export in STDERR by default.\n");
     fprintf(stderr, "-s                Ignore strand.\n");
     fprintf(stderr, "-gene-name        Set annatated gene as bed name (column 4).\n");
+    fprintf(stderr, "-skip-chrs        Skip chromosomes if not exist in GTF.\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mOutput format\x1b[0m :\n");
     fprintf(stderr, "chromosome,start(0based),end(1based),name,score,strand,number of covered genes, cover gene name(s),type,nearest gene name,distance to nearby gene\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
@@ -77,6 +81,10 @@ static int parse_args(int argc, char **argv)
         }
         else if (strcmp(a, "-gene-name") == 0) {
             args.gene_as_name = 1;
+            continue;
+        }
+        else if (strcmp(a, "-skip-chrs") == 0) {
+            args.skip_chrs = 1;
             continue;
         }
         if (var != 0) {
@@ -328,7 +336,10 @@ int annobed_main(int argc, char **argv)
         struct region_itr *itr = gtf_query(args.G, name, b->start, b->end);
         if (itr == NULL) {
             int id = dict_query(args.G->name, name);
-            if (id == -1) error("Chromosome %s not found in GTF, use wrong database?", name);
+            if (id == -1) {
+                if (args.skip_chrs == 0) error("Chromosome %s not found in GTF, use wrong database?", name);
+                continue;
+            } 
             
             check_nearest_gene();
             continue;
