@@ -338,6 +338,7 @@ int annobed_main(int argc, char **argv)
             int id = dict_query(args.G->name, name);
             if (id == -1) {
                 if (args.skip_chrs == 0) error("Chromosome %s not found in GTF, use wrong database?", name);
+                b->seqname = -1;
                 continue;
             } 
             

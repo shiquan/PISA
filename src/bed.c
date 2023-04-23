@@ -497,6 +497,9 @@ void bed_spec_write0(struct bed_spec *B, FILE *out, int ext, int gene_as_name)
     int i;
     for (i = 0; i < B->n; ++i) {
         struct bed *bed = &B->bed[i];
+
+        if (bed->seqname == -1) continue;
+        
         if (ext) {
             struct bed_ext *e = (struct bed_ext*)bed->data;
             if (e) {
