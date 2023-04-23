@@ -1018,9 +1018,9 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
             temp.l = 0;
             
             if (bed->name == -1) {          
-                ksprintf(&temp, "%s_%d_%d", dict_name(B->seqname, bed->seqname), bed->start, bed->end);
-                if (bed->strand == 0) kputs("_+", &temp);
-                else if (bed->strand == 1) kputs("_-", &temp);
+                ksprintf(&temp, "%s-%d-%d", dict_name(B->seqname, bed->seqname), bed->start, bed->end);
+                if (bed->strand == 0) kputs("-+", &temp);
+                else if (bed->strand == 1) kputs("--", &temp);
             } else {
                 kputs(dict_name(B->name, bed->name), &temp);
             }
