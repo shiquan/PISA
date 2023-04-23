@@ -435,7 +435,11 @@ int annobed_main(int argc, char **argv)
             e->n = j;
             b->data = e;
         }
+        free(a);
+    }
 
+    for (i = 0; i < args.B->n; ++i) {
+        struct bed *b = &args.B->bed[i];
         struct bed_ext *e = (struct bed_ext*)b->data;
 
         if (b->seqname == -1) {
@@ -450,7 +454,6 @@ int annobed_main(int argc, char **argv)
                 args.summary[BAT_INTERGENIC].cov += b->end - b->start;            
             }
         }
-        free(a);
     }
 
     bed_spec_write(args.B, args.output_fname, 1, args.gene_as_name);
