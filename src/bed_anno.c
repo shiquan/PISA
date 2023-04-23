@@ -435,7 +435,7 @@ int annobed_main(int argc, char **argv)
             e->n = j;
             b->data = e;
         }
-        free(a);
+            free(a);
     }
 
     for (i = 0; i < args.B->n; ++i) {
