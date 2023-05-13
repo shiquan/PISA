@@ -81,7 +81,7 @@ int reads_match_var(struct bed *bed, bam1_t *b)
             
     return 1;    
 }
-int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag, int ref_alt)
+int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag, int ref_alt, int vcf_ss)
 { 
     bam1_core_t *c;
     c = &b->core;
@@ -92,12 +92,14 @@ int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *
     
     char *name = h->target_name[c->tid];
     int endpos = bam_endpos(b);
-
+    
     // bed_query::start is 1 based
     struct region_itr *itr = bed_query(B, name, c->pos+1, endpos, BED_STRAND_IGN);
     if (itr == NULL) return 0; // query failed
     if (itr->n == 0) return 0; // no hit
 
+    int strand = c->flag & BAM_FREVERSE;
+    
     struct dict *val = dict_init();
     int i;
     kstring_t temp = {0,0,0};
@@ -112,14 +114,16 @@ int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *
         if (ret == 1) {
             // "," is not compatible with PISA count, change to "-" from v0.10
             //if (bed->name == -1) ksprintf(&temp, "%s,%d,%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->alt->s);
-            if (bed->name == -1) ksprintf(&temp, "%s_%d_%s_%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->alt->s);
+            if (bed->name == -1) ksprintf(&temp, "%s-%d-%s-%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->alt->s);
             else kputs(dict_name(B->name,bed->name), &temp);
         } else if (ref_alt == 1) {
-            ksprintf(&temp, "%s_%d_%s_%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->ref->s);
+            ksprintf(&temp, "%s-%d-%s-%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->ref->s);
         }
-        
-        if (temp.l)
-            dict_push(val, temp.s);
+
+        if (temp.l && vcf_ss) kputs(strand == 0 ? "-+" : "--", &temp);
+
+        if (temp.l) dict_push(val, temp.s);
+            
         
     }
     region_itr_destroy(itr);

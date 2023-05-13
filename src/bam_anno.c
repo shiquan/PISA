@@ -63,8 +63,9 @@ static struct args {
     int splice_consider;
     int intron_consider;
     int antisense;
-
+    
     int exon_level;
+    int reverse_trans;
     
     int n_thread;
     int chunk_size;
@@ -72,6 +73,7 @@ static struct args {
     int anno_only;
 
     int ref_alt;
+    int vcf_ss;
     
     int input_sam;
     gzFile fp_sam;
@@ -122,6 +124,7 @@ static struct args {
     .intron_consider = 0,
     .antisense       = 0,
     .exon_level      = 0,
+    .reverse_trans   = 0,
     
     .map_qual        = 0,
     .n_thread        = 4,
@@ -129,6 +132,7 @@ static struct args {
     .anno_only       = 0,
 
     .ref_alt         = 0,
+    .vcf_ss       = 0,
     
     .input_sam       = 0,
     .fp_sam          = NULL,
@@ -300,7 +304,10 @@ static int parse_args(int argc, char **argv)
             args.exon_level = 1;
             continue;
         }
-        
+        else if (strcmp(a, "-rev") == 0) {
+            args.reverse_trans = 1;
+            continue;
+        }
         // group options
         else if (strcmp(a, "-group") == 0) var = &args.group_tag;
 
@@ -322,7 +329,10 @@ static int parse_args(int argc, char **argv)
             args.ref_alt = 1;
             continue;
         }
-        
+        else if (strcmp(a, "-vcf-ss") == 0) {
+            args.vcf_ss = 1;
+            continue;
+        }
         else if (strcmp(a, "-ctag") == 0) var = &args.ctag;
         
         else if (strcmp(a, "-anno-only") == 0) {
@@ -854,16 +864,18 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
         if (g0->start > c->pos+1 || endpos > g0->end) continue; // not fully covered
 
         if (args.ignore_strand == 0) {
-            if (b->core.flag & BAM_FREVERSE) {
+            int bam_strand = b->core.flag & BAM_FREVERSE;
+            if (args.reverse_trans) bam_strand = bam_strand ? 0 : 1;
+            
+            if (bam_strand) {
                 if (g0->strand == GTF_STRAND_FWD) {
-                     antisense = 1; 
+                    antisense = 1; 
                 }
             }
             else {
                 if (g0->strand == GTF_STRAND_REV) {
                     antisense = 1;
                 }
-                
             }
         }
 
@@ -1027,7 +1039,11 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
             if (bed->strand == BED_STRAND_UNK) read_in_peak = 1;
             // stat->reads_in_region++;
             else {
-                if (c->flag & BAM_FREVERSE) {
+                int bam_strand = c->flag & BAM_FREVERSE;
+                if (args.reverse_trans) bam_strand = bam_strand ? 0 : 1;
+                
+                //if (c->flag & BAM_FREVERSE) {
+                if (bam_strand) {
                     if (bed->strand == BED_STRAND_REV) read_in_peak = 1;
                     // stat->reads_in_region++;               
                     else {
@@ -1076,7 +1092,7 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
     return 0;
 }
 
-extern int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag, int ref_alt);
+extern int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag, int ref_alt, int vcf_ss);
 extern int sam_safe_check(kstring_t *str);
 extern int parse_name_str(kstring_t *s);
 void *run_it(void *_d)
@@ -1167,7 +1183,7 @@ void *run_it(void *_d)
             if (bam_bed_anno(b, args.B, stat)) ann = 1;
 
         if (args.V)
-            if (bam_vcf_anno(b, args.hdr, args.V, args.vtag, args.ref_alt)) ann = 1;
+            if (bam_vcf_anno(b, args.hdr, args.V, args.vtag, args.ref_alt, args.vcf_ss)) ann = 1;
         
         if (args.chr_binding) {
             char *v = args.chr_binding[b->core.tid];
