@@ -262,6 +262,7 @@ int anno_usage()
     fprintf(stderr, " -chunk    [INT]       Chunk size per thread.\n");
     fprintf(stderr, " -anno-only            Export annotated reads only.\n");
     fprintf(stderr, " -sam                  Input is SAM file, parse tags from read name.\n");
+    fprintf(stderr, " -rev                  Annotation in reverse strand; Some probe ligation library for FFPE samples create reverse fragments.\n");
     
     fprintf(stderr, "\nOptions for BED file :\n");
     fprintf(stderr, " -bed      [BED]       Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
@@ -277,6 +278,7 @@ int anno_usage()
     fprintf(stderr, " -ignore-strand        Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be annotated.\n");
     fprintf(stderr, " -splice               Reads covered exon-intron edge will also be annotated with all tags.\n");
     fprintf(stderr, " -intron               Reads covered intron regions will also be annotated with all tags.\n");
+    fprintf(stderr, "\n");
     fprintf(stderr, " -exon                 Generate exon level annotation. Put exon name (Gene_EXn) in EX tag. **experiment**\n");
     fprintf(stderr, " -as                   Annotate antisense RNAs. **experiment**\n");
     fprintf(stderr, " -tss                  Annotate reads start from TSS, designed for capped library. **experiment**\n");
@@ -286,6 +288,8 @@ int anno_usage()
     fprintf(stderr, " -vcf      [VCF/BCF]   Varaints file in vcf or bcf format. In default, only annotate alternative alleles.\n");
     fprintf(stderr, " -vtag     [TAG]       Tag name. Set with -vcf.\n");
     fprintf(stderr, " -ref-alt              Annotate ref allele.\n");
+    fprintf(stderr, " -vcf-ss               Annotate variants in strand sensitive way.\n");
+    
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
     fprintf(stderr, " * If input is SAM format, will try to parse the tags in the read name.\n");
     fprintf(stderr, " * For GTF mode, this program will set tags in default, you could also reset them by -tags.\n");
