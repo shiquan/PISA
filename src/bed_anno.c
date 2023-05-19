@@ -1,3 +1,13 @@
+// Annotate bed files with GTF annotation.
+// Required a 6-column bed file, with format as "chr, start, end, name, score, strand".
+// Annotated tags such as genes and functional region will be put into extra columns,
+// therefore the output file is not exactly a bed file, the format of output file is
+// "chr, start, end, name, score, strand, n_gene, gene_name, functional region".
+// n_gene: the number of gene overlapped
+// gene_name: overlapped gene(s), multiple genes seperated by ','
+// functional region: unknown, exon, intron, multiexons, exonintron, whole_gene, utr(35),
+//                    antisense_utr(35), antisense_intron, antisense_exon, antisense_complex,
+//                    intergenic
 #include "utils.h"
 #include "bed.h"
 #include "gtf.h"
@@ -13,9 +23,7 @@ static struct args {
     int downstream;
     
     int stranded;
-
     int gene_as_name;
-
     int skip_chrs;
     
     struct gtf_spec *G;
@@ -70,7 +78,7 @@ static int parse_args(int argc, char **argv)
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
         const char **var = 0;
-
+        
         if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
         else if (strcmp(a, "-h") == 0) return 1;
@@ -87,6 +95,7 @@ static int parse_args(int argc, char **argv)
             args.skip_chrs = 1;
             continue;
         }
+
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -136,12 +145,6 @@ static void memory_release()
     bed_spec_destroy(args.B);
     gtf_destroy(args.G);
 }
-
-int check_nearest_gene()
-{
-    return 0;
-}
-
 struct anno0 {
     struct gtf *g;
     int type;
@@ -160,108 +163,71 @@ static int cmpfunc(const void *_a, const void *_b)
 // exon
 static int query_exon(int start, int end, struct gtf const *G, struct anno0 *a, int coding)
 {
-    struct anno0 *a0 = malloc(sizeof(struct anno0)* G->n_gtf);
-    
     int utr = 0;
     if (coding) utr = 1; // if CDS record exists, turn utr==0 if region overlapped with CDS region
     int pass_cds = 0;
-    
+
+    int n = 0;
+    struct gtf **gtf_pool = malloc(G->n_gtf *sizeof(struct gtf*));
     int i;
-    int j = 0; // iterate for overlapped exons
-    for (i = 0; i < G->n_gtf; ++i) {
+    for (i = 0; i < G->n_gtf; ++i) { // exon level
         struct gtf *g0 = G->gtf[i];
-        if (g0->type != feature_exon && g0->type != feature_CDS) continue;
-        // LOG_print("%s\t%d\t%d\tutr: %d", get_feature_name(g0->type), g0->start, g0->end, utr);
-        if (start >= g0->end) {
-            // skip CDS
-            if (g0->type == feature_CDS) pass_cds = 1; 
-            
-            continue; // skip this exon
-        } 
+        // filter type
+        if (g0->type != feature_CDS && g0->type != feature_exon) continue;
+        // check overlapped
         
-        if (start >= g0->start && end <= g0->end) {
-            // CDS record is only used to distiguish UTR and EXON
-            if (g0->type == feature_CDS) {
-                utr = 0; // it's a coding region
-                continue;
-            }
-            if (j == 0) {
-                a0[j].type = BAT_EXON;
-                a0[j].g = g0;
-            } else if (a0[j-1].type == BAT_EXON) { // not possible ..
-
-                error("Overlapped exon records in one transcript ? %s",  GTF_transid(args.G,G->gtf[i]->transcript_id));
-                // a0[j].type = BAT_MULTIEXONS;
-                // a0[j].g = g0;
-            }
-            j++;
-            continue; // check if next record is CDS..
+        // non-overlap
+        if (end <= g0->start) {
+            if (n == 0) { // put this record, as intron
+                gtf_pool[n++] = G->gtf[i];
+            }            
+            break;   
         }
-
-        if (j > 0 && a0[j-1].type == BAT_EXON) break; // if already annotated as exon, no need to check downstream regions
         
-        if (end <= g0->start) { // overlapped with intron
-            if (i == 0) break; // first exon
-
-            if (g0->type == feature_CDS) { // before CDS, still treat as UTR..
-                continue; // continue test next record, in case exon record come after CDS
-            }
-            if (j == 0) { // no exon hit
-                a0[j].type = BAT_INTRON;
-            }
-
-            // already hit a exon
-            else if (a0[j-1].type == BAT_EXON) {
-                // should not hit here, if overlapped with more than one exon, last annotation should be exonintron
-                error("Should not come here. Type: %s", bed_typename(a0[j-1].type));
-                a0[j].type = BAT_MULTIEXONS;
-            } else if (a0[j-1].type == BAT_EXONINTRON) {
-                a0[j].type = BAT_MULTIEXONS;
-            } else if (a0[j-1].type == BAT_MULTIEXONS) {
-                
-            }
-            
-            else {
-                error("Type: %s", bed_typename(a0[j-1].type));
-            }
-                
-            a0[j].g = g0;
-            j++;
-            break; // no need to check more exons
-        }
-
-        // check overlapped records
+        if (start > g0->end) continue; // check next
+        
+        // CDS record is only used to distiguish UTR and EXON
         if (g0->type == feature_CDS) {
-            utr = 0; // overlapped with a CDS region; need check type == EXON/EXONINTRON??            
-            continue; // skip CDS
+            utr = 0; // it's a coding region
+            continue;
         }
-        
-        // region exceed this exon boundary
-        a0[j].type = BAT_EXONINTRON;
-        a0[j].g = g0;
-        j++;
-    }
 
-    // debug_print("j: %d", j);
-    if (j == 0) { // no hit
-        a->type = BAT_INTERGENIC;
+        // push to pool
+        gtf_pool[n++] = g0;
+
+        // out of range, no need to check next one
+        if (end <= g0->end) break;
+    }
+    
+    if (n == 0) {
+        /* if (i > 0 && i != G->n_gtf) { // checked, but no overalpped exons */
+        /*     a->type = BAT_INTRON; */
+        /* } else { // checked, but out range of transcript */
+        a->type = BAT_INTERGENIC;            
+        /* } */
+
         a->g = NULL;
-        free(a0);
-        return 1;
     }
-
-    if (j > 1) qsort(a0, j, sizeof(struct anno0), cmpfunc);
-
-    for (i = 0; i < j; ) {
-        if (i > 0 && a0[i].type > BAT_EXONINTRON) break;
-        ++i;
+    else if (n == 1) {
+        struct gtf *g0 = gtf_pool[0];
+        if (g0->start <= start && g0->end >= end) {
+            a->type = BAT_EXON;
+        }
+        else if (end <= g0->start) {
+            a->type = BAT_INTRON;
+        }
+        else {
+            a->type = BAT_EXONINTRON;
+        }
+        a->g = g0;
     }
-
-    // debug_print("i: %d", i);
-    a->type = a0[0].type;
-    a->g =a0[0].g;
-    // debug_print("type: %d", a->type);
-    // check utr, multiexons
+    else {
+        struct gtf *g0 = gtf_pool[0];
+        // struct gtf *g1 = gtf_pool[1];
+        a->type = BAT_MULTIEXONS;
+        a->g = g0;
+        // debug_print("%d\t%d\t%d\t%d", g0->start, g0->end, g1->start, g1->end);
+    }
 
     if (a->type == BAT_EXON && utr == 1) {
         // forward
@@ -269,20 +235,11 @@ static int query_exon(int start, int end, struct gtf const *G, struct anno0 *a, 
         // backward
         else a->type = pass_cds ? BAT_UTR5 : BAT_UTR3;
     }
-    else {
-        /* int k; */
-        /* for (k = 0; k < i; ++k) { */
-        /*     // debug_print("%d\t%d\t%d\t%d\t%s", start, end, k, i, bed_typename(a0[k].type)); */
-        /* } */
-            
-        if (i > 1) { // reset some multi-exonintrons to multiexons
-            // LOG_print("Type: %s", bed_typename(a0[0].type));
-            a->type = BAT_MULTIEXONS;
-        }
-    }
 
-    free(a0);
-    return 0;
+    free(gtf_pool);
+    // debug_print("%s", bed_typename(a->type));
+    
+    return a->type == BAT_INTERGENIC;
 }
 
 static int query_trans(int start, int end, struct gtf const *G, struct anno0 *a)
@@ -319,7 +276,7 @@ static int query_trans(int start, int end, struct gtf const *G, struct anno0 *a)
     a->g = a0[0].g;
     // debug_print("%s\t%s", bed_typename(a->type), GTF_transid(args.G, a->g->transcript_id));
     free(a0);
-    // debug_print("type: %d", a->type);
+    //debug_print("type: %d", a->type);
     return 0;
 }
 
@@ -341,8 +298,7 @@ int annobed_main(int argc, char **argv)
                 b->seqname = -1;
                 continue;
             } 
-            
-            check_nearest_gene();
+            // check_nearest_gene();
             continue;
         }
 
@@ -395,8 +351,9 @@ int annobed_main(int argc, char **argv)
             
         }
         
-        if (k == 0) check_nearest_gene();
-        else if (k == 1) {
+        // if (k == 0) check_nearest_gene();
+        // else
+        if (k == 1) {
             // debug_print("%d",a[0].type);
             // debug_print("%d\t%d, bed: %d\t%d",a[0].g->start, a[0].g->end, b->start, b->end);
             // debug_print("%s", bed_typename(a[0].type));
@@ -411,7 +368,7 @@ int annobed_main(int argc, char **argv)
                 // debug_print("%s", GTF_genename(args.G, a[0].g->gene_name));
             }
             b->data = e;
-        } else {
+        } else if (k > 1) {
                         
             // debug_print("%d\t%d, bed: %d\t%d",a[0].g->start, a[0].g->end, b->start, b->end);
             // debug_print("%d",a[0].type);
@@ -435,7 +392,7 @@ int annobed_main(int argc, char **argv)
             e->n = j;
             b->data = e;
         }
-            free(a);
+        free(a);
     }
 
     for (i = 0; i < args.B->n; ++i) {
