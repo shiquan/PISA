@@ -53,7 +53,7 @@ struct bed_ext {
     int type;
 
     // distance to nearby gene, 0 for enclosed region
-    int distance; 
+    // int distance; 
 };
 
 extern struct bed_ext *bed_ext_init();
