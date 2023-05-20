@@ -530,18 +530,11 @@ void bed_spec_write0(struct bed_spec *B, FILE *out, int ext, int gene_as_name)
                             ".+-"[bed->strand+1]
                         );                
                 }
-                fputc('\t', out);
-                if (e->distance == 0) {
-                    fprintf(out, "%d\t", e->n);
-                    fputs(name.s, out);
-                    fprintf(out, "\t%s\t.\t0", bed_typename(e->type));
-                } else {
-                    if (e->n == 0) fputs("0\t.\tintergenic\t.\t0", out);
-                    else fprintf(out, "0\t.\tintergenic\t%s\t%d", e->genes[0], e->distance);
-                }
+                fputs("\t0\t.\tintergenic", out);
+                
                 if (name.m) free(name.s);
             } else {
-                fprintf(out, "%s\t%d\t%d\t%s\t.\t%c\t0\t.\tintergenic\t.\t0", dict_name(B->seqname, bed->seqname),
+                fprintf(out, "%s\t%d\t%d\t%s\t.\t%c\t0\t.\tintergenic", dict_name(B->seqname, bed->seqname),
                         bed->start, bed->end, bed->name == -1 ? "." : dict_name(B->name, bed->name),
                         ".+-"[bed->strand+1]
                     );
