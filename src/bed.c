@@ -530,7 +530,13 @@ void bed_spec_write0(struct bed_spec *B, FILE *out, int ext, int gene_as_name)
                             ".+-"[bed->strand+1]
                         );                
                 }
-                fputs("\t0\t.\tintergenic", out);
+                
+                fprintf(out, "\t%d\t", e->n);
+
+                if (name.l)fputs(name.s, out);
+                else fputc('.', out);
+                
+                fprintf(out, "\t%s", bed_typename(e->type));
                 
                 if (name.m) free(name.s);
             } else {
