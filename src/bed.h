@@ -28,13 +28,13 @@ struct bed {
 
 // definition of BED annotation types
 #define BAT_UNKNOWN          0
-#define BAT_MULTIGENES       1
-#define BAT_WHOLEGENE        2
-#define BAT_UTR3             3
-#define BAT_UTR5             4
-#define BAT_EXON             5
-#define BAT_MULTIEXONS       6
-#define BAT_EXONINTRON       7
+#define BAT_UTR3             1
+#define BAT_UTR5             2
+#define BAT_EXON             3
+#define BAT_MULTIEXONS       4
+#define BAT_EXONINTRON       5
+#define BAT_WHOLEGENE        6
+#define BAT_MULTIGENES       7
 #define BAT_INTRON           8
 #define BAT_ANTISENSEUTR3    9
 #define BAT_ANTISENSEUTR5    10
@@ -92,6 +92,7 @@ struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, in
 int bed_check_overlap(const struct bed_spec *B, char *name, int start, int end, int strand);
 char* bed_seqname(struct bed_spec *B, int id);
 int bed_name2id(struct bed_spec *B, char *name);
+int bed_spec_push0(struct bed_spec *B, const char *seqname, int start, int end, int strand, const char *name, void *ext);
 int bed_spec_push(struct bed_spec *B, struct bed *bed);
 struct bed_spec *bed_read_vcf(const char *fn);
 
