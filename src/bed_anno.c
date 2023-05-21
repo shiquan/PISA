@@ -351,8 +351,6 @@ int annobed_main(int argc, char **argv)
             
         }
         
-        // if (k == 0) check_nearest_gene();
-        // else
         if (k == 1) {
             // debug_print("%d",a[0].type);
             // debug_print("%d\t%d, bed: %d\t%d",a[0].g->start, a[0].g->end, b->start, b->end);
