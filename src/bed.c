@@ -13,13 +13,13 @@ KSTREAM_INIT(gzFile, gzread, 8193)
 
 static const char *bed_anno_type[] = {
     "unknown",
-    "multigenes",
-    "whole_gene",
     "utr3",
     "utr5",
     "exon",
     "multiexons",
     "exonintron",
+    "whole_gene",
+    "multigenes",
     "intron",
     "antisense_utr3",
     "antisense_utr5",
@@ -313,6 +313,31 @@ static int parse_str(struct bed_spec *B, kstring_t *str)
 
     free(s);
     return 0;
+}
+
+int bed_spec_push0(struct bed_spec *B, const char *seqname, int start, int end, int strand, const char *name, void *ext)
+{
+    if (seqname == NULL) error("No seqname.");
+    if (start < 0 || end < 0) error("Unset start or end position.");
+    if (strand != 1 && strand != 0 && strand != -1) error("Unknown strand.");
+    
+    if (B->n == B->m) {
+        B->m = B->m == 0 ? 32 : B->m<<1;
+        B->bed = realloc(B->bed, sizeof(struct bed)*B->m);
+    }
+    
+    int seqname_id = dict_push(B->seqname, seqname);
+    int name_id = -1;
+    if (name) name_id = dict_push(B->seqname, name);
+    
+    struct bed *b = &B->bed[B->n];
+    b->seqname = seqname_id;
+    b->start = start;
+    b->end = end;
+    b->strand = strand;
+    b->name = name_id;
+    b->data = ext;
+    return B->n++;
 }
 
 int bed_spec_push(struct bed_spec *B, struct bed *bed)

@@ -714,7 +714,7 @@ void write_gtf_fp(struct gtf_spec *G, struct gtf *gtf, FILE *fp, struct dict *ke
 
 void gtf_dump(struct gtf_spec *G, const char *fname, struct dict *keys)
 {
-    FILE *fp = fopen(fname, "w");
+    FILE *fp = fname == NULL ? stdout : fopen(fname, "w");
     if (fp == NULL) error("%s : %s.", fname, strerror(errno));
     int i, j;
     for (i = 0; i < dict_size(G->name); ++i) {
@@ -724,7 +724,7 @@ void gtf_dump(struct gtf_spec *G, const char *fname, struct dict *keys)
             write_gtf_fp(G, gtf, fp, keys);
         }
     }
-    fclose(fp);
+    if (fp != stdout) fclose(fp);
 }
 #ifdef GTF_MAIN
 int main(int argc, char **argv)
