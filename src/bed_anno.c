@@ -229,7 +229,7 @@ static int query_exon(int start, int end, struct gtf const *G, struct anno0 *a, 
         // debug_print("%d\t%d\t%d\t%d", g0->start, g0->end, g1->start, g1->end);
     }
 
-    if (a->type == BAT_EXON && utr == 1) {
+    if ((a->type == BAT_EXON || a->type == BAT_EXONINTRON) && utr == 1) {
         // forward
         if (G->strand == 0) a->type = pass_cds ? BAT_UTR3 : BAT_UTR5;
         // backward
