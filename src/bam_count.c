@@ -366,6 +366,7 @@ void merge_counts(struct ret *ret)
     if (ret == NULL) return;
     int i;
     for (i = 0; i < dict_size(ret->features); ++i) {
+        debug_print("Merging %d features ..", dict_size(ret->features));
         char *feature = dict_name(ret->features, i);
         int idx = dict_query(args.features, feature);
         if (idx < 0) {
