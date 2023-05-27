@@ -281,6 +281,7 @@ struct PISA_dna *PISA_idx_query(struct PISA_dna_pool *p, const int idx)
 struct PISA_dna_pool *PISA_pool_merge(struct PISA_dna_pool *p1,
                                       struct PISA_dna_pool *p2)
 {
+    debug_print("p2->l : %d", p2->l);
     int i;
     for (i = 0; i < p2->l; ++i) {
         int idx = PISA_dna_query1(p1, p2->data[i].dna, p2->len);
