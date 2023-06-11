@@ -41,7 +41,8 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
                         const int split_by_tag,
                         const int alias_tag,
                         const int *alias_idx,
-                        int fix_barcodes
+                        int fix_barcodes,
+                        int capped_depth
     );
 
 #endif
