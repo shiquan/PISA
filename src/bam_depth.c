@@ -308,7 +308,7 @@ static int parse_args(int argc, char **argv)
             struct depth *d = bam2depth(args.idx, tid, bed->start, bed->end, bed->strand,
                                         args.fp, args.mapq_thres, args.ignore_strand,
                                         args.barcodes, args.tag, args.umi_tag, args.split_by_tag,
-                                        args.alias_tag, args.alias_idx, args.fix_barcodes);
+                                        args.alias_tag, args.alias_idx, args.fix_barcodes, -1);
             depth2file(d, tid, bed->start, bed->end, args.out);
         }
     }
@@ -359,7 +359,7 @@ static int parse_args(int argc, char **argv)
         struct depth *d = bam2depth(args.idx, args.tid, args.start, args.end, args.strand,
                                     args.fp, args.mapq_thres, args.ignore_strand,
                                     args.barcodes, args.tag, args.umi_tag, args.split_by_tag,
-                                    args.alias_tag, args.alias_idx, args.fix_barcodes);
+                                    args.alias_tag, args.alias_idx, args.fix_barcodes, -1);
         depth2file(d, args.tid, args.start, args.end, args.out);
         // depth_destroy(d);        
     }
@@ -376,7 +376,7 @@ static int parse_args(int argc, char **argv)
                                             args.fp, args.mapq_thres, args.ignore_strand,
                                             args.barcodes, args.tag, args.umi_tag,
                                             args.split_by_tag, args.alias_tag, args.alias_idx,
-                                            args.fix_barcodes);
+                                            args.fix_barcodes, -1);
 
                 depth2file(d, i, last, end, args.out);
                 // depth_destroy(d);
