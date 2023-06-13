@@ -158,7 +158,7 @@ struct ret *query_count_write(struct bed_spec *B, int ci, const char *fn)
             int *v = dict_query_value(cc, k);
             if (v != NULL && *v != 0) {
                 ksprintf(&str,"%d\t%s\t%d\n", j , dict_name(cc,k), *v); // j already increased
-                ret->counts += *v;
+                ret->counts ++;
                 *v = 0;
             }
             ++k; // increase iterator
