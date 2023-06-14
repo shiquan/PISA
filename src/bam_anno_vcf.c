@@ -130,10 +130,13 @@ char *vcf_tag_name(int allele, bcf1_t *v, bcf_hdr_t *hdr, const struct bed_spec 
 {
     kstring_t str={0,0,0};
 
-    if (phased && v->n_sample > 0) {
+    while (phased && v->n_sample > 0) {
         int ndst;
         bcf_unpack(v, BCF_UN_FMT);
-        bcf_fmt_t *fmt_ptr = bcf_get_fmt(hdr, v, "GT");
+
+        bcf_fmt_t *fmt_ptr = bcf_get_fmt(hdr, v, "PGT");
+        if (!fmt_ptr) break;
+        
         int allele1=0, allele2=0;
         int is_phased=0;
         int i;
@@ -167,7 +170,7 @@ char *vcf_tag_name(int allele, bcf1_t *v, bcf_hdr_t *hdr, const struct bed_spec 
         }
         #undef BRANCH_INT
 
-        while (is_phased) {
+        if (is_phased) {
             if (allele != allele1 && allele != allele2) break; // no phase allele exists
             fmt_ptr = bcf_get_fmt(hdr, v, "PID");
             if (!fmt_ptr) error("No PID tag found at phased position?");
@@ -180,6 +183,8 @@ char *vcf_tag_name(int allele, bcf1_t *v, bcf_hdr_t *hdr, const struct bed_spec 
             ksprintf(&str, "%s:%s-PB%d", dict_name(B->seqname, bed->seqname), src, allele);
             return str.s;   
         }
+        
+        break;
     }
     
     ksprintf(&str, "%s:%d%s", dict_name(B->seqname, bed->seqname), bed->start+1, v->d.allele[0]);
@@ -221,7 +226,6 @@ int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *
         temp.l = 0;
 
         if (ret == -1) continue;
-
         if (ref_alt == 1 && ret == 0) continue;
         
         char *name = vcf_tag_name(ret, (bcf1_t*)bed->data, (bcf_hdr_t*)B->ext, B, bed, phased);
