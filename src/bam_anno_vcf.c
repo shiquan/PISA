@@ -179,7 +179,7 @@ char *vcf_tag_name(int allele, bcf1_t *v, bcf_hdr_t *hdr, const struct bed_spec 
         int l0;
         for (l0 = 0; src[l0] != '|'; ++l0) kputc(src[l0], &a1);
         l0++;
-        for (; src[l0] && l0 < l; ++l) kputc(src[l0], &a2);
+        for (; src[l0] && l0 < l; ++l0) kputc(src[l0], &a2);
 
         allele1 = str2int(a1.s);
         allele2 = str2int(a2.s);
