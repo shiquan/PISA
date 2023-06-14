@@ -93,6 +93,7 @@ int reads_match_var(struct bed *bed, bam1_t *b)
     bcf1_t *v = (bcf1_t*)bed->data;
     //bcf_hdr_t *hdr = (bcf_hdr_t*)bed->
     assert(v);
+    bcf_unpack(v, BCF_UN_STR);
 
     uint8_t *seq = bam_get_seq(b);
     bam1_core_t *c = &b->core;
