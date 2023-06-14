@@ -24,25 +24,26 @@ struct bed {
     void *data;
 };
 
-#define BAT_COUNT    16
+#define BAT_COUNT    17
 
 // definition of BED annotation types
 #define BAT_UNKNOWN          0
-#define BAT_UTR3             1
-#define BAT_UTR5             2
-#define BAT_EXON             3
-#define BAT_MULTIEXONS       4
-#define BAT_EXONINTRON       5
-#define BAT_WHOLEGENE        6
-#define BAT_MULTIGENES       7
-#define BAT_INTRON           8
-#define BAT_ANTISENSEUTR3    9
-#define BAT_ANTISENSEUTR5    10
-#define BAT_ANTISENSEEXON    11
-#define BAT_ANTISENSEINTRON  12
-#define BAT_ANTISENSECOMPLEX 13
-#define BAT_INTERGENIC       14
-#define BAT_UNKNOWNCHRS      15
+#define BAT_PROMOTER         1
+#define BAT_UTR3             2 
+#define BAT_UTR5             3 
+#define BAT_EXON             4 
+#define BAT_MULTIEXONS       5 
+#define BAT_EXONINTRON       6 
+#define BAT_WHOLEGENE        7 
+#define BAT_MULTIGENES       8 
+#define BAT_INTRON           9 
+#define BAT_ANTISENSEUTR3    10
+#define BAT_ANTISENSEUTR5    11
+#define BAT_ANTISENSEEXON    12
+#define BAT_ANTISENSEINTRON  13
+#define BAT_ANTISENSECOMPLEX 14
+#define BAT_INTERGENIC       15
+#define BAT_UNKNOWNCHRS      16
 
 extern const char *bed_typename(int type);
 
@@ -72,12 +73,13 @@ struct bed_spec {
     // struct _ctg_idx *ctg;
     int n,m;
     struct bed *bed;
+    void *ext;
 };
 
-struct var {
-    kstring_t *ref;
-    kstring_t *alt;
-};
+/* struct var { */
+/*     kstring_t *ref; */
+/*     kstring_t *alt; */
+/* }; */
 
 struct bed_spec *bed_spec_init();
 

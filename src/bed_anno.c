@@ -12,6 +12,7 @@
 #include "bed.h"
 #include "gtf.h"
 #include "read_anno.h"
+#include "number.h"
 
 static struct args {
     const char *input_fname;
@@ -19,12 +20,13 @@ static struct args {
     const char *gtf_fname;
     const char *report_fname;
     
-    int upstream;
-    int downstream;
-    
     int stranded;
     int gene_as_name;
     int skip_chrs;
+
+    int promoter;
+    int upstream;
+    int downstream;
     
     struct gtf_spec *G;
     struct bed_spec *B;
@@ -34,11 +36,12 @@ static struct args {
     .output_fname = NULL,
     .gtf_fname    = NULL,
     .report_fname = NULL,
-    .upstream     = 0,
-    .downstream   = 0,
     .stranded     = 1,
     .gene_as_name = 0,
     .skip_chrs    = 0,
+    .promoter     = 0,
+    .upstream     = 2000,
+    .downstream   = 100,
     .G            = NULL,
     .B            = NULL,
     .summary      = NULL
@@ -61,6 +64,9 @@ static int bedanno_usage()
     fprintf(stderr, "-s                Ignore strand.\n");
     fprintf(stderr, "-gene-name        Set annatated gene as bed name (column 4).\n");
     fprintf(stderr, "-skip-chrs        Skip chromosomes if not exist in GTF.\n");
+    fprintf(stderr, "-promoter         Enable promoter regions annotation.\n");
+    fprintf(stderr, "-up     [%d]      Define up of TSS as promoter.\n", args.upstream);
+    fprintf(stderr, "-down   [%d]      Define downstream of TSS as promoter.\n", args.downstream);
     fprintf(stderr, "\n\x1b[31m\x1b[1mOutput format\x1b[0m :\n");
     fprintf(stderr, "chromosome,start(0based),end(1based),name,score,strand,number of covered genes, cover gene name(s),type,nearest gene name,distance to nearby gene\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
@@ -74,7 +80,8 @@ static int bedanno_usage()
 static int parse_args(int argc, char **argv)
 {
     int i;
-
+    const char *up = NULL;
+    const char *down = NULL;
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -95,7 +102,19 @@ static int parse_args(int argc, char **argv)
             args.skip_chrs = 1;
             continue;
         }
-
+        else if (strcmp(a, "-promoter") == 0) {
+            args.promoter = 1;
+            continue;
+        }
+        else if (strcmp(a, "-up") == 0) {
+            up = a;
+            continue;
+        }
+        else if (strcmp(a, "-down") == 0) {
+            down = a;
+            continue;
+            
+        }
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -118,6 +137,10 @@ static int parse_args(int argc, char **argv)
     args.B = bed_read(args.input_fname);
     args.G = gtf_read(args.gtf_fname, 0);
 
+    if (args.promoter) {
+        if (up) args.upstream = str2int(up);
+        if (down) args.downstream = str2int(down);
+    }
     args.summary = malloc(sizeof(struct bed_anno_sum)*BAT_COUNT);
     memset(args.summary, 0, sizeof(struct bed_anno_sum)*BAT_COUNT);
     
@@ -280,6 +303,31 @@ static int query_trans(int start, int end, struct gtf const *G, struct anno0 *a)
     return 0;
 }
 
+static int query_promoter(int start, int end, struct gtf *G, struct anno0 *a)
+{
+    // nonoverlap with this promoter
+
+    int start0 = G->start;
+    int end0 = G->start;
+    if (G->strand == 1) {
+        start0 = start0 - args.downstream;
+        end0 = start0 + args.upstream;
+    } else {
+        start0 = start0 - args.upstream;
+        end0 = start0 + args.downstream;
+    }
+
+    if (start0 < 0) start0 = 1;
+    if (end0 < 0) end0 = start0;
+    
+    if (start >= end0) return 1;
+    if (end <= start0) return 1;
+
+    a->type = BAT_PROMOTER;
+    a->g = G;
+    return 0;
+}
+
 int annobed_main(int argc, char **argv)
 {
     if (parse_args(argc, argv)) return bedanno_usage();
@@ -315,8 +363,17 @@ int annobed_main(int argc, char **argv)
                 a[k].g = g0;
                 // k++;
                 // continue;
-            } else {            
-                int ret = query_trans(b->start, b->end, g0, &a[k]);
+            } else {
+                int ret;
+
+                if (args.promoter) {
+                    ret = query_promoter(b->start, b->end, g0, &a[k]);
+                    if (ret) {
+                        ret = query_trans(b->start, b->end, g0, &a[k]);
+                    }
+                } else {
+                    ret = query_trans(b->start, b->end, g0, &a[k]);
+                }
                 // debug_print("ret: %d, %d\t%d, bed: %d\t%d", ret, g0->start, g0->end, b->start, b->end);
                 if (ret != 0) continue; // nonoverlapped
             }
