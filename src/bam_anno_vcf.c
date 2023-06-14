@@ -135,53 +135,66 @@ char *vcf_tag_name(int allele, bcf1_t *v, bcf_hdr_t *hdr, const struct bed_spec 
         if (!fmt_ptr) break;
         
         int allele1=0, allele2=0;
-        int is_phased=0;
-        int i;
+        // int is_phased=0;
+/*         int i; */
 
-#define BRANCH_INT(type_t, vector_end) {                \
-            type_t *p = (type_t*)(fmt_ptr->p);          \
-            for (i=0; i<fmt_ptr->n; i++) {              \
-                if (p[i] == vector_end) break;          \
-                if (bcf_gt_is_missing(p[i])) break;     \
-                is_phased = p[i] &1;                    \
-                int tmp = p[i]>>1;                      \
-                if (tmp>1) {                            \
-                    if (allele1==0) allele1=tmp;        \
-                    else if (tmp != allele1) {          \
-                        if (tmp < allele1) {            \
-                            allele2 = allele1;          \
-                            allele1 = tmp;              \
-                        } else {                        \
-                            allele2 = tmp;              \
-                        }                               \
-                    }                                   \
-                }                                       \
-            }                                           \
-        }
+/* #define BRANCH_INT(type_t, vector_end) {                \ */
+/*             type_t *p = (type_t*)(fmt_ptr->p);          \ */
+/*             for (i=0; i<fmt_ptr->n; i++) {              \ */
+/*                 if (p[i] == vector_end) break;          \ */
+/*                 if (bcf_gt_is_missing(p[i])) break;     \ */
+/*                 is_phased = p[i] &1;                    \ */
+/*                 int tmp = p[i]>>1;                      \ */
+/*                 if (tmp>1) {                            \ */
+/*                     if (allele1==0) allele1=tmp;        \ */
+/*                     else if (tmp != allele1) {          \ */
+/*                         if (tmp < allele1) {            \ */
+/*                             allele2 = allele1;          \ */
+/*                             allele1 = tmp;              \ */
+/*                         } else {                        \ */
+/*                             allele2 = tmp;              \ */
+/*                         }                               \ */
+/*                     }                                   \ */
+/*                 }                                       \ */
+/*             }                                           \ */
+/*         } */
         
-        switch (fmt_ptr->type) {
-            case BCF_BT_INT8:  BRANCH_INT(int8_t, bcf_int8_vector_end); break;
-            case BCF_BT_INT16: BRANCH_INT(int16_t, bcf_int16_vector_end); break;
-            case BCF_BT_INT32: BRANCH_INT(int32_t, bcf_int32_vector_end); break;
-            default: error("Unexpected type %d", fmt_ptr->type); break;
-        }
-        #undef BRANCH_INT
+/*         switch (fmt_ptr->type) { */
+/*         case BCF_BT_INT8:  BRANCH_INT(int8_t, bcf_int8_vector_end); break; */
+/*         case BCF_BT_INT16: BRANCH_INT(int16_t, bcf_int16_vector_end); break; */
+/*         case BCF_BT_INT32: BRANCH_INT(int32_t, bcf_int32_vector_end); break; */
+/*         default: error("Unexpected type %d", fmt_ptr->type); break; */
+/*         } */
+/*         #undef BRANCH_INT */
+        char *src = (char*)(fmt_ptr->p);
+        int l;
+        for (l = 0; src[l] && l < fmt_ptr->size; ++l);
+        if (l == fmt_ptr->size) break; // unknown phase block name
+        assert(l>=3);
 
-        if (is_phased) {
-            if (allele != allele1 && allele != allele2) break; // no phase allele exists
-            fmt_ptr = bcf_get_fmt(hdr, v, "PID");
-            if (!fmt_ptr) error("No PID tag found at phased position?");
-            if (fmt_ptr->type != BCF_BT_CHAR) error("Inconsistant PID type.");
-            char *src = (char*)(fmt_ptr->p);
-            int l;
-            for (l = 0; src[l] && l < fmt_ptr->size; ++l);
-            if (l == fmt_ptr->size) break; // unknown phase block name
+        kstring_t a1 = {0,0,0};
+        kstring_t a2 = {0,0,0};
 
-            ksprintf(&str, "%s:%s-PB%d", dict_name(B->seqname, bed->seqname), src, allele);
-            return str.s;   
-        }
+        int l0;
+        for (l0 = 0; src[l0] != '|'; ++l0) kputc(src[l0], &a1);
+        l0++;
+        for (; src[l0] && l0 < l; ++l) kputc(src[l0], &a2);
+
+        allele1 = str2int(a1.s);
+        allele2 = str2int(a2.s);
+        free(a1.s); free(a2.s);
         
-        break;
+        if (allele != allele1 && allele != allele2) break; // no phase allele exists
+        fmt_ptr = bcf_get_fmt(hdr, v, "PID");
+        if (!fmt_ptr) error("No PID tag found at phased position?");
+        if (fmt_ptr->type != BCF_BT_CHAR) error("Inconsistant PID type.");
+        src = (char*)(fmt_ptr->p);
+        
+        for (l = 0; src[l] && l < fmt_ptr->size; ++l);
+        if (l == fmt_ptr->size) break; // unknown phase block name
+        
+        ksprintf(&str, "%s:%s-PB%d", dict_name(B->seqname, bed->seqname), src, allele);
+        return str.s;   
     }
     
     ksprintf(&str, "%s:%d%s", dict_name(B->seqname, bed->seqname), bed->start+1, v->d.allele[0]);
