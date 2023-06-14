@@ -1097,7 +1097,7 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
     return 0;
 }
 
-extern int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag, int ref_alt, int vcf_ss);
+extern int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag, int ref_alt, int vcf_ss, int phased);
 extern int sam_safe_check(kstring_t *str);
 extern int parse_name_str(kstring_t *s);
 void *run_it(void *_d)
@@ -1188,8 +1188,8 @@ void *run_it(void *_d)
             if (bam_bed_anno(b, args.B, stat)) ann = 1;
 
         if (args.V)
-            if (bam_vcf_anno(b, args.hdr, args.V, args.vtag, args.ref_alt, args.vcf_ss)) ann = 1;
-        
+            if (bam_vcf_anno(b, args.hdr, args.V, args.vtag, args.ref_alt, args.vcf_ss, args.phased)) ann = 1;
+
         if (args.chr_binding) {
             char *v = args.chr_binding[b->core.tid];
             if (v != NULL) {

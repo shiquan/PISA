@@ -88,13 +88,24 @@ int reads_match_var(struct bed *bed, bam1_t *b)
     int st = bam_seqpos(b, bed->start);
     if (st == -1) return -1; // out of range
     if (st == -2) return -1; // intron region
-    if (st == -3) return -1; // skip indel
+
     //struct var *v = (struct var*)bed->data;
     bcf1_t *v = (bcf1_t*)bed->data;
     //bcf_hdr_t *hdr = (bcf_hdr_t*)bed->
     assert(v);
     bcf_unpack(v, BCF_UN_STR);
 
+    if (st == -3) {
+        int a;        
+        for (a = 0; a < v->n_allele; ++a) {
+            int i, j;
+            int mis = 0;
+            char *allele = v->d.allele[a];
+            if (allele[0] == '*' && allele[1] == 0) return a;
+        }
+        return -1;
+    }
+        
     uint8_t *seq = bam_get_seq(b);
     bam1_core_t *c = &b->core;
 
@@ -115,11 +126,63 @@ int reads_match_var(struct bed *bed, bam1_t *b)
     return -1;
 }
 
-char *vcf_tag_name(int allele, bcf1_t *v, bcf_hdr_t *hdr, const struct bed_spec *B, struct bed *bed)
+char *vcf_tag_name(int allele, bcf1_t *v, bcf_hdr_t *hdr, const struct bed_spec *B, struct bed *bed, int phased)
 {
     kstring_t str={0,0,0};
-    ksprintf(&str, "%s:%d%s", dict_name(B->seqname, bed->seqname), bed->start+1, v->d.allele[0]);
 
+    if (phased && v->n_sample > 0) {
+        int ndst;
+        bcf_unpack(v, BCF_UN_FMT);
+        bcf_fmt_t *fmt_ptr = bcf_get_fmt(hdr, v, "GT");
+        int allele1=0, allele2=0;
+        int is_phased=0;
+        int i;
+
+#define BRANCH_INT(type_t, vector_end) {                \
+            type_t *p = (type_t*)(fmt_ptr->p);          \
+            for (i=0; i<fmt_ptr->n; i++) {              \
+                if (p[i] == vector_end) break;          \
+                if (bcf_gt_is_missing(p[i])) break;     \
+                is_phased = p[i] &1;                    \
+                int tmp = p[i]>>1;                      \
+                if (tmp>1) {                            \
+                    if (allele1==0) allele1=tmp;        \
+                    else if (tmp != allele1) {          \
+                        if (tmp < allele1) {            \
+                            allele2 = allele1;          \
+                            allele1 = tmp;              \
+                        } else {                        \
+                            allele2 = tmp;              \
+                        }                               \
+                    }                                   \
+                }                                       \
+            }                                           \
+        }
+        
+        switch (fmt_ptr->type) {
+            case BCF_BT_INT8:  BRANCH_INT(int8_t, bcf_int8_vector_end); break;
+            case BCF_BT_INT16: BRANCH_INT(int16_t, bcf_int16_vector_end); break;
+            case BCF_BT_INT32: BRANCH_INT(int32_t, bcf_int32_vector_end); break;
+            default: error("Unexpected type %d", fmt_ptr->type); break;
+        }
+        #undef BRANCH_INT
+
+        while (is_phased) {
+            if (allele != allele1 && allele != allele2) break; // no phase allele exists
+            fmt_ptr = bcf_get_fmt(hdr, v, "PID");
+            if (!fmt_ptr) error("No PID tag found at phased position?");
+            if (fmt_ptr->type != BCF_BT_CHAR) error("Inconsistant PID type.");
+            char *src = (char*)(fmt_ptr->p);
+            int l;
+            for (l = 0; src[l] & l < fmt_ptr->size; ++l);
+            if (l == fmt_ptr->size) break; // unknown phase block name
+
+            ksprintf(&str, "%s:%s-PB%d", dict_name(B->seqname, bed->seqname), src, allele);
+            return str.s;   
+        }
+    }
+    
+    ksprintf(&str, "%s:%d%s", dict_name(B->seqname, bed->seqname), bed->start+1, v->d.allele[0]);
     if (allele==0) {
         kputs("=", &str);        
     } else {
@@ -129,7 +192,7 @@ char *vcf_tag_name(int allele, bcf1_t *v, bcf_hdr_t *hdr, const struct bed_spec 
 
     return str.s;
 }
-int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag, int ref_alt, int vcf_ss)
+int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag, int ref_alt, int vcf_ss, int phased)
 { 
     bam1_core_t *c;
     c = &b->core;
@@ -159,15 +222,9 @@ int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *
 
         if (ret == -1) continue;
 
-        char *name = vcf_tag_name(ret, (bcf1_t*)bed->data, (bcf_hdr_t*)B->ext, B, bed);
-        /* if (ret == 1) { */
-        /*     // "," is not compatible with PISA count, change to "-" from v0.10 */
-        /*     //if (bed->name == -1) ksprintf(&temp, "%s,%d,%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->alt->s); */
-        /*     if (bed->name == -1) ksprintf(&temp, "%s:%d-%s-%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->alt->s); */
-        /*     else kputs(dict_name(B->name,bed->name), &temp); */
-        /* } else if (ref_alt == 1) { */
-        /*     ksprintf(&temp, "%s:%d-%s-%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->ref->s); */
-        /* } */
+        if (ref_alt == 1 && ret == 0) continue;
+        
+        char *name = vcf_tag_name(ret, (bcf1_t*)bed->data, (bcf_hdr_t*)B->ext, B, bed, phased);
         kputs(name, &temp);
         free(name);
         
