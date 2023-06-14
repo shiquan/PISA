@@ -3,6 +3,7 @@
 #include "htslib/vcf.h"
 #include "htslib/sam.h"
 #include "htslib/kstring.h"
+#include "number.h"
 
 // return -1 on out of range
 // -2 on intron region
