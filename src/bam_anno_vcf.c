@@ -238,7 +238,7 @@ int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *
         temp.l = 0;
 
         if (ret == -1) continue;
-        if (ref_alt && ret == 0) continue;
+        if (ref_alt == 0 && ret == 0) continue;
         
         char *name = vcf_tag_name(ret, (bcf1_t*)bed->data, (bcf_hdr_t*)B->ext, B, bed, phased);
         kputs(name, &temp);
