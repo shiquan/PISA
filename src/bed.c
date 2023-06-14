@@ -13,6 +13,7 @@ KSTREAM_INIT(gzFile, gzread, 8193)
 
 static const char *bed_anno_type[] = {
     "unknown",
+    "promoter",
     "utr3",
     "utr5",
     "exon",
@@ -392,17 +393,64 @@ struct bed_spec *bed_read(const char *fname)
     return B;
 }
 
-static struct var *var_init()
-{
-    struct var *v = malloc(sizeof(*v));
-    v->ref = malloc(sizeof(kstring_t));
-    v->ref->l = v->ref->m = 0;
-    v->ref->s = NULL;
-    v->alt = malloc(sizeof(kstring_t));
-    v->alt->l = v->alt->m = 0;
-    v->alt->s = NULL;
-    return v;
-}
+/* static struct var *var_init() */
+/* { */
+/*     struct var *v = malloc(sizeof(*v)); */
+/*     v->ref = malloc(sizeof(kstring_t)); */
+/*     v->ref->l = v->ref->m = 0; */
+/*     v->ref->s = NULL; */
+/*     v->alt = malloc(sizeof(kstring_t)); */
+/*     v->alt->l = v->alt->m = 0; */
+/*     v->alt->s = NULL; */
+/*     return v; */
+/* } */
+
+/* struct bed_spec *bed_read_vcf(const char *fn) */
+/* { */
+/*     htsFile *fp = hts_open(fn, "r"); */
+/*     if (fp == NULL) error("%s : %s.", fn, strerror(errno)); */
+
+/*     htsFormat type = *hts_get_format(fp); */
+/*     if (type.format != vcf && type.format != bcf) */
+/*         error("Unsupport input format. -vcf only accept VCF/BCF file."); */
+
+/*     bcf_hdr_t *hdr = bcf_hdr_read(fp); */
+/*     if (hdr == NULL) error("Failed parse header of input."); */
+
+/*     struct bed_spec *B = bed_spec_init(); */
+    
+/*     bcf1_t *v = bcf_init(); */
+    
+/*     while(bcf_read(fp, hdr, v) == 0) { */
+/*         if (v->rid == -1) continue; */
+/*         bcf_unpack(v, BCF_UN_INFO); */
+/*         const char *name = bcf_hdr_int2id(hdr, BCF_DT_CTG, v->rid); */
+/*         int seqname = dict_push(B->seqname, name); */
+/*         if (B->n == B->m) { */
+/*             B->m = B->m == 0 ? 32 : B->m<<1; */
+/*             B->bed = realloc(B->bed, sizeof(struct bed)*B->m); */
+/*         } */
+/*         struct bed *bed = &B->bed[B->n]; */
+/*         bed->seqname = seqname; */
+/*         bed->start = v->pos; */
+/*         bed->end = v->pos+v->rlen; */
+/*         bed->name = -1; */
+/*         bed->strand = -1; */
+/*         struct var *var = var_init(); */
+/*         kputs(v->d.allele[0], var->ref); */
+/*         if (v->n_allele > 1) kputs(v->d.allele[1], var->alt); */
+
+/*         bed->data = var; */
+/*         B->n++; */
+/*     } */
+/*     bcf_destroy(v); */
+/*     hts_close(fp); */
+/*     bcf_hdr_destroy(hdr); */
+
+/*     bed_build_index(B); */
+    
+/*     return B; */
+/* } */
 
 struct bed_spec *bed_read_vcf(const char *fn)
 {
@@ -417,11 +465,18 @@ struct bed_spec *bed_read_vcf(const char *fn)
     if (hdr == NULL) error("Failed parse header of input.");
 
     struct bed_spec *B = bed_spec_init();
+    B->ext = hdr;
     
     bcf1_t *v = bcf_init();
     
-    while(bcf_read(fp, hdr, v) == 0) {
+    while (bcf_read(fp, hdr, v) == 0) {
         if (v->rid == -1) continue;
+        bcf_unpack(v, BCF_UN_STR);
+        if (v->n_allele == 1) continue;
+        if (v->n_allele == 2) {
+            if (v->d.allele[1][0] == '<') continue; // skip <NON_REF>, <X>, <*>
+        }
+        
         bcf_unpack(v, BCF_UN_INFO);
         const char *name = bcf_hdr_int2id(hdr, BCF_DT_CTG, v->rid);
         int seqname = dict_push(B->seqname, name);
@@ -435,34 +490,45 @@ struct bed_spec *bed_read_vcf(const char *fn)
         bed->end = v->pos+v->rlen;
         bed->name = -1;
         bed->strand = -1;
-        struct var *var = var_init();
-        kputs(v->d.allele[0], var->ref);
-        if (v->n_allele > 1) kputs(v->d.allele[1], var->alt);
-
-        bed->data = var;
+        bcf1_t *var = bcf_init();
+        bed->data = bcf_copy(var, v);
         B->n++;
     }
     bcf_destroy(v);
     hts_close(fp);
-    bcf_hdr_destroy(hdr);
 
     bed_build_index(B);
-    
     return B;
 }
 
+/* void bed_spec_var_destroy(struct bed_spec *B) */
+/* { */
+/*     int i; */
+/*     for (i = 0; i < B->n; ++i) { */
+/*         struct bed *bed = &B->bed[i]; */
+/*         struct var *var = (struct var*)bed->data; */
+/*         if (var->ref->m) free(var->ref->s); */
+/*         free(var->ref); */
+/*         if (var->alt->m) free(var->alt->s); */
+/*         free(var->alt); */
+/*         free(var); */
+/*     } */
+/*     bed_spec_destroy(B); */
+/* } */
+
 void bed_spec_var_destroy(struct bed_spec *B)
 {
+    bcf_hdr_t *hdr = (bcf_hdr_t*)B->ext;
+    if (hdr == NULL) error("No vcf hdr.");
+    bcf_hdr_destroy(hdr);
+
     int i;
     for (i = 0; i < B->n; ++i) {
         struct bed *bed = &B->bed[i];
-        struct var *var = (struct var*)bed->data;
-        if (var->ref->m) free(var->ref->s);
-        free(var->ref);
-        if (var->alt->m) free(var->alt->s);
-        free(var->alt);
-        free(var);
+        bcf1_t *v = (bcf1_t*)bed->data;
+        bcf_destroy(v);
     }
+
     bed_spec_destroy(B);
 }
 

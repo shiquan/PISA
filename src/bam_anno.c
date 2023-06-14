@@ -74,6 +74,7 @@ static struct args {
 
     int ref_alt;
     int vcf_ss;
+    int phased;
     
     int input_sam;
     gzFile fp_sam;
@@ -132,8 +133,8 @@ static struct args {
     .anno_only       = 0,
 
     .ref_alt         = 0,
-    .vcf_ss       = 0,
-    
+    .vcf_ss          = 0,
+    .phased          = 0,
     .input_sam       = 0,
     .fp_sam          = NULL,
     .ks              = NULL,
@@ -331,6 +332,10 @@ static int parse_args(int argc, char **argv)
         }
         else if (strcmp(a, "-vcf-ss") == 0) {
             args.vcf_ss = 1;
+            continue;
+        }
+        else if (strcmp(a, "-phased") == 0) {
+            args.phased = 1;
             continue;
         }
         else if (strcmp(a, "-ctag") == 0) var = &args.ctag;
@@ -1030,9 +1035,9 @@ int bam_bed_anno(bam1_t *b, struct bed_spec const *B, struct read_stat *stat)
             temp.l = 0;
             
             if (bed->name == -1) {          
-                ksprintf(&temp, "%s-%d-%d", dict_name(B->seqname, bed->seqname), bed->start, bed->end);
-                if (bed->strand == 0) kputs("-+", &temp);
-                else if (bed->strand == 1) kputs("--", &temp);
+                ksprintf(&temp, "%s:%d-%d", dict_name(B->seqname, bed->seqname), bed->start, bed->end);
+                if (bed->strand == 0) kputs("/+", &temp);
+                else if (bed->strand == 1) kputs("/-", &temp);
             } else {
                 kputs(dict_name(B->name, bed->name), &temp);
             }

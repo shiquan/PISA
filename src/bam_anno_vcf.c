@@ -45,41 +45,88 @@ static int bam_seqpos(bam1_t *a, int pos)
     return -1;
 }
 
-// 0 on ref, 1 on mismatch, -1 on other situation
+/* // 0 on ref, 1 on mismatch, -1 on other situation */
+/* int reads_match_var(struct bed *bed, bam1_t *b) */
+/* { */
+/*     int st = bam_seqpos(b, bed->start); */
+/*     if (st == -1) return -1; // out of range */
+/*     if (st == -2) return -1; // intron region */
+
+/*     struct var *v = (struct var*)bed->data; */
+/*     assert(v); */
+
+/*     if (st == -3) { // deletion */
+/*         if (v->alt->l < v->ref->l) return 0; // matched */
+/*         return 1; // unmatched */
+/*     }  */
+/*     uint8_t *seq = bam_get_seq(b); */
+/*     bam1_core_t *c = &b->core; */
+/*     int i, j; */
+/*     int mis = 0; */
+/*     for (i = st, j = 0; i < c->l_qseq && j < v->ref->l; ++i,++j) { */
+/*         if ("=ACMGRSVTWYHKDBN"[bam_seqi(seq, i)] != v->ref->s[j]) { */
+/*             mis = 1; */
+/*             break; */
+/*         } */
+/*     } */
+
+/*     if (mis == 0) return 0; */
+/*     if (mis) { */
+/*         for (i = st, j = 0; i < c->l_qseq && j < v->alt->l; ++i,++j) { */
+/*             if ("=ACMGRSVTWYHKDBN"[bam_seqi(seq, i)] != v->alt->s[j]) */
+/*                 return -1; */
+/*         } */
+/*         return 1; */
+/*     } */
+            
+/*     return 1;     */
+/* } */
+
+//  -1 on failed, 0 on ref, other number on allele index
 int reads_match_var(struct bed *bed, bam1_t *b)
 {
     int st = bam_seqpos(b, bed->start);
     if (st == -1) return -1; // out of range
     if (st == -2) return -1; // intron region
-
-    struct var *v = (struct var*)bed->data;
+    if (st == -3) return -1; // skip indel
+    //struct var *v = (struct var*)bed->data;
+    bcf1_t *v = (bcf1_t*)bed->data;
+    //bcf_hdr_t *hdr = (bcf_hdr_t*)bed->
     assert(v);
 
-    if (st == -3) { // deletion
-        if (v->alt->l < v->ref->l) return 0; // matched
-        return 1; // unmatched
-    } 
     uint8_t *seq = bam_get_seq(b);
     bam1_core_t *c = &b->core;
-    int i, j;
-    int mis = 0;
-    for (i = st, j = 0; i < c->l_qseq && j < v->ref->l; ++i,++j) {
-        if ("=ACMGRSVTWYHKDBN"[bam_seqi(seq, i)] != v->ref->s[j]) {
-            mis = 1;
-            break;
+
+    int a;        
+    for (a = 0; a < v->n_allele; ++a) {
+        int i, j;
+        int mis = 0;
+        char *allele = v->d.allele[a];
+        for (i = st, j = 0; i < c->l_qseq && allele[j]; ++i,++j) {
+            if ("=ACMGRSVTWYHKDBN"[bam_seqi(seq, i)] != allele[j]) {
+                mis = 1;
+                break;
+            }
         }
+        if (mis == 0) return a;
     }
 
-    if (mis == 0) return 0;
-    if (mis) {
-        for (i = st, j = 0; i < c->l_qseq && j < v->alt->l; ++i,++j) {
-            if ("=ACMGRSVTWYHKDBN"[bam_seqi(seq, i)] != v->alt->s[j])
-                return -1;
-        }
-        return 1;
+    return -1;
+}
+
+char *vcf_tag_name(int allele, bcf1_t *v, bcf_hdr_t *hdr, const struct bed_spec *B, struct bed *bed)
+{
+    kstring_t str={0,0,0};
+    ksprintf(&str, "%s:%d%s", dict_name(B->seqname, bed->seqname), bed->start+1, v->d.allele[0]);
+
+    if (allele==0) {
+        kputs("=", &str);        
+    } else {
+        kputc('>', &str);
+        kputs(v->d.allele[allele],&str);
     }
-            
-    return 1;    
+
+    return str.s;
 }
 int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *vtag, int ref_alt, int vcf_ss)
 { 
@@ -111,21 +158,22 @@ int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *
 
         if (ret == -1) continue;
 
-        if (ret == 1) {
-            // "," is not compatible with PISA count, change to "-" from v0.10
-            //if (bed->name == -1) ksprintf(&temp, "%s,%d,%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->alt->s);
-            if (bed->name == -1) ksprintf(&temp, "%s-%d-%s-%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->alt->s);
-            else kputs(dict_name(B->name,bed->name), &temp);
-        } else if (ref_alt == 1) {
-            ksprintf(&temp, "%s-%d-%s-%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->ref->s);
-        }
-
-        if (temp.l && vcf_ss) kputs(strand == 0 ? "-+" : "--", &temp);
-
-        if (temp.l) dict_push(val, temp.s);
-            
+        char *name = vcf_tag_name(ret, (bcf1_t*)bed->data, (bcf_hdr_t*)B->ext, B, bed);
+        /* if (ret == 1) { */
+        /*     // "," is not compatible with PISA count, change to "-" from v0.10 */
+        /*     //if (bed->name == -1) ksprintf(&temp, "%s,%d,%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->alt->s); */
+        /*     if (bed->name == -1) ksprintf(&temp, "%s:%d-%s-%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->alt->s); */
+        /*     else kputs(dict_name(B->name,bed->name), &temp); */
+        /* } else if (ref_alt == 1) { */
+        /*     ksprintf(&temp, "%s:%d-%s-%s", dict_name(B->seqname, bed->seqname), bed->start+1, ((struct var*)bed->data)->ref->s, ((struct var*)bed->data)->ref->s); */
+        /* } */
+        kputs(name, &temp);
+        free(name);
         
+        if (temp.l && vcf_ss) kputs(strand == 0 ? "/+" : "/-", &temp);
+        if (temp.l) dict_push(val, temp.s);
     }
+    
     region_itr_destroy(itr);
 
     if (temp.m) free(temp.s);
