@@ -98,8 +98,6 @@ int reads_match_var(struct bed *bed, bam1_t *b)
     if (st == -3) {
         int a;        
         for (a = 0; a < v->n_allele; ++a) {
-            int i, j;
-            int mis = 0;
             char *allele = v->d.allele[a];
             if (allele[0] == '*' && allele[1] == 0) return a;
         }
@@ -131,9 +129,8 @@ char *vcf_tag_name(int allele, bcf1_t *v, bcf_hdr_t *hdr, const struct bed_spec 
     kstring_t str={0,0,0};
 
     while (phased && v->n_sample > 0) {
-        int ndst;
         bcf_unpack(v, BCF_UN_FMT);
-
+        
         bcf_fmt_t *fmt_ptr = bcf_get_fmt(hdr, v, "PGT");
         if (!fmt_ptr) break;
         
@@ -177,7 +174,7 @@ char *vcf_tag_name(int allele, bcf1_t *v, bcf_hdr_t *hdr, const struct bed_spec 
             if (fmt_ptr->type != BCF_BT_CHAR) error("Inconsistant PID type.");
             char *src = (char*)(fmt_ptr->p);
             int l;
-            for (l = 0; src[l] & l < fmt_ptr->size; ++l);
+            for (l = 0; src[l] && l < fmt_ptr->size; ++l);
             if (l == fmt_ptr->size) break; // unknown phase block name
 
             ksprintf(&str, "%s:%s-PB%d", dict_name(B->seqname, bed->seqname), src, allele);
