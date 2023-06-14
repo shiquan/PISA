@@ -194,11 +194,12 @@ char *vcf_tag_name(int allele, bcf1_t *v, bcf_hdr_t *hdr, const struct bed_spec 
         for (l = 0; src[l] && l < fmt_ptr->size; ++l);
         if (l == fmt_ptr->size) break; // unknown phase block name
         
-        ksprintf(&str, "%s:%s-PB%d", dict_name(B->seqname, bed->seqname), src, allele);
+        ksprintf(&str, "%s:%s-PB%d", dict_name(B->seqname, bed->seqname), src, allele == allele1 ? 1 : 2);
         return str.s;   
     }
     
     ksprintf(&str, "%s:%d%s", dict_name(B->seqname, bed->seqname), bed->start+1, v->d.allele[0]);
+    
     if (allele==0) {
         kputs("=", &str);        
     } else {
@@ -237,7 +238,7 @@ int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *
         temp.l = 0;
 
         if (ret == -1) continue;
-        if (ref_alt == 1 && ret == 0) continue;
+        if (ref_alt && ret == 0) continue;
         
         char *name = vcf_tag_name(ret, (bcf1_t*)bed->data, (bcf_hdr_t*)B->ext, B, bed, phased);
         kputs(name, &temp);
