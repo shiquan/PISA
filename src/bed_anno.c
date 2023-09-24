@@ -352,8 +352,7 @@ int annobed_main(int argc, char **argv)
 {
     if (parse_args(argc, argv)) return bedanno_usage();
 
-    int i;
-    for (i = 0; i < args.B->n; ++i) {
+    for (int i = 0; i < args.B->n; ++i) {
         struct bed *b = &args.B->bed[i];
         b->data = NULL;
         
@@ -374,9 +373,8 @@ int annobed_main(int argc, char **argv)
         // annotate all possibility
         struct anno0 *a = malloc(sizeof(struct anno0)*itr->n);
         // int n = 0;
-        int j;
         int k = 0;
-        for (j = 0; j < itr->n; ++j) {
+        for (int j = 0; j < itr->n; ++j) {
             struct gtf *g0 = (struct gtf*)itr->rets[j];
             if (b->start <= g0->start && b->end >= g0->end) {
                 a[k].type = BAT_WHOLEGENE;
@@ -418,8 +416,7 @@ int annobed_main(int argc, char **argv)
         if (k > 1) {
             qsort(a, k, sizeof(struct anno0), cmpfunc);
             int type = a[0].type;
-            int j;
-            for (j = 0; j < k; ++j) {
+            for (int j = 0; j < k; ++j) {
                 if (a[j].type > type) {
                     k = j;
                     break;
@@ -429,10 +426,6 @@ int annobed_main(int argc, char **argv)
         }
         
         if (k == 1) {
-            // debug_print("%d",a[0].type);
-            // debug_print("%d\t%d, bed: %d\t%d",a[0].g->start, a[0].g->end, b->start, b->end);
-            // debug_print("%s", bed_typename(a[0].type));
-
             struct bed_ext *e = bed_ext_init();
             e->type = a[0].type;
             e->genes = NULL;
@@ -444,14 +437,10 @@ int annobed_main(int argc, char **argv)
             }
             b->data = e;
         } else if (k > 1) {
-                        
-            // debug_print("%d\t%d, bed: %d\t%d",a[0].g->start, a[0].g->end, b->start, b->end);
-            // debug_print("%d",a[0].type);
-            // debug_print("%s", bed_typename(a[0].type));
-            
             struct bed_ext *e = bed_ext_init();
             struct gtf *g0 = a[0].g;
-            for (int j = 0; j < k; ++j) {
+            int j;
+            for (j = 1; j < k; ++j) {
                 struct gtf *g1 = a[j].g;
                 if (g0->gene_name == g1->gene_name) continue;
                 break;
@@ -468,7 +457,7 @@ int annobed_main(int argc, char **argv)
             } else {
                 e->genes = malloc(k*sizeof(char**));
                 e->type = BAT_MULTIGENES;
-                for (int j = 0; j < k; ++j) {
+                for (j = 0; j < k; ++j) {
                     struct gtf *g = a[j].g;
                     if (g) {
                         e->genes[j] = strdup(GTF_genename(args.G, g->gene_name));
@@ -485,7 +474,7 @@ int annobed_main(int argc, char **argv)
         free(a);
     }
 
-    for (i = 0; i < args.B->n; ++i) {
+    for (int i = 0; i < args.B->n; ++i) {
         struct bed *b = &args.B->bed[i];
         struct bed_ext *e = (struct bed_ext*)b->data;
 
