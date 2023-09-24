@@ -250,9 +250,25 @@ static int query_exon(int start, int end, struct gtf const *G, struct anno0 *a, 
     }
     else {
         struct gtf *g0 = gtf_pool[0];
-        // struct gtf *g1 = gtf_pool[1];
-        a->type = BAT_MULTIEXONS;
+        for (int j = 1; j < n; ++j) {
+            struct gtf *g1 = gtf_pool[j];
+            if (g1->gene_name == g0->gene_name) continue;
+            a->type = BAT_MULTIEXONS;
+            break;
+        }
+        if (a->type != BAT_MULTIGENES) {
+            if (g0->start <= start && g0->end >= end) {
+                a->type = BAT_EXON;
+            }
+            else if (end <= g0->start) {
+                a->type = BAT_INTRON;
+            }
+            else {
+                a->type = BAT_EXONINTRON;
+            }
+        }   
         a->g = g0;
+        // struct gtf *g1 = gtf_pool[1];
         // debug_print("%d\t%d\t%d\t%d", g0->start, g0->end, g1->start, g1->end);
     }
 
