@@ -448,23 +448,38 @@ int annobed_main(int argc, char **argv)
             // debug_print("%d\t%d, bed: %d\t%d",a[0].g->start, a[0].g->end, b->start, b->end);
             // debug_print("%d",a[0].type);
             // debug_print("%s", bed_typename(a[0].type));
-
-            struct bed_ext *e = bed_ext_init();
-            e->genes = malloc(k*sizeof(char**));
-            e->type = BAT_MULTIGENES;
             
-            int j;
-            for (j = 0; j < k; ++j) {
-                struct gtf *g = a[j].g;
-                if (g) {
-                    e->genes[j] = strdup(GTF_genename(args.G, g->gene_name));
-                    // debug_print("%s", GTF_genename(args.G, g->gene_name));
-                } else {
-                    e->genes[j]= NULL;
-                    error("Should not come here.");
-                }
+            struct bed_ext *e = bed_ext_init();
+            struct gtf *g0 = a[0].g;
+            for (int j = 0; j < k; ++j) {
+                struct gtf *g1 = a[j].g;
+                if (g0->gene_name == g1->gene_name) continue;
+                break;
             }
-            e->n = j;
+
+            if (j == k) {
+                e->type = a[0].type;
+                e->genes = NULL;
+                if (a[0].g) {
+                    e->genes = malloc(sizeof(char**));
+                    e->genes[0] =  strdup(GTF_genename(args.G, a[0].g->gene_name));
+                    e->n = 1;
+                }
+            } else {
+                e->genes = malloc(k*sizeof(char**));
+                e->type = BAT_MULTIGENES;
+                for (int j = 0; j < k; ++j) {
+                    struct gtf *g = a[j].g;
+                    if (g) {
+                        e->genes[j] = strdup(GTF_genename(args.G, g->gene_name));
+                        // debug_print("%s", GTF_genename(args.G, g->gene_name));
+                    } else {
+                        e->genes[j]= NULL;
+                        error("Should not come here.");
+                    }
+                }
+                e->n = j;
+            }
             b->data = e;
         }
         free(a);
