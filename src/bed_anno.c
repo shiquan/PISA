@@ -1,7 +1,7 @@
 // Annotate bed files with GTF annotation.
 // Required a 6-column bed file, with format as "chr, start, end, name, score, strand".
 // Annotated tags such as genes and functional region will be put into extra columns,
-// therefore the output file is not exactly a bed file, the format of output file is
+// therefore the output file is not exactly a formal bed file; the format of output file is
 // "chr, start, end, name, score, strand, n_gene, gene_name, functional region".
 // n_gene: the number of gene overlapped
 // gene_name: overlapped gene(s), multiple genes seperated by ','
@@ -187,7 +187,7 @@ static int cmpfunc(const void *_a, const void *_b)
 static int query_exon(int start, int end, struct gtf const *G, struct anno0 *a, int coding)
 {
     int utr = 0;
-    if (coding) utr = 1; // if CDS record exists, turn utr==0 if region overlapped with CDS region
+    if (coding) utr = 1; // if CDS record exists, turn utr to 0 if region overlapped with CDS region
     int pass_cds = 0;
 
     int n = 0;
@@ -203,10 +203,14 @@ static int query_exon(int start, int end, struct gtf const *G, struct anno0 *a, 
         if (end <= g0->start) {
             if (n == 0) { // put this record, as intron
                 gtf_pool[n++] = G->gtf[i];
-            }            
+            }
             break;   
         }
-        
+
+        if (g0->type == feature_CDS) {
+            if (start > g0->end) pass_cds = 1;
+        }
+            
         if (start > g0->end) continue; // check next
         
         // CDS record is only used to distiguish UTR and EXON
@@ -214,7 +218,7 @@ static int query_exon(int start, int end, struct gtf const *G, struct anno0 *a, 
             utr = 0; // it's a coding region
             continue;
         }
-
+        
         // push to pool
         gtf_pool[n++] = g0;
 
