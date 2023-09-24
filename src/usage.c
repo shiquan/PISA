@@ -384,6 +384,7 @@ int bam_count_usage()
     //fprintf(stderr, " -o        [FILE]     Output matrix.\n");
     fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this folder.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
+    fprintf(stderr, " -dup                 Do NOT skip duplicate reads.\n");
     fprintf(stderr, " -stereoseq           Stereoseq pipeline pack UMI to hex string. Need set this option to decode UMIs.\n");
     fprintf(stderr, " -bin      [INT]      Window size for each bin. Can be set if -tags specify spatial coordinates.[1]\n");
     fprintf(stderr, " -one-hit             Skip if a read hits more than 1 gene or peak.\n");
