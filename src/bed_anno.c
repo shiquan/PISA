@@ -250,23 +250,7 @@ static int query_exon(int start, int end, struct gtf const *G, struct anno0 *a, 
     }
     else {
         struct gtf *g0 = gtf_pool[0];
-        for (int j = 1; j < n; ++j) {
-            struct gtf *g1 = gtf_pool[j];
-            if (g1->gene_name == g0->gene_name) continue;
-            a->type = BAT_MULTIEXONS;
-            break;
-        }
-        if (a->type != BAT_MULTIGENES) {
-            if (g0->start <= start && g0->end >= end) {
-                a->type = BAT_EXON;
-            }
-            else if (end <= g0->start) {
-                a->type = BAT_INTRON;
-            }
-            else {
-                a->type = BAT_EXONINTRON;
-            }
-        }   
+        a->type = BAT_MULTIEXONS;
         a->g = g0;
         // struct gtf *g1 = gtf_pool[1];
         // debug_print("%d\t%d\t%d\t%d", g0->start, g0->end, g1->start, g1->end);
@@ -361,7 +345,7 @@ int annobed_main(int argc, char **argv)
         if (itr == NULL) {
             int id = dict_query(args.G->name, name);
             if (id == -1) {
-                if (args.skip_chrs == 0) error("Chromosome %s not found in GTF, use wrong database?", name);
+                if (args.skip_chrs == 0) error("Chromosome %s not found in GTF, use wrong database? If not, rerun with `-skip-chrs`.", name);
                 b->seqname = -1;
                 continue;
             } 
