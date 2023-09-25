@@ -371,6 +371,7 @@ static int parse_args(int argc, char **argv)
     CHECK_EMPTY(args.output_fname, "-o must be set.");
     // CHECK_EMPTY(args.input_fname, "Input bam must be set.");
     if (args.input_fname == NULL && !isatty(fileno(stdin))) args.input_fname = "-";
+    if (args.input_fname == NULL) error("No input bam.");
     
     if (thread) args.n_thread = str2int((char*)thread);
     if (chunk) args.chunk_size = str2int((char*)chunk);
