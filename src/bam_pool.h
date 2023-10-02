@@ -7,6 +7,7 @@
 struct bam_pool {
     int n, m;
     bam1_t *bam;
+    sam_hdr_t *hdr;
     void *extend;
 };
 

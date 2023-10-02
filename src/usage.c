@@ -380,13 +380,15 @@ int bam_count_usage()
     //fprintf(stderr, " -cb       [TAG]      Cell barcode tag.\n");
     fprintf(stderr, " -tags/-cb [TAGs]     A cell barcode tag or two tags of spatial coordinates for spatial data.\n");
     fprintf(stderr, " -anno-tag [TAG]      Annotation tag, gene or peak.\n");
+    fprintf(stderr, " -genome-bin [INT]    If genome bin size set, genome bin count matrix will be generated, conflict with -anno-tag.\n");
+    fprintf(stderr, " -ignore-strand       Ignore strand for bin counting.\n");
     fprintf(stderr, " -list     [FILE]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
     //fprintf(stderr, " -o        [FILE]     Output matrix.\n");
     fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this folder.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
     fprintf(stderr, " -dup                 Do NOT skip duplicate reads.\n");
     fprintf(stderr, " -stereoseq           Stereoseq pipeline pack UMI to hex string. Need set this option to decode UMIs.\n");
-    fprintf(stderr, " -bin      [INT]      Window size for each bin. Can be set if -tags specify spatial coordinates.[1]\n");
+    fprintf(stderr, " -spatial-bin [INT]   Bin size for spatial coordiate. Can be set if -tags specify spatial coordinates.[1]\n");
     fprintf(stderr, " -one-hit             Skip if a read hits more than 1 gene or peak.\n");
     // fprintf(stderr, " -corr                Enable correct UMIs. Similar UMIs defined as amming distance <= 1.\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. Default is 20.\n");
