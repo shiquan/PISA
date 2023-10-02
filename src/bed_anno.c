@@ -405,8 +405,7 @@ int annobed_main(int argc, char **argv)
                     k = j;
                     break;
                 }
-            }
-            
+            }            
         }
         
         if (k == 1) {
@@ -440,7 +439,11 @@ int annobed_main(int argc, char **argv)
                 }
             } else {
                 e->genes = malloc(k*sizeof(char**));
-                e->type = BAT_MULTIGENES;
+                if (a[0].type > 9) {
+                    e->type = a[0].type;
+                } else {
+                    e->type = BAT_MULTIGENES;
+                }
                 for (j = 0; j < k; ++j) {
                     struct gtf *g = a[j].g;
                     if (g) {

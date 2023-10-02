@@ -41,12 +41,15 @@ static struct args {
     int enable_corr_umi;
     int one_hit;
 
-    int stereoseq;
+    int genome_bin_size;
+    int ignore_strand;
 
+    int stereoseq;
+    int spatial_bin_size; // spatial bin size
+    
     int n_thread;
     int chunk_size;
 
-    int bin_size;
     
     //uint64_t n_record;  
     uint64_t n_record1; //  records in spliced matrix
@@ -82,11 +85,15 @@ static struct args {
     .enable_corr_umi = 0,
     .one_hit         = 0,
 
+    .genome_bin_size = 0,
+    .ignore_strand   = 0,
+    
     .stereoseq       = 0,
     
     .n_thread        = 5,
     .chunk_size      = 1000000,
-    .bin_size        = 1,
+    .spatial_bin_size        = 1,
+
     
     //.fp_in           = NULL,
     //.hdr             = NULL,
@@ -147,7 +154,8 @@ static int parse_args(int argc, char **argv)
     const char *n_thread = NULL;
     const char *region_types = NULL;
     const char *tag_str = NULL;
-    const char *bin_size = NULL;
+    const char *spatial_bin_size = NULL;
+    const char *genome_bin_size = NULL;
     const char *chunk_size = NULL;
 
     for (i = 1; i < argc;) {
@@ -166,7 +174,8 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-ttype") == 0) var = &region_types;
         else if (strcmp(a, "-prefix") == 0) var = &args.prefix;
         else if (strcmp(a, "-sample-list") == 0) var = &args.sample_list;
-        else if (strcmp(a, "-bin") == 0) var = &bin_size;
+        else if (strcmp(a, "-spatial-bin") == 0) var = &spatial_bin_size;
+        else if (strcmp(a, "-genome-bin") == 0) var = &genome_bin_size;
         else if (strcmp(a, "-chunk-size") == 0) var = &chunk_size;
         else if (strcmp(a, "-dup") == 0) {
             args.use_dup = 1;
@@ -193,6 +202,10 @@ static int parse_args(int argc, char **argv)
             warnings("Option -corr has been removed since v0.8, to correct UMIs please use `PISA corr` instead.");
             continue;
         }
+        else if (strcmp(a, "-ignore-strand") == 0) {
+            args.ignore_strand = 1;
+            continue;
+        }
 
         else if (strcmp(a, "-file-barcode") ==0) {
             //args.alias_file_cb = 1;
@@ -213,6 +226,7 @@ static int parse_args(int argc, char **argv)
         error("Unknown argument, %s", a);
     }
 
+    if (genome_bin_size) args.genome_bin_size = human2int(genome_bin_size);
     if (args.input_fname == 0 && args.sample_list == NULL) error("No input bam.");
     if (args.input_fname && args.sample_list) error("Input bam conflict with -sample-list.");
     
@@ -225,15 +239,15 @@ static int parse_args(int argc, char **argv)
 
     args.tags = str2tag(tag_str);
     
-    if (args.anno_tag == 0) error("No anno tag specified.");
-
+    if (args.anno_tag == 0 && args.genome_bin_size == 0) error("No anno tag or bin size specified.");
+    if (args.anno_tag  && args.genome_bin_size > 0) error("-anno-tag and -bin-size are conflict.");
     if (n_thread) args.n_thread = str2int((char*)n_thread);
     if (chunk_size) args.chunk_size = str2int((char*)chunk_size);
 
     if (args.outdir) {
          struct stat sb;
          if (stat(args.outdir, &sb) != 0) error("Directory %s is not exist.", args.outdir);
-         if (S_ISDIR(sb.st_mode) == 0)  error("%s does not look like a directory.", args.outdir);
+         if (S_ISDIR(sb.st_mode) == 0) error("%s does not look like a directory.", args.outdir);
     }
 
     if (args.input_fname) {
@@ -277,9 +291,9 @@ static int parse_args(int argc, char **argv)
         free(str.s);
     }
 
-    if (bin_size) args.bin_size = str2int(bin_size);
+    if (spatial_bin_size) args.spatial_bin_size = str2int(spatial_bin_size);
 
-    assert(args.bin_size >=1);
+    assert(args.spatial_bin_size >=1);
     return 0;
 }
 // decode UMI hex to [ACGT]s
@@ -516,15 +530,15 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
 
                 if (*s == 'C' || *s == 'c') {
                     uint8_t va = bam_aux2i(s);
-                    if (args.bin_size > 1) va = (uint8_t)(va/args.bin_size)*args.bin_size;
+                    if (args.spatial_bin_size > 1) va = (uint8_t)(va/args.spatial_bin_size)*args.spatial_bin_size;
                     kputw(va, &tmp);
                 } else if (*s == 'S' || *s == 's') {
                     uint16_t va = bam_aux2i(s);
-                    if (args.bin_size > 1) va = (uint16_t)(va/args.bin_size)*args.bin_size;
+                    if (args.spatial_bin_size > 1) va = (uint16_t)(va/args.spatial_bin_size)*args.spatial_bin_size;
                     kputw(va, &tmp);
                 } else if (*s == 'i' || *s == 'I') {
                     uint32_t va = bam_aux2i(s);
-                    if (args.bin_size > 1) va = (uint32_t)(va/args.bin_size)*args.bin_size;
+                    if (args.spatial_bin_size > 1) va = (uint32_t)(va/args.spatial_bin_size)*args.spatial_bin_size;
                     kputw(va, &tmp);
                 } else if (*s == 'f' || *s == 'd') {
                     double va = bam_aux2f(s);                    
@@ -600,15 +614,35 @@ static void *run_it(void *_p)
             }
             if (region_type_flag == 0) continue;
         }
-                
-        uint8_t *anno_tag = bam_aux_get(b, args.anno_tag);
-        //if (!anno_tag) goto skip_this_record;
-        if (!anno_tag) continue;
+
+        char *anno_tag = NULL;
+        if (args.anno_tag) {
+            anno_tag = (char*)bam_aux_get(b, args.anno_tag);
+            if (!anno_tag) continue;
+            anno_tag = anno_tag+1;
+        } else {
+            assert(args.genome_bin_size > 0);
+            kstring_t bn = {0,0,0};
+            bam_hdr_t *hdr = p->hdr;
+            kputs(sam_hdr_tid2name(hdr, b->core.tid), &bn);
+            kputc(':', &bn);
+            kputw((int)(b->core.pos/args.genome_bin_size), &bn);
+            if (args.ignore_strand == 0) {
+                kputc('/', &bn);
+                if (bam_is_rev(b)) kputc('-', &bn);
+                else kputc('+', &bn);
+            }
+            kputs("", &bn);
+            anno_tag = bn.s;
+        }
         
         if (args.umi_tag) {
             uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
-            // if (!umi_tag) goto skip_this_record;
-            if (!umi_tag) continue;
+            // if (!umi_tag) goto skip_this_record;            
+            if (!umi_tag) {
+                if (args.genome_bin_size > 0) free(anno_tag);
+                continue;
+            }
         }
 
         int unspliced = 0;
@@ -635,40 +669,20 @@ static void *run_it(void *_p)
 
         // todo: perform improvement
         char *tag = retrieve_tags(b,args.tags);
-        /*
-        int i;
-        for (i = 0; i < dict_size(args.tags); ++i) {
-            uint8_t *tag0 = bam_aux_get(b, dict_name(args.tags,i));
-            if (!tag0) {
-                tmp.l = 0;
-                break;
-            }
-                    
-            if (tmp.l) kputc('\t', &tmp);
-            if (*tag0 == 'S' || *tag0 == 's' || *tag0 == 'c' || *tag0 == 'i' || *tag0 == 'I') {
-                int64_t va = bam_aux2i(tag0);
-                kputw(va, &tmp);
-            } else if (*tag0 == 'f' || *tag0 == 'd') {
-                double va = bam_aux2f(tag0);
-                kputd(va, &tmp);
-            } else if (*tag0 == 'H' || *tag0 == 'Z') {
-                char *va = bam_aux2Z(tag0);
-                kputs(va, &tmp);
-            }
-            
-        }
-        
-        if (tmp.l == 0) continue;
-        tag = tmp.s;
-        */
 
-        if (tag == NULL) continue;
+        if (tag == NULL) {
+            if (args.genome_bin_size > 0) free(anno_tag);
+            continue;   
+        }
         
         int cell_id;
         if (args.whitelist_fname) {
             cell_id = dict_query(ret->barcodes, tag);
             free(tag);
-            if (cell_id == -1) continue; // goto skip_this_record;
+            if (cell_id == -1) {
+                if (args.genome_bin_size > 0) free(anno_tag);
+                continue; // goto skip_this_record;
+            }
         }
         else {
             cell_id = dict_push(ret->barcodes, tag);
@@ -676,7 +690,7 @@ static void *run_it(void *_p)
         }
         
         // for each feature
-        kputs((char*)(anno_tag+1), &str);
+        kputs((char*)anno_tag, &str);
         int n_gene;
         int *s = str_split(&str, &n_gene); // seperator ; or ,
         
@@ -686,11 +700,11 @@ static void *run_it(void *_p)
             // free(str.s);
             free(s);
             // goto skip_this_record;
+            if (args.genome_bin_size > 0) free(anno_tag);
             continue;
         }
         
-        int i;
-        for (i = 0; i < n_gene; ++i) {
+        for (int i = 0; i < n_gene; ++i) {
             // Features (Gene or Region)
             char *val = str.s + s[i];
             
@@ -763,6 +777,9 @@ static void *run_it(void *_p)
                     count->antisense++;
             }
         }
+
+        if (args.genome_bin_size> 0) free(anno_tag);
+
         free(s);
     }
 
@@ -1125,7 +1142,9 @@ struct bam_pool *read_files_pool(struct bam_files *files, int size)
         ret = read_bam_files(files, &p->bam[p->n]);
         if (ret < 0) break;
         bam_hdr_t *hdr = get_hdr(args.files);
+        p->hdr = hdr;
         bam1_t *b =  &p->bam[p->n];
+        
         // char *alias = get_alias(args.files);
         // if (args.alias_file_cb == 1 && !alias)
         // error("No alias found for %s", get_fname(args.files));

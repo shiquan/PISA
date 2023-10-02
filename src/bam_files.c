@@ -99,8 +99,9 @@ void close_bam_files(struct bam_files *files)
     int i;
     for (i = 0; i < files->n; ++i) {
         struct bam_file *file = &files->files[i];
+        // do not free hdr even close it, and free it when close all files
+        bam_hdr_destroy(file->hdr);
         if (file->state == file_is_open) {
-            bam_hdr_destroy(file->hdr);
             sam_close(file->fp);
         }
         free(file->fname);
@@ -115,7 +116,7 @@ int read_bam_files(struct bam_files *files, bam1_t *b)
     if (files->i == files->n) return -1; // for muti-threads
     
     struct bam_file *file = &files->files[files->i];
-
+    
     while (file->state == file_closed && files->i < files->n) {
         files->i++;
         if (files->i == files->n) return -1;
@@ -132,7 +133,7 @@ int read_bam_files(struct bam_files *files, bam1_t *b)
         if (files->n_thread > 1)
             hts_set_threads(file->fp, files->n_thread);
 
-        file->hdr = sam_hdr_read(file->fp);
+        file->hdr = sam_hdr_read(file->fp);        
         if (file->hdr == NULL) error("Failed to open bam header of %s", file->fname);
     }
     
@@ -140,7 +141,8 @@ int read_bam_files(struct bam_files *files, bam1_t *b)
     ret = sam_read1(file->fp, file->hdr, b);
     if (ret < 0) {
         if (file->state == file_is_open) {
-            bam_hdr_destroy(file->hdr);
+            // bam_hdr_destroy(file->hdr);
+            // DO NOT free header unless close all files
             sam_close(file->fp);
             file->state = file_closed;
         }
