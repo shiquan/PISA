@@ -44,6 +44,8 @@ static struct args {
     int genome_bin_size;
     int ignore_strand;
 
+    int chr_level;
+    
     int stereoseq;
     int spatial_bin_size; // spatial bin size
     
@@ -87,7 +89,7 @@ static struct args {
 
     .genome_bin_size = 0,
     .ignore_strand   = 0,
-    
+    .chr_level       = 0,
     .stereoseq       = 0,
     
     .n_thread        = 5,
@@ -128,8 +130,6 @@ struct counts {
 
 static void memory_release()
 {
-    //bam_hdr_destroy(args.hdr);
-    //sam_close(args.fp_in);
     if (args.tags) dict_destroy(args.tags);
     
     close_bam_files(args.files);
@@ -162,7 +162,7 @@ static int parse_args(int argc, char **argv)
         const char *a = argv[i++];
         const char **var = 0;
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
-        if (strcmp(a, "-tags") == 0 || strcmp(a, "-cb") == 0) var = &tag_str;
+        if (strcmp(a, "-tags") == 0 || strcmp(a, "-tag") == 0 || strcmp(a, "-cb") == 0) var = &tag_str;
         else if (strcmp(a, "-anno-tag") == 0) var = &args.anno_tag;
         else if (strcmp(a, "-list") == 0) var = &args.whitelist_fname;
         else if (strcmp(a, "-umi") == 0) var = &args.umi_tag;
@@ -179,6 +179,10 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-chunk-size") == 0) var = &chunk_size;
         else if (strcmp(a, "-dup") == 0) {
             args.use_dup = 1;
+            continue;
+        }
+        else if (strcmp(a, "-chr") == 0) {
+            args.chr_level=1;
             continue;
         }
         else if (strcmp(a, "-velo") == 0) {
@@ -198,7 +202,6 @@ static int parse_args(int argc, char **argv)
             continue;
         }
         else if (strcmp(a, "-corr") == 0) {
-            //args.enable_corr_umi = 1;
             warnings("Option -corr has been removed since v0.8, to correct UMIs please use `PISA corr` instead.");
             continue;
         }
@@ -208,7 +211,6 @@ static int parse_args(int argc, char **argv)
         }
 
         else if (strcmp(a, "-file-barcode") ==0) {
-            //args.alias_file_cb = 1;
             error("-file-barcode is removed since v0.12.");
             continue;
         }        
@@ -227,6 +229,11 @@ static int parse_args(int argc, char **argv)
     }
 
     if (genome_bin_size) args.genome_bin_size = human2int(genome_bin_size);
+    if (args.chr_level == 1) {
+        if (args.genome_bin_size > 0) warnings("Count chromosomes, ignore genome bin size.");
+        args.genome_bin_size = -1;
+    }
+
     if (args.input_fname == 0 && args.sample_list == NULL) error("No input bam.");
     if (args.input_fname && args.sample_list) error("Input bam conflict with -sample-list.");
     
@@ -378,9 +385,7 @@ struct ret {
 void merge_counts(struct ret *ret)
 {
     if (ret == NULL) return;
-    int i;
-    for (i = 0; i < dict_size(ret->features); ++i) {
-        // debug_print("Merging %d features ..", dict_size(ret->features));
+    for (int i = 0; i < dict_size(ret->features); ++i) {
         char *feature = dict_name(ret->features, i);
         int idx = dict_query(args.features, feature);
         if (idx < 0) {
@@ -393,11 +398,9 @@ void merge_counts(struct ret *ret)
             dict_assign_value(args.features, idx, v);
         }
         
-        int j;
-        for (j = 0; j < v0->l; ++j) {
+        for (int j = 0; j < v0->l; ++j) {
             struct PISA_dna *d = &v0->data[j];
             if (d->idx == -1) continue; // cell barcode cached but no record
-            //debug_print("%d", d->idx);
             char *barcode = dict_name(ret->barcodes,d->idx);
             assert(barcode);
             int cell_id = dict_query(args.barcodes, barcode);
@@ -558,8 +561,7 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
         s = skip_aux(s, end);
     }
     
-    int i;
-    for (i = 0; i < l; ++i) {
+    for (int i = 0; i < l; ++i) {
         if (vals[i] == NULL) {
             int j;
             for (j = i+1; j < l; ++j) {
@@ -577,7 +579,6 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
     free(vals);
     return str.s;
 }
-//struct ret *count_matrix_core(bam1_t *b, char *tag)
 static void *run_it(void *_p)
 {
     struct bam_pool *p = (struct bam_pool*)_p;
@@ -621,12 +622,15 @@ static void *run_it(void *_p)
             if (!anno_tag) continue;
             anno_tag = anno_tag+1;
         } else {
-            assert(args.genome_bin_size > 0);
+            assert(args.genome_bin_size != 0);
             kstring_t bn = {0,0,0};
             bam_hdr_t *hdr = p->hdr;
             kputs(sam_hdr_tid2name(hdr, b->core.tid), &bn);
-            kputc(':', &bn);
-            kputw((int)(b->core.pos/args.genome_bin_size), &bn);
+            if (args.genome_bin_size > 0) {
+                kputc(':', &bn);
+                kputw((int)(b->core.pos/args.genome_bin_size), &bn);
+            }
+
             if (args.ignore_strand == 0) {
                 kputc('/', &bn);
                 if (bam_is_rev(b)) kputc('-', &bn);
@@ -640,7 +644,7 @@ static void *run_it(void *_p)
             uint8_t *umi_tag = bam_aux_get(b, args.umi_tag);
             // if (!umi_tag) goto skip_this_record;            
             if (!umi_tag) {
-                if (args.genome_bin_size > 0) free(anno_tag);
+                if (args.genome_bin_size != 0) free(anno_tag);
                 continue;
             }
         }
@@ -665,13 +669,11 @@ static void *run_it(void *_p)
             else if (RE_type_map(data[1]) == type_antisense_intron) antisense = 1;
         }
         
-        //if (args.tags) {
-
         // todo: perform improvement
         char *tag = retrieve_tags(b,args.tags);
 
         if (tag == NULL) {
-            if (args.genome_bin_size > 0) free(anno_tag);
+            if (args.genome_bin_size != 0) free(anno_tag);
             continue;   
         }
         
@@ -680,7 +682,7 @@ static void *run_it(void *_p)
             cell_id = dict_query(ret->barcodes, tag);
             free(tag);
             if (cell_id == -1) {
-                if (args.genome_bin_size > 0) free(anno_tag);
+                if (args.genome_bin_size != 0) free(anno_tag);
                 continue; // goto skip_this_record;
             }
         }
@@ -700,7 +702,7 @@ static void *run_it(void *_p)
             // free(str.s);
             free(s);
             // goto skip_this_record;
-            if (args.genome_bin_size > 0) free(anno_tag);
+            if (args.genome_bin_size != 0) free(anno_tag);
             continue;
         }
         
@@ -778,7 +780,7 @@ static void *run_it(void *_p)
             }
         }
 
-        if (args.genome_bin_size> 0) free(anno_tag);
+        if (args.genome_bin_size != 0) free(anno_tag);
 
         free(s);
     }
@@ -794,8 +796,7 @@ static void *run_it(void *_p)
 static void update_counts()
 {
     int n_feature = dict_size(args.features);
-    int i;
-    for (i = 0; i < n_feature; ++i) {
+    for (int i = 0; i < n_feature; ++i) {
         struct PISA_dna_pool *v = dict_query_value(args.features, i);
         int j;
         int n_cell = v->l;
@@ -823,10 +824,6 @@ static void update_counts()
                     count->antisense = size;
                 }
             }
-            // args.n_record += count->count;
-            // args.n_record2 += count->unspliced;
-            // args.n_record3 += count->spanning;
-            // if (count->count > 0 && count->count != count->unspliced) args.n_record1++;
             if (count->count > count->unspliced) args.n_record1++;
             if (count->unspliced > 0) args.n_record2++;
             if (count->spanning > 0) args.n_record3++;
@@ -905,58 +902,6 @@ static void write_outs()
             for (i = 0; i < n_barcode; ++i) {
                 char *name = dict_name(args.barcodes, i);
                 kputs(name, &str);
-                /*
-                debug_print("%s", name);
-
-                char *s0 = name;
-                char *end = name + strlen(name);
-
-                for (; *s0 && s0 != end;) {
-                    if (*s0 == ' ') {
-                        s0++;
-                        uint8_t type = *s0++;
-                        if (type == 'c') {
-                            int8_t va = le_to_i8(s0);
-                            s0 = s0 + 1;
-                        } else if (type == 'C') {
-                            uint8_t va = *s0;
-                            s0 = s0 + 1;
-                        } else if (type == 's') {
-                            int16_t va = le_to_i16(s0);
-                            s0 = s0 + 2;
-                        } else if (type == 'S') {
-                            uint16_t va = le_to_u16(s0);
-                            s0 = s0 + 2;
-                        } else if (type == 'i') {
-                            int32_t va = le_to_i32(s0);
-                            kputw(va, &str);
-                            s0 = s0 + 4;
-                        } else if (type == 'I') {
-                            uint32_t va = le_to_u32(s0);
-                            kputw(va, &str);
-                            s0 = s0 + 4;
-                        } else if (type == 'f') {
-                            float va = le_to_float(s0);
-                            kputd(va, &str);
-                            s0 = s0 + 4;
-                        } else if (type == 'd') {
-                            double va = le_to_double(s0);
-                            kputd(va, &str);
-                            s0 = s0 + 8;
-                        } else {
-                            error("Unknown type : %s", s0);
-                        }
-                    } else if (*s0 == '\t') {
-                        kputc('\t', &str);
-                        s0++;
-                    } else {
-                        char *val = s0;
-                        for (;*s0 && s0 != end && *s0 != '\t'; ++s0);
-                        kputsn(val, s0- val,&str);
-                        kputs("", &str);
-                    }
-                    }
-                */
                 kputc('\n', &str);
             }
             l = bgzf_write(barcode_fp, str.s, str.l);
@@ -1144,11 +1089,6 @@ struct bam_pool *read_files_pool(struct bam_files *files, int size)
         bam_hdr_t *hdr = get_hdr(args.files);
         p->hdr = hdr;
         bam1_t *b =  &p->bam[p->n];
-        
-        // char *alias = get_alias(args.files);
-        // if (args.alias_file_cb == 1 && !alias)
-        // error("No alias found for %s", get_fname(args.files));
-        
         bam1_core_t *c;
         c = &b->core;
 
