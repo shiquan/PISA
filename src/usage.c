@@ -377,13 +377,12 @@ int bam_count_usage()
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count -cb RG -sample-list bam_files.txt -outdir exp\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count -tags Cx,Cy -anno-tag GN -umi UB -outdir exp -velo aln.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    //fprintf(stderr, " -cb       [TAG]      Cell barcode tag.\n");
     fprintf(stderr, " -tags/-cb [TAGs]     A cell barcode tag or two tags of spatial coordinates for spatial data.\n");
     fprintf(stderr, " -anno-tag [TAG]      Annotation tag, gene or peak.\n");
-    fprintf(stderr, " -genome-bin [INT]    If genome bin size set, genome bin count matrix will be generated, conflict with -anno-tag.\n");
+    fprintf(stderr, " -genome-bin [INT]    If genome bin size set, genome bin count matrix will be generated, conflict with -anno-tag and -chr.\n");
     fprintf(stderr, " -ignore-strand       Ignore strand for bin counting.\n");
+    fprintf(stderr, " -chr                 Count chromosome expression level, conflict with -anno-tag and -genome-bin.\n");
     fprintf(stderr, " -list     [FILE]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
-    //fprintf(stderr, " -o        [FILE]     Output matrix.\n");
     fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this folder.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
     fprintf(stderr, " -dup                 Do NOT skip duplicate reads.\n");
