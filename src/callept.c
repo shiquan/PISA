@@ -119,8 +119,8 @@ static int parse_args(int argc, char **argv)
     if (args.input_fname == 0) error("No input bam.");
 
     if (threads) args.n_thread = str2int((char*)threads);
-    if (gap) args.max_gap = str2int((char*)gap);
-    if (minlength) args.min_length = str2int((char*)minlength);
+    if (gap) args.max_gap = human2int((char*)gap);
+    if (minlength) args.min_length = human2int((char*)minlength);
     if (cutoff) args.cutoff = str2int((char*)cutoff);
     
     if (mapq) {
@@ -172,7 +172,7 @@ int callept(struct bed_spec *B, hts_idx_t *idx, int tid, int start, int end)
 {
     struct depth *d = bam2depth(idx, tid, start, end, BED_STRAND_UNK, args.fp, args.mapq_thres,
                                 args.ignore_strand, args.barcodes, args.tag, args.umi_tag,
-                                0, 0, NULL, 0, args.cutoff +1);
+                                0, 0, NULL, 0, -1);//args.cutoff +1);
 
     if (d == NULL) return 1;
     
@@ -183,9 +183,8 @@ int callept(struct bed_spec *B, hts_idx_t *idx, int tid, int start, int end)
     
     for (;;) {
         if (d == NULL) break;
-        
         if (d->dep1 > args.cutoff || d->dep2 > args.cutoff) {
-            //debug_print("%d\n", d->pos);
+            //debug_print("%d\t%d\t%d", d->pos, d->dep1, d->dep2);
             assert(d->pos > b1.end);
             assert(d->pos > b2.end);
             

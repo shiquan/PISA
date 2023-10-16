@@ -130,8 +130,14 @@ void bed_spec_shrink(struct bed_spec *B, int up, int down)
     int i;
     for (i = 0; i < B->n; ++i) {
         struct bed *bed = &B->bed[i];
-        bed->start = bed->start + up;
-        bed->end = bed->end - down;
+        if (strand_is_minus(bed->strand)) {
+            bed->start = bed->start +down;
+            bed->end = bed->end - up;
+        } else {
+            bed->start = bed->start + up;
+            bed->end = bed->end - down;
+        }
+        if (bed->start < 0) bed->start = 0;
         if (bed->end <= bed->start) {
             bed->start = 0;
             bed->end = 0;
