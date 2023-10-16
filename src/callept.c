@@ -172,7 +172,7 @@ int callept(struct bed_spec *B, hts_idx_t *idx, int tid, int start, int end)
 {
     struct depth *d = bam2depth(idx, tid, start, end, BED_STRAND_UNK, args.fp, args.mapq_thres,
                                 args.ignore_strand, args.barcodes, args.tag, args.umi_tag,
-                                0, 0, NULL, 0, -1);//args.cutoff +1);
+                                0, 0, NULL, 0, args.cutoff +1);
 
     if (d == NULL) return 1;
     
