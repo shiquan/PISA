@@ -16,12 +16,8 @@
 #include "read_anno.h"
 #include "dict.h"
 #include <zlib.h>
-
-//#ifdef _OPENMP
-//#include <omp.h>
-//#endif
-
 #include "htslib/kseq.h"
+
 KSTREAM_INIT(gzFile, gzread, 0x10000)
 struct read_stat {
 
@@ -418,13 +414,12 @@ static int parse_args(int argc, char **argv)
     }
     
     if (args.gtf_fname) {
-
         args.G = gtf_read_lite(args.gtf_fname);
         if (args.G == NULL) error("GTF is empty.");
         if (tags) {
             kstring_t str = {0,0,0};
             kputs(tags, &str);
-            if (str.l != 14) error("Bad format of -tags, require five tags and splited by ','.");
+            if (str.l != 14 && str.l != 11) error("-tags required 4 or 5 tag names.");
             int n;
             int *s = ksplit(&str, ',', &n);
             if (n != 4 && n != 5) error("-tags required 4 or 5 tag names.");
@@ -470,7 +465,7 @@ static int parse_args(int argc, char **argv)
     struct read_stat *stat = malloc(sizeof(*stat));
     memset(stat, 0, sizeof(*stat));
     dict_assign_value(args.group_stat, idx, stat);
-        
+    
     return 0;
 }
 
@@ -634,7 +629,8 @@ static void gtf_anno_most_likely_type(struct gtf_anno_type *ann)
     }
 }
 
-static enum exon_type query_exon(int start, int end, struct gtf const *G, int *exon)
+//static enum exon_type
+static struct gtf *query_exon(int start, int end, struct gtf const *G, int *exon, enum exon_type *exon_type)
 {
     assert(G->type == feature_transcript);
     int j = 0;
@@ -646,20 +642,35 @@ static enum exon_type query_exon(int start, int end, struct gtf const *G, int *e
         if (g0->type != feature_exon) continue;
         j++;
         if (start >= g0->start && end <= g0->end) {
-            *exon = j<<2 | (start==g0->start)<<1 | (end == g0->end);            
-            return type_exon;
+            *exon = j<<2 | (start==g0->start)<<1 | (end == g0->end);
+
+            *exon_type = type_exon;
+            // return type_exon;
+            return g0;
         }
 
         if (start >= g0->end) continue; // check next exon
+        if (end <= g0->start) {
+            *exon_type = type_intron;
+            return g0;
+            //return type_intron;
+        }
 
-        if (end <= g0->start) return type_intron;
+        if (start < g0->end && end > g0->end) {
+            // return type_exon_intron;
+            *exon_type = type_exon_intron;
+            return g0;
+        }
 
-        if (start < g0->end && end > g0->end) return type_exon_intron;
-
-        if (start < g0->start && end > g0->start) return type_exon_intron;
+        if (start < g0->start && end > g0->start) {
+            *exon_type = type_exon_intron;
+            // return type_exon_intron;
+            return g0;
+        }
     }
 
-    return type_unknown; // out of range
+    *exon_type = type_unknown; // out of range
+    return NULL;
 }
 
 // for each transcript, return a type of alignment record
@@ -668,18 +679,19 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
     struct trans_type *tp = malloc(sizeof(*tp));
     tp->trans_id = g->transcript_id;
     tp->type = type_unknown;
-    
+    tp->n_exon = 0;
+    tp->exon = NULL;
     int exon;
     int last_exon = -1;
     int i = 0;
     // linear search
     for (i = 0; i < S->n; ++i) {
         struct pair *p = &S->p[i];
-
-        enum exon_type t0 = query_exon(p->start, p->end, g, &exon);
+        enum exon_type t0;
+        struct gtf *e = query_exon(p->start, p->end, g, &exon, &t0);
 
         if (t0 == type_unknown) {
-            if (tp->type != type_unknown)  tp->type = type_ambiguous; // at least some part of read cover this transcript
+            if (tp->type != type_unknown) tp->type = type_ambiguous; // at least some part of read cover this transcript
             if (i > 0) tp->type = type_ambiguous;
             break; // not covered this exon
         }
@@ -687,6 +699,9 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
             if (tp->type == type_unknown) {
                 tp->type = t0;
                 last_exon = exon;
+                tp->n_exon = 1;
+                tp->exon = malloc(sizeof(void*));
+                tp->exon[0] = e;
                 continue;
             }
             else if (tp->type == type_exon || tp->type == type_splice) {
@@ -699,8 +714,11 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
                 if ((last_exon & 0x1) && (exon & 0x2)) { // check the edge
                     tp->type = type_splice;
                     last_exon = exon;
+                    tp->exon = realloc(tp->exon, sizeof(void*)*(tp->n_exon+1));
+                    tp->exon[tp->n_exon++] = e;
                     continue;
                 }
+
                 tp->type = type_ambiguous;
                 break;
             }
@@ -712,7 +730,7 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
             }
             else if (tp->type == type_exon || tp->type == type_splice) { // looks like an isoform
                 tp->type = type_ambiguous;
-                break;                
+                break;           
             }
             else {
                 // should not come here
@@ -731,6 +749,13 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
         else if (tp->type == type_exon_intron) tp->type = type_antisense_intron;
         else if (tp->type == type_ambiguous) tp->type = type_antisense; // ?
         //else if (tp->type == type_unknown)
+    }
+
+    if (tp->type != type_exon && tp->type != type_splice) {
+        if (tp->n_exon > 0) {
+            free(tp->exon);
+            tp->n_exon = 0;
+        }
     }
 
     return tp;  
@@ -753,6 +778,8 @@ void gtf_anno_push(struct trans_type *a, struct gtf_anno_type *ann, int gene_id,
             }
             g0->a[g0->n].trans_id = a->trans_id;
             g0->a[g0->n].type = a->type;
+            g0->a[g0->n].n_exon = a->n_exon;
+            g0->a[g0->n].exon = a->exon;
             g0->n++;
             return;
         }
@@ -768,6 +795,8 @@ void gtf_anno_push(struct trans_type *a, struct gtf_anno_type *ann, int gene_id,
     g->a = malloc(sizeof(struct trans_type)*g->m);
     g->a[g->n].trans_id = a->trans_id;
     g->a[g->n].type = a->type;
+    g->a[g->n].n_exon = a->n_exon;
+    g->a[g->n].exon = a->exon;
     g->n++;
 }
 // return 1 if annotate more than one gene, otherwise return 0
@@ -786,6 +815,10 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
     kstring_t gene_name = {0,0,0};
     kstring_t gene_id   = {0,0,0};
     kstring_t trans_id  = {0,0,0};
+    kstring_t tmp = {0,0,0};
+    struct dict *exons;
+    if (args.exon_level) exons = dict_init();
+    
     int i;
     for (i = 0; i < ann->n; ++i) {
         struct gene_type *g = &ann->a[i];
@@ -817,19 +850,47 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
                     char *trans = dict_name(G->transcript_id, t->trans_id);
                     kputs(trans, &trans_id);
                     n_trans++;
+
+                    if (args.exon_level) {
+                        for (int k = 0; k < t->n_exon; ++k) {
+                            tmp.l = 0;
+                            struct gtf *e = t->exon[k];
+                            ksprintf(&tmp,"%s:%d-%d/", dict_name(args.G->name, e->seqname), e->start, e->end);
+                            if (args.ignore_strand) {
+                                kputs(gene, &tmp);
+                            } else {
+                                ksprintf(&tmp, "%c/%s", "+-"[e->strand], gene);
+                            }
+                            kputs("", &tmp);
+                            dict_push(exons,tmp.s);
+                        }
+
+                        if (t->n_exon) free(t->exon);
+                    }
                 }
             }
         }
+    }
+
+    tmp.l = 0;
+    for (int k = 0; args.exon_level && k < dict_size(exons); ++k) {
+        if (tmp.l) kputc(',', &tmp);
+        kputs(dict_name(exons, k), &tmp);        
     }
     
     if (gene_name.l) {
         bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
         bam_aux_append(b, GN_tag, 'Z', gene_name.l+1, (uint8_t*)gene_name.s);
         bam_aux_append(b, TX_tag, 'Z', trans_id.l+1, (uint8_t*)trans_id.s);
+        if (args.exon_level)
+            bam_aux_append(b, EX_tag, 'Z', tmp.l+1, (uint8_t*)tmp.s);
         free(gene_id.s);
         free(gene_name.s);
         free(trans_id.s);
     }
+
+    if (tmp.m) free(tmp.s);
+    if (args.exon_level) dict_destroy(exons);
     return ret;
 }
 
@@ -893,7 +954,6 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
             if (g1->type != feature_transcript) continue;
             struct trans_type *a = gtf_anno_core(S, g1, antisense);
             gtf_anno_push(a, ann, g1->gene_id, g1->gene_name);
-            free(a);
         }
     }
     
@@ -957,10 +1017,8 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     
     if (args.tss_mode == 1) {
         if ((data = bam_aux_get(b, args.ctag)) != NULL) bam_aux_del(b, data);
-        
         if (ann->type == type_exon || ann->type == type_splice) {
             kstring_t str = {0,0,0};
-            
             int i;
             for (i = 0; i < ann->n; ++i) {
                 struct gene_type *g = &ann->a[i];

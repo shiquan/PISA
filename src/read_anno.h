@@ -1,6 +1,7 @@
 #ifndef RD_ANNO_HEADER
 #define RD_ANNO_HEADER
 #include "utils.h"
+#include "gtf.h"
 
 // todo: merge with bed annotation types
 enum exon_type {
@@ -18,6 +19,8 @@ enum exon_type {
 struct trans_type {
     int trans_id;
     enum exon_type type;
+    int n_exon;
+    struct gtf **exon;
 };
 
 struct gene_type {
