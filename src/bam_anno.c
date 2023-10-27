@@ -125,7 +125,7 @@ static struct args {
     
     .map_qual        = 0,
     .n_thread        = 4,
-    .chunk_size      = 100000,
+    .chunk_size      = 1000,
     .anno_only       = 0,
 
     .ref_alt         = 0,
