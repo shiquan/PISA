@@ -816,7 +816,7 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
     kstring_t gene_id   = {0,0,0};
     kstring_t trans_id  = {0,0,0};
     kstring_t tmp = {0,0,0};
-    struct dict *exons;
+    struct dict *exons = NULL;
     if (args.exon_level) exons = dict_init();
     
     int i;
