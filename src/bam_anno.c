@@ -954,6 +954,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
             if (g1->type != feature_transcript) continue;
             struct trans_type *a = gtf_anno_core(S, g1, antisense);
             gtf_anno_push(a, ann, g1->gene_id, g1->gene_name);
+            free(a);
         }
     }
     
