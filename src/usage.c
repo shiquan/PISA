@@ -385,9 +385,6 @@ int bam_count_usage()
     fprintf(stderr, " -list     [FILE]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
     fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this folder.\n");
     fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
-    fprintf(stderr, " -dup                 Do NOT skip duplicate reads.\n");
-    fprintf(stderr, " -stereoseq           Stereoseq pipeline pack UMI to hex string. Need set this option to decode UMIs.\n");
-    fprintf(stderr, " -spatial-bin [INT]   Bin size for spatial coordiate. Can be set if -tags specify spatial coordinates.[1]\n");
     fprintf(stderr, " -one-hit             Skip if a read hits more than 1 gene or peak.\n");
     // fprintf(stderr, " -corr                Enable correct UMIs. Similar UMIs defined as amming distance <= 1.\n");
     fprintf(stderr, " -q        [INT]      Minimal map quality to filter. Default is 20.\n");
@@ -397,6 +394,12 @@ int bam_count_usage()
     fprintf(stderr, " -ttype    [TYPE]     Region type used to count. Set `E,S` to count exon enclosed reads. Set `N,C` to count intron overlapped reads.\n");
     //fprintf(stderr, " -file-barcode        No cell barcode tag in the bam, but alias file name as cell barcode. This option must use with -sample-list.\n");
     fprintf(stderr, " -sample-list [FILE]  A list of bam files. Each path per line.\n");
+
+    fprintf(stderr, "\nOptions for Stereoseq:\n");
+    fprintf(stderr, " -stereoseq           Stereoseq pipeline pack UMI to hex string. Need set this option to decode UMIs.\n");
+    fprintf(stderr, " -spatial-bin [INT]   Bin size for spatial coordiate. Can be set if -tags specify spatial coordinates.[1]\n");
+    fprintf(stderr, " -dup                 Do NOT skip duplicate reads. \n");
+    
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
     fprintf(stderr, " * Region type (RE), which label functional region reads mapped, is annotated by `\x1b[1mPISA\x1b[0m anno`. Optional -ttype can be set\n");
     fprintf(stderr, "   to one of region types(E/S/C/N) or combination to count reads mapped to these functional regions only.\n");
