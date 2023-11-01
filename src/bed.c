@@ -498,6 +498,8 @@ struct bed_spec *bed_read_vcf(const char *fn)
         bed->strand = -1;
         bcf1_t *var = bcf_init();
         bed->data = bcf_copy(var, v);
+        bcf_unpack(var, BCF_UN_STR);
+        bcf_unpack(var, BCF_UN_INFO);
         B->n++;
     }
     bcf_destroy(v);
