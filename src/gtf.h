@@ -27,6 +27,11 @@ enum feature_type {
     feature_3UTR_alias,
     feature_Selenocysteine,
 };
+struct attr {
+    int id;
+    char *val;
+    struct attr *next;
+};
 
 struct gtf {
     int seqname;
@@ -39,7 +44,8 @@ struct gtf {
     int gene_name;
     int transcript_id;
     int coding; // set to 1 if CDS exists
-    struct dict *attr; // attributions
+    // struct dict *attr; // attributions
+    struct attr *attr;
     //struct dict *query; // used to fast access gtf, dedup
     int n_gtf, m_gtf;
     struct gtf **gtf;
