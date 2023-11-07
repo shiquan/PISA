@@ -55,29 +55,48 @@ struct gtf *gtf_create()
     gtf_reset(g);
     return g;
 }
+void gtf_attr_clear(struct attr *attr)
+{
+    if (attr) {
+        if (attr->next) gtf_attr_clear(attr->next);
+        if (attr->val) free(attr->val);
+        free(attr);
+    }
+}
 void gtf_clear(struct gtf *gtf)
 {
-    int i;
-    for (i = 0; i < gtf->n_gtf; ++i) {
+    for (int i = 0; i < gtf->n_gtf; ++i) {
         gtf_clear(gtf->gtf[i]);
         free(gtf->gtf[i]);
     }
     if (gtf->n_gtf) free(gtf->gtf);
-
-    if (gtf->attr != NULL) {
-        int i;
-        for (i = 0; i < dict_size(gtf->attr); ++i) {
-            char *val = dict_query_value(gtf->attr, i);
-            if (val) free(val);
-        }
-        dict_destroy(gtf->attr);
-    }
-
-    /*
-    if (gtf->query) // usually already freed during indexing
-        dict_destroy(gtf->query);
-    */
+    if (gtf->attr != NULL) gtf_attr_clear(gtf->attr);
+    //if (gtf->ext) transcript_summary_destroy(gtf->ext);
 }
+
+/* void gtf_clear(struct gtf *gtf) */
+/* { */
+/*     int i; */
+/*     for (i = 0; i < gtf->n_gtf; ++i) { */
+/*         gtf_clear(gtf->gtf[i]); */
+/*         free(gtf->gtf[i]); */
+/*     } */
+/*     if (gtf->n_gtf) free(gtf->gtf); */
+
+/*     if (gtf->attr != NULL) { */
+/*         int i; */
+/*         for (i = 0; i < dict_size(gtf->attr); ++i) { */
+/*             char *val = dict_query_value(gtf->attr, i); */
+/*             if (val) free(val); */
+/*         } */
+/*         dict_destroy(gtf->attr); */
+/*     } */
+
+/*     /\* */
+/*     if (gtf->query) // usually already freed during indexing */
+/*         dict_destroy(gtf->query); */
+/*     *\/ */
+/* } */
 
 void gtf_copy(struct gtf *dest, struct gtf *src)
 {
@@ -442,16 +461,30 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
         else {
             if ((filter & 0x3) & FILTER_ATTRS) { // todo: update to dict structure
                 //int attr_id = dict_push(G->attrs, pp->key);
-                dict_push(G->attrs, pp->key);
-                if (gtf.attr == NULL) {
-                    gtf.attr = dict_init();
-                    dict_set_value(gtf.attr);
+                /* dict_push(G->attrs, pp->key); */
+                /* if (gtf.attr == NULL) { */
+                /*     gtf.attr = dict_init(); */
+                /*     dict_set_value(gtf.attr); */
+                /* } */
+                /* int idx = dict_push(gtf.attr, pp->key); */
+                /* if (pp->val != NULL) { */
+                /*     char *val = strdup(pp->val); */
+                /*     dict_assign_value(gtf.attr, idx, val); */
+                /* } */
+
+                                
+                struct attr *attr = malloc(sizeof(struct attr));
+                attr->id = dict_push(G->attrs, pp->key);
+                attr->val = NULL;
+                attr->next = NULL;
+                if (gtf.attr == NULL) gtf.attr = attr;
+                else {
+                    struct attr *tmp;
+                    for (tmp = gtf.attr; tmp->next; tmp = tmp->next);
+                    tmp->next = attr;
                 }
-                int idx = dict_push(gtf.attr, pp->key);
-                if (pp->val != NULL) {
-                    char *val = strdup(pp->val);
-                    dict_assign_value(gtf.attr, idx, val);
-                }
+
+                if (pp->val != NULL) attr->val = strdup(pp->val);
             }
         }
         free(pp->key);
@@ -574,7 +607,7 @@ struct gtf_spec *gtf_read(const char *fname, int f)
 
     gzFile fp;
     fp = gzopen(fname, "r");
-    CHECK_EMPTY(fp, "%s : %s.", fname, strerror(errno));
+    if(fp == NULL) error("%s : %s.", fname, strerror(errno));
 
     kstream_t *ks = ks_init(fp);
     kstring_t str = {0,0,0};
@@ -691,21 +724,31 @@ void write_gtf_fp(struct gtf_spec *G, struct gtf *gtf, FILE *fp, struct dict *ke
     if (gtf->transcript_id >= 0) {
         fprintf(fp, " transcript_id \"%s\";", dict_name(G->transcript_id, gtf->transcript_id));
     }
-
+    
     if (gtf->attr) {
-        int i;
-        for (i = 0; i < dict_size(gtf->attr); ++i) {
-            char *name = dict_name(gtf->attr, i);
-            if (keys) {
-                int ret = dict_query(keys,name);
-                if (ret == -1) continue;
-            }
+        struct attr *tmp = gtf->attr;
+        for (tmp = gtf->attr; tmp; tmp = tmp->next) {
+            char *name = dict_name(G->attrs, tmp->id);
             fprintf(fp, " %s", name);
-            char *val = dict_query_value(gtf->attr, i);
-            if (val) fprintf(fp, " \"%s\";", val);
+            if (tmp->val) fprintf(fp, " \"%s\";", tmp->val);
             else fputc(';', fp);
         }
     }
+
+    /* if (gtf->attr) { */
+    /*     int i; */
+    /*     for (i = 0; i < dict_size(gtf->attr); ++i) { */
+    /*         char *name = dict_name(gtf->attr, i); */
+    /*         if (keys) { */
+    /*             int ret = dict_query(keys,name); */
+    /*             if (ret == -1) continue; */
+    /*         } */
+    /*         fprintf(fp, " %s", name); */
+    /*         char *val = dict_query_value(gtf->attr, i); */
+    /*         if (val) fprintf(fp, " \"%s\";", val); */
+    /*         else fputc(';', fp); */
+    /*     } */
+    /* } */
     fputc('\n', fp);
     
     int i;
