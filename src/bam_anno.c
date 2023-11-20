@@ -62,6 +62,8 @@ static struct args {
     
     int exon_level;
     int reverse_trans;
+
+    int vague_edge;
     
     int n_thread;
     int chunk_size;
@@ -122,6 +124,7 @@ static struct args {
     .antisense       = 0,
     .exon_level      = 0,
     .reverse_trans   = 0,
+    .vague_edge      = 0,
     
     .map_qual        = 0,
     .n_thread        = 4,
@@ -261,6 +264,8 @@ static int parse_args(int argc, char **argv)
     const char *chunk = NULL;
     const char *file_thread = NULL;
     const char *map_qual = NULL;
+    const char *vague_edge = NULL;
+    
     for (i = 1; i < argc; ) {
         const char *a = argv[i++];
         const char **var = 0;
@@ -345,6 +350,8 @@ static int parse_args(int argc, char **argv)
             args.tss_mode = 1;
             continue;
         }
+
+        else if (strcmp(a, "-vague-edge") == 0) var = &vague_edge;
         
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
@@ -373,6 +380,8 @@ static int parse_args(int argc, char **argv)
     if (chunk) args.chunk_size = str2int((char*)chunk);
     if (map_qual) args.map_qual = str2int((char*)map_qual);
     if (args.map_qual < 0) args.map_qual = 0;
+
+    if (vague_edge) args.vague_edge = str2int((char*)vague_edge);
     
     // int file_th = 4;
     /* if (file_thread) */
@@ -630,7 +639,7 @@ static void gtf_anno_most_likely_type(struct gtf_anno_type *ann)
 }
 
 //static enum exon_type
-static struct gtf *query_exon(int start, int end, struct gtf const *G, int *exon, enum exon_type *exon_type)
+static struct gtf *query_exon(int start, int end, struct gtf const *G, int *exon, enum exon_type *exon_type, int vague_edge)
 {
     assert(G->type == feature_transcript);
     int j = 0;
@@ -641,7 +650,7 @@ static struct gtf *query_exon(int start, int end, struct gtf const *G, int *exon
         struct gtf *g0 = G->gtf[i];
         if (g0->type != feature_exon) continue;
         j++;
-        if (start >= g0->start && end <= g0->end) {
+        if (start >= g0->start - vague_edge && end <= g0->end + vague_edge) {
             *exon = j<<2 | (start==g0->start)<<1 | (end == g0->end);
 
             *exon_type = type_exon;
@@ -674,7 +683,7 @@ static struct gtf *query_exon(int start, int end, struct gtf const *G, int *exon
 }
 
 // for each transcript, return a type of alignment record
-static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, int antisense)
+static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, int antisense, int vague_edge)
 {
     struct trans_type *tp = malloc(sizeof(*tp));
     tp->trans_id = g->transcript_id;
@@ -688,14 +697,15 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
     for (i = 0; i < S->n; ++i) {
         struct pair *p = &S->p[i];
         enum exon_type t0;
-        struct gtf *e = query_exon(p->start, p->end, g, &exon, &t0);
+        struct gtf *e = query_exon(p->start, p->end, g, &exon, &t0, vague_edge);
 
         if (t0 == type_unknown) {
             if (tp->type != type_unknown) tp->type = type_ambiguous; // at least some part of read cover this transcript
             if (i > 0) tp->type = type_ambiguous;
             break; // not covered this exon
         }
-        else if (t0 == type_exon) {
+        // allow vague alignments when exon edges are not exactly matched
+        else if (t0 == type_exon || t0 == type_exon_intron) {
             if (tp->type == type_unknown) {
                 tp->type = t0;
                 last_exon = exon;
@@ -704,7 +714,7 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
                 tp->exon[0] = e;
                 continue;
             }
-            else if (tp->type == type_exon || tp->type == type_splice) {
+            else if (tp->type == type_exon || tp->type == type_splice || tp->type == type_exon_intron) {
                 assert(last_exon != -1);
                 if ((exon>>2)-(last_exon >> 2)>1) {  // check the exon number
                     tp->type = type_ambiguous;
@@ -728,7 +738,7 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
                 tp->type = t0;
                 break;
             }
-            else if (tp->type == type_exon || tp->type == type_splice) { // looks like an isoform
+            else if (tp->type == type_exon || tp->type == type_splice || tp->type == type_exon_intron) { // looks like an isoform
                 tp->type = type_ambiguous;
                 break;           
             }
@@ -737,10 +747,10 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
                 assert(0);
             }
         }
-        else if (t0 == type_exon_intron) {
-            tp->type = t0;
-            break;
-        }        
+        /* else if (t0 == type_exon_intron) { */
+        /*     tp->type = t0; */
+        /*     break; */
+        /* }         */
     }
     if (antisense == 1) {
         if (tp->type == type_exon)  tp->type = type_antisense;
@@ -751,7 +761,7 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
         //else if (tp->type == type_unknown)
     }
 
-    if (tp->type != type_exon && tp->type != type_splice) {
+    if (tp->type != type_exon && tp->type != type_splice && tp->type_exon_intron) {
         if (tp->n_exon > 0) {
             free(tp->exon);
             tp->n_exon = 0;
@@ -894,7 +904,7 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
     return ret;
 }
 
-struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam_hdr_t *h)
+struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam_hdr_t *h, int vague_edge)
 {
     //bam_hdr_t *h = args.hdr;
     bam1_core_t *c;
@@ -928,7 +938,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
         int antisense = 0; // DO NOT CHANGE HERE
             
         struct gtf const *g0 = (struct gtf*)itr->rets[i];
-        if (g0->start > c->pos+1 || endpos > g0->end) continue; // not fully covered
+        if (g0->start - vague_edge > c->pos+1 || endpos  > g0->end + vague_edge) continue; // not fully covered
 
         if (args.ignore_strand == 0) {
             int bam_strand = b->core.flag & BAM_FREVERSE;
@@ -952,7 +962,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
         for (j = 0; j < g0->n_gtf; ++j) {
             struct gtf const *g1 = g0->gtf[j];
             if (g1->type != feature_transcript) continue;
-            struct trans_type *a = gtf_anno_core(S, g1, antisense);
+            struct trans_type *a = gtf_anno_core(S, g1, antisense, vague_edge);
             gtf_anno_push(a, ann, g1->gene_id, g1->gene_name);
             free(a);
         }
@@ -997,7 +1007,7 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
     if ((data = bam_aux_get(b, EX_tag)) != NULL) bam_aux_del(b, data);
     
-    struct gtf_anno_type *ann = bam_gtf_anno_core(b, G, args.hdr);
+    struct gtf_anno_type *ann = bam_gtf_anno_core(b, G, args.hdr, args.vague_edge);
 
     bam_aux_append(b, RE_tag, 'A', 1, (uint8_t*)RE_tag_name(ann->type));
 
