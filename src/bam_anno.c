@@ -667,11 +667,13 @@ static struct gtf *query_exon(int start, int end, struct gtf const *G, int *exon
 
         if (start < g0->end && end > g0->end) {
             // return type_exon_intron;
+            *exon = j<<2 | (start==g0->start)<<1 | (end == g0->end);
             *exon_type = type_exon_intron;
             return g0;
         }
 
         if (start < g0->start && end > g0->start) {
+            *exon = j<<2 | (start==g0->start)<<1 | (end == g0->end);                        
             *exon_type = type_exon_intron;
             // return type_exon_intron;
             return g0;
