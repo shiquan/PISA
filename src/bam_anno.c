@@ -761,7 +761,7 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
         //else if (tp->type == type_unknown)
     }
 
-    if (tp->type != type_exon && tp->type != type_splice && tp->type_exon_intron) {
+    if (tp->type != type_exon && tp->type != type_splice && tp->type != type_exon_intron) {
         if (tp->n_exon > 0) {
             free(tp->exon);
             tp->n_exon = 0;
