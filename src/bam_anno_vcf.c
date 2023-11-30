@@ -90,13 +90,9 @@ int reads_match_var(struct bed *bed, bam1_t *b)
     if (st == -1) return -1; // out of range
     if (st == -2) return -1; // intron region
 
-    //struct var *v = (struct var*)bed->data;
     bcf1_t *v = (bcf1_t*)bed->data;
-    //bcf_hdr_t *hdr = (bcf_hdr_t*)bed->
     assert(v);
-    //bcf_unpack(v, BCF_UN_STR);
-    //bcf_unpack(v, BCF_UN_INFO);
-   
+    
     if (st == -3) {
         int a;        
         for (a = 0; a < v->n_allele; ++a) {
@@ -108,16 +104,15 @@ int reads_match_var(struct bed *bed, bam1_t *b)
         
     uint8_t *seq = bam_get_seq(b);
     bam1_core_t *c = &b->core;
-
-    //debug_print("n: %d", v->n_allele);
     int a;        
     for (a = 0; a < v->n_allele; ++a) {
-        //debug_print("%d", a);
         int i, j;
         int mis = 0;
         char *allele = v->d.allele[a];
-        for (i = st, j = 0; i < c->l_qseq && j < v->n_allele; ++i,++j) {
-            if ("=ACMGRSVTWYHKDBN"[bam_seqi(seq, i)] != allele[j]) {
+        int len = strlen(allele);
+        for (i = st, j = 0; i < c->l_qseq && j < len; ++i,++j) {
+            char s = "=ACMGRSVTWYHKDBN"[bam_seqi(seq, i)];
+            if (s != allele[j]) {
                 mis = 1;
                 break;
             }
