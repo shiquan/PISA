@@ -289,7 +289,7 @@ int anno_usage()
     fprintf(stderr, " -vtag     [TAG]       Tag name. Set with -vcf.\n");
     fprintf(stderr, " -ref-alt              Annotate ref allele.\n");
     fprintf(stderr, " -vcf-ss               Annotate variants in strand sensitive way.\n");
-    fprintf(stderr, " -phased               Annotate phase block for phased positions.\n");
+    //fprintf(stderr, " -phased               Annotate phase block for phased positions.\n");
         
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
     fprintf(stderr, " * If input is SAM format, will try to parse the tags in the read name.\n");
