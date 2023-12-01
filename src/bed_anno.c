@@ -401,7 +401,8 @@ int annobed_main(int argc, char **argv)
             qsort(a, k, sizeof(struct anno0), cmpfunc);
             int type = a[0].type;
             for (int j = 0; j < k; ++j) {
-                if (a[j].type > type) {
+                //if (a[j].type > type) {
+                if (a[j].type > BAT_WHOLEGENE) {
                     k = j;
                     break;
                 }
