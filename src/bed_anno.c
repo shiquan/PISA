@@ -256,7 +256,8 @@ static int query_exon(int start, int end, struct gtf const *G, struct anno0 *a, 
         // debug_print("%d\t%d\t%d\t%d", g0->start, g0->end, g1->start, g1->end);
     }
 
-    if ((a->type == BAT_EXON || a->type == BAT_EXONINTRON) && utr == 1) {
+    //if ((a->type == BAT_EXON || a->type == BAT_EXONINTRON) && utr == 1) {
+    if (a->type == BAT_EXON && utr == 1) {
         // forward
         if (G->strand == 0) a->type = pass_cds ? BAT_UTR3 : BAT_UTR5;
         // backward
@@ -310,7 +311,6 @@ static int query_trans(int start, int end, struct gtf const *G, struct anno0 *a)
 static int query_promoter(int start, int end, struct gtf *G, struct anno0 *a)
 {
     // nonoverlap with this promoter
-
     int start0 = G->start;
     int end0 = G->start;
     if (G->strand == 1) {
@@ -479,7 +479,7 @@ int annobed_main(int argc, char **argv)
             }
         }
     }
-
+    
     bed_spec_write(args.B, args.output_fname, 1, args.gene_as_name);
     
     summary_report();
