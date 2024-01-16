@@ -238,8 +238,13 @@ struct depth* bam2depth(const hts_idx_t *idx, const int tid, const int start, co
         
         if (ignore_strand) strand0 = BED_STRAND_UNK;
         else {
-            if (c->flag & BAM_FREVERSE) strand0 = BED_STRAND_REV;
-            else strand0 = BED_STRAND_FWD;
+            if (c->flag & BAM_FREAD2) {
+                if (c->flag & BAM_FREVERSE) strand0 = BED_STRAND_FWD;
+                else strand0 = BED_STRAND_REV;
+            } else {
+                if (c->flag & BAM_FREVERSE) strand0 = BED_STRAND_REV;
+                else strand0 = BED_STRAND_FWD;
+            }
         }
         
         if (strand == BED_STRAND_FWD && strand0 == BED_STRAND_REV) continue;

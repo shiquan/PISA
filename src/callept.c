@@ -26,11 +26,9 @@ static struct args {
     int n_thread;
 
     int ignore_strand;
-
     int min_length;
     int max_gap;
     int cutoff;
-    
 } args = {
     .input_fname = NULL,
     .output_fname = NULL,
@@ -72,6 +70,7 @@ static int callept_usage()
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
     fprintf(stderr, " * Requires sorted and indexed BAM as input.\n");
     fprintf(stderr, " * Compares with `MACS2` and other peak callers, PISA callept considers UMIs and strand of reads.\n");
+    fprintf(stderr, " * For paired reads, strand of read 2 will be reversed to revert fragment strand.\n");
     return 1;
 }
 
@@ -101,7 +100,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-gap") == 0) var = &gap;
         else if (strcmp(a, "-min-length") == 0) var = &minlength;
         else if (strcmp(a, "-cutoff") == 0) var = &cutoff;
-        
+
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
