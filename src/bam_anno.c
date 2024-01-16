@@ -252,6 +252,7 @@ static char GN_tag[2] = "GN";
 static char GX_tag[2] = "GX";
 static char RE_tag[2] = "RE";
 static char EX_tag[2] = "EX";
+static char JC_tag[2] = "JC";
 
 extern struct bed_spec *bed_read_vcf(const char *fn);
 extern bam_hdr_t *sam_parse_header(kstream_t *s, kstring_t *line);
@@ -428,17 +429,20 @@ static int parse_args(int argc, char **argv)
         if (tags) {
             kstring_t str = {0,0,0};
             kputs(tags, &str);
-            if (str.l != 14 && str.l != 11) error("-tags required 4 or 5 tag names.");
+            if (str.l != 17 && str.l != 11) error("-tags required 4 or 6 tag names.");
             int n;
             int *s = ksplit(&str, ',', &n);
-            if (n != 4 && n != 5) error("-tags required 4 or 5 tag names.");
+            if (n != 4 && n != 6) error("-tags required 4 or 6 tag names.");
             
             memcpy(TX_tag, str.s+s[0], 2*sizeof(char));
             // memcpy(AN_tag, str.s+s[1], 2*sizeof(char));
             memcpy(GN_tag, str.s+s[1], 2*sizeof(char));
             memcpy(GX_tag, str.s+s[2], 2*sizeof(char));
             memcpy(RE_tag, str.s+s[3], 2*sizeof(char));
-            if (args.exon_level && n == 5) memcpy(EX_tag, str.s + s[4], 2*sizeof(char));
+            if (args.exon_level && n == 6) {
+                memcpy(EX_tag, str.s + s[4], 2*sizeof(char));
+                memcpy(JC_tag, str.s + s[5], 2*sizeof(char));   
+            }
             
             free(str.s);
             free(s);
@@ -829,7 +833,11 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
     kstring_t trans_id  = {0,0,0};
     kstring_t tmp = {0,0,0};
     struct dict *exons = NULL;
-    if (args.exon_level) exons = dict_init();
+    struct dict *juncs = NULL;
+    if (args.exon_level) {
+        exons = dict_init();
+        juncs = dict_init();
+    }
     
     int i;
     for (i = 0; i < ann->n; ++i) {
@@ -875,34 +883,62 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
                             }
                             kputs("", &tmp);
                             dict_push(exons,tmp.s);
-                        }
+                        }                        
 
+                        // junction
+                        if (t->type == type_splice && t->n_exon > 1) {
+                            for (int k = 0; k < t->n_exon -1; ++k) {
+                                tmp.l = 0;
+                                struct gtf *e1 = t->exon[k];
+                                struct gtf *e2 = t->exon[k+1];
+                                ksprintf(&tmp,"%s:%d-%d/", dict_name(args.G->name, e1->seqname), e1->end, e2->start);
+                                if (args.ignore_strand) {
+                                    kputs(gene, &tmp);
+                                } else {
+                                    ksprintf(&tmp, "%c/%s", "+-"[e1->strand], gene);
+                                }
+                                kputs("", &tmp);
+                                dict_push(juncs,tmp.s);
+                            }
+                        }
                         if (t->n_exon) free(t->exon);
                     }
                 }
             }
         }
     }
-
-    tmp.l = 0;
-    for (int k = 0; args.exon_level && k < dict_size(exons); ++k) {
-        if (tmp.l) kputc(',', &tmp);
-        kputs(dict_name(exons, k), &tmp);        
-    }
     
     if (gene_name.l) {
         bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
         bam_aux_append(b, GN_tag, 'Z', gene_name.l+1, (uint8_t*)gene_name.s);
         bam_aux_append(b, TX_tag, 'Z', trans_id.l+1, (uint8_t*)trans_id.s);
-        if (args.exon_level)
+        if (args.exon_level) {
+            tmp.l = 0;
+            for (int k = 0; k < dict_size(exons); ++k) {
+                if (tmp.l) kputc(',', &tmp);
+                kputs(dict_name(exons, k), &tmp);  
+            }            
             bam_aux_append(b, EX_tag, 'Z', tmp.l+1, (uint8_t*)tmp.s);
+
+            tmp.l = 0;
+            for (int k = 0; k < dict_size(juncs); ++k) {
+                if (tmp.l) kputc(',', &tmp);
+                kputs(dict_name(juncs, k), &tmp);  
+            }
+            if (tmp.l > 0) {
+                bam_aux_append(b, JC_tag, 'Z', tmp.l+1, (uint8_t*)tmp.s);
+            }
+        }
         free(gene_id.s);
         free(gene_name.s);
         free(trans_id.s);
     }
 
     if (tmp.m) free(tmp.s);
-    if (args.exon_level) dict_destroy(exons);
+    if (args.exon_level) {
+        dict_destroy(exons);
+        dict_destroy(juncs);
+    }
     return ret;
 }
 
@@ -956,6 +992,10 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
                     antisense = 1;
                 }
             }
+
+            if (c->flag & BAM_FREAD2) {
+                antisense = antisense ? 0 : 1;
+            }
         }
 
         // if (antisense == 1 && args.antisense == 0) continue;
@@ -1008,6 +1048,7 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     if ((data = bam_aux_get(b, GX_tag)) != NULL) bam_aux_del(b, data);
     if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
     if ((data = bam_aux_get(b, EX_tag)) != NULL) bam_aux_del(b, data);
+    if ((data = bam_aux_get(b, JC_tag)) != NULL) bam_aux_del(b, data);
     
     struct gtf_anno_type *ann = bam_gtf_anno_core(b, G, args.hdr, args.vague_edge);
 

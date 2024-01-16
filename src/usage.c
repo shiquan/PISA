@@ -250,14 +250,14 @@ int anno_usage()
 {
     fprintf(stderr, "# Annotate SAM/BAM records with overlapped function regions. Such as gene, transcript etc.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -bed peak.bed -tag PK -vcf in.vcf.gz -vtag VF -o anno.bam in.bam\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -bed peak.bed -tag PK -vcf in.vcf.gz -vtag VF -vcf-ss -ref-alt -o anno.bam in.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -gtf genes.gtf -o anno.bam in.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -gtf genes.gtf -o anno.bam -sam in.sam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -o        [BAM]       Output bam file.\n");
     fprintf(stderr, " -report   [csv]       Summary report.\n");
     fprintf(stderr, " -@        [INT]       Threads to compress bam file.\n");
-    fprintf(stderr, " -q        [0]         Map Quality Score cutoff. MapQ smaller and equal to this value will not be annotated.\n");
+    fprintf(stderr, " -q        [0]         Map Quality Score cutoff. MapQ smaller than this value will not be annotated.\n");
     fprintf(stderr, " -t        [INT]       Threads to annotate.\n");
     fprintf(stderr, " -chunk    [INT]       Chunk size per thread.\n");
     fprintf(stderr, " -anno-only            Export annotated reads only.\n");
@@ -274,12 +274,13 @@ int anno_usage()
 
     fprintf(stderr, "\nOptions for GTF file :\n");
     fprintf(stderr, " -gtf      [GTF]       GTF annotation file. gene_id,transcript_id is required for each record.\n");
-    fprintf(stderr, " -tags     [TAGs]      Attribute names, more details see `\x1b[31m\x1b[1mNotice\x1b[0m` below. [TX,GN,GX,RE,EX]\n");
+    fprintf(stderr, " -tags     [TAGs]      Attribute names, more details see `\x1b[31m\x1b[1mNotice\x1b[0m` below. [TX,GN,GX,RE,EX,JC]\n");
     fprintf(stderr, " -ignore-strand        Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be annotated.\n");
     fprintf(stderr, " -splice               Reads covered exon-intron edge will also be annotated with all tags.\n");
     fprintf(stderr, " -intron               Reads covered intron regions will also be annotated with all tags.\n");
+    fprintf(stderr, " -exon                 Generate exon level and junction annotation. Put exon name (chr:start-end/[[+-]/Gene) in EX tag.\n");
+    fprintf(stderr, "                       Also generate junction name (chr:exon1_end-exon2_start/[+-]/Gene) in JC tag.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, " -exon                 Generate exon level annotation. Put exon name (chr:start-end/[[+-]/Gene) in EX tag. **experiment**\n");
     fprintf(stderr, " -as                   Annotate antisense RNAs. **experiment**\n");
     fprintf(stderr, " -tss                  Annotate reads start from TSS, designed for capped library. **experiment**\n");
     fprintf(stderr, " -ctag     [TAG]       Tag name for TSS annotation. Need set with -tss.\n");
@@ -301,6 +302,7 @@ int anno_usage()
     fprintf(stderr, "   RE : Region type, E (exon), N (intron), C (exon and intron), S (junction reads cover isoforms properly), V (ambiguous reads),\n");
     fprintf(stderr, "        I (intergenic), A (antisense or antisense exon), B (antisense intron)\n");
     fprintf(stderr, "   EX : Exon name. This tag is generated when set -exon.\n");
+    fprintf(stderr, "   JC : Isoform junction name. This tag is generated when set -exon.\n");
     fprintf(stderr, "\n");
     return 1;
 }
