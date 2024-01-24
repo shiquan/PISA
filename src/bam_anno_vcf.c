@@ -46,43 +46,6 @@ static int bam_seqpos(bam1_t *a, int pos)
     return -1;
 }
 
-/* // 0 on ref, 1 on mismatch, -1 on other situation */
-/* int reads_match_var(struct bed *bed, bam1_t *b) */
-/* { */
-/*     int st = bam_seqpos(b, bed->start); */
-/*     if (st == -1) return -1; // out of range */
-/*     if (st == -2) return -1; // intron region */
-
-/*     struct var *v = (struct var*)bed->data; */
-/*     assert(v); */
-
-/*     if (st == -3) { // deletion */
-/*         if (v->alt->l < v->ref->l) return 0; // matched */
-/*         return 1; // unmatched */
-/*     }  */
-/*     uint8_t *seq = bam_get_seq(b); */
-/*     bam1_core_t *c = &b->core; */
-/*     int i, j; */
-/*     int mis = 0; */
-/*     for (i = st, j = 0; i < c->l_qseq && j < v->ref->l; ++i,++j) { */
-/*         if ("=ACMGRSVTWYHKDBN"[bam_seqi(seq, i)] != v->ref->s[j]) { */
-/*             mis = 1; */
-/*             break; */
-/*         } */
-/*     } */
-
-/*     if (mis == 0) return 0; */
-/*     if (mis) { */
-/*         for (i = st, j = 0; i < c->l_qseq && j < v->alt->l; ++i,++j) { */
-/*             if ("=ACMGRSVTWYHKDBN"[bam_seqi(seq, i)] != v->alt->s[j]) */
-/*                 return -1; */
-/*         } */
-/*         return 1; */
-/*     } */
-            
-/*     return 1;     */
-/* } */
-
 //  -1 on failed, 0 on ref, other number on allele index
 int reads_match_var(struct bed *bed, bam1_t *b)
 {
@@ -134,37 +97,6 @@ char *vcf_tag_name(int allele, bcf1_t *v, bcf_hdr_t *hdr, const struct bed_spec 
         if (!fmt_ptr) break;
         
         int allele1=0, allele2=0;
-        // int is_phased=0;
-/*         int i; */
-
-/* #define BRANCH_INT(type_t, vector_end) {                \ */
-/*             type_t *p = (type_t*)(fmt_ptr->p);          \ */
-/*             for (i=0; i<fmt_ptr->n; i++) {              \ */
-/*                 if (p[i] == vector_end) break;          \ */
-/*                 if (bcf_gt_is_missing(p[i])) break;     \ */
-/*                 is_phased = p[i] &1;                    \ */
-/*                 int tmp = p[i]>>1;                      \ */
-/*                 if (tmp>1) {                            \ */
-/*                     if (allele1==0) allele1=tmp;        \ */
-/*                     else if (tmp != allele1) {          \ */
-/*                         if (tmp < allele1) {            \ */
-/*                             allele2 = allele1;          \ */
-/*                             allele1 = tmp;              \ */
-/*                         } else {                        \ */
-/*                             allele2 = tmp;              \ */
-/*                         }                               \ */
-/*                     }                                   \ */
-/*                 }                                       \ */
-/*             }                                           \ */
-/*         } */
-        
-/*         switch (fmt_ptr->type) { */
-/*         case BCF_BT_INT8:  BRANCH_INT(int8_t, bcf_int8_vector_end); break; */
-/*         case BCF_BT_INT16: BRANCH_INT(int16_t, bcf_int16_vector_end); break; */
-/*         case BCF_BT_INT32: BRANCH_INT(int32_t, bcf_int32_vector_end); break; */
-/*         default: error("Unexpected type %d", fmt_ptr->type); break; */
-/*         } */
-/*         #undef BRANCH_INT */
         char *src = (char*)(fmt_ptr->p);
         int l;
         for (l = 0; src[l] && l < fmt_ptr->size; ++l);
@@ -225,6 +157,9 @@ int bam_vcf_anno(bam1_t *b, bam_hdr_t *h, struct bed_spec const *B, const char *
     if (itr->n == 0) return 0; // no hit
 
     int strand = c->flag & BAM_FREVERSE;
+    if (c->flag & BAM_FREAD2) {
+        strand = strand == 0 ? 1 : 0;
+    }
     
     struct dict *val = dict_init();
     int i;
