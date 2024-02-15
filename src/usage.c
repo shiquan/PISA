@@ -275,7 +275,7 @@ int anno_usage()
     fprintf(stderr, "\nOptions for GTF file :\n");
     fprintf(stderr, " -gtf      [GTF]       GTF annotation file. gene_id,transcript_id is required for each record.\n");
     fprintf(stderr, " -tags     [TAGs]      Attribute names, more details see `\x1b[31m\x1b[1mNotice\x1b[0m` below. [TX,GN,GX,RE,EX,JC]\n");
-    fprintf(stderr, " -ignore-strand        Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be annotated.\n");
+    fprintf(stderr, " -is                   Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be annotated.\n");
     fprintf(stderr, " -splice               Reads covered exon-intron edge will also be annotated with all tags.\n");
     fprintf(stderr, " -intron               Reads covered intron regions will also be annotated with all tags.\n");
     fprintf(stderr, " -exon                 Generate exon level and junction annotation. Put exon name (chr:start-end/[[+-]/Gene) in EX tag.\n");
@@ -382,7 +382,7 @@ int bam_count_usage()
     fprintf(stderr, " -tags/-cb [TAGs]     A cell barcode tag or two tags of spatial coordinates for spatial data.\n");
     fprintf(stderr, " -anno-tag [TAG]      Annotation tag, gene or peak.\n");
     fprintf(stderr, " -genome-bin [INT]    If genome bin size set, genome bin count matrix will be generated, conflict with -anno-tag and -chr.\n");
-    fprintf(stderr, " -ignore-strand       Ignore strand for bin counting.\n");
+    fprintf(stderr, " -is                  Ignore strand for bin counting.\n");
     fprintf(stderr, " -chr                 Count chromosome expression level, conflict with -anno-tag and -genome-bin.\n");
     fprintf(stderr, " -list     [FILE]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
     fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this folder.\n");
