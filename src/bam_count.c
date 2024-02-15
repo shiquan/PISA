@@ -205,7 +205,7 @@ static int parse_args(int argc, char **argv)
             warnings("Option -corr has been removed since v0.8, to correct UMIs please use `PISA corr` instead.");
             continue;
         }
-        else if (strcmp(a, "-ignore-strand") == 0) {
+        else if (strcmp(a, "-ignore-strand") == 0 || strcmp(a, "-is") == 0) {
             args.ignore_strand = 1;
             continue;
         }

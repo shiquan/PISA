@@ -61,7 +61,7 @@ static int bedanno_usage()
     fprintf(stderr, "-gtf    [GTF]     GTF database.\n");
     fprintf(stderr, "-o      [FILE]    Output bed file.\n");
     fprintf(stderr, "-report [FILE]    Summary report. Export in STDERR by default.\n");
-    fprintf(stderr, "-s                Ignore strand.\n");
+    fprintf(stderr, "-is               Ignore strand.\n");
     fprintf(stderr, "-gene-name        Set annatated gene as bed name (column 4).\n");
     fprintf(stderr, "-skip-chrs        Skip chromosomes if not exist in GTF.\n");
     fprintf(stderr, "-promoter         Enable promoter regions annotation.\n");
@@ -90,7 +90,7 @@ static int parse_args(int argc, char **argv)
         else if (strcmp(a, "-gtf") == 0) var = &args.gtf_fname;
         else if (strcmp(a, "-h") == 0) return 1;
         else if (strcmp(a, "-report") == 0) var = &args.report_fname;
-        else if (strcmp(a, "-s") == 0) {
+        else if (strcmp(a, "-is") == 0) {
             args.stranded = 0;
             continue;
         }

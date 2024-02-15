@@ -287,7 +287,7 @@ static int parse_args(int argc, char **argv)
             args.debug_mode = 1;
             continue;
         }
-        else if (strcmp(a, "-ignore-strand") == 0) {
+        else if (strcmp(a, "-ignore-strand") == 0 || strcmp(a, "-is") == 0) {
             args.ignore_strand = 1;
             continue;
         }
