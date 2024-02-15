@@ -311,9 +311,12 @@ static int query_trans(int start, int end, struct gtf const *G, struct anno0 *a)
 static int query_promoter(int start, int end, struct gtf *G, struct anno0 *a)
 {
     // nonoverlap with this promoter
+
     int start0 = G->start;
     int end0 = G->start;
     if (G->strand == 1) {
+        start0 = G->end;
+        end0 = G->end;
         start0 = start0 - args.downstream;
         end0 = start0 + args.upstream;
     } else {
