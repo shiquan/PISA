@@ -9,7 +9,6 @@ int usage()
     fprintf(stderr, "Homepage: https://github.com/shiquan/PISA\n");
     fprintf(stderr, "\nCommands:\n");
     fprintf(stderr, "\n--- Processing FASTQ/FASTQ+\n");
-    fprintf(stderr, "    parse2     A new generic tool to parse barcodes from FASTQ.\n");
     fprintf(stderr, "    parse      Parse barcodes from FASTQ reads to FASTQ+.\n");
     //fprintf(stderr, "    pick       Pick FASTQ+ records with tags.\n");
     //fprintf(stderr, "    attrcnt    Count raw reads and tag values per cell for FASTQ+.\n");
@@ -43,10 +42,13 @@ int usage()
     //fprintf(stderr, "\n--- Integrated pipelines\n");
     //fprintf(stderr, "    pipe0      Process sorted BAMs to gene expression and EPTs counts.\n");
 
-        
-    fprintf(stderr, "\n--- Some experimental ideas. Not stable, just for test.\n");
-    fprintf(stderr, "    fusion     Predict gene fusion based on UMIs. **experiment**\n");
-    fprintf(stderr, "    gtffmt     Format and reorder GTF file. **experiment**\n");
+    fprintf(stderr, "\n--- Processing GTF\n");
+    fprintf(stderr, "    gtffmt     Format and reorder GTF file.\n");
+    
+    fprintf(stderr, "\n--- Deprecated tools, will remove in v2 release.\n");
+    fprintf(stderr, "    parse0     Original tool to parse barcodes from FASTQ, require a config file.\n");
+    // fprintf(stderr, "    fusion     Predict gene fusion based on UMIs.\n");
+    
     fprintf(stderr, "\n");
     fprintf(stderr, "Use `\x1b[1mPISA\x1b[0m command -h` for help information.\n");
     fprintf(stderr, "\n");
@@ -89,8 +91,9 @@ int main(int argc, char *argv[])
     extern int gtf_format(int argc, char **argv);
     
     if (argc == 1) return usage();
-    else if (strcmp(argv[1], "parse") == 0) return fastq_parse_barcodes(argc-1, argv+1);
-    else if (strcmp(argv[1], "parse2") == 0) return fastq_parse2(argc-1, argv+1);
+    //else if (strcmp(argv[1], "parse") == 0) return fastq_parse_barcodes(argc-1, argv+1);
+    //else if (strcmp(argv[1], "parse2") == 0) return fastq_parse2(argc-1, argv+1);
+    else if (strcmp(argv[1], "parse") == 0) return fastq_parse2(argc-1, argv+1);    
     else if (strcmp(argv[1], "fsort") == 0) return fsort(argc-1, argv+1);
     else if (strcmp(argv[1], "stream") == 0) return fastq_stream(argc-1, argv+1);
     else if (strcmp(argv[1], "sam2bam") == 0) return sam2bam(argc-1, argv+1);
@@ -107,8 +110,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "bam2frag") == 0) return bam2frag(argc-1, argv+1);
     else if (strcmp(argv[1], "count") == 0) return count_matrix1(argc-1, argv+1);
     else if (strcmp(argv[1], "count0") == 0) return count_matrix(argc-1, argv+1);
-    else if (strcmp(argv[1], "count2") == 0) return fragment_count(argc-1, argv+1);
-    else if (strcmp(argv[1], "fusion") == 0) return gene_fusion(argc-1, argv+1);
+    else if (strcmp(argv[1], "count2") == 0) return fragment_count(argc-1, argv+1);    
     // else if (strcmp(argv[1], "genecov") == 0) return gene_cov(argc-1, argv+1);
     // else if (strcmp(argv[1], "assem") == 0)  return fastq_assem(argc-1, argv+1);
     // else if (strcmp(argv[1], "segment") == 0) return fastq_segment(argc-1, argv+1);
@@ -120,6 +122,11 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "callept") == 0) return callept_main(argc-1, argv+1);
     else if (strcmp(argv[1], "addtags") == 0) return add_tags(argc-1, argv+1);
     else if (strcmp(argv[1], "gtffmt") == 0) return gtf_format(argc-1, argv+1);
+
+    // deprecated
+    else if (strcmp(argv[1], "parse0") == 0) return fastq_parse_barcodes(argc-1, argv+1);
+    else if (strcmp(argv[1], "fusion") == 0) return gene_fusion(argc-1, argv+1);
+    
     else return usage();
     return 0;
 }

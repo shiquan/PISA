@@ -12,6 +12,8 @@
 static struct args {
     const char *r1_fname;
     const char *r2_fname;
+    const char *r3_fname;
+    const char *r4_fname;
     struct fastq_handler *fastq;
     const char *report_fname;
     FILE *fp_report;
@@ -27,7 +29,7 @@ static struct args {
 
     struct bc_reg *r1;
     struct bc_reg *r2;
-
+    
     int n_thread;
     int smart_pair;
     int qual_thres;
@@ -44,6 +46,8 @@ static struct args {
 } args = {
     .r1_fname    = NULL,
     .r2_fname    = NULL,
+    .r3_fname    = NULL,
+    .r4_fname    = NULL,
     .fastq       = NULL,
     .report_fname= NULL,
     .fp_report   = NULL,
@@ -152,12 +156,17 @@ char *bseq_subset_seq(struct bseq *b, int rd, int st, int ed)
     if (rd == 1) {
         kstring_t *from = &b->s0;
         bseq_subset_str0(from, &str, st, ed);
-
     } else if (rd == 2) {
         kstring_t *from = &b->s1;
         bseq_subset_str0(from, &str, st, ed);
+    } else if (rd == 3) {
+        kstring_t *from = &b->s2;
+        bseq_subset_str0(from, &str, st, ed);
+    } else if (rd == 4) {
+        kstring_t *from = &b->s3;
+        bseq_subset_str0(from, &str, st, ed);        
     } else {
-        error("Only support 2 reads now.");
+        error("Only support 1-4 read files now.");
     }
     return str.s;
 }
@@ -172,8 +181,16 @@ char *bseq_subset_qual(struct bseq *b, int rd, int st, int ed)
         if (b->q1.l == 0) return NULL; 
         kstring_t *from = &b->q1;
         bseq_subset_str0(from, &str, st, ed);
+    } else if (rd == 3) {
+        if (b->q2.l == 0) return NULL; 
+        kstring_t *from = &b->q2;
+        bseq_subset_str0(from, &str, st, ed);
+    } else if (rd == 4) {
+        if (b->q3.l == 0) return NULL; 
+        kstring_t *from = &b->q3;
+        bseq_subset_str0(from, &str, st, ed);
     } else {
-        error("Only support 2 reads now.");
+        error("Only support 1-4 read files now.");
     }
     return str.s;
 }
@@ -216,6 +233,8 @@ int parse_region(const char *_s, struct bc_reg *r)
     if (s[0] != 'R') { free(s0); return 1;}
     if (s[1] == '1') r0->rd = 1;
     else if (s[1] == '2') r0->rd = 2;
+    else if (s[1] == '3') r0->rd = 3;
+    else if (s[1] == '4') r0->rd = 4;
     else { free(s0); return 1; }
 
     if (s[2] == '\0') { free(s0); return 0; }
@@ -248,7 +267,7 @@ int merge_bcs(struct bc_reg *bcs, int n0)
     for (i = 0; i < n0; ++i) {
         struct bc_reg *b = &bcs[i];       
         if (strcmp(b->raw_tag, b0->raw_tag) == 0) {
-            b->r =realloc(b->r, (b->n+1)*sizeof(struct bc_reg0));
+            b->r = realloc(b->r, (b->n+1)*sizeof(struct bc_reg0));
             b->r[b->n].rd = b0->r[0].rd;
             b->r[b->n].st = b0->r[0].st;
             b->r[b->n].ed = b0->r[0].ed;
@@ -346,7 +365,6 @@ static int parse_args(int argc, char **argv)
         const char *a = argv[i++];
         const char **var = 0;
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
-        
         if (strcmp(a, "-1") == 0) var = &args.out1_fname;
         else if (strcmp(a, "-2") == 0) var = &args.out2_fname;
         else if (strcmp(a, "-rule") == 0) var = &args.parse_rules;
@@ -382,6 +400,14 @@ static int parse_args(int argc, char **argv)
         }
         if (args.r2_fname == 0) {
             args.r2_fname = a;
+            continue;
+        }
+        if (args.r3_fname == 0) {
+            args.r3_fname = a;
+            continue;
+        }
+        if (args.r4_fname == 0) {
+            args.r4_fname = a;
             continue;
         }
         error("Unknown argument: %s, use -h see help information.", a);
@@ -465,7 +491,7 @@ static int parse_args(int argc, char **argv)
         args.fp_out1 = stdout;
     }
     
-    args.fastq = fastq_handler_init(args.r1_fname, args.r2_fname, args.smart_pair, args.chunk_size);
+    args.fastq = fastq_handler_init(args.r1_fname, args.r2_fname, args.r3_fname, args.r4_fname, args.smart_pair, args.chunk_size);
     if (args.fastq == NULL) error("Failed to init input fastq.");
     
     return 0;
@@ -493,8 +519,9 @@ static void memory_release()
     
     if (args.r2) {
         free(args.r2->r);
-        free(args.r2);        
+        free(args.r2); 
     }
+    
     fastq_handler_destory(args.fastq);
 }
 static int write_report()

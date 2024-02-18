@@ -52,7 +52,10 @@ void bseq_clean(struct bseq *b)
     if (b->q0.m) free(b->q0.s);
     if (b->s1.m) free(b->s1.s);
     if (b->q1.m) free(b->q1.s);
-
+    if (b->s2.m) free(b->s2.s);
+    if (b->q2.m) free(b->q2.s);
+    if (b->s3.m) free(b->s3.s);
+    if (b->q3.m) free(b->q3.s);
     bseq_unset(b);
 }
 void bseq_destroy(struct bseq *b)
@@ -111,6 +114,13 @@ int fastq_handler_read_one(struct fastq_handler *fastq)
 
     if (fastq->k2 != NULL)
         ret = kseq_read(fastq->k2);
+
+    if (fastq->k3 != NULL)
+        ret = kseq_read(fastq->k3);
+
+    if (fastq->k4 != NULL)
+        ret = kseq_read(fastq->k4);
+    
     return ret;
 }
 
@@ -179,6 +189,8 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
     // k1 and k2 already load one record when come here
     struct bseq_pool *p = bseq_pool_init(chunk_size);
     int ret1, ret2 = -1;
+    int ret3 = -1;
+    int ret4 = -1;
     
     if ( pe == 0 ) {
         do {
@@ -222,6 +234,9 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
             
             ret1 = kseq_read(h->k1);
             ret2 = kseq_read(h->k2);
+            if (h->k3) ret3 = kseq_read(h->k3);
+            if (h->k4) ret4 = kseq_read(h->k4);
+            
             if (ret1 < 0) { // come to the end of file
                 if (ret2 >=0) error("Inconsistant input fastq records.");
                 if (h->n_file > 1 && h->curr < h->n_file) {
@@ -237,25 +252,41 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
                         h->k2 = kseq_init(h->r2);
                         if (kseq_read(h->k2) < 0) error("Empty record ? %s", h->read_2[h->curr]);
                     }
+                    if (h->r3) {
+                        gzclose(h->r3);
+                        kseq_destroy(h->k3);
+                        h->r3 = gzopen(h->read_3[h->curr], "r");
+                        h->k3 = kseq_init(h->r3);
+                        if (kseq_read(h->k3) < 0) error("Empty record ? %s", h->read_3[h->curr]);
+                    }
+                    if (h->r4) {
+                        gzclose(h->r4);
+                        kseq_destroy(h->k4);
+                        h->r4 = gzopen(h->read_4[h->curr], "r");
+                        h->k4 = kseq_init(h->r4);
+                        if (kseq_read(h->k4) < 0) error("Empty record ? %s", h->read_4[h->curr]);
+                    }
+                    
                     h->curr++;
                 }
                 else break;
             }
             kseq_t *k1 = h->k1;
             kseq_t *k2 = h->k2;
+            kseq_t *k3 = h->k3;
+            kseq_t *k4 = h->k4;
             trim_read_tail(k1->name.s, k1->name.l);
             trim_read_tail(k2->name.s, k2->name.l);
 
+            if (k3) trim_read_tail(k3->name.s, k3->name.l);
+            if (k4) trim_read_tail(k4->name.s, k4->name.l);
             if ( check_name(k1->name.s, k2->name.s) ) error("Inconsistance paired read names. %s vs %s.", k1->name.s, k2->name.s);
-            //if ( k1->seq.l != k2->seq.l ) error("Inconsistant PE read length, %s.", k1->name.s);
+            if (k3 && check_name(k1->name.s, k3->name.s) )
+                error("Inconsistance paired read names in the third fastq file. %s vs %s.", k1->name.s, k3->name.s);
+            if (k4 && check_name(k1->name.s, k4->name.s) )
+                error("Inconsistance paired read names in the fourth fastq file. %s vs %s.", k1->name.s, k4->name.s);
             
             struct bseq *s;
-            /*
-            if (p->n >= p->m) {
-                p->m = p->m ? p->m<<1 : 256;
-                p->s = realloc(p->s, p->m*sizeof(struct bseq));
-            }
-            */
             s = &p->s[p->n];
             bseq_unset(s);
             kstr_copy(&s->n0, &k1->name);
@@ -263,7 +294,17 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
             kstr_copy(&s->q0, &k1->qual);
             kstr_copy(&s->s1, &k2->seq);
             kstr_copy(&s->q1, &k2->qual);
-            p->n++;           
+
+            if (k3) {
+                kstr_copy(&s->s2, &k3->seq);
+                kstr_copy(&s->q2, &k3->qual);
+            }
+            if (k4) {
+                kstr_copy(&s->s3, &k4->seq);
+                kstr_copy(&s->q3, &k4->qual);
+            }
+            
+            p->n++;
         }
         while(1);
     }
@@ -292,7 +333,7 @@ static char **split_multi_files(const char *fname, int *n)
     return paths;
 }
 
-struct fastq_handler *fastq_handler_init(const char *r1, const char *r2, int smart, int chunk_size)
+struct fastq_handler *fastq_handler_init(const char *r1, const char *r2, const char *r3, const char *r4, int smart, int chunk_size)
 {
     struct fastq_handler *h = malloc(sizeof(*h));
     memset(h, 0, sizeof(*h));
@@ -319,6 +360,17 @@ struct fastq_handler *fastq_handler_init(const char *r1, const char *r2, int sma
             if (h->r2 == NULL) error("Failed to open %s: %s.", r2, strerror(errno));
             h->k2 = kseq_init(h->r2);
         }
+
+        if (r3) {
+            h->r3 = gzopen(r3, "r");    
+            if (h->r3 == NULL) error("Failed to open %s: %s.", r3, strerror(errno));
+            h->k3 = kseq_init(h->r3);
+        }
+        if (r4) {
+            h->r4 = gzopen(r4, "r");    
+            if (h->r4 == NULL) error("Failed to open %s: %s.", r4, strerror(errno));
+            h->k4 = kseq_init(h->r4);
+        }
     }
     else {
         h->r1 = gzopen(h->read_1[0], "r");
@@ -326,6 +378,14 @@ struct fastq_handler *fastq_handler_init(const char *r1, const char *r2, int sma
         if (r2) {
             h->r2 = gzopen(h->read_2[0], "r");
             h->k2 = kseq_init(h->r2);
+        }
+        if (r3) {
+            h->r3 = gzopen(h->read_3[0], "r");
+            h->k3 = kseq_init(h->r3);
+        }
+        if (r4) {
+            h->r4 = gzopen(h->read_4[0], "r");
+            h->k4 = kseq_init(h->r4);
         }
     }
     
@@ -340,14 +400,26 @@ void fastq_handler_destory(struct fastq_handler *h)
         kseq_destroy(h->k2);
         gzclose(h->r2);
     }
+    if ( h->k3 ) {
+        kseq_destroy(h->k3);
+        gzclose(h->r3);
+    }
+    if ( h->k4 ) {
+        kseq_destroy(h->k4);
+        gzclose(h->r4);
+    }
     if (h->n_file > 1) {
         int i;
         for (i = 0; i < h->n_file;++i) {
             free(h->read_1[i]);
             if (h->read_2) free(h->read_2[i]);
+            if (h->read_3) free(h->read_3[i]);
+            if (h->read_4) free(h->read_4[i]);
         }
         free(h->read_1);
         if (h->read_2) free(h->read_2);
+        if (h->read_3) free(h->read_3);
+        if (h->read_4) free(h->read_4);
     }
     free(h);
 }
@@ -357,7 +429,7 @@ int fastq_handler_state(struct fastq_handler *h)
     if ( h->k1 == NULL ) return FH_NOT_INIT;
     if ( h->smart_pair ) return FH_SMART_PAIR;
     if ( h->k2 == NULL ) return FH_SE;
-    return FH_PE;    
+    return FH_PE;
 }
 void *fastq_read(void *_h, void *opts)
 {
@@ -437,6 +509,15 @@ void bseq_pool_push(struct bseq *b, struct bseq_pool *p)
     if (b->s1.l) {
         kputs(b->s1.s, &c->s1);
         kputs(b->q1.s, &c->q1);
+    }
+
+    if (b->s2.l) {
+        kputs(b->s2.s, &c->s2);
+        kputs(b->q2.s, &c->q2);
+    }
+    if (b->s3.l) {
+        kputs(b->s3.s, &c->s3);
+        kputs(b->q3.s, &c->q3);
     }
 }
 
