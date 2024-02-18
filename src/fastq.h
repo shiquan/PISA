@@ -30,6 +30,10 @@ struct bseq {
     kstring_t s0, q0;
     // read 2
     kstring_t s1, q1;
+    // read 3
+    kstring_t s2, q2;
+    // read 4
+    kstring_t s3, q3;
     void *data; // extend data, should be freed manually
 };
 
@@ -45,10 +49,16 @@ struct fastq_handler {
     int curr; // curr file
     char **read_1;
     char **read_2;
+    char **read_3;
+    char **read_4;
     gzFile r1;
     gzFile r2;
+    gzFile r3;
+    gzFile r4;
     void *k1;
     void *k2;
+    void *k3;
+    void *k4;
     int smart_pair;
     int chunk_size;
     int closed;
@@ -74,7 +84,9 @@ void bseq_pool_destroy(struct bseq_pool *p);
 // fastq handler must be inited before call fastq_read
 void *fastq_read(void *h, void *opts);
 
-extern struct fastq_handler *fastq_handler_init(const char *r1, const char *r2, int smart, int chunk_size);
+extern struct fastq_handler *fastq_handler_init(const char *r1, const char *r2,
+                                                const char *r3, const char *r4,
+                                                int smart, int chunk_size);
 
 extern int fastq_handler_state(struct fastq_handler*);
 
