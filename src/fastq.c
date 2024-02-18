@@ -188,10 +188,7 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
     assert(chunk_size > 0);
     // k1 and k2 already load one record when come here
     struct bseq_pool *p = bseq_pool_init(chunk_size);
-    int ret1, ret2 = -1;
-    int ret3 = -1;
-    int ret4 = -1;
-    
+    int ret1, ret2 = -1;    
     if ( pe == 0 ) {
         do {
             if (p->n == chunk_size) break;
@@ -234,11 +231,17 @@ static struct bseq_pool *fastq_read_core(struct fastq_handler *h, int chunk_size
             
             ret1 = kseq_read(h->k1);
             ret2 = kseq_read(h->k2);
+
+            int ret3 = -1;
+            int ret4 = -1;
             if (h->k3) ret3 = kseq_read(h->k3);
             if (h->k4) ret4 = kseq_read(h->k4);
             
             if (ret1 < 0) { // come to the end of file
                 if (ret2 >=0) error("Inconsistant input fastq records.");
+                if (ret3 >=0) error("Inconsistant input fastq records.");
+                if (ret4 >=0) error("Inconsistant input fastq records.");
+                
                 if (h->n_file > 1 && h->curr < h->n_file) {
                     gzclose(h->r1);
                     kseq_destroy(h->k1);
