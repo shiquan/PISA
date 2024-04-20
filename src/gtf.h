@@ -26,6 +26,7 @@ enum feature_type {
     feature_5UTR_alias,
     feature_3UTR_alias,
     feature_Selenocysteine,
+    feature_antisense, // antisense gene
 };
 struct attr {
     int id;
@@ -47,6 +48,7 @@ struct gtf {
     // struct dict *attr; // attributions
     struct attr *attr;
     //struct dict *query; // used to fast access gtf, dedup
+    struct gtf *ext; // next record
     int n_gtf, m_gtf;
     struct gtf **gtf;
 };
@@ -77,8 +79,9 @@ char *GTF_transid(struct gtf_spec *G, int id);
     
 struct gtf_spec *gtf_read(const char *fname, int filter);
 struct gtf_spec *gtf_read_lite(const char *fname); // only read necessary info
-struct region_itr *gtf_query(struct gtf_spec const *G, char *name, int start, int end);
+struct region_itr *gtf_query(struct gtf_spec const *G, const char *name, int start, int end);
 void gtf_destroy(struct gtf_spec *G);
 void gtf_dump(struct gtf_spec *G, const char *fname, struct dict *);
-
+struct gtf *gtf_query_gene(struct gtf_spec *G, const char *name);
+struct gtf *gtf_query_tx(struct gtf_spec *G, const char *name);
 #endif

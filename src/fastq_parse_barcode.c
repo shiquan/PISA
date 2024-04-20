@@ -1105,7 +1105,7 @@ static int parse_args(int argc, char **argv)
         }
     }
     
-    args.fastq = fastq_handler_init(args.r1_fname, args.r2_fname, args.smart_pair, args.chunk_size);
+    args.fastq = fastq_handler_init(args.r1_fname, args.r2_fname, NULL, NULL, args.smart_pair, args.chunk_size);
     if (args.fastq == NULL) error("Failed to init input fastq.");
 
     if (args.cbdis_fname) {

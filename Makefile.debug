@@ -18,9 +18,7 @@ include $(ZLIBDIR)/zlib.mk
 LIBZ = $(ZLIBDIR)/libz.a
 
 CC       = gcc
-CFLAGS = -O0 -g -fopenmp
-# -fsanitize=address -fno-omit-frame-pointer 
-
+CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64 -fopenmp
 DFLAGS   =
 INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I$(ZLIBDIR)
 LIBS = -lbz2 -llzma -pthread -lm -lcurl 
@@ -64,7 +62,7 @@ LIB_OBJ = src/barcode_list.o \
 	src/biostring.o \
 	src/read_anno.o \
 	src/kthread.o \
-        src/coverage.o
+	src/coverage.o
 
 AOBJ = src/bam_anno.o \
 	src/bam_count.o \
@@ -85,10 +83,10 @@ AOBJ = src/bam_anno.o \
 	src/fastq_stream.o \
 	src/fastq_parse2.o \
 	src/gtf_format.o \
-        src/callept.o \
-        src/bed_merge.o \
-        src/bed_anno.o
-        
+	src/callept.o \
+	src/bed_merge.o \
+	src/bed_anno.o
+
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@
 	$(AR) -rcs src/$@ $(LIB_OBJ)
