@@ -136,7 +136,7 @@ static int parse_args(int argc, char **argv)
         mkdir(args.tempdir, 0700);
     }
 
-    args.fastq = fastq_handler_init(args.input_fname, NULL, 0, 0);
+    args.fastq = fastq_handler_init(args.input_fname, NULL, NULL, NULL, 0, 0);
     if (args.fastq == NULL) error("%s : %s.", args.input_fname, strerror(errno));
     return 0;    
 }

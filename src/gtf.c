@@ -71,32 +71,7 @@ void gtf_clear(struct gtf *gtf)
     }
     if (gtf->n_gtf) free(gtf->gtf);
     if (gtf->attr != NULL) gtf_attr_clear(gtf->attr);
-    //if (gtf->ext) transcript_summary_destroy(gtf->ext);
 }
-
-/* void gtf_clear(struct gtf *gtf) */
-/* { */
-/*     int i; */
-/*     for (i = 0; i < gtf->n_gtf; ++i) { */
-/*         gtf_clear(gtf->gtf[i]); */
-/*         free(gtf->gtf[i]); */
-/*     } */
-/*     if (gtf->n_gtf) free(gtf->gtf); */
-
-/*     if (gtf->attr != NULL) { */
-/*         int i; */
-/*         for (i = 0; i < dict_size(gtf->attr); ++i) { */
-/*             char *val = dict_query_value(gtf->attr, i); */
-/*             if (val) free(val); */
-/*         } */
-/*         dict_destroy(gtf->attr); */
-/*     } */
-
-/*     /\* */
-/*     if (gtf->query) // usually already freed during indexing */
-/*         dict_destroy(gtf->query); */
-/*     *\/ */
-/* } */
 
 void gtf_copy(struct gtf *dest, struct gtf *src)
 {
@@ -115,16 +90,6 @@ void gtf_copy(struct gtf *dest, struct gtf *src)
 
     src->attr = NULL; // do we need transfer the point??
 }
-/*
-static int cmpfunc (const void *_a, const void *_b)
-{
-    struct gtf *a = (struct gtf*)_a;
-    struct gtf *b = (struct gtf*)_b;
-    if (a->seqname != b->seqname) return a->seqname - b->seqname;
-    if (a->start != b->start) return a->start - b->start;
-    return a->end - b->end;
-}
-*/
 static int cmpfunc1 (const void *_a, const void *_b)
 {
     const struct gtf *a = *(const struct gtf**)_a;
@@ -206,17 +171,6 @@ static struct attr_pair *bend_pair(char *s, int *n)
     free(str.s);
     return p;
 }
-/*
-static kstring_t cache ={0,0,0};
-static void reset_cache()
-{
-    cache.l = 0;
-}
-static void free_cache()
-{
-    free(cache.s);
-}
-*/
 static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, int feature)
 {
     char *gene_id = dict_name(G->gene_id, gtf->gene_id);
@@ -565,6 +519,35 @@ static int gtf_build_index(struct gtf_spec *G)
         int j;
         for (j = 0; j < ctg->n_gtf; ++j) {
             gtf_sort(ctg->gtf[j]); // sort gene
+            struct gtf *g = ctg->gtf[j];
+            struct gtf *g0 = dict_query_value(G->gene_name, g->gene_name);
+            if (g0 == NULL) {
+                dict_assign_value(G->gene_name, g->gene_name, g);
+            } else {
+                for (;;) {
+                    if (g0->ext == NULL) {
+                        g0->ext = g;
+                        break;
+                    }
+                    g0 = g0->ext;
+                }
+            }
+            
+            for (int k = 0; k < g->n_gtf; ++k) {
+                struct gtf *tx = g->gtf[k];
+                struct gtf *tx0 = dict_query_value(G->transcript_id, tx->transcript_id);
+                if (tx0 == NULL) {
+                    dict_assign_value(G->transcript_id, tx->transcript_id, tx);
+                } else {
+                    for (;;) {
+                        if (tx0->ext == NULL) {
+                            tx0->ext = tx;
+                            break;
+                        }
+                        tx0 = tx0->ext;
+                    }
+                }
+            }
         }
         ctg->idx = ctg_build_idx(ctg);
         total_gene+=ctg->n_gtf;
@@ -585,9 +568,9 @@ struct gtf_spec *gtf_spec_init()
     G->features        = dict_init();
 
     dict_set_value(G->name);
-    //dict_set_value(G->gene_name);
+    dict_set_value(G->gene_name);
     //dict_set_value(G->gene_id);
-    //dict_set_value(G->transcript_id);
+    dict_set_value(G->transcript_id);
     int i;
     int l;
     l = sizeof(feature_type_names)/sizeof(feature_type_names[0]);
@@ -645,7 +628,7 @@ struct gtf_spec *gtf_read_lite(const char *fname)
 {
     return gtf_read(fname, 1);
 }
-struct region_itr *gtf_query(struct gtf_spec const *G, char *name, int start, int end)
+struct region_itr *gtf_query(struct gtf_spec const *G, const char *name, int start, int end)
 {
     int id = dict_query(G->name, name);
     if (id == -1) return NULL;
@@ -735,20 +718,6 @@ void write_gtf_fp(struct gtf_spec *G, struct gtf *gtf, FILE *fp, struct dict *ke
         }
     }
 
-    /* if (gtf->attr) { */
-    /*     int i; */
-    /*     for (i = 0; i < dict_size(gtf->attr); ++i) { */
-    /*         char *name = dict_name(gtf->attr, i); */
-    /*         if (keys) { */
-    /*             int ret = dict_query(keys,name); */
-    /*             if (ret == -1) continue; */
-    /*         } */
-    /*         fprintf(fp, " %s", name); */
-    /*         char *val = dict_query_value(gtf->attr, i); */
-    /*         if (val) fprintf(fp, " \"%s\";", val); */
-    /*         else fputc(';', fp); */
-    /*     } */
-    /* } */
     fputc('\n', fp);
     
     int i;
@@ -769,6 +738,17 @@ void gtf_dump(struct gtf_spec *G, const char *fname, struct dict *keys)
     }
     if (fp != stdout) fclose(fp);
 }
+
+struct gtf *gtf_query_gene(struct gtf_spec *G, const char *name)
+{
+    return (struct gtf*)dict_query_value2(G->gene_name, name);
+}
+
+struct gtf *gtf_query_tx(struct gtf_spec *G, const char *name)
+{
+    return (struct gtf*)dict_query_value2(G->transcript_id, name);
+}
+
 #ifdef GTF_MAIN
 int main(int argc, char **argv)
 {
