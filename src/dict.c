@@ -12,7 +12,6 @@ KHASH_MAP_INIT_STR(name, dict_val_t)
     
 KSTREAM_INIT(gzFile, gzread, 8193);
 
-
 struct dict {
     int n, m;
     char **name;
@@ -335,4 +334,15 @@ int dict_exist(struct dict *D, const char *key)
     struct dict_val *v = dict_query0(D, key);
     if (v == NULL) return -1; // not exist
     return v->ref; // deleted or ref to
+}
+
+struct dict *dict_dup(struct dict *D)
+{
+    struct dict *new = dict_init();    
+    int i;
+    for (i = 0; i < D->n; ++i) {
+        dict_push(new, D->name[i]);
+    }
+
+    return new;
 }

@@ -72,8 +72,8 @@ static int bedanno_usage()
     fprintf(stderr, "-promoter         Enable promoter regions annotation.\n");
     fprintf(stderr, "-up     [%d]      Define upstream of TSS as promoter.\n", args.upstream);
     fprintf(stderr, "-down   [%d]      Define downstream of TSS as promoter.\n", args.downstream);
-    fprintf(stderr, "-at-up  [%d]      Define upstream of gene but different strand as antisense.", args.at_upstream);
-    fprintf(stderr, "-at-down  [%d]    Define downstream of gene but different strand as antisense.", args.at_downstream);
+    fprintf(stderr, "-at-up  [%d]      Define upstream of gene but different strand as antisense.\n", args.at_upstream);
+    fprintf(stderr, "-at-down  [%d]    Define downstream of gene but different strand as antisense.\n", args.at_downstream);
     fprintf(stderr, "\n\x1b[31m\x1b[1mOutput format\x1b[0m :\n");
     fprintf(stderr, "chromosome,start(0based),end(1based),name,score,strand,number of covered genes, cover gene name(s),type,nearest gene name,distance to nearby gene\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");

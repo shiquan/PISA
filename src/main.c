@@ -38,12 +38,13 @@ int usage()
     fprintf(stderr, "\n--- Processing BED\n");
     fprintf(stderr, "    mergebed   Merge BED files.\n");
     fprintf(stderr, "    annobed    Annotate BED files with genes and functional elements.\n");
-
+    fprintf(stderr, "    flatten    Flatten overlapped regions to nonoverlaps.\n");
     //fprintf(stderr, "\n--- Integrated pipelines\n");
     //fprintf(stderr, "    pipe0      Process sorted BAMs to gene expression and EPTs counts.\n");
 
     fprintf(stderr, "\n--- Processing GTF\n");
     fprintf(stderr, "    gtffmt     Format and reorder GTF file.\n");
+    fprintf(stderr, "    gtf2bed    Convert GTF to BED.\n");
     
     fprintf(stderr, "\n--- Deprecated tools, will remove in v2 release.\n");
     fprintf(stderr, "    parse0     Original tool to parse barcodes from FASTQ, require a config file.\n");
@@ -86,9 +87,11 @@ int main(int argc, char *argv[])
     // process BED
     extern int mergebed(int argc, char **argv);
     extern int annobed_main(int argc, char **argv);
+    extern int bed_flatten(int argc, char **argv);
     
     // process GTF
     extern int gtf_format(int argc, char **argv);
+    extern int gtf2bed_main(int argc, char **argv);
     
     if (argc == 1) return usage();
     //else if (strcmp(argv[1], "parse") == 0) return fastq_parse_barcodes(argc-1, argv+1);
@@ -107,6 +110,8 @@ int main(int argc, char *argv[])
 
     else if (strcmp(argv[1], "mergebed") == 0) return mergebed(argc-1, argv+1);
     else if (strcmp(argv[1], "annobed") == 0) return annobed_main(argc-1, argv+1);
+    else if (strcmp(argv[1], "flatten") == 0) return bed_flatten(argc-1, argv+1);
+    
     else if (strcmp(argv[1], "bam2frag") == 0) return bam2frag(argc-1, argv+1);
     else if (strcmp(argv[1], "count") == 0) return count_matrix1(argc-1, argv+1);
     else if (strcmp(argv[1], "count0") == 0) return count_matrix(argc-1, argv+1);
@@ -122,7 +127,8 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "callept") == 0) return callept_main(argc-1, argv+1);
     else if (strcmp(argv[1], "addtags") == 0) return add_tags(argc-1, argv+1);
     else if (strcmp(argv[1], "gtffmt") == 0) return gtf_format(argc-1, argv+1);
-
+    else if (strcmp(argv[1], "gtf2bed") == 0) return gtf2bed_main(argc-1, argv+1);
+    
     // deprecated
     else if (strcmp(argv[1], "parse0") == 0) return fastq_parse_barcodes(argc-1, argv+1);
     else if (strcmp(argv[1], "fusion") == 0) return gene_fusion(argc-1, argv+1);

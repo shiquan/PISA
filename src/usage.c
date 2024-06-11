@@ -72,7 +72,7 @@ int fastq_parse2_usage()
 {
     fprintf(stderr, "# Parse cell barcode and UMI string from raw FASTQ.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse2 -rule CB,R1:1-10,whitelist.txt,CB,1;R1,R1:11-60;R2,R2 -report fastq.csv \\\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -rule CB,R1:1-10,whitelist.txt,CB,1;R1,R1:11-60;R2,R2 -report fastq.csv \\\n");
     fprintf(stderr, "           lane1_1.fq.gz,lane02_1.fq.gz  lane1_2.fq.gz,lane2_2.fq.gz\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -1       [fastq]   Read 1 output.\n");
@@ -97,16 +97,16 @@ int fastq_parse2_usage()
     fprintf(stderr, "   TAG and location parts are mandatory, and whitelist, corrected TAG and mismatch are optional.\n");
     fprintf(stderr, "   Futhermore, multiply tags separated by \';\'. In location part, R1 stands for raw read 1, R2 stands for raw read 2.\n");
     fprintf(stderr, "   In tag part, R1 stands for output read 1 while R2 stands for output read 2. Here are some examples.\n");
-    fprintf(stderr, " * PISA/parse2 read FASTQ files by using libz APIs which is not work in parallel, increase the number of threads.\n");
+    fprintf(stderr, " * PISA/parse read FASTQ files by using libz APIs which is not work in parallel, increase the number of threads.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse2 -rule '\x1b[32mCR,R1:1-18,barcodes.txt,CB,1;\x1b[33mUR,R1:19-30;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -rule '\x1b[32mCR,R1:1-18,barcodes.txt,CB,1;\x1b[33mUR,R1:19-30;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "#\x1b[32m CR,R1:1-18,barcodes.txt,CB,1 \x1b[0m - CR tag start from 1 to 18 in read 1, and barcodes.txt are barcode whitelist,\n");
     fprintf(stderr, "#   each barcode per line. Cell barcode will be corrected while hamming distance <= 1, corrected cell barcode tag is CB. \n");
     fprintf(stderr, "#\x1b[33m UR,R1:19-30\x1b[0m - UR tag start from 19-30 in read 1.\n");
     fprintf(stderr, "#\x1b[34m R1,R2:1-100\x1b[0m - Sequence from 1 to 100 in read 2 output to read 1 file. \n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse2 -rule '\x1b[32mCR,R1:1-10,bc1.txt,CB,1;\x1b[33mCR,R1:11-20,bc2.txt,CB,1;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -rule '\x1b[32mCR,R1:1-10,bc1.txt,CB,1;\x1b[33mCR,R1:11-20,bc2.txt,CB,1;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "#\x1b[32m CR,R1:1-10,bc1.txt,CB,1;\x1b[33mCR,R1:11-20,bc2.txt,CB,1\x1b[0m - This cell barcode consist of two segments, first segment start\n");
     fprintf(stderr, "#   from 1 to 10 in read 1, and whitelist is bc1.txt, and second segment start from 11 to 20, and whitelist is bc2.txt.\n");
@@ -266,28 +266,30 @@ int anno_usage()
     
     fprintf(stderr, "\nOptions for BED file :\n");
     fprintf(stderr, " -bed      [BED]       Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
-    fprintf(stderr, " -tag      [TAG]       Attribute tag name. Set with -bed.\n");
+    fprintf(stderr, " -tag      [TAG]       Attribute tag name. Set with -bed. Default is PK.\n");
 
     fprintf(stderr, "\nOptions for mixed samples.\n");
     fprintf(stderr, " -chr-species  [FILE]  Chromosome name and related species binding list.\n");
-    fprintf(stderr, " -btag     [TAG]       Species tag name. Set with -chr-species.\n");
+    fprintf(stderr, " -btag     [TAG]       Species tag name. Set with -chr-species. Default is SP.\n");
 
     fprintf(stderr, "\nOptions for GTF file :\n");
     fprintf(stderr, " -gtf      [GTF]       GTF annotation file. gene_id,transcript_id is required for each record.\n");
     fprintf(stderr, " -tags     [TAGs]      Attribute names, more details see `\x1b[31m\x1b[1mNotice\x1b[0m` below. [TX,GN,GX,RE,EX,JC]\n");
     fprintf(stderr, " -is                   Ignore strand of transcript in GTF. Reads mapped to antisense transcripts will also be annotated.\n");
-    fprintf(stderr, " -splice               Reads covered exon-intron edge will also be annotated with all tags.\n");
-    fprintf(stderr, " -intron               Reads covered intron regions will also be annotated with all tags.\n");
-    fprintf(stderr, " -exon                 Generate exon level and junction annotation. Put exon name (chr:start-end/[[+-]/Gene) in EX tag.\n");
+    fprintf(stderr, " -splice               Reads covered exon-intron edge (ExonIntron type) will also be annotated with all tags.\n");
+    fprintf(stderr, " -intron/-velo         Reads covered intron regions will also be annotated with all tags.\n");
+    fprintf(stderr, " -exon                 Generate exon level and junction annotation. Put exon name (chr:start-end/[[+-]/Gene) in EX tag.\\ \n");
     fprintf(stderr, "                       Also generate junction name (chr:exon1_end-exon2_start/[+-]/Gene) in JC tag.\n");
+    fprintf(stderr, " -flatten              Split overlapped exons into nonoverlapped bins.\n");
+    fprintf(stderr, " -psi                  Annotate exclude reads tag (ER) for each exon.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, " -as                   Annotate antisense RNAs. **experiment**\n");
+    //fprintf(stderr, " -as                   Annotate antisense RNAs. **experiment**\n");
     fprintf(stderr, " -tss                  Annotate reads start from TSS, designed for capped library. **experiment**\n");
     fprintf(stderr, " -ctag     [TAG]       Tag name for TSS annotation. Need set with -tss.\n");
 
     fprintf(stderr, "\nOptions for VCF file :\n");
     fprintf(stderr, " -vcf      [VCF/BCF]   Varaints file in vcf or bcf format. In default, only annotate alternative alleles.\n");
-    fprintf(stderr, " -vtag     [TAG]       Tag name. Set with -vcf.\n");
+    fprintf(stderr, " -vtag     [TAG]       Tag name for variants. Set with -vcf. Default is VR.\n");
     fprintf(stderr, " -ref-alt              Annotate ref allele.\n");
     fprintf(stderr, " -vcf-ss               Annotate variants in strand sensitive way.\n");
     //fprintf(stderr, " -phased               Annotate phase block for phased positions.\n");
@@ -300,9 +302,14 @@ int anno_usage()
     fprintf(stderr, "   GN : Gene name.\n");
     fprintf(stderr, "   GX : Gene ID.\n");
     fprintf(stderr, "   RE : Region type, E (exon), N (intron), C (exon and intron), S (junction reads cover isoforms properly), V (ambiguous reads),\n");
-    fprintf(stderr, "        I (intergenic), A (antisense or antisense exon), B (antisense intron)\n");
-    fprintf(stderr, "   EX : Exon name. This tag is generated when set -exon.\n");
-    fprintf(stderr, "   JC : Isoform junction name. This tag is generated when set -exon.\n");
+    fprintf(stderr, "        I (intergenic), A (antisense or antisense exon), B (antisense intron), X (one or more exons are excluded in transcrpit)\n");
+    fprintf(stderr, " * The following tags set with -exon.\n");
+    fprintf(stderr, "   EX : Exon name tag.\n");
+    fprintf(stderr, "   JC : Isoform junction name.\n");
+    fprintf(stderr, "   FL : Flatten exon name. Only generate it with -flatten.\n");
+    fprintf(stderr, " * The following tags set with -psi.\n");
+    fprintf(stderr, "   ER : Excluded exons.\n");
+    fprintf(stderr, " * PSI = EX/(EX+ER); EX is the exon tag, which indicate include reads in exon.\n");
     fprintf(stderr, "\n");
     return 1;
 }
