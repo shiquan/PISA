@@ -6,6 +6,7 @@
 struct dict;
 
 struct dict *dict_init();
+struct dict *dict_dup(struct dict *D);
 
 void dict_destroy(struct dict *D);
 

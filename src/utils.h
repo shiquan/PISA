@@ -11,7 +11,23 @@
 #include <time.h>
 #include <string.h>
 #include <ctype.h>
+
+#if defined(__APPLE__)
+
 #include <sys/stat.h>
+#include <sys/resource.h>
+#include <sys/time.h>
+
+#elif defined(__linux__)
+
+#include <sys/stat.h>
+// timer, copied from bwa/utils.c
+#include <sys/resource.h>
+#include <sys/time.h>
+
+#elif defined(_WIN32)
+#include <windows.h>
+#endif
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
@@ -54,9 +70,6 @@
 	fprintf(stderr, "[%s] " ANSI_COLOR_GREEN line ANSI_COLOR_RESET"\n", _time_buff, ##__VA_ARGS__); \
     } while(0)
 
-// timer, copied from bwa/utils.c
-#include <sys/resource.h>
-#include <sys/time.h>
 
 static inline double cputime()
 {

@@ -425,7 +425,6 @@ static int parse_str(struct gtf_spec *G, kstring_t *str, int filter)
                 /*     char *val = strdup(pp->val); */
                 /*     dict_assign_value(gtf.attr, idx, val); */
                 /* } */
-
                                 
                 struct attr *attr = malloc(sizeof(struct attr));
                 attr->id = dict_push(G->attrs, pp->key);

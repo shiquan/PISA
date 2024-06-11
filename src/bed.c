@@ -52,15 +52,43 @@ struct bed_idx {
     struct region_index *idx;
 };
 
+void bed_copy(struct bed *a, struct bed *b)
+{
+    a->seqname = b->seqname;
+    a->name = b->name;
+    a->start = b->start;
+    a->end = b->end;
+    a->strand = b->strand;
+    a->data = b->data;
+}
+struct bed_spec *bed_spec_dup(struct bed_spec *B0)
+{
+    struct bed_spec *B = bed_spec_init();
+    B->seqname = dict_dup(B0->seqname);
+    B->name = dict_dup(B0->name);
+    B->idx = NULL;
+    B->n = B->m = B0->n;
+    B->bed = malloc(B->n*sizeof(struct bed));
+    int i;
+    for (i = 0; i < B->n; ++i) {
+        struct bed *bed = &B->bed[i];
+        struct bed *bed1 = &B0->bed[i];
+        bed_copy(bed, bed1);
+    }
+    // B->ext = B0->ext;
+    return B;
+}
 static int cmpfunc(const void *_a, const void *_b)
 {
     struct bed *a = (struct bed*)_a;
     struct bed *b = (struct bed*)_b;
-    if (a->seqname == -1) return 1;
-    if (b->seqname == -1) return -1;
+    if (a->seqname == -1 && b->seqname != -1) return 1;
+    if (b->seqname == -1 && a->seqname != -1) return -1;
     if (a->seqname != b->seqname) return a->seqname - b->seqname;
     if (a->start != b->start) return a->start - b->start;
-    return a->end - b->end;
+    if (a->end != b->end) return a->end - b->end;
+    if (a->strand != b->strand) return a->strand - b->strand;
+    return a->name - b->name;
 }
 static int cmpfunc1(const void *_a, const void *_b)
 {
@@ -68,7 +96,9 @@ static int cmpfunc1(const void *_a, const void *_b)
     struct bed *b = *(struct bed **)_b;
     if (a->seqname != b->seqname) return a->seqname - b->seqname;
     if (a->start != b->start) return a->start - b->start;
-    return a->end - b->end;    
+    if (a->end != b->end) return a->end - b->end;
+    if (a->strand != b->strand) return a->strand - b->strand;
+    return a->name - b->name;
 }
 
 struct bed_spec *bed_spec_init()
@@ -186,6 +216,45 @@ void bed_spec_sort(struct bed_spec *B)
 {
     qsort(B->bed, B->n, sizeof(struct bed), cmpfunc);    
 }
+void bed_spec_dedup(struct bed_spec *B, int check_name)
+{
+    bed_spec_sort(B);
+
+    int i;
+    for (i = 0; i < B->n; i++) {
+        struct bed *bed0 = &B->bed[i];
+        if (bed0->seqname == -1) continue;
+        for (int j = i + 1; j < B->n; ++j) {
+            struct bed *bed1 = &B->bed[j];
+            if (bed1->seqname == -1) continue;
+            if (check_name == 1) {
+                if (bed0->seqname == bed1->seqname && bed0->start == bed1->start &&
+                    bed0->end == bed1->end &&
+                    bed0->strand == bed1->strand && bed0->name == bed1->name) {
+                    bed1->seqname = -1;
+                    continue;
+                }
+            } else {
+                if (bed0->seqname == bed1->seqname && bed0->start == bed1->start &&
+                    bed0->end == bed1->end &&
+                    bed0->strand == bed1->strand) {
+                    bed1->seqname = -1;
+                    continue;
+                }
+            }
+
+            if (bed1->seqname != bed0->seqname || bed1->start != bed0->start || bed1->end != bed0->end)
+                break;
+        }
+    }
+    bed_spec_sort(B);
+    for (i = B->n-1; i >= 0; --i) {
+        struct bed *bed = &B->bed[i];
+        if (bed->seqname != -1) break;
+    }
+
+    B->n = ++i;
+}
 void bed_spec_merge0(struct bed_spec *B, int strand, int check_name)
 {
     bed_spec_sort(B);
@@ -201,27 +270,17 @@ void bed_spec_merge0(struct bed_spec *B, int strand, int check_name)
             struct bed *bed = &B->bed[j];
             if (bed->seqname == -1) continue;
 
-            /* if (bed0->seqname == -1) { // last record has been reset */
-            /*     memcpy(bed0, bed, sizeof(struct bed)); */
-            /*     bed->seqname = -1; //reset */
-            /*     continue; */
-            /* } */
             if (bed->seqname != bed0->seqname) {
-                // memmove(B->bed+i+1, B->bed+j, (B->n-j)*sizeof(struct bed));
                 break;
             }
             // check strand sensitive
             if (strand == 1 && bed->strand != bed0->strand) continue;
             if (check_name && bed->name != -1 && bed0->name != -1 && bed->name != bed0->name) continue;
-            //if (bed->start >= bed0->end) break; // nonoverlap, move to next record
-            // merge if bed0->end == bed->start
             if (bed->start > bed0->end) break; // nonoverlap, move to next record
             if (bed0->end < bed->end) bed0->end = bed->end; // enlarge overlapped region
             
             bed->seqname = -1; // reset this record
         }
-
-        // if (bed0->seqname == -1) break; // last record
     }
 
     bed_spec_sort(B);
@@ -256,13 +315,11 @@ void bed_spec_merge2(struct bed_spec *B, int strand, int gap, int min_length, in
     bed_spec_merge0(B, strand, check_name);
 }
 
-
-static void bed_build_index(struct bed_spec *B)
+void bed_build_index(struct bed_spec *B)
 {
     qsort(B->bed, B->n, sizeof(struct bed), cmpfunc);
 
     B->ctg = malloc(dict_size(B->seqname)*sizeof(struct _ctg_idx));
-    //memset(B->ctg, 0, sizeof(struct _ctg_idx)*dict_size(B->seqname));    
     B->idx = malloc(dict_size(B->seqname)*sizeof(struct bed_idx));
     
     int i;
@@ -340,7 +397,7 @@ int bed_spec_push0(struct bed_spec *B, const char *seqname, int start, int end, 
     
     int seqname_id = dict_push(B->seqname, seqname);
     int name_id = -1;
-    if (name) name_id = dict_push(B->seqname, name);
+    if (name) name_id = dict_push(B->name, name);
     
     struct bed *b = &B->bed[B->n];
     b->seqname = seqname_id;
@@ -348,6 +405,23 @@ int bed_spec_push0(struct bed_spec *B, const char *seqname, int start, int end, 
     b->end = end;
     b->strand = strand;
     b->name = name_id;
+    b->data = ext;
+    return B->n++;
+}
+
+int bed_spec_push1(struct bed_spec *B, int seqname, int start, int end, int strand, int name, void *ext)
+{
+    if (B->n == B->m) {
+        B->m = B->m == 0 ? 32 : B->m<<1;
+        B->bed = realloc(B->bed, sizeof(struct bed)*B->m);
+    }
+    
+    struct bed *b = &B->bed[B->n];
+    b->seqname = seqname;
+    b->start = start;
+    b->end = end;
+    b->strand = strand;
+    b->name = name;
     b->data = ext;
     return B->n++;
 }
@@ -575,8 +649,6 @@ void bed_spec_write0(struct bed_spec *B, FILE *out, int ext, int gene_as_name)
                         ".+-"[bed->strand+1]
                     );
             }
-            
-            
         } else {
             fprintf(out, "%s\t%d\t%d\t%s\t.\t%c", dict_name(B->seqname, bed->seqname),
                     bed->start, bed->end, bed->name == -1 ? "." : dict_name(B->name, bed->name),
@@ -608,6 +680,134 @@ void bed_spec_seqname_from_bam(struct bed_spec *B, bam_hdr_t *hdr)
     for (i = 0; i < hdr->n_targets; ++i)
         dict_push(B->seqname, hdr->target_name[i]);
 }
+void bed_spec_seqname_from_gtf(struct bed_spec *B, struct gtf_spec *G)
+{
+    if (dict_size(B->seqname) > 0) error("Init non-empty seqnames.");
+    int i;
+    for (i = 0; i < dict_size(G->name); ++i)
+        dict_push(B->seqname, dict_name(G->name, i));
+}
+static int cmpint(const void *_a, const void *_b)
+{
+    return (*(int*)_a - *(int*)_b);
+}
+struct bed_spec *bed_spec_flatten(struct bed_spec *B0)
+{
+    struct bed_spec *B = bed_spec_dup(B0);
+    bed_spec_dedup(B, 1);
+
+    struct bed_spec *new = bed_spec_dup(B);
+    new->n = 0;
+    
+    int n = 0, m = 0;
+    int *bps = NULL;
+    
+    for (int i = 0; i < B->n; ++i) {
+        n = 0;
+        struct bed *bed0 = &B->bed[i];
+        if (bed0->seqname == -1) continue;
+        for (int j = i+1; j < B->n; ++j) {
+            struct bed *bed = &B->bed[j];
+            if (bed->seqname == -1) continue;
+            if (bed->seqname != bed0->seqname) break;
+
+            if (bed->strand != bed0->strand) continue;
+            if (bed->name != bed0->name) continue;
+            if (bed->start > bed0->end) break;
+            if (bed->start > bed0->start) {
+                // push start
+                if (n == m) {
+                    m = m == 0 ? 4 : m *2;
+                    bps = realloc(bps, sizeof(int)*m);
+                }
+                bps[n++] = bed->start;
+            }
+
+            if (n == m) {
+                m = m == 0 ? 4 : m *2;
+                bps = realloc(bps, sizeof(int)*m);
+            }
+            if (bed0->end < bed->end) {
+                bed0->end = bed->end;
+                // push bed0->end
+                bps[n++] = bed0->end;
+            } else if (bed0->end > bed->end){
+                //push bed->end
+                bps[n++] = bed->end;
+            }
+            
+            bed->seqname = -1;
+        }
+        if (n > 0) {
+            if (n > 1) qsort(bps, n, sizeof(int), cmpint);
+            int k;
+            int last_start = bed0->start;
+            for (k = 0; k < n; ++k) {
+                bed_spec_push1(new, bed0->seqname, last_start, bps[k], bed0->strand, bed0->name, NULL);
+                last_start = bps[k];
+            }
+            bed_spec_push1(new, bed0->seqname, last_start, bed0->end, bed0->strand, bed0->name, NULL);
+        } else {
+            bed_spec_push1(new, bed0->seqname, bed0->start, bed0->end, bed0->strand, bed0->name, NULL);
+        }
+    }
+
+    if (m>0) free(bps);
+    
+    bed_spec_destroy(B);
+    bed_spec_dedup(new, 1);
+    return new;
+}
+// level: 1 for gene, 2 for transcript, 3 for exon, 4 for CDS
+// name_level : 0 for none, 1 for gene, 2 for transcript name, 3 for exon/CDS name
+struct bed_spec *gtf2bed(struct gtf_spec *G, int level, int name_level)
+{
+    struct bed_spec *B = bed_spec_init();
+    bed_spec_seqname_from_gtf(B, G);
+
+    if (name_level > level) error("name_level should <= level.");
+    
+    int i;
+    for (i = 0; i < dict_size(G->name); ++i) {
+        struct gtf_ctg *ctg = dict_query_value(G->name, i);
+        char *seqname = dict_name(G->name, i);
+        int j;
+        for (j = 0; j < ctg->n_gtf; ++j) {
+            struct gtf *g = ctg->gtf[j];
+
+            char *name = NULL;
+            
+            if (name_level == 1) name = dict_name(G->gene_name, g->gene_name);
+            
+            if (level == 1) {
+                bed_spec_push0(B, seqname, g->start, g->end, g->strand, name, NULL);            
+            } else {
+                int k;
+                for (k = 0; k < g->n_gtf; ++k) {
+                    struct gtf *t = g->gtf[k];
+                    if (name_level == 2) name = dict_name(G->transcript_id, t->transcript_id);
+                    else if (name_level == 3) name = NULL;
+
+                    if (level== 2) {
+                        bed_spec_push0(B, seqname, t->start, t->end, t->strand, name, NULL);   
+                    } else {
+                        int e;
+                        for (e = 0; e < t->n_gtf; ++e) {
+                            struct gtf *ex= t->gtf[e];
+                            if (level == 3 && ex->type == feature_exon) {
+                                bed_spec_push0(B, seqname, ex->start, ex->end, ex->strand, name, NULL);
+                            } else if (level == 4 && ex->type == feature_CDS) {
+                                bed_spec_push0(B, seqname, ex->start, ex->end, ex->strand, name, NULL);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return B;
+}
+// Bed Annotation
 // sort by type and distance
 static int cmpfunc2(const void *_a, const void *_b)
 {
@@ -662,11 +862,7 @@ static int query_exon(int start, int end, struct gtf const *G, struct anno0 *a, 
     }
     
     if (n == 0) {
-        /* if (i > 0 && i != G->n_gtf) { // checked, but no overalpped exons */
-        /*     a->type = BAT_INTRON; */
-        /* } else { // checked, but out range of transcript */
         a->type = BAT_INTERGENIC;            
-        /* } */
         // should not come here
         a->g = NULL;
     }

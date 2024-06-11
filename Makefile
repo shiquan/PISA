@@ -85,7 +85,9 @@ AOBJ = src/bam_anno.o \
 	src/gtf_format.o \
 	src/callept.o \
 	src/bed_merge.o \
-	src/bed_anno.o
+	src/bed_anno.o \
+	src/gtf2bed.o \
+	src/bed_flatten.o
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@

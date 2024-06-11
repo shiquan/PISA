@@ -25,7 +25,9 @@ struct bed {
     void *data;
 };
 
-#define BAT_COUNT    21
+void bed_copy(struct bed *a, struct bed *b);
+
+#define BAT_COUNT    22
 
 // definition of BED annotation types
 #define BAT_UNKNOWN          0
@@ -89,15 +91,18 @@ struct bed_spec *bed_spec_init();
 void bed_spec_ext_destroy(struct bed_spec *B);
 void bed_spec_destroy(struct bed_spec *B);
 
+struct bed_spec *bed_spec_dup(struct bed_spec *B0);
 struct bed_spec *bed_read0(struct bed_spec *B, const char *fname);
 struct bed_spec *bed_read(const char *fname);
-
+void bed_build_index(struct bed_spec *B);
+void bed_spec_sort(struct bed_spec *B);
 // start is 0 based
 struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, int end, int strand);
 int bed_check_overlap(const struct bed_spec *B, char *name, int start, int end, int strand);
 char* bed_seqname(struct bed_spec *B, int id);
 int bed_name2id(struct bed_spec *B, char *name);
 int bed_spec_push0(struct bed_spec *B, const char *seqname, int start, int end, int strand, const char *name, void *ext);
+int bed_spec_push1(struct bed_spec *B, int seqname, int start, int end, int strand, int name, void *ext);
 int bed_spec_push(struct bed_spec *B, struct bed *bed);
 struct bed_spec *bed_read_vcf(const char *fn);
 
@@ -109,7 +114,9 @@ void bed_spec_var_destroy(struct bed_spec *B);
 void bed_spec_write0(struct bed_spec *B, FILE *out, int ext, int gene_as_name);
 void bed_spec_write(struct bed_spec *B, const char *fn, int ext, int gene_as_name);
 void bed_spec_seqname_from_bam(struct bed_spec *B, bam_hdr_t *hdr);
-
+void bed_spec_dedup(struct bed_spec *B, int check_name);
+struct bed_spec *bed_spec_flatten(struct bed_spec *B);
+struct bed_spec *gtf2bed(struct gtf_spec *G, int level, int name_level);
 // bed anno
 struct anno0 {
     struct gtf *g;
