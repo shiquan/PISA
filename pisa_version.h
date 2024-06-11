@@ -1,1 +1,1 @@
-#define PISA_VERSION "v1.0"
+#define PISA_VERSION "v1.1"
