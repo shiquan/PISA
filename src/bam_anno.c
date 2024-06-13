@@ -485,8 +485,8 @@ sam_file:
         }
 
         if (args.flatten_flag) {
-            struct bed_spec *bed = gtf2bed(args.G,  3, 1);
-            args.flatten = bed_spec_flatten(bed);
+            struct bed_spec *bed = gtf2bed(args.G,  3, 1, 0);
+            args.flatten = bed_spec_flatten(bed, 1);
             bed_spec_destroy(bed);
             bed_build_index(args.flatten);
         }
@@ -1046,7 +1046,7 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
                 for (int k = 0; k < g->n_flatten; ++k) {
                     tmp.l = 0;
                     struct bed *bed = g->flatten[k];
-                    ksprintf(&tmp,"%s:%d-%d/", bed_seqname(args.flatten, bed->seqname), bed->start, bed->end);
+                    ksprintf(&tmp,"%s:%d-%d/", bed_seqname(args.flatten, bed->seqname), bed->start+1, bed->end);
                     if (args.ignore_strand) {
                         kputs(gene, &tmp);
                     } else {
@@ -1194,7 +1194,7 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
             if (a->type != ann->type) continue;
             for (int j = 0; j < S->n; ++j) {
                 struct pair *p = &S->p[j];
-                struct region_itr *itr = bed_query(args.flatten, name, p->start, p->end, BED_STRAND_IGN);
+                struct region_itr *itr = bed_query(args.flatten, name, p->start-1, p->end, BED_STRAND_IGN);
                 assert(itr);
                 for (int k = 0; k < itr->n; ++k) {
                     struct bed *bed = (struct bed*)itr->rets[k];

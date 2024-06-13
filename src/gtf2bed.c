@@ -87,7 +87,7 @@ int gtf2bed_main(int argc, char **argv)
     if (parse_args(argc, argv)) return gtf2bed_usage();
 
     struct gtf_spec *G = gtf_read(args.input_fname, 0x3);
-    struct bed_spec *B = gtf2bed(G, args.type, args.name_type);
+    struct bed_spec *B = gtf2bed(G, args.type, args.name_type, 1);
 
     bed_spec_dedup(B, 1);
     bed_spec_write(B, args.output_fname, 0, 0);
