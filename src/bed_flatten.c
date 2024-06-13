@@ -58,7 +58,7 @@ int bed_flatten(int argc, char **argv)
 {
     if (parse_args(argc, argv)) return bed_flatten_usage();
     struct bed_spec *B = bed_read(args.input_fname);
-    struct bed_spec *flatten = bed_spec_flatten(B);
+    struct bed_spec *flatten = bed_spec_flatten(B, 1);
 
     bed_spec_write(flatten, args.output_fname, 0, 0);
     bed_spec_destroy(B);

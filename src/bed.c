@@ -691,13 +691,15 @@ static int cmpint(const void *_a, const void *_b)
 {
     return (*(int*)_a - *(int*)_b);
 }
-struct bed_spec *bed_spec_flatten(struct bed_spec *B0)
+struct bed_spec *bed_spec_flatten(struct bed_spec *B0, int offset)
 {
     struct bed_spec *B = bed_spec_dup(B0);
     bed_spec_dedup(B, 1);
 
     struct bed_spec *new = bed_spec_dup(B);
     new->n = 0;
+
+    if (offset != 0) offset = 1;
     
     int n = 0, m = 0;
     int *bps = NULL;
@@ -743,12 +745,12 @@ struct bed_spec *bed_spec_flatten(struct bed_spec *B0)
             int k;
             int last_start = bed0->start;
             for (k = 0; k < n; ++k) {
-                bed_spec_push1(new, bed0->seqname, last_start, bps[k], bed0->strand, bed0->name, NULL);
+                bed_spec_push1(new, bed0->seqname, last_start-offset, bps[k], bed0->strand, bed0->name, NULL);
                 last_start = bps[k];
             }
-            bed_spec_push1(new, bed0->seqname, last_start, bed0->end, bed0->strand, bed0->name, NULL);
+            bed_spec_push1(new, bed0->seqname, last_start-offset, bed0->end, bed0->strand, bed0->name, NULL);
         } else {
-            bed_spec_push1(new, bed0->seqname, bed0->start, bed0->end, bed0->strand, bed0->name, NULL);
+            bed_spec_push1(new, bed0->seqname, bed0->start-offset, bed0->end, bed0->strand, bed0->name, NULL);
         }
     }
 
@@ -760,12 +762,14 @@ struct bed_spec *bed_spec_flatten(struct bed_spec *B0)
 }
 // level: 1 for gene, 2 for transcript, 3 for exon, 4 for CDS
 // name_level : 0 for none, 1 for gene, 2 for transcript name, 3 for exon/CDS name
-struct bed_spec *gtf2bed(struct gtf_spec *G, int level, int name_level)
+struct bed_spec *gtf2bed(struct gtf_spec *G, int level, int name_level, int offset)
 {
     struct bed_spec *B = bed_spec_init();
     bed_spec_seqname_from_gtf(B, G);
 
     if (name_level > level) error("name_level should <= level.");
+
+    if (offset != 0) offset = 1;
     
     int i;
     for (i = 0; i < dict_size(G->name); ++i) {
@@ -780,7 +784,7 @@ struct bed_spec *gtf2bed(struct gtf_spec *G, int level, int name_level)
             if (name_level == 1) name = dict_name(G->gene_name, g->gene_name);
             
             if (level == 1) {
-                bed_spec_push0(B, seqname, g->start, g->end, g->strand, name, NULL);            
+                bed_spec_push0(B, seqname, g->start-offset, g->end, g->strand, name, NULL);            
             } else {
                 int k;
                 for (k = 0; k < g->n_gtf; ++k) {
@@ -789,15 +793,15 @@ struct bed_spec *gtf2bed(struct gtf_spec *G, int level, int name_level)
                     else if (name_level == 3) name = NULL;
 
                     if (level== 2) {
-                        bed_spec_push0(B, seqname, t->start, t->end, t->strand, name, NULL);   
+                        bed_spec_push0(B, seqname, t->start-offset, t->end, t->strand, name, NULL);   
                     } else {
                         int e;
                         for (e = 0; e < t->n_gtf; ++e) {
                             struct gtf *ex= t->gtf[e];
                             if (level == 3 && ex->type == feature_exon) {
-                                bed_spec_push0(B, seqname, ex->start, ex->end, ex->strand, name, NULL);
+                                bed_spec_push0(B, seqname, ex->start-offset, ex->end, ex->strand, name, NULL);
                             } else if (level == 4 && ex->type == feature_CDS) {
-                                bed_spec_push0(B, seqname, ex->start, ex->end, ex->strand, name, NULL);
+                                bed_spec_push0(B, seqname, ex->start-offset, ex->end, ex->strand, name, NULL);
                             }
                         }
                     }
