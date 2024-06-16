@@ -13,7 +13,7 @@ KSTREAM_INIT(gzFile, gzread, 8193)
 
 static const char *bed_anno_type[] = {
     "unknown",
-    "promoter",
+    "promoter", // use for old version, now be replaced by upstream
     "utr3",
     "utr5",
     "exon",
@@ -941,31 +941,31 @@ static int query_trans(int start, int end, struct gtf const *G, struct anno0 *a)
     return a->type;
 }
 
-static int query_promoter(int start, int end, struct gtf *G, struct anno0 *a, int down, int up)
-{
-    // nonoverlap with this promoter
-    int start0 = G->start;
-    int end0 = G->start;
-    if (G->strand == 1) {
-        start0 = G->end;
-        end0 = G->end;
-        start0 = start0 - down;
-        end0 = start0 + up;
-    } else {
-        start0 = start0 - up;
-        end0 = start0 + down;
-    }
+/* static int query_promoter(int start, int end, struct gtf *G, struct anno0 *a, int down, int up) */
+/* { */
+/*     // nonoverlap with this promoter */
+/*     int start0 = G->start; */
+/*     int end0 = G->start; */
+/*     if (G->strand == 1) { */
+/*         start0 = G->end; */
+/*         end0 = G->end; */
+/*         start0 = start0 - down; */
+/*         end0 = start0 + up; */
+/*     } else { */
+/*         start0 = start0 - up; */
+/*         end0 = start0 + down; */
+/*     } */
 
-    if (start0 < 0) start0 = 1;
-    if (end0 < 0) end0 = start0;
+/*     if (start0 < 0) start0 = 1; */
+/*     if (end0 < 0) end0 = start0; */
     
-    if (start >= end0) return -1;
-    if (end <= start0) return -1;
+/*     if (start >= end0) return -1; */
+/*     if (end <= start0) return -1; */
 
-    a->type = BAT_PROMOTER;
-    a->g = G;
-    return BAT_PROMOTER;
-}
+/*     a->type = BAT_PROMOTER; */
+/*     a->g = G; */
+/*     return BAT_PROMOTER; */
+/* } */
 
 #define max(x, y) x > y ? x : y
 #define min(x, y) x > y ? y : x
@@ -984,7 +984,7 @@ void anno_bed_cleanup()
 {
     if (wnames !=NULL) dict_destroy(wnames);    
 }
-struct anno0 *anno_bed_core(const char *name, int start, int end, int strand, struct gtf_spec *G, int *n, int promoter, int down, int up, int at_down, int at_up)
+struct anno0 *anno_bed_core(const char *name, int start, int end, int strand, struct gtf_spec *G, int *n, int down, int up)
 {
     if (end == -1) end = start+1;
     if (end < start ) {
@@ -992,11 +992,7 @@ struct anno0 *anno_bed_core(const char *name, int start, int end, int strand, st
         return NULL;
     }
 
-    int flank;
-
-    flank = max(down, up);
-    flank = max(flank, at_down);
-    flank = max(flank, at_up);
+    int flank = max(down, up);
     
     *n = 0;
     struct region_itr *itr = gtf_query(G, name, start - flank, end + flank);
@@ -1023,60 +1019,60 @@ struct anno0 *anno_bed_core(const char *name, int start, int end, int strand, st
             a[k].g = g0;
         } else {
             int ret;
-            if (promoter) {
-                ret = query_promoter(start, end, g0, &a[k], down, up);
-                if (ret == -1) {
-                    ret = query_trans(start, end, g0, &a[k]);
-                }
-            } else {
-                ret = query_trans(start, end, g0, &a[k]);
-            }
+            /* if (promoter) { */
+            /*     ret = query_promoter(start, end, g0, &a[k], down, up); */
+            /*     if (ret == -1) { */
+            /*         ret = query_trans(start, end, g0, &a[k]); */
+            /*     } */
+            /* } else { */
+            ret = query_trans(start, end, g0, &a[k]);
+                //}
 
             if (ret == BAT_FLANK) {
-                if (strand == -1) {
-                    a[k].type = BAT_INTERGENIC;
-                    continue;
-                } 
+                /* if (strand == -1) { */
+                /*     a[k].type = BAT_INTERGENIC; */
+                /*     continue; */
+                /* }  */
 
-                if (g0->strand == strand) {
-                    a[k].type = BAT_INTERGENIC;
-                    continue;
-                }
+                /* if (g0->strand == strand) { */
+                /*     a[k].type = BAT_INTERGENIC; */
+                /*     continue; */
+                /* } */
 
                 if (strand_is_minus(g0->strand)) {
-                    if (start >= g0->end + at_up) {
+                    if (start >= g0->end + up) {
                         a[k].type = BAT_INTERGENIC;
                         continue;
                     }
 
-                    if (end <= g0->start - at_down) {
+                    if (end <= g0->start - down) {
                         a[k].type = BAT_INTERGENIC;
                         continue;
                     }
 
                     
-                    if (region_overlap(start, end, g0->end, g0->end + at_up) > 0) {
-                        a[k].type = BAT_ANTISENSEUP;
+                    if (region_overlap(start, end, g0->end, g0->end + up) > 0) {
+                        a[k].type = BAT_UPSTREAM;
                         a[k].g = g0;
-                    } else if (region_overlap(start, end, g0->start - at_down, g0->start) > 0) {
-                        a[k].type = BAT_ANTISENSEDOWN;
+                    } else if (region_overlap(start, end, g0->start - down, g0->start) > 0) {
+                        a[k].type = BAT_DOWNSTREAM;
                         a[k].g = g0;
                     }
                 } else {
-                    if (start >= g0->end + at_down) {
+                    if (start >= g0->end + down) {
                         a[k].type = BAT_INTERGENIC;
                         continue;
                     }
-                    if (end <= g0->start - at_up) {
+                    if (end <= g0->start - up) {
                         a[k].type = BAT_INTERGENIC;
                         continue;
                     }
 
-                    if (region_overlap(start, end, g0->start - at_up, g0->start) > 0) {
-                        a[k].type= BAT_ANTISENSEUP;
+                    if (region_overlap(start, end, g0->start - up, g0->start) > 0) {
+                        a[k].type= BAT_UPSTREAM;
                         a[k].g = g0;
-                    } else if (region_overlap(start, end, g0->end, g0->end + at_down) >0) {
-                        a[k].type = BAT_ANTISENSEDOWN;
+                    } else if (region_overlap(start, end, g0->end, g0->end + down) >0) {
+                        a[k].type = BAT_DOWNSTREAM;
                         a[k].g = g0;
                     }
                 }

@@ -24,13 +24,13 @@ static struct args {
     int gene_as_name;
     int skip_chrs;
 
-    int promoter;
+    /* int promoter; */
+    /* int promoter_upstream; */
+    /* int promoter_downstream; */
+
     int upstream;
     int downstream;
 
-    int at_upstream;
-    int at_downstream;
-    
     struct gtf_spec *G;
     struct bed_spec *B;
     struct bed_anno_sum *summary;
@@ -42,11 +42,11 @@ static struct args {
     .stranded     = 1,
     .gene_as_name = 0,
     .skip_chrs    = 0,
-    .promoter     = 0,
-    .upstream     = 2000,
-    .downstream   = 100,
-    .at_upstream  = 1000,
-    .at_downstream= 1000,
+    /* .promoter     = 0, */
+    /* .promter_upstream     = 2000, */
+    /* .promter_downstream   = 100, */
+    .upstream  = 1000,
+    .downstream= 1000,
     .G            = NULL,
     .B            = NULL,
     .summary      = NULL
@@ -68,12 +68,12 @@ static int bedanno_usage()
     fprintf(stderr, "-report [FILE]    Summary report. Export in STDERR by default.\n");
     fprintf(stderr, "-is               Ignore strand.\n");
     fprintf(stderr, "-gene-name        Set annatated gene as bed name (column 4).\n");
-    fprintf(stderr, "-skip-chrs        Skip chromosomes if not exist in GTF.\n");
-    fprintf(stderr, "-promoter         Enable promoter regions annotation.\n");
-    fprintf(stderr, "-up     [%d]      Define upstream of TSS as promoter.\n", args.upstream);
-    fprintf(stderr, "-down   [%d]      Define downstream of TSS as promoter.\n", args.downstream);
-    fprintf(stderr, "-at-up  [%d]      Define upstream of gene but different strand as antisense.\n", args.at_upstream);
-    fprintf(stderr, "-at-down  [%d]    Define downstream of gene but different strand as antisense.\n", args.at_downstream);
+    fprintf(stderr, "-skip-chrs        Skip chromosomes if not exist in GTF. Defa\n");
+    //fprintf(stderr, "-promoter         Enable promoter regions annotation.\n");
+    //fprintf(stderr, "-promter-up     [%d]      Define upstream of TSS as promoter.\n", args.promter_upstream);
+    //fprintf(stderr, "-promter-down   [%d]      Define downstream of TSS as promoter.\n", args.promter_downstream);
+    fprintf(stderr, "-up  [%d]         Annotate intergenic regions at upstream of gene.\n", args.upstream);
+    fprintf(stderr, "-down  [%d]       Annotate intergenic regions at downstream of gene.\n", args.downstream);
     fprintf(stderr, "\n\x1b[31m\x1b[1mOutput format\x1b[0m :\n");
     fprintf(stderr, "chromosome,start(0based),end(1based),name,score,strand,number of covered genes, cover gene name(s),type,nearest gene name,distance to nearby gene\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
@@ -89,8 +89,8 @@ static int parse_args(int argc, char **argv)
     int i;
     const char *up = NULL;
     const char *down = NULL;
-    const char *at_up = NULL;
-    const char *at_down = NULL;
+    //const char *at_up = NULL;
+    //const char *at_down = NULL;
     
     for (i = 1; i < argc;) {
         const char *a = argv[i++];
@@ -112,14 +112,14 @@ static int parse_args(int argc, char **argv)
             args.skip_chrs = 1; 
             continue;
         }
-        else if (strcmp(a, "-promoter") == 0) {
-            args.promoter = 1;
-            continue;
-        }
+        /* else if (strcmp(a, "-promoter") == 0) { */
+        /*     args.promoter = 1; */
+        /*     continue; */
+        /* } */
         else if (strcmp(a, "-up") == 0) var = &up;
         else if (strcmp(a, "-down") == 0) var = &down;
-        else if (strcmp(a, "-at-up") == 0) var = &at_up;
-        else if (strcmp(a, "-at-down") == 0) var = &at_down;
+        /* else if (strcmp(a, "-at-up") == 0) var = &at_up; */
+        /* else if (strcmp(a, "-at-down") == 0) var = &at_down; */
         if (var != 0) {
             if (i == argc) error("Miss an argument after %s.", a);
             *var = argv[i++];
@@ -142,13 +142,13 @@ static int parse_args(int argc, char **argv)
     args.B = bed_read(args.input_fname);
     args.G = gtf_read(args.gtf_fname, 0);
 
-    if (args.promoter) {
-        if (up) args.upstream = str2int(up);
-        if (down) args.downstream = str2int(down);
-    }
+    // if (args.promoter) {
+    if (up) args.upstream = str2int(up);
+    if (down) args.downstream = str2int(down);
+    //}
 
-    if (at_up) args.at_upstream = str2int(at_up);
-    if (at_down) args.at_downstream = str2int(at_down);
+    /* if (at_up) args.at_upstream = str2int(at_up); */
+    /* if (at_down) args.at_downstream = str2int(at_down); */
     
     args.summary = malloc(sizeof(struct bed_anno_sum)*BAT_COUNT);
     memset(args.summary, 0, sizeof(struct bed_anno_sum)*BAT_COUNT);
@@ -189,10 +189,7 @@ int annobed_main(int argc, char **argv)
         
         char *name = dict_name(args.B->seqname, b->seqname);
         int k;
-        struct anno0 *a = anno_bed_core(name, b->start, b->end, b->strand, args.G, &k,
-                                        args.promoter, args.downstream, args.upstream,
-                                        args.at_downstream, args.at_upstream);
-        
+        struct anno0 *a = anno_bed_core(name, b->start, b->end, b->strand, args.G, &k, args.downstream, args.upstream);
         if (k == 1) {
             struct bed_ext *e = bed_ext_init();
             e->type = a[0].type;
