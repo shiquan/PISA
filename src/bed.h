@@ -123,7 +123,7 @@ struct anno0 {
     int type;
 };
 
-struct anno0 *anno_bed_core(const char *name, int start, int end, int strand, struct gtf_spec *G, int *n, int promoter, int down, int up, int at_down, int at_up);
+struct anno0 *anno_bed_core(const char *name, int start, int end, int strand, struct gtf_spec *G, int *n, int down, int up);
 
 void anno_bed_cleanup();
 
