@@ -1,10 +1,10 @@
 # PISA
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6787430.svg)](https://doi.org/10.5281/zenodo.6787430)
 
-* [PISA Manual](https://github.com/shiquan/PISA/blob/master/PISA_manual.pdf) 
-* [Online wiki](https://github.com/shiquan/PISA/wiki)
-* [FASTQ+ Specification](https://github.com/shiquan/PISA/blob/master/FASTQ%2B_spec.pdf)
+* [PISA User's Guide] (https://shiquan.github.io/PISA.html)
+* [FASTQ+ Specification](https://shiquan.github.io/fastq.html)
 
+* [Old version manual (<v1.0)] (https://github.com/shiquan/PISA/blob/master/PISA_manual.pdf) 
 
 # News
+* PISA (from v1.0) now support call EPT and annotate BED, see User's Guide for details. 
 * PISA paper now online. [https://doi.org/10.1093/bioinformatics/btac562](https://doi.org/10.1093/bioinformatics/btac562)
