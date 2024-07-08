@@ -645,23 +645,14 @@ static void gene_most_likely_type(struct gene_type *g)
             break;
         }
         else if (t->type == type_exclude) {
-            //if (g->type == type_exon) continue;
-            //if (g->type == type_splice) continue;
-            //g->type = type_exclude;
             // only label transcript, but not gene
         }
         else if (t->type == type_intron) {
             if (g->type == type_unknown) g->type = t->type;
-            /* else if (g->type == type_antisense) g->type = t->type; */
-            /* else if (g->type == type_antisense_intron) g->type = t->type; */
         }
         else if (t->type == type_exon_intron) {
             g->type = t->type;
             break;
-            /* if (g->type == type_unknown) g->type = t->type; */
-            /* else if (g->type == type_intron) g->type = t->type; */
-            /* else if (g->type == type_antisense) g->type = t->type; */
-            /* else if (g->type == type_antisense_intron) g->type = t->type; */
         }
         else if (t->type == type_ambiguous) {
             if (g->type == type_unknown) g->type = t->type;
@@ -728,6 +719,19 @@ static void gtf_anno_most_likely_type(struct gtf_anno_type *ann)
     }
 }
 
+static struct gtf *query_exon_id(struct gtf const *g, int id)
+{
+    int i;
+    int j = 0;
+    for (i = 0; i < g->n_gtf; ++i) {
+        struct gtf *g0 = g->gtf[i];
+        if (g0->type != feature_exon) continue;
+        j++;
+        if (id == j) return g0;
+    }
+
+    return NULL;
+}
 //static enum exon_type
 static struct gtf *query_exon(int start, int end, struct gtf const *G, int *exon, enum exon_type *exon_type, int vague_edge)
 {
@@ -821,7 +825,7 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
                             tp->m_exclude = tp->m_exclude == 0 ? 1 : tp->m_exclude *2;
                             tp->exl = realloc(tp->exl, sizeof(void*)*tp->m_exclude);
                         }
-                        tp->exl[tp->n_exclude++] = g->gtf[k];
+                        tp->exl[tp->n_exclude++] = query_exon_id(g, k);
                     }
                     
                     tp->type = type_exclude;
