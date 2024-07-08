@@ -485,7 +485,7 @@ sam_file:
         }
 
         if (args.flatten_flag) {
-            struct bed_spec *bed = gtf2bed(args.G,  3, 1, 0);
+            struct bed_spec *bed = gtf2bed(args.G, NULL, 3, 1, 0);
             args.flatten = bed_spec_flatten(bed, 1);
             bed_spec_destroy(bed);
             bed_build_index(args.flatten);

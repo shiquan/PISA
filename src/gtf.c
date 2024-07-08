@@ -633,8 +633,10 @@ struct region_itr *gtf_query(struct gtf_spec const *G, const char *name, int sta
     if (id == -1) return NULL;
 
     if (start < 0) start = 0;
-    if (end < start) return NULL;
-
+    // if (end < start) return NULL;
+    if (end < -1) return NULL;
+    if (end == -1) end = INT_MAX;
+    
     struct gtf_ctg *ctg = dict_query_value(G->name, id);
     if (ctg->n_gtf == 0) return NULL; // empty, should not happen?
     if (end < ctg->gtf[0]->start) return NULL; // out of range

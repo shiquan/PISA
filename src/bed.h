@@ -116,7 +116,7 @@ void bed_spec_write(struct bed_spec *B, const char *fn, int ext, int gene_as_nam
 void bed_spec_seqname_from_bam(struct bed_spec *B, bam_hdr_t *hdr);
 void bed_spec_dedup(struct bed_spec *B, int check_name);
 struct bed_spec *bed_spec_flatten(struct bed_spec *B, int offset);
-struct bed_spec *gtf2bed(struct gtf_spec *G, int level, int name_level, int offset);
+struct bed_spec *gtf2bed(struct gtf_spec *G, struct region_itr *itr, int level, int name_level, int offset);
 // bed anno
 struct anno0 {
     struct gtf *g;
