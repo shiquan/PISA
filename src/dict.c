@@ -1,6 +1,7 @@
 #include "dict.h"
 #include "htslib/khash.h"
 #include "htslib/kseq.h"
+#include "htslib/kstring.h"
 #include <zlib.h>
 
 typedef struct dict_val {
@@ -10,7 +11,7 @@ typedef struct dict_val {
 
 KHASH_MAP_INIT_STR(name, dict_val_t)
     
-KSTREAM_INIT(gzFile, gzread, 8193);
+KSTREAM_INIT(gzFile, gzread, 8193)
 
 struct dict {
     int n, m;
@@ -208,7 +209,7 @@ int dict_read(struct dict *D, const char *fname, int allow_space)
 {
     gzFile fp;
     fp = gzopen(fname, "r");
-    CHECK_EMPTY(fp, "%s : %s.", fname, strerror(errno));
+    if (fp == NULL) error("%s : %s.", fname, strerror(errno));
     kstream_t *ks = ks_init(fp);
     kstring_t str = {0,0,0};
     int ret;
@@ -240,7 +241,7 @@ int dict_read2(struct dict *D, const char *fname, int *val)
     *val = 0;
     gzFile fp;
     fp = gzopen(fname, "r");
-    CHECK_EMPTY(fp, "%s : %s.", fname, strerror(errno));
+    if (fp == NULL) error("%s : %s.", fname, strerror(errno));
     kstream_t *ks = ks_init(fp);
     kstring_t str = {0,0,0};
     int ret;
@@ -282,10 +283,8 @@ char **dict_names(struct dict *D)
 // hamming distance
 static int check_similar(char *a, char *b, int mis)
 {
-    int l0, l1;
-    l0 = strlen(a);
-    l1 = strlen(b);
-    assert(l0 == l1);
+    int l0 = strlen(a);
+    assert(strlen(b) == l0);
     int i;
     int m = 0;
     for (i = 0; i < l0; ++i) {
