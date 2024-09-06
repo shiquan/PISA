@@ -18,7 +18,7 @@ include $(ZLIBDIR)/zlib.mk
 LIBZ = $(ZLIBDIR)/libz.a
 
 CC       = gcc
-CFLAGS   = -Wall -O3 -D_FILE_OFFSET_BITS=64 -fopenmp
+CFLAGS   = -Wall -O3 -D_FILE_OFFSET_BITS=64 -fopenmp -std=c99
 DFLAGS   =
 INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I$(ZLIBDIR)
 LIBS = -lbz2 -llzma -pthread -lm -lcurl 
