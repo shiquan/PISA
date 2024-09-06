@@ -385,7 +385,8 @@ struct ret {
 void merge_counts(struct ret *ret)
 {
     if (ret == NULL) return;
-    for (int i = 0; i < dict_size(ret->features); ++i) {
+    int i;
+    for (i = 0; i < dict_size(ret->features); ++i) {
         char *feature = dict_name(ret->features, i);
         int idx = dict_query(args.features, feature);
         if (idx < 0) {
@@ -397,8 +398,8 @@ void merge_counts(struct ret *ret)
             v = PISA_dna_pool_init();
             dict_assign_value(args.features, idx, v);
         }
-        
-        for (int j = 0; j < v0->l; ++j) {
+        int j;
+        for (j = 0; j < v0->l; ++j) {
             struct PISA_dna *d = &v0->data[j];
             if (d->idx == -1) continue; // cell barcode cached but no record
             char *barcode = dict_name(ret->barcodes,d->idx);
@@ -560,8 +561,8 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
         
         s = skip_aux(s, end);
     }
-    
-    for (int i = 0; i < l; ++i) {
+    int i;
+    for (i = 0; i < l; ++i) {
         if (vals[i] == NULL) {
             int j;
             for (j = i+1; j < l; ++j) {
@@ -705,8 +706,8 @@ static void *run_it(void *_p)
             if (args.genome_bin_size != 0) free(anno_tag);
             continue;
         }
-        
-        for (int i = 0; i < n_gene; ++i) {
+        int i;
+        for (i = 0; i < n_gene; ++i) {
             // Features (Gene or Region)
             char *val = str.s + s[i];
             
@@ -796,7 +797,8 @@ static void *run_it(void *_p)
 static void update_counts()
 {
     int n_feature = dict_size(args.features);
-    for (int i = 0; i < n_feature; ++i) {
+    int i;
+    for (i = 0; i < n_feature; ++i) {
         struct PISA_dna_pool *v = dict_query_value(args.features, i);
         int j;
         int n_cell = v->l;
