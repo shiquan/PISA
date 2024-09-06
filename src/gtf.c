@@ -65,7 +65,8 @@ void gtf_attr_clear(struct attr *attr)
 }
 void gtf_clear(struct gtf *gtf)
 {
-    for (int i = 0; i < gtf->n_gtf; ++i) {
+    int i;
+    for (i = 0; i < gtf->n_gtf; ++i) {
         gtf_clear(gtf->gtf[i]);
         free(gtf->gtf[i]);
     }
@@ -531,8 +532,8 @@ static int gtf_build_index(struct gtf_spec *G)
                     g0 = g0->ext;
                 }
             }
-            
-            for (int k = 0; k < g->n_gtf; ++k) {
+            int k;
+            for (k = 0; k < g->n_gtf; ++k) {
                 struct gtf *tx = g->gtf[k];
                 struct gtf *tx0 = dict_query_value(G->transcript_id, tx->transcript_id);
                 if (tx0 == NULL) {

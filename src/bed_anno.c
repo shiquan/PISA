@@ -182,8 +182,8 @@ static void memory_release()
 int annobed_main(int argc, char **argv)
 {
     if (parse_args(argc, argv)) return bedanno_usage();
-
-    for (int i = 0; i < args.B->n; ++i) {
+    int i;
+    for (i = 0; i < args.B->n; ++i) {
         struct bed *b = &args.B->bed[i];
         b->data = NULL;
         
@@ -243,7 +243,7 @@ int annobed_main(int argc, char **argv)
         free(a);
     }
 
-    for (int i = 0; i < args.B->n; ++i) {
+    for (i = 0; i < args.B->n; ++i) {
         struct bed *b = &args.B->bed[i];
         struct bed_ext *e = (struct bed_ext*)b->data;
 

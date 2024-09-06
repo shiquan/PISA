@@ -586,9 +586,10 @@ struct ret_dat {
 
 void gtf_anno_destroy(struct gtf_anno_type *ann)
 {
-    for (int i = 0; i < ann->n; ++i) {
+    int i, j;
+    for (i = 0; i < ann->n; ++i) {
         struct gene_type *a = &ann->a[i];
-        for (int j = 0; j < a->n; ++j) {
+        for (j = 0; j < a->n; ++j) {
             struct trans_type *t = &a->a[j];
             if (t->m_exon) free(t->exon);            
             if (t->m_exclude) free(t->exl);
@@ -789,7 +790,8 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
     int last_exon = -1;
 
     // linear search
-    for (int i = 0; i < S->n; ++i) {
+    int i;
+    for (i = 0; i < S->n; ++i) {
         struct pair *p = &S->p[i];
         enum exon_type t0;
         struct gtf *e = query_exon(p->start, p->end, g, &exon, &t0, vague);
@@ -820,7 +822,8 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
                 
                 if (e2-e1>1) {  // check the exon number
                     // update exclude exons
-                    for (int k = e1+1; k < e2; ++k) {
+                    int k;
+                    for (k = e1+1; k < e2; ++k) {
                         if (tp->n_exclude == tp->m_exclude) {
                             tp->m_exclude = tp->m_exclude == 0 ? 1 : tp->m_exclude *2;
                             tp->exl = realloc(tp->exl, sizeof(void*)*tp->m_exclude);
@@ -992,7 +995,8 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
                     n_trans++;
 
                     if (args.exon_level) {
-                        for (int k = 0; k < t->n_exon; ++k) {
+                        int k;
+                        for (k = 0; k < t->n_exon; ++k) {
                             tmp.l = 0;
                             struct gtf *e = t->exon[k];
                             ksprintf(&tmp,"%s:%d-%d/", dict_name(args.G->name, e->seqname), e->start, e->end);
@@ -1007,7 +1011,7 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
                         
                         // junction
                         if (t->type == type_splice && t->n_exon > 1) {
-                            for (int k = 0; k < t->n_exon -1; ++k) {
+                            for (k = 0; k < t->n_exon -1; ++k) {
                                 tmp.l = 0;
                                 struct gtf *e1 = t->exon[k];
                                 struct gtf *e2 = t->exon[k+1];
@@ -1028,7 +1032,8 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
                 }
 
                 if (args.psi && t->type == type_exclude) {
-                    for (int k = 0; k < t->n_exclude; ++k) {
+                    int k;
+                    for (k = 0; k < t->n_exclude; ++k) {
                         tmp.l = 0;
                         struct gtf *e = t->exl[k];
                         ksprintf(&tmp,"%s:%d-%d/", dict_name(args.G->name, e->seqname), e->start, e->end);
@@ -1046,8 +1051,9 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
                 }
             }
 
-            if (args.flatten_flag) {                
-                for (int k = 0; k < g->n_flatten; ++k) {
+            if (args.flatten_flag) {
+                int k;
+                for (k = 0; k < g->n_flatten; ++k) {
                     tmp.l = 0;
                     struct bed *bed = g->flatten[k];
                     ksprintf(&tmp,"%s:%d-%d/", bed_seqname(args.flatten, bed->seqname), bed->start+1, bed->end);
@@ -1070,14 +1076,15 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
         bam_aux_append(b, TX_tag, 'Z', trans_id.l+1, (uint8_t*)trans_id.s);
         if (args.exon_level) {
             tmp.l = 0;
-            for (int k = 0; k < dict_size(exons); ++k) {
+            int k;
+            for (k = 0; k < dict_size(exons); ++k) {
                 if (tmp.l) kputc(',', &tmp);
                 kputs(dict_name(exons, k), &tmp);  
             }            
             bam_aux_append(b, EX_tag, 'Z', tmp.l+1, (uint8_t*)tmp.s);
 
             tmp.l = 0;
-            for (int k = 0; k < dict_size(juncs); ++k) {
+            for (k = 0; k < dict_size(juncs); ++k) {
                 if (tmp.l) kputc(',', &tmp);
                 kputs(dict_name(juncs, k), &tmp);  
             }
@@ -1088,7 +1095,8 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
 
         if (args.psi && dict_size(exl)>0) {
             tmp.l = 0;
-            for (int k = 0; k < dict_size(exl); ++k) {
+            int k;
+            for (k = 0; k < dict_size(exl); ++k) {
                 if (tmp.l) kputc(',', &tmp);
                 kputs(dict_name(exl, k), &tmp);  
             }
@@ -1097,7 +1105,8 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
 
         if (args.flatten_flag) {
             tmp.l = 0;
-            for (int k = 0; k < dict_size(flatten); ++k) {
+            int k;
+            for (k = 0; k < dict_size(flatten); ++k) {
                 if (tmp.l) kputc(',', &tmp);
                 kputs(dict_name(flatten, k), &tmp);  
             }
@@ -1193,14 +1202,16 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
 
     if (args.flatten_flag &&
         (ann->type == type_exon || ann->type == type_splice || (args.splice_flag && ann->type == type_exon_intron))) {
-        for (int i = 0; i < ann->n; ++i) {
+        int i, j;
+        for (i = 0; i < ann->n; ++i) {
             struct gene_type *a = &ann->a[i];
             if (a->type != ann->type) continue;
-            for (int j = 0; j < S->n; ++j) {
+            for (j = 0; j < S->n; ++j) {
                 struct pair *p = &S->p[j];
                 struct region_itr *itr = bed_query(args.flatten, name, p->start-1, p->end, BED_STRAND_IGN);
                 assert(itr);
-                for (int k = 0; k < itr->n; ++k) {
+                int k;
+                for (k = 0; k < itr->n; ++k) {
                     struct bed *bed = (struct bed*)itr->rets[k];
                     // bed->start is 0 based
                     if (bed->start >= p->end || bed->end < p->start) continue; // not covered
