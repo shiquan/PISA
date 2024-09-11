@@ -1074,7 +1074,7 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
         bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
         bam_aux_append(b, GN_tag, 'Z', gene_name.l+1, (uint8_t*)gene_name.s);
         bam_aux_append(b, TX_tag, 'Z', trans_id.l+1, (uint8_t*)trans_id.s);
-        if (args.exon_level) {
+        if (args.exon_level & dict_size(exons)>0) {
             tmp.l = 0;
             int k;
             for (k = 0; k < dict_size(exons); ++k) {
@@ -1103,7 +1103,7 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
             bam_aux_append(b, ER_tag, 'Z', tmp.l+1, (uint8_t*)tmp.s);
         }
 
-        if (args.flatten_flag) {
+        if (args.flatten_flag & dict_size(flatten) > 0) {
             tmp.l = 0;
             int k;
             for (k = 0; k < dict_size(flatten); ++k) {
