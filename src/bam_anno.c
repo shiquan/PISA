@@ -141,7 +141,7 @@ static struct args {
     .anno_only       = 0,
 
     .ref_alt         = 0,
-    .vcf_ss          = 0,
+    .vcf_ss          = 1,
     .phased          = 0,
     .input_sam       = 0,
     .fp_sam          = NULL,
@@ -359,7 +359,8 @@ static int parse_args(int argc, char **argv)
             continue;
         }
         else if (strcmp(a, "-vcf-ss") == 0) {
-            args.vcf_ss = 1;
+            // args.vcf_ss = 1;
+            warnings("Strand sensitive mode is enabled in default. -vcf-ss is removed since v1.3. Use -is to disable.");
             continue;
         }
         else if (strcmp(a, "-phased") == 0) {
@@ -412,6 +413,9 @@ static int parse_args(int argc, char **argv)
     if (args.map_qual < 0) args.map_qual = 0;
 
     if (vague_edge) args.vague_edge = str2int((char*)vague_edge);
+    if (args.ignore_strand) {
+        args.vcf_ss = 0;
+    }
 
 sam_file:
     if (args.input_sam == 1) {
