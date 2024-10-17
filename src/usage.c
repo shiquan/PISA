@@ -281,6 +281,7 @@ int anno_usage()
     fprintf(stderr, "                       Also generate junction name (chr:exon1_end-exon2_start/[+-]/Gene) in JC tag.\n");
     fprintf(stderr, " -flatten              Split overlapped exons into nonoverlapped bins.\n");
     fprintf(stderr, " -psi                  Annotate exclude reads tag (ER) for each exon.\n");
+    fprintf(stderr, " -vague-edge [INT]     Junction reads not exactly spliced at splice site and gene ends are allowed. Used to annotate third generation reads.\n");
     fprintf(stderr, "\n");
     //fprintf(stderr, " -as                   Annotate antisense RNAs. **experiment**\n");
     fprintf(stderr, " -tss                  Annotate reads start from TSS, designed for capped library. **experiment**\n");

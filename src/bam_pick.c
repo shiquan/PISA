@@ -57,8 +57,7 @@ static int parse_args(int argc, char **argv)
         const char **var = 0;
         if (strcmp(a, "-list") == 0) var = &extract_fname;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
-        else if (strcmp(a, "-tags") == 0) var = &tag_str;
-        else if (strcmp(a, "-tag") == 0) error("Did you mean -tags ?");
+        else if (strcmp(a, "-tags") == 0 || strcmp(a, "-tag") == 0) var = &tag_str;
         else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         else if (strcmp(a, "-@") == 0) var = &file_th;
         else if (strcmp(a, "-q") == 0) var = &mapq;
