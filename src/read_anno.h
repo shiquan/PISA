@@ -6,15 +6,16 @@
 // todo: merge with bed annotation types
 enum exon_type {
     type_unknown = 0,  // unknown type, init state
-    type_exon,     // read full covered in exon
     type_splice,        // junction read map two or more exome
+    type_exon,     // read full covered in exon
     type_exon_intron,   // read cover exon and nearby intron
+    type_intron_retain,
     type_intron,        // read full covered in intron, with same strand of gene
     type_exclude,       // exclude exons
     type_antisense,     // read map on antisense
     type_antisense_intron,
     type_ambiguous,     // junction read map to isoform(s) but skip some isoforms between, or map to intron
-    type_intergenic,
+    type_intergenic,    
 };
 
 struct trans_type {
