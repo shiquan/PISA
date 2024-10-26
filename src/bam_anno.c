@@ -29,6 +29,7 @@ struct read_stat {
     uint64_t reads_in_exon;
     uint64_t reads_in_exonintron;
     uint64_t reads_in_intron;
+    uint64_t reads_intron_retain;
     uint64_t reads_exclude;
     uint64_t reads_antisense;
     uint64_t reads_antisenseintron;
@@ -57,7 +58,7 @@ static struct args {
     const char *btag;
     
     int ignore_strand;
-    int splice_flag;
+    int exonintron_flag;
     int intron_flag;
     int antisense;
     
@@ -125,8 +126,8 @@ static struct args {
     .ctag            = NULL,
     .tss_mode        = 0,
     .ignore_strand   = 0,
-    .splice_flag = 0,
-    .intron_flag = 0,
+    .exonintron_flag = 0,
+    .intron_flag     = 0,
     .antisense       = 0,
     .exon_level      = 0,
     .flatten_flag    = 0,
@@ -254,9 +255,10 @@ static char **chr_binding(const char *fname, bam_hdr_t *hdr)
 // GX for gene id,
 // AN for transcript name but read mapped on antisense,
 // RE for region type,
-// EX for exon name [Gene_EXn].
+// EX for exon name [chr:start-end/[+-]/Gene].
+// JC for junction name
 // FL for flatten exon name
-// ER for exlcuded exons, used for PSI calculation
+// ER for exlcuded exons, usually used for PSI calculation
 static char TX_tag[2] = "TX";
 // static char AN_tag[2] = "AN";
 static char GN_tag[2] = "GN";
@@ -310,7 +312,7 @@ static int parse_args(int argc, char **argv)
             continue;
         }
         else if (strcmp(a, "-splice-consider") == 0 || strcmp(a, "-splice") == 0) {
-            args.splice_flag = 1;
+            args.exonintron_flag = 1;
             continue;
         }
         else if (strcmp(a, "-intron") == 0 || strcmp(a, "-velo") == 0) {
@@ -360,7 +362,7 @@ static int parse_args(int argc, char **argv)
         }
         else if (strcmp(a, "-vcf-ss") == 0) {
             // args.vcf_ss = 1;
-            warnings("Strand sensitive mode is enabled in default. -vcf-ss is removed since v1.3. Use -is to disable.");
+            warnings("Strand sensitive mode is enabled by default. -vcf-ss is removed since v1.3. Use -is to disable.");
             continue;
         }
         else if (strcmp(a, "-phased") == 0) {
@@ -632,7 +634,7 @@ static int cmpfunc1(const void *_a, const void *_b)
     return (a->type > b->type) - (a->type < b->type);
 }
 
-// type_exon == type_splice > type_exon_intron > type_ambiguous > type_intron > type_anitisense > type_antisense_intron == type_unknown
+// type_splice > type_exon > type_exon_intron > type_intron_retain > type_intron > type_exclude > type_anitisense > type_antisense_intron > type_ambiguous > type_intergenic
 // 
 static void gene_most_likely_type(struct gene_type *g)
 {
@@ -641,36 +643,40 @@ static void gene_most_likely_type(struct gene_type *g)
     for (i = 0; i < g->n; ++i) {
         struct trans_type *t = &g->a[i];
         if (t->type == type_unknown) continue;
-        else if (t->type == type_exon) {
-            g->type = t->type;
-            break; // exon is already the best hit
-        }
         else if (t->type == type_splice) {
             g->type = type_splice; // same with exon
             break;
         }
-        else if (t->type == type_exclude) {
-            // only label transcript, but not gene
-        }
-        else if (t->type == type_intron) {
-            if (g->type == type_unknown) g->type = t->type;
+        else if (t->type == type_exon) {
+            g->type = t->type;
+            break; // exon is already the best hit
         }
         else if (t->type == type_exon_intron) {
             g->type = t->type;
             break;
         }
-        else if (t->type == type_ambiguous) {
-            if (g->type == type_unknown) g->type = t->type;
-            else if (g->type == type_intron) g->type = t->type; // should not happen?
-            else if (g->type == type_antisense) g->type = t->type;
-            else if (g->type == type_antisense_intron) g->type = t->type;
+        else if (t->type == type_intron_retain) {
+            g->type = t->type;
+            break;
+        }
+        else if (t->type == type_intron) {
+            g->type = t->type;
+            break;
+        }
+        else if (t->type == type_exclude) {
+            // only label transcript, but not gene
         }
         else if (t->type == type_antisense) {
             if (g->type == type_unknown) g->type = t->type;
-            // else if (g->type == type_antisense_intron) g->type = t->type;
+            break;
         }
         else if (t->type == type_antisense_intron) {
             if (g->type == type_unknown) g->type = t->type;
+            break;
+        }
+        else if (t->type == type_ambiguous) {
+            if (g->type == type_unknown) g->type = t->type;
+            break;
         }
         else error("Unknown gene annotation type. %d", t->type);
     }
@@ -697,7 +703,11 @@ static void gtf_anno_most_likely_type(struct gtf_anno_type *ann)
             break;
         }
         else if (g->type == type_exon_intron) {
-            //if (ann->type != type_exon && ann->type != type_splice)
+            if (g->type == type_unknown) ann->type = g->type;
+            else if (g->type > type_exon_intron) ann->type = g->type;
+            break;
+        }
+        else if (g->type == type_intron_retain) {
             ann->type = g->type;
             break;
         }
@@ -706,19 +716,15 @@ static void gtf_anno_most_likely_type(struct gtf_anno_type *ann)
             ann->type = g->type;
             break;
         }
-        else if (g->type == type_ambiguous) {
-            if (ann->type == type_unknown) ann->type = g->type; // better than unknown
-            else if (ann->type == type_intron) ann->type = g->type;
-            //else if (ann->type == type_exclude) ann->type = g->type;
-            else if (ann->type == type_antisense) ann->type = g->type;
-            else if (ann->type == type_antisense_intron) ann->type = g->type;
-        }
         else if (g->type == type_antisense) {
             if (ann->type == type_unknown) ann->type = g->type;
             else if (ann->type == type_antisense_intron) ann->type = g->type;
         }
         else if (g->type == type_antisense_intron) {
             if (ann->type == type_unknown) ann->type = g->type;
+        }
+        else if (g->type == type_ambiguous) {
+            if (ann->type == type_unknown) ann->type = g->type; // better than unknown
         }
         else error("Unknown gene annotation type. %d", g->type);
     }
@@ -734,7 +740,6 @@ static struct gtf *query_exon_id(struct gtf const *g, int id)
         j++;
         if (id == j) return g0;
     }
-
     return NULL;
 }
 //static enum exon_type
@@ -743,37 +748,50 @@ static struct gtf *query_exon(int start, int end, struct gtf const *G, int *exon
     assert(G->type == feature_transcript);
     int j = 0;
     int i;
+    int e1 = 0;
+    int e2 = -1;
     for (i = 0; i < G->n_gtf; ++i) {
         // from v0.4, transcript and exon in GTF_Spec struct will be sorted by coordinate
         //struct gtf_lite *g0 = G->strand == 0 ? &G->son[i] : &G->son[G->n_son-i-1];
         struct gtf *g0 = G->gtf[i];
         if (g0->type != feature_exon) continue;
         j++;
-        if (start >= g0->start - vague_edge && end <= g0->end + vague_edge) {
-            *exon = j<<2 | (start==g0->start)<<1 | (end == g0->end);
-            *exon_type = type_exon;
-            // return type_exon;
-            return g0;
-        }
-
         if (start >= g0->end) continue; // check next exon
-        if (end <= g0->start) {
-            *exon_type = type_intron;
-            return g0;
-            //return type_intron;
+        if (start >= g0->start - vague_edge && start <= g0->end + vague_edge) {
+            e1 = j;
         }
+        if (end >= g0->start - vague_edge && end <= g0->end + vague_edge) {
+            e2 = j;
+            if (e1 == e2) {
+                *exon = e1<<2| (start==g0->start)<<1 | (end == g0->end);
+                *exon_type = type_exon;
+                return g0;
+            }
+            if (e1 < e2) {
+                *exon = e1<<2;//| (start==g0->start)<<1 | (end == g0->end);
+                *exon_type = type_intron_retain;
+                return NULL;
+            }
+            assert(1); // should not come here
+        }
+        
+        if (end <= g0->start) {
+            if (i==0) {
+                *exon_type = type_unknown; // out of range
+            }
+            if (e1 == 0) {
+                *exon_type = type_intron;
 
-        if (start < g0->end && end > g0->end) {
-            // return type_exon_intron;
-            *exon = j<<2 | (start==g0->start)<<1 | (end == g0->end);
-            *exon_type = type_exon_intron;
+            } else {
+                *exon = e1<<2 | (start==g0->start)<<1 | (end == g0->end);
+                *exon_type = type_exon_intron;
+            }
             return g0;
         }
 
         if (start < g0->start && end > g0->start) {
-            *exon = j<<2 | (start==g0->start)<<1 | (end == g0->end);                        
+            *exon = j<<2 | (start==g0->start)<<1 | (end == g0->end);
             *exon_type = type_exon_intron;
-            // return type_exon_intron;
             return g0;
         }
     }
@@ -781,7 +799,27 @@ static struct gtf *query_exon(int start, int end, struct gtf const *G, int *exon
     *exon_type = type_unknown; // out of range
     return NULL;
 }
-
+static void query_exon_inside(int start, int end, struct gtf const *G, int *ex1, int *ex2)
+{
+    assert(G->type == feature_transcript);
+    *ex1 = -1;
+    *ex2 = -1;
+    int i;
+    int j = 0;
+    int k = 0;
+    for (i = 0; i < G->n_gtf; ++i) {
+        struct gtf *g0 = G->gtf[i];
+        if (g0->type != feature_exon) continue;
+        j++;
+        if (start >= g0->end) continue; // check next exon
+        if (end <= g0->start) break;
+        if (start < g0->start && end > g0->end) {
+            if (*ex1 == -1) *ex1 = j;
+            k++;
+        }
+    }
+    *ex2 = *ex1 + k;
+}
 // for each transcript, return a type of alignment record
 static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, int antisense, int vague)
 {
@@ -789,6 +827,28 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
     memset(tp, 0, sizeof(*tp));
     tp->trans_id = g->transcript_id;
     // tp->type = type_unknown;
+
+    if (args.psi && S->n >1 && antisense == 0) {
+        int i;
+        for (i = 1; i < S->n; ++i) {
+            struct pair *p1 = &S->p[i-1];
+            struct pair *p2 = &S->p[i];
+            int ex1, ex2;
+            query_exon_inside(p1->end, p2->start, g, &ex1, &ex2);
+            if (ex1 > 0) {
+                tp->type = type_exclude;
+                int j;
+                for (j = ex1; j < ex2; ++j) {
+                    if (tp->n_exclude == tp->m_exclude) {
+                        tp->m_exclude = tp->m_exclude == 0 ? 1 : tp->m_exclude *2;
+                        tp->exl = realloc(tp->exl, sizeof(void*)*tp->m_exclude);
+                    }
+                    tp->exl[tp->n_exclude++] = query_exon_id(g, j);
+                }                
+            }
+        }
+        if (tp->type == type_exclude) return tp;
+    }
     
     int exon;
     int last_exon = -1;
@@ -818,26 +878,15 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
                 tp->exon[tp->n_exon++] = e;
                 continue;
             }
-            else if (tp->type == type_exon || tp->type == type_splice || tp->type == type_exon_intron
-                     || tp->type == type_exclude) {
+            else if (tp->type == type_exon || tp->type == type_splice || tp->type == type_exon_intron) {
+                // || tp->type == type_exclude) {
                 assert(last_exon != -1);
                 int e2 = exon>>2;
                 int e1 = last_exon>>2;
                 
                 if (e2-e1>1) {  // check the exon number
-                    // update exclude exons
-                    int k;
-                    for (k = e1+1; k < e2; ++k) {
-                        if (tp->n_exclude == tp->m_exclude) {
-                            tp->m_exclude = tp->m_exclude == 0 ? 1 : tp->m_exclude *2;
-                            tp->exl = realloc(tp->exl, sizeof(void*)*tp->m_exclude);
-                        }
-                        tp->exl[tp->n_exclude++] = query_exon_id(g, k);
-                    }
-                    
-                    tp->type = type_exclude;
-                    last_exon = exon;
-                    continue;
+                    tp->type = type_ambiguous;
+                    break;
                 }
 
                 if ((last_exon & 0x1) && (exon & 0x2)) { // check the edge
@@ -860,8 +909,7 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
                 tp->type = t0;
                 break;
             }
-            else if (tp->type == type_exon || tp->type == type_splice || tp->type == type_exon_intron
-                || tp->type == type_exclude) {
+            else if (tp->type == type_exon || tp->type == type_splice || tp->type == type_exon_intron) {
                 // junction reads that partial mapped to exons but others mapped to intron 
                 tp->type = type_ambiguous;
                 break;
@@ -871,10 +919,15 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
                 assert(0);
             }
         }
+        else if (t0 == type_intron_retain) {
+            tp->type = type_intron_retain;
+            break;
+        }
     }
     if (antisense == 1) {
         if (tp->type == type_exon)  tp->type = type_antisense;
         else if (tp->type == type_splice)  tp->type = type_antisense;
+        else if (tp->type == type_intron_retain)  tp->type = type_antisense;
         else if (tp->type == type_intron) tp->type = type_antisense_intron;
         else if (tp->type == type_exon_intron) tp->type = type_antisense_intron;
         else if (tp->type == type_ambiguous) tp->type = type_antisense; // ?
@@ -890,12 +943,12 @@ static struct trans_type *gtf_anno_core(struct isoform *S, struct gtf const *g, 
         }
     }
 
-    if (tp->type != type_exclude && tp->n_exclude > 0) {
-        assert("should not come here");
-        free(tp->exl);
-        tp->n_exclude = 0;
-        tp->m_exclude = 0;
-    }
+    /* if (tp->type != type_exclude && tp->n_exclude > 0) { */
+    /*     assert("should not come here"); */
+    /*     free(tp->exl); */
+    /*     tp->n_exclude = 0; */
+    /*     tp->m_exclude = 0; */
+    /* } */
     return tp;  
 }
 
@@ -938,11 +991,11 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
     // 
     if (ann->type == type_unknown) return ret;
     else if (ann->type == type_intron && args.intron_flag == 0) return ret;
-    else if (ann->type == type_exon_intron && args.splice_flag == 0 && args.intron_flag == 0) return ret; // 
+    else if (ann->type == type_exon_intron && args.exonintron_flag == 0 && args.intron_flag == 0) return ret; // 
     else if (ann->type == type_ambiguous) return ret;
     else if (ann->type == type_antisense && args.antisense == 0) return ret;
     else if (ann->type == type_antisense_intron && args.antisense == 0) return ret;
-
+    else if (ann->type == type_exclude) return ret;
     // only exon or splice come here
     kstring_t gene_name = {0,0,0};
     kstring_t gene_id   = {0,0,0};
@@ -1135,7 +1188,6 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
 
 struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam_hdr_t *h, int vague_edge)
 {
-    //bam_hdr_t *h = args.hdr;
     bam1_core_t *c;
     c = &b->core;
     
@@ -1163,9 +1215,10 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
     int i;
     for (i = 0; i < itr->n; ++i) {
         int antisense = 0; // DO NOT CHANGE HERE
-            
+        
         struct gtf const *g0 = (struct gtf*)itr->rets[i];
-        if (g0->start - vague_edge > c->pos+1 || endpos  > g0->end + vague_edge) continue; // not fully covered
+        // check if fully enclosed in the gene region
+        if (g0->start - vague_edge > c->pos+1 || endpos  > g0->end + vague_edge) continue; 
 
         if (args.ignore_strand == 0) {
             int bam_strand = b->core.flag & BAM_FREVERSE;
@@ -1203,9 +1256,9 @@ struct gtf_anno_type *bam_gtf_anno_core(bam1_t *b, struct gtf_spec const *G, bam
     
     // stat type
     gtf_anno_most_likely_type(ann);
-
+    
     if (args.flatten_flag &&
-        (ann->type == type_exon || ann->type == type_splice || (args.splice_flag && ann->type == type_exon_intron))) {
+        (ann->type == type_exon || ann->type == type_splice || (args.exonintron_flag && ann->type == type_exon_intron))) {
         int i, j;
         for (i = 0; i < ann->n; ++i) {
             struct gene_type *a = &ann->a[i];
@@ -1273,6 +1326,7 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     else if (ann->type == type_splice) stat->reads_in_exon++; // reads cover two exomes
     else if (ann->type == type_intron) stat->reads_in_intron++;
     else if (ann->type == type_exon_intron) stat->reads_in_exonintron++;
+    else if (ann->type == type_intron_retain) stat->reads_intron_retain++;
     else if (ann->type == type_exclude) stat->reads_exclude++; // new transcript
     else if (ann->type == type_ambiguous) stat->reads_ambiguous++; // new transcript
     else if (ann->type == type_intergenic) stat->reads_in_intergenic++;
@@ -1560,6 +1614,7 @@ static void write_out(void *_d)
         s0->reads_in_intergenic += s1->reads_in_intergenic;
         s0->reads_in_exon += s1->reads_in_exon;
         s0->reads_in_intron += s1->reads_in_intron;
+        s0->reads_intron_retain += s1->reads_intron_retain;
         s0->reads_antisense += s1->reads_antisense;
         s0->reads_antisenseintron += s1->reads_antisenseintron;
         s0->reads_ambiguous += s1->reads_ambiguous;
