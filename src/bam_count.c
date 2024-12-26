@@ -662,10 +662,12 @@ static void *run_it(void *_p)
             if (RE_type_map(data[1]) == type_intergenic) continue; // goto skip_this_record;
 
             // update 2023/03/20, exonintron labeled for spanning and unspliced matrix
-            if (RE_type_map(data[1]) == type_exon_intron) spanning = 1;
-            
-            if (RE_type_map(data[1]) == type_exon_intron || RE_type_map(data[1]) == type_intron) unspliced = 1;
-            else if (RE_type_map(data[1]) == type_exon_intron) spanning = 1;
+            if (RE_type_map(data[1]) == type_exon_intron) {
+                spanning = 1;
+                unspliced = 1;
+            }
+            else if (RE_type_map(data[1]) == type_intron) unspliced = 1;
+
             //else if (RE_type_map(data[1]) == type_antisense) antisense = 1;
             //else if (RE_type_map(data[1]) == type_antisense_intron) antisense = 1;
         }
