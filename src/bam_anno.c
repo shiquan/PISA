@@ -254,6 +254,7 @@ static char **chr_binding(const char *fname, bam_hdr_t *hdr)
 // GN for gene name,
 // GX for gene id,
 // AN for transcript name but read mapped on antisense,
+// AS for gene nane, but mapped to antisense
 // RE for region type,
 // EX for exon name [chr:start-end/[+-]/Gene].
 // JC for junction name
@@ -261,6 +262,7 @@ static char **chr_binding(const char *fname, bam_hdr_t *hdr)
 // ER for exlcuded exons, usually used for PSI calculation
 static char TX_tag[2] = "TX";
 // static char AN_tag[2] = "AN";
+static char AS_tag[2] = "AS";
 static char GN_tag[2] = "GN";
 static char GX_tag[2] = "GX";
 static char RE_tag[2] = "RE";
@@ -1022,7 +1024,7 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
     int i;
     for (i = 0; i < ann->n; ++i) {
         struct gene_type *g = &ann->a[i];
-        //if (g->type == ann->type || ann->type == type_antisense) { // todo: antisense tx?
+
         if (g->type == ann->type) { // from v0.12, antisense also be annotated
             char *gene = NULL;
             char *id = NULL;
@@ -1128,47 +1130,51 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
     }
     
     if (gene_name.l) {
-        bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
-        bam_aux_append(b, GN_tag, 'Z', gene_name.l+1, (uint8_t*)gene_name.s);
-        bam_aux_append(b, TX_tag, 'Z', trans_id.l+1, (uint8_t*)trans_id.s);
-        if (args.exon_level && dict_size(exons)>0) {
-            tmp.l = 0;
-            int k;
-            for (k = 0; k < dict_size(exons); ++k) {
-                if (tmp.l) kputc(',', &tmp);
-                kputs(dict_name(exons, k), &tmp);  
-            }            
-            bam_aux_append(b, EX_tag, 'Z', tmp.l+1, (uint8_t*)tmp.s);
-
-            tmp.l = 0;
-            for (k = 0; k < dict_size(juncs); ++k) {
-                if (tmp.l) kputc(',', &tmp);
-                kputs(dict_name(juncs, k), &tmp);  
+        if (ann->type == type_antisense) {
+            bam_aux_append(b, AS_tag, 'Z', gene_name.l+1, (uint8_t*)gene_name.s);
+        } else {
+            bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
+            bam_aux_append(b, GN_tag, 'Z', gene_name.l+1, (uint8_t*)gene_name.s);
+            bam_aux_append(b, TX_tag, 'Z', trans_id.l+1, (uint8_t*)trans_id.s);
+            if (args.exon_level && dict_size(exons)>0) {
+                tmp.l = 0;
+                int k;
+                for (k = 0; k < dict_size(exons); ++k) {
+                    if (tmp.l) kputc(',', &tmp);
+                    kputs(dict_name(exons, k), &tmp);  
+                }            
+                bam_aux_append(b, EX_tag, 'Z', tmp.l+1, (uint8_t*)tmp.s);
+                
+                tmp.l = 0;
+                for (k = 0; k < dict_size(juncs); ++k) {
+                    if (tmp.l) kputc(',', &tmp);
+                    kputs(dict_name(juncs, k), &tmp);  
+                }
+                if (tmp.l > 0) {
+                    bam_aux_append(b, JC_tag, 'Z', tmp.l+1, (uint8_t*)tmp.s);
+                }
             }
-            if (tmp.l > 0) {
-                bam_aux_append(b, JC_tag, 'Z', tmp.l+1, (uint8_t*)tmp.s);
+            
+            if (args.psi && dict_size(exl)>0) {
+                tmp.l = 0;
+                int k;
+                for (k = 0; k < dict_size(exl); ++k) {
+                    if (tmp.l) kputc(',', &tmp);
+                    kputs(dict_name(exl, k), &tmp);  
+                }
+                bam_aux_append(b, ER_tag, 'Z', tmp.l+1, (uint8_t*)tmp.s);
             }
-        }
-
-        if (args.psi && dict_size(exl)>0) {
-            tmp.l = 0;
-            int k;
-            for (k = 0; k < dict_size(exl); ++k) {
-                if (tmp.l) kputc(',', &tmp);
-                kputs(dict_name(exl, k), &tmp);  
+            
+            if (args.flatten_flag && dict_size(flatten) > 0) {
+                tmp.l = 0;
+                int k;
+                for (k = 0; k < dict_size(flatten); ++k) {
+                    if (tmp.l) kputc(',', &tmp);
+                    kputs(dict_name(flatten, k), &tmp);  
+                }
+                //debug_print("flatten : %s", tmp.s);
+                bam_aux_append(b, FL_tag, 'Z', tmp.l+1, (uint8_t*)tmp.s);
             }
-            bam_aux_append(b, ER_tag, 'Z', tmp.l+1, (uint8_t*)tmp.s);
-        }
-
-        if (args.flatten_flag && dict_size(flatten) > 0) {
-            tmp.l = 0;
-            int k;
-            for (k = 0; k < dict_size(flatten); ++k) {
-                if (tmp.l) kputc(',', &tmp);
-                kputs(dict_name(flatten, k), &tmp);  
-            }
-            //debug_print("flatten : %s", tmp.s);
-            bam_aux_append(b, FL_tag, 'Z', tmp.l+1, (uint8_t*)tmp.s);
         }
         free(gene_id.s);
         free(gene_name.s);

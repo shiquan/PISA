@@ -283,7 +283,7 @@ int anno_usage()
     fprintf(stderr, " -psi                  Annotate exclude reads tag (ER) for each exon.\n");
     fprintf(stderr, " -vague-edge [INT]     Junction reads not exactly spliced at splice site and gene ends are allowed. Used to annotate third generation reads.\n");
     fprintf(stderr, "\n");
-    //fprintf(stderr, " -as                   Annotate antisense RNAs. **experiment**\n");
+    fprintf(stderr, " -as                   Annotate antisense RNAs. Put gene name at AS tag.\n");
     fprintf(stderr, " -tss                  Annotate reads start from TSS, designed for capped library. **experiment**\n");
     fprintf(stderr, " -ctag     [TAG]       Tag name for TSS annotation. Need set with -tss.\n");
 
