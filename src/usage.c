@@ -283,7 +283,7 @@ int anno_usage()
     fprintf(stderr, " -psi                  Annotate exclude reads tag (ER) for each exon.\n");
     fprintf(stderr, " -vague-edge [INT]     Junction reads not exactly spliced at splice site and gene ends are allowed. Used to annotate third generation reads.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, " -as                   Annotate antisense RNAs. Put gene name at AS tag.\n");
+    fprintf(stderr, " -as                   Annotate antisense RNAs. Put gene name at AT tag.\n");
     fprintf(stderr, " -tss                  Annotate reads start from TSS, designed for capped library. **experiment**\n");
     fprintf(stderr, " -ctag     [TAG]       Tag name for TSS annotation. Need set with -tss.\n");
 
@@ -298,11 +298,13 @@ int anno_usage()
     fprintf(stderr, " * If input is SAM format, will try to parse the tags in the read name.\n");
     fprintf(stderr, " * For GTF mode, this program will set tags in default, you could also reset them by -tags.\n");
     fprintf(stderr, "   TX : Transcript id.\n");
+    
     //fprintf(stderr, "   AN : Same with TX but set only if read mapped to antisense strand of transcript.\n");
     fprintf(stderr, "   GN : Gene name.\n");
     fprintf(stderr, "   GX : Gene ID.\n");
     fprintf(stderr, "   RE : Region type, E (exon), N (intron), C (exon and intron), S (junction reads cover isoforms properly), V (ambiguous reads),\n");
     fprintf(stderr, "        I (intergenic), A (antisense or antisense exon), B (antisense intron), X (one or more exons are excluded in transcrpit)\n");
+    fprintf(stderr, "   AT : Same with GN but set only if -as enabled and read mapped to antisense strand of gene.\n");
     fprintf(stderr, " * The following tags set with -exon.\n");
     fprintf(stderr, "   EX : Exon name tag.\n");
     fprintf(stderr, "   JC : Isoform junction name.\n");
@@ -387,7 +389,7 @@ int bam_count_usage()
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count -tags Cx,Cy -anno-tag GN -umi UB -outdir exp -velo aln.bam\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -tags/-cb [TAGs]     A cell barcode tag or two tags of spatial coordinates for spatial data.\n");
-    fprintf(stderr, " -anno-tag [TAG]      Annotation tag, gene or peak.\n");
+    fprintf(stderr, " -anno-tag [TAGs]     Annotation tag, gene or peak. If more than 1 tag specified, count tag 1 iff other tags existed at alignments. \n");
     fprintf(stderr, " -genome-bin [INT]    If genome bin size set, genome bin count matrix will be generated, conflict with -anno-tag and -chr.\n");
     fprintf(stderr, " -is                  Ignore strand for bin counting.\n");
     fprintf(stderr, " -chr                 Count chromosome expression level, conflict with -anno-tag and -genome-bin.\n");
