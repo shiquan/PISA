@@ -200,11 +200,41 @@ bam_hdr_t *sam_parse_header(kstream_t *s, kstring_t *line)
     bam_hdr_t *h = NULL;
     kstring_t str = {0,0,0};
     int ret;
+    struct dict *names = dict_init();
+    kstring_t tmp = {0,0,0};
     
     while (ks_getuntil(s, 2, line, &ret) >= 0) {
         if (line->s[0] != '@') break;
-        kputsn(line->s, line->l, &str);
-        kputc('\n', &str);
+
+        // sam-dump may generate duplicate PG records, here we filter duplicate records here..
+        if (line->s[1] == 'S' && line->s[2] == 'Q') {
+
+            int k0 = 3;
+            char *s;
+            for (; k0 < line->l-2; ++k0) {
+                if (line->s[k0] == 'S' && line->s[k0+1] == 'N' && line->s[k0+2] == ':') break;
+            }
+
+            if (k0 < line->l-2) {
+                s = line->s + k0 + 3;
+                char *p;
+                for (p = s; !isspace(*p); ++p);
+                tmp.l = 0;
+                kputsn(s, p-s, &tmp);
+                kputs("", &tmp);
+                int qry = dict_query(names, tmp.s);
+                if (qry >= 0) {
+                    warnings("Duplicate record, %s. Skip it.", tmp.s);
+                } else {
+                    dict_push(names, tmp.s);
+                    kputsn(line->s, line->l, &str);
+                    kputc('\n', &str);
+                }
+            }                        
+        } else {
+            kputsn(line->s, line->l, &str);
+            kputc('\n', &str);
+        }
     }
 
     if (ret < -1) goto failed_parse;
