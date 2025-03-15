@@ -27,6 +27,7 @@ static struct args {
         
     struct dict *tags; // a cell barcode tag or two tags for spatial coordinates
     const char *anno_tag; // feature tag
+    struct dict *anno_tags; // if more than one tag
     const char *umi_tag;
 
     const char *prefix;
@@ -76,6 +77,7 @@ static struct args {
     .outdir          = NULL,
     .tags            = NULL,
     .anno_tag        = NULL,
+    .anno_tags       = NULL,
     .umi_tag         = NULL,
 
     .prefix          = NULL,
@@ -131,6 +133,7 @@ struct counts {
 static void memory_release()
 {
     if (args.tags) dict_destroy(args.tags);
+    if (args.anno_tags) dict_destroy(args.anno_tags);
     
     close_bam_files(args.files);
     
@@ -163,7 +166,7 @@ static int parse_args(int argc, char **argv)
         const char **var = 0;
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         if (strcmp(a, "-tags") == 0 || strcmp(a, "-tag") == 0 || strcmp(a, "-cb") == 0) var = &tag_str;
-        else if (strcmp(a, "-anno-tag") == 0) var = &args.anno_tag;
+        else if (strcmp(a, "-anno-tag") == 0 ||strcmp(a, "-anno-tags") == 0) var = &args.anno_tag;
         else if (strcmp(a, "-list") == 0) var = &args.whitelist_fname;
         else if (strcmp(a, "-umi") == 0) var = &args.umi_tag;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
@@ -245,9 +248,18 @@ static int parse_args(int argc, char **argv)
         error("No cell barcode specified disabled.");
 
     args.tags = str2tag(tag_str);
-    
+
     if (args.anno_tag == 0 && args.genome_bin_size == 0) error("No anno tag or bin size specified.");
     if (args.anno_tag  && args.genome_bin_size > 0) error("-anno-tag and -bin-size are conflict.");
+
+    if (args.anno_tag) {
+        args.anno_tags = str2tag(args.anno_tag);
+        if (dict_size(args.anno_tags) == 1) {
+            dict_destroy(args.anno_tags);
+            args.anno_tags = NULL;
+        }
+    }
+    
     if (n_thread) args.n_thread = str2int((char*)n_thread);
     if (chunk_size) args.chunk_size = str2int((char*)chunk_size);
 
@@ -618,9 +630,21 @@ static void *run_it(void *_p)
         }
 
         char *anno_tag = NULL;
-        if (args.anno_tag) {
+        if (args.anno_tags) {
+            anno_tag = (char*)bam_aux_get(b, dict_name(args.anno_tags, 0));
+            int k0 = 1;
+            for (; k0 < dict_size(args.anno_tags); ++k0) {
+                char *tmp = (char*)bam_aux_get(b, dict_name(args.anno_tags, k0-1));
+                if (!tmp) {
+                    anno_tag = NULL;
+                    break;
+                }
+            }
+            if (!anno_tag) continue;            
+            anno_tag = anno_tag+1;
+        } else if (args.anno_tag) {
             anno_tag = (char*)bam_aux_get(b, args.anno_tag);
-            if (!anno_tag) continue;
+            if (!anno_tag) continue;            
             anno_tag = anno_tag+1;
         } else {
             assert(args.genome_bin_size != 0);

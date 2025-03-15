@@ -253,16 +253,14 @@ static char **chr_binding(const char *fname, bam_hdr_t *hdr)
 // TX for transcript name,
 // GN for gene name,
 // GX for gene id,
-// AN for transcript name but read mapped on antisense,
-// AS for gene nane, but mapped to antisense
+// AT for gene nane, but mapped to antisense.
 // RE for region type,
 // EX for exon name [chr:start-end/[+-]/Gene].
 // JC for junction name
 // FL for flatten exon name
 // ER for exlcuded exons, usually used for PSI calculation
 static char TX_tag[2] = "TX";
-// static char AN_tag[2] = "AN";
-static char AS_tag[2] = "AS";
+static char AT_tag[2] = "AT";
 static char GN_tag[2] = "GN";
 static char GX_tag[2] = "GX";
 static char RE_tag[2] = "RE";
@@ -479,7 +477,7 @@ sam_file:
             if (n != 4 && n != 6) error("-tags required 4 or 6 tag names.");
             
             memcpy(TX_tag, str.s+s[0], 2*sizeof(char));
-            // memcpy(AN_tag, str.s+s[1], 2*sizeof(char));
+            // memcpy(AT_tag, str.s+s[1], 2*sizeof(char));
             memcpy(GN_tag, str.s+s[1], 2*sizeof(char));
             memcpy(GX_tag, str.s+s[2], 2*sizeof(char));
             memcpy(RE_tag, str.s+s[3], 2*sizeof(char));
@@ -1131,7 +1129,7 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
     
     if (gene_name.l) {
         if (ann->type == type_antisense) {
-            bam_aux_append(b, AS_tag, 'Z', gene_name.l+1, (uint8_t*)gene_name.s);
+            bam_aux_append(b, AT_tag, 'Z', gene_name.l+1, (uint8_t*)gene_name.s);
         } else {
             bam_aux_append(b, GX_tag, 'Z', gene_id.l+1, (uint8_t*)gene_id.s);
             bam_aux_append(b, GN_tag, 'Z', gene_name.l+1, (uint8_t*)gene_name.s);
@@ -1310,7 +1308,7 @@ int bam_gtf_anno(bam1_t *b, struct gtf_spec const *G, struct read_stat *stat)
     // cleanup all exist tags
     uint8_t *data;
     if ((data = bam_aux_get(b, TX_tag)) != NULL) bam_aux_del(b, data);
-    // if ((data = bam_aux_get(b, AN_tag)) != NULL) bam_aux_del(b, data);
+    // if ((data = bam_aux_get(b, AT_tag)) != NULL) bam_aux_del(b, data);
     if ((data = bam_aux_get(b, GN_tag)) != NULL) bam_aux_del(b, data);
     if ((data = bam_aux_get(b, GX_tag)) != NULL) bam_aux_del(b, data);
     if ((data = bam_aux_get(b, RE_tag)) != NULL) bam_aux_del(b, data);
