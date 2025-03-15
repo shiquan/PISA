@@ -230,7 +230,10 @@ bam_hdr_t *sam_parse_header(kstream_t *s, kstring_t *line)
                     kputsn(line->s, line->l, &str);
                     kputc('\n', &str);
                 }
-            }                        
+            } else {
+                kputsn(line->s, line->l, &str);
+                kputc('\n', &str);
+            }
         } else {
             kputsn(line->s, line->l, &str);
             kputc('\n', &str);
