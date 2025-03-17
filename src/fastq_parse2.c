@@ -550,6 +550,8 @@ static void *run_it(void *_p)
             struct bc_reg *r = &args.bcs[j];
             kstring_t str = {0,0,0};
             kstring_t corr = {0,0,0};
+            int all_exact = 1;
+            int any_failure = 0; 
             
             int k;
             for (k = 0; k < r->n; ++k) {
@@ -558,16 +560,21 @@ static void *run_it(void *_p)
                 if (r->corr_tag) {
                     int ex;
                     char *val0 = correct_bc(r0->wl, val, &ex);
-                    if (ex && b->flag == FQ_FLAG_PASS) b->flag = FQ_FLAG_BC_EXACTMATCH;
+                    if (!ex) {
+                        all_exact = 0;
+                    }
                     if (val0 == NULL) {
+                        any_failure = 1;
                         b->flag = FQ_FLAG_BC_FAILURE;
                     } else {
                         kputs(val0, &corr);
-                        // free(val0);
                     }
                 }
                 kputs(val, &str);
                 free(val);
+            }
+            if (all_exact && b->flag == FQ_FLAG_PASS && !any_failure) {
+                b->flag = FQ_FLAG_BC_EXACTMATCH;
             }
 
             char *name1 = fname_update_tag(b->n0.s, r->raw_tag, str.s);
