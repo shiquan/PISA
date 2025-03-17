@@ -546,6 +546,7 @@ static void *run_it(void *_p)
         struct bseq *b = &p->s[i];
         int j;
         b->flag = FQ_FLAG_PASS;
+        int exact = 0;
         for (j = 0; j < args.n_bc; ++j) {
             struct bc_reg *r = &args.bcs[j];
             kstring_t str = {0,0,0};
@@ -558,7 +559,8 @@ static void *run_it(void *_p)
                 if (r->corr_tag) {
                     int ex;
                     char *val0 = correct_bc(r0->wl, val, &ex);
-                    if (ex && b->flag == FQ_FLAG_PASS) b->flag = FQ_FLAG_BC_EXACTMATCH;
+                    if (ex) exact++;
+                    // if (ex && b->flag == FQ_FLAG_PASS) b->flag = FQ_FLAG_BC_EXACTMATCH;
                     if (val0 == NULL) {
                         b->flag = FQ_FLAG_BC_FAILURE;
                     } else {
@@ -569,7 +571,9 @@ static void *run_it(void *_p)
                 kputs(val, &str);
                 free(val);
             }
-
+            // make sure all segments exact matched
+            if (exact == r->n)  b->flag = FQ_FLAG_BC_EXACTMATCH;
+            
             char *name1 = fname_update_tag(b->n0.s, r->raw_tag, str.s);
             if (corr.l) {
                 char *tmp = name1;
