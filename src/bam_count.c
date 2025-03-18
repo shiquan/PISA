@@ -243,7 +243,10 @@ static int parse_args(int argc, char **argv)
     if (args.output_fname) {
         warnings("PISA now support MEX format. Old cell X gene expression format is very poor performance. Try -outdir instead of -o.");
     }
-    
+
+    if (args.output_fname == NULL && args.outdir == NULL) {
+        error("-outdir or -o is required to specify output file.");
+    }
     if (tag_str == 0) // && args.alias_file_cb == 0)
         error("No cell barcode specified disabled.");
 
