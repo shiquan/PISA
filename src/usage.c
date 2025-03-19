@@ -498,3 +498,24 @@ int depth_usage()
     fprintf(stderr, " * Compares with `samtools depth`, PISA depth considers UMIs and strand of reads.\n");
     return 1;
 }
+
+int bin_usage()
+{
+    fprintf(stderr, "# Count reads or fragments per genomic bin for bulk/single-cell WGS/WES/RNA-seq/ATAC-seq.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m bin -outdir bins sorted.bam\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m bin -cb CB -outdir bins sorted.bam\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m bin -cb CB -umi UB -outdir bins sorted.bam\n");
+    fprintf(stderr, "\nOptions :\n");
+    fprintf(stderr, " -cb       [TAG]      A cell barcode tag or two tags of spatial coordinates for spatial data.\n");
+    fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
+    fprintf(stderr, " -bins                Bin window sizes for counting. Default is \"50K,100K,500K,1M\".\n");
+    fprintf(stderr, " -list     [FILE]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
+    fprintf(stderr, " -outdir   [DIR]      Output count files in MEX format into this folder.\n");
+    fprintf(stderr, " -q        [INT]      Minimal map quality to filter. Default is 20.\n");
+    fprintf(stderr, " -strand              Enable strand sensitive.\n");
+    fprintf(stderr, " -t        [INT]      Threads.\n");
+    fprintf(stderr, " -sample-list [FILE]  A list of bam files. Each line contains a path and the sample name.\n");
+    fprintf(stderr,"\n");
+    return 1;
+}
