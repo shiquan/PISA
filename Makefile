@@ -84,6 +84,7 @@ AOBJ = src/bam_anno.o \
 	src/fastq_parse2.o \
 	src/gtf_format.o \
 	src/callept.o \
+	src/genomecov.o \
 	src/bed_merge.o \
 	src/bed_anno.o \
 	src/gtf2bed.o \
@@ -142,6 +143,8 @@ src/biostring.o:src/biostring.c
 src/kthread.o:src/kthread.c
 src/addtags.o:src/addtags.c
 src/fragment.o:src/fragment_count.c
+src/callept.o:src/callept.c
+src/genomecov.o:src/genomecov.c
 
 clean: testclean
 	-rm -f gmon.out *.o *~ $(PROG) 
