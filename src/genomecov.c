@@ -493,7 +493,7 @@ int bin_main(int argc, char **argv)
             cc = new_cc(hdr->target_len[c->tid]);
             ccs[lst_chr] = cc;
             if (args.umi_tag) cc->need_update = 1;
-            debug_print("Working on %s.", hdr->target_name[lst_chr]);
+            // debug_print("Working on %s.", hdr->target_name[lst_chr]);
         }
         
         if (lst_chr != c->tid) {
@@ -504,7 +504,7 @@ int bin_main(int argc, char **argv)
             cc = new_cc(hdr->target_len[c->tid]);
             ccs[lst_chr] = cc;
             if (args.umi_tag) cc->need_update = 1;
-            debug_print("Working on %s.", hdr->target_name[lst_chr]);
+            // debug_print("Working on %s.", hdr->target_name[lst_chr]);
         }
 
         int pos = c->pos + 1;
@@ -578,7 +578,7 @@ int bin_main(int argc, char **argv)
                     struct cnt0 *cnt0 = &cnt->cnt[cnt->n++];
                     // thread safe
                     args.n_records[j]++;
-                    
+                    if (cnt->n==1) args.n_features[j]++;
                     cnt0->cnt = 0;
                     cnt0->umi = NULL;
                     if (umi) {
@@ -602,7 +602,7 @@ int bin_main(int argc, char **argv)
 
                 struct cnt0 *cnt0 = &cnt->cnt[cnt->n++];
                 args.n_records[j]++;
-
+                if (cnt->n==1) args.n_features[j]++;
                 cnt0->cnt = 0;
                 cnt0->umi = NULL;
                 if (umi) {
@@ -612,9 +612,7 @@ int bin_main(int argc, char **argv)
                     cnt0->cnt++;
                 }
                 cnt0->id = id;
-            }
-
-            if (cnt->n==1) args.n_features[j]++;
+            }            
         }
         // fusion
         
