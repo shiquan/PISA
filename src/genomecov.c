@@ -121,7 +121,7 @@ static int parse_args(int argc, char **argv)
             int k;
             for (k = 0; k < n; ++k) {
                 char *ss = tmp.s + s[k];
-                args.bins[k] = human2int(ss);
+                args.bins[k] = genome2int(ss);
             }
             args.n_bin = n;
         } else if (n > 4) {
@@ -129,7 +129,7 @@ static int parse_args(int argc, char **argv)
             int k;
             for (k = 0; k < n; ++k) {
                 char *ss = tmp.s + s[k];
-                bins[k] = human2int(ss);
+                bins[k] = genome2int(ss);
             }
             args.bins = bins;
             args.n_bin = n;
@@ -468,7 +468,7 @@ int bin_main(int argc, char **argv)
     // int fi;
     // for (fi = 0; fi < args.n_file; ++fi) {
         
-// #pragma omp parallel num_threads(args.n_thread)
+    // #pragma omp parallel num_threads(args.n_thread)
         
     struct chrom_counts *cc = NULL;
 
@@ -476,9 +476,7 @@ int bin_main(int argc, char **argv)
     b = bam_init1();
     
     for (;;) {
-        
         if (sam_read1(in, hdr, b) < 0) break;
-        
         bam1_core_t *c = &b->core;
         if (c->tid < 0 || c->tid > nref) continue;
         if (c->qual < args.mapq_thres) continue;
@@ -579,6 +577,7 @@ int bin_main(int argc, char **argv)
                     // thread safe
                     args.n_records[j]++;
                     if (cnt->n==1) args.n_features[j]++;
+                    
                     cnt0->cnt = 0;
                     cnt0->umi = NULL;
                     if (umi) {
@@ -603,6 +602,7 @@ int bin_main(int argc, char **argv)
                 struct cnt0 *cnt0 = &cnt->cnt[cnt->n++];
                 args.n_records[j]++;
                 if (cnt->n==1) args.n_features[j]++;
+                
                 cnt0->cnt = 0;
                 cnt0->umi = NULL;
                 if (umi) {
@@ -612,7 +612,9 @@ int bin_main(int argc, char **argv)
                     cnt0->cnt++;
                 }
                 cnt0->id = id;
-            }            
+            } 
+
+            
         }
         // fusion
         
