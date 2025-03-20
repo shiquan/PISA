@@ -39,4 +39,5 @@ extern double force2num_l(char *str, int l);
 extern int str2int(const char *str);
 extern int str2int_l(const char *str, int l);
 extern int human2int(const char *str);
+extern int genome2int(const char *str);
 #endif

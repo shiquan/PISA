@@ -331,3 +331,13 @@ int human2int(const char *str)
     else if (*q == 'g'||*q=='G') m<<=30;
     return m;
 }
+
+int genome2int(const char *str)
+{
+    char *q;
+    int m = strtol(str, &q, 0);
+    if (*q == 'k'||*q=='K') m = m *1000;
+    else if (*q == 'm'||*q=='M') m = m*1000000;
+    else if (*q == 'g'||*q=='G') m = m*1000000000;
+    return m;
+}
