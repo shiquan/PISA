@@ -284,6 +284,7 @@ struct chrom_counts *new_cc(int size)//, int id)
     for (i = 0; i < args.n_bin; ++i) {
         int bin = args.bins[i];
         int size0 = size/bin +1;
+        args.n_features[i] += size0;
         cc->cnt[i] = malloc(sizeof(struct cnt)*size0);
         
         int j;
@@ -491,7 +492,7 @@ int bin_main(int argc, char **argv)
             cc = new_cc(hdr->target_len[c->tid]);
             ccs[lst_chr] = cc;
             if (args.umi_tag) cc->need_update = 1;
-            // debug_print("Working on %s.", hdr->target_name[lst_chr]);
+            debug_print("Working on %s.", hdr->target_name[lst_chr]);
         }
         
         if (lst_chr != c->tid) {
@@ -502,7 +503,7 @@ int bin_main(int argc, char **argv)
             cc = new_cc(hdr->target_len[c->tid]);
             ccs[lst_chr] = cc;
             if (args.umi_tag) cc->need_update = 1;
-            // debug_print("Working on %s.", hdr->target_name[lst_chr]);
+            debug_print("Working on %s.", hdr->target_name[lst_chr]);
         }
 
         int pos = c->pos + 1;
@@ -576,7 +577,7 @@ int bin_main(int argc, char **argv)
                     struct cnt0 *cnt0 = &cnt->cnt[cnt->n++];
                     // thread safe
                     args.n_records[j]++;
-                    if (cnt->n==1) args.n_features[j]++;
+                    //if (cnt->n==1) args.n_features[j]++;
                     
                     cnt0->cnt = 0;
                     cnt0->umi = NULL;
@@ -601,7 +602,7 @@ int bin_main(int argc, char **argv)
 
                 struct cnt0 *cnt0 = &cnt->cnt[cnt->n++];
                 args.n_records[j]++;
-                if (cnt->n==1) args.n_features[j]++;
+                //if (cnt->n==1) args.n_features[j]++;
                 
                 cnt0->cnt = 0;
                 cnt0->umi = NULL;
