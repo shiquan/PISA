@@ -1037,8 +1037,9 @@ int gtf_anno_string(bam1_t *b, struct gtf_anno_type *ann, struct gtf_spec const 
             }
 
             if (gene == NULL && id == NULL) error("No gene name or gene id in gtf? %s", (char*)b->data);
-            if (gene == NULL) id = gene;
-            if (id == NULL) gene = id;
+            if (gene == NULL) gene = id;
+            if (id == NULL)  id = gene;
+            // debug_print("gene, %s, id, %s", gene, id);
             kputs(gene, &gene_name);
             kputs(id, &gene_id);
             int j;
