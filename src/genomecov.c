@@ -283,8 +283,7 @@ struct chrom_counts *new_cc(int size)//, int id)
     int i;
     for (i = 0; i < args.n_bin; ++i) {
         int bin = args.bins[i];
-        int size0 = size/bin +1;
-        args.n_features[i] += size0;
+        int size0 = size/bin +1;        
         cc->cnt[i] = malloc(sizeof(struct cnt)*size0);
         
         int j;
@@ -398,6 +397,7 @@ void write_out(bam_hdr_t *hdr, struct chrom_counts **ccs, int nref)
             if (cc == NULL) continue;
             int size = cc->size;
             int n = size/bin + 1;
+            args.n_features[k] += n;
             // struct cnt *cnt = cc->cnt[k];
             int j;
             for (j = 0; j < n; ++j) {
