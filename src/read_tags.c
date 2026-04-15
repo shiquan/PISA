@@ -62,12 +62,17 @@ char *fname_concat_tag(char *p, const char *tag, const char *val)
 {
     kstring_t str = {0,0,0};
     int i, l = strlen(p);
+    int vl = strlen(val);
     for (i = 0; i < l && !isspace(p[i]); i++);
     kputsn(p, i, &str); kputs("", &str);
     kputs("|||", &str);
     kputs(tag, &str);
     kputc(':', &str);
-    if (val[1] != ':') kputs("Z:", &str); // if no type in the val, treat as 'Z'
+    if (vl > 3 && val[1] == ':' && val[3] == ':') {
+// if type included in the value, do nothing
+    } else {
+        kputs("Z:", &str); // if no type in the val, treat as 'Z'
+    }
     kputs(val, &str);
 
     if (i < l) kputs(p+i, &str); // other optional fields
@@ -85,6 +90,9 @@ char *fname_update_tag(char *p, const char *tag, const char *val)
 {
     int i = fname_query_tag(p, tag);    
     if (i < 0) return fname_concat_tag(p, tag, val);
+
+// skip type 
+//    i = i + 2;
     
     int l = strlen(p);
     int lv = strlen(val);
@@ -95,8 +103,8 @@ char *fname_update_tag(char *p, const char *tag, const char *val)
 
     if (j - i == lv && strncmp(val, p+i, lv) == 0) return NULL; // already present, no update
     kstring_t str = {0,0,0};
-    kputsn(p, i, &str);
-    kputc(':', &str);
+    kputsn(p, i+2, &str);
+//kputc(':', &str);
     kputs(val, &str);
     if (j < l) kputs(p+j, &str);
     if (str.l > MAX_ID_LENGTH) {
