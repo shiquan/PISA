@@ -175,6 +175,8 @@ int counts_push(struct counts *cnt, bam1_t *b)
     uint8_t *tag = bam_aux_get(b, args.cb_tag);
     if (!tag) return 1; // skip records without cell Barcodes
 
+    
+
     kstring_t str = {0,0,0};
 
     if (*tag == 'Z' || *tag == 'H') {
@@ -200,15 +202,19 @@ int counts_push(struct counts *cnt, bam1_t *b)
     } else {
         error("Corrupted aux data for read %s", bam_get_qname(b));
     }
+    
+
     int id = -1; // individual index
     
     if (args.is_dyn_alloc == 0) {
+
         id = dict_query(cnt->bc_dict, str.s);
         if (id == -1) return 1;
         dict_push(cnt->bc_dict, str.s); // increase count
     }
     else {
         id = dict_push(cnt->bc_dict, str.s);
+
         if (dict_size(cnt->bc_dict) >= cnt->m) {
             cnt->m = cnt->m == 0 ? 1024 : cnt->m<<1;
             cnt->counts = realloc(cnt->counts, cnt->m*sizeof(struct counts_per_bcode));
@@ -222,7 +228,7 @@ int counts_push(struct counts *cnt, bam1_t *b)
         }
     }
     free(str.s);
-    
+
     struct counts_per_bcode *bc = &cnt->counts[id];
 
     // check region types
@@ -245,13 +251,14 @@ int counts_push(struct counts *cnt, bam1_t *b)
 
     // dynamic allocate group tag
     int grp_id = 0; // group index
-    
+        
     if (args.group_tag) {
         uint8_t *tag = bam_aux_get(b, args.group_tag);
         if (!tag) return 1;
         grp_id = dict_push(cnt->group_dict, (char*)(tag+1));
     }
     int alloc_group = grp_id+1;
+
 
     if (bc->m < alloc_group*args.n_tag) {
         bc->m = alloc_group*args.n_tag;
@@ -269,7 +276,6 @@ int counts_push(struct counts *cnt, bam1_t *b)
         dict_push(d, (char*)(va+1));
         bc->counts[idx] = d;
     }
-    
     return 0;
 }
 
@@ -308,7 +314,6 @@ int generat_outputs(struct counts *cnt)
 
     int i;
     int w = args.group_tag == NULL ? args.n_tag : args.n_tag*dict_size(cnt->group_dict);
-    
     for (i = 0; i < dict_size(cnt->bc_dict); ++i) {
         struct counts_per_bcode *bcode = &cnt->counts[i];
         fprintf(out, "%s\t%u", dict_name(cnt->bc_dict, i), dict_count(cnt->bc_dict, i) );

@@ -141,7 +141,7 @@ static int dict_push0(struct dict *D, char const *key, int idx)
     int ret;
     ret = dict_query(D, key);
     if (ret != -1) {
-        D->count[ret]++;
+// D->count[ret]++;
         return ret;
     }
     if (D->n == D->m) {
