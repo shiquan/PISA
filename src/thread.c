@@ -36,11 +36,13 @@ void tpool_thread(void *_p)
 struct tpool *tpool_init(int n_thread, int max_size, int do_not_block)
 {
     struct tpool *p = malloc(sizeof(*p));
+    if (p == NULL) error("Failed to allocate memory.");
     memset(p, 0, sizeof(*p));
     p->n_thread = n_thread;
     p->m = max_size;
     p->do_not_block = do_not_block;
     p->threads = malloc(sizeof(pthread_t)*n_thread);
+    if (p->threads == NULL) error("Failed to allocate memory.");
     pthread_mutex_init(&p->lock, NULL);
     pthread_cond_init(&p->not_empty, NULL);
     pthread_cond_init(&p->not_full, NULL);
@@ -70,6 +72,7 @@ int tpool_add_work(struct tpool *p, void *routine, void *arg)
     }
 
     w = malloc(sizeof(*w));
+    if (w == NULL) error("Failed to allocate memory.");
     w->routine = routine;
     w->arg = arg;
     w->next = NULL;

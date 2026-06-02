@@ -141,7 +141,7 @@ static int parse_args(int argc, char **argv)
             tmp.l = 0;
             
             int i;
-            for (i = 0; i < n; ++i) {
+            for (i = 0; i < args.check_wl_column; ++i) {
                 kputs(str.s+s[i], &tmp);
             }
             dict_push(args.barcodes, tmp.s);

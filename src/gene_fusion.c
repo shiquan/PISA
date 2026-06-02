@@ -68,8 +68,9 @@ static void memory_release()
 int build_barcode_gene_table()
 {
     htsFile *fp = hts_open(args.input_fname, "r");
+    if (fp == NULL) error("Failed to open input: %s.", args.input_fname);
     bam_hdr_t *hdr = sam_hdr_read(fp);
-    
+    if (hdr == NULL) error("Failed to read header.");
     hts_set_threads(fp, args.file_th);
 
     kstring_t str = {0,0,0};
@@ -290,8 +291,11 @@ int gene_fusion(int argc, const char **argv)
     
     // Annotate fusion record into bam file.
     htsFile *fp = hts_open(args.input_fname, "r");
+    if (fp == NULL) error("Failed to open input: %s.", args.input_fname);
     bam_hdr_t *hdr = sam_hdr_read(fp);
+    if (hdr == NULL) error("Failed to read header.");
     htsFile *out = hts_open(args.output_fname, "wb");
+    if (out == NULL) error("Failed to open output: %s.", args.output_fname);
 
     if (sam_hdr_write(out, hdr)) error("Failed to write SAM header.");
 
@@ -371,7 +375,7 @@ int gene_fusion(int argc, const char **argv)
     
     memory_release();
     
-    LOG_print("%ld fusion reads detected.", fusion_reads);
+    LOG_print("%llu fusion reads detected.", (unsigned long long)fusion_reads);
     LOG_print("Real time: %.3f sec; CPU: %.3f sec.", realtime() - t_real, cputime());
     return 0;
 }

@@ -269,7 +269,7 @@ static struct ref_pat *config_init(const char *fn)
                             seg->dist = str2int(n1->v.str);
                         }
                         else if (strcmp(n1->key, "white list") == 0) {
-                            if (node->type != KSON_TYPE_BRACKET) error("Format error.\"white list\":[]");
+                            if (n1->type != KSON_TYPE_BRACKET) error("Format error.\"white list\":[]");
                             seg->n = n1->n;
                             seg->wl = malloc(seg->n*sizeof(char*));
                             seg->hash = kh_init(str);

@@ -57,7 +57,7 @@ void check_tagstr(const char *tag_str)
     for (i = 0; i < args.n_tag; ++i) {
         char *tag = args.tag_str->s + args.s[i];
         if (strlen(tag) < 6) error("Unknown tag format %s", tag);
-        if (tag[2] != ':' && tag[4] != ':') error("Unknown tag format %s", tag);
+        if (tag[2] != ':' || tag[4] != ':') error("Unknown tag format %s", tag);
         tag[2] = 0;
         tag[4] = 0;
     }
@@ -68,8 +68,7 @@ void generate_bamout()
     if (hdr == NULL) error("Failed to read header.");
     
     htsFile *out = hts_open(args.output_fname, "wb");
-
-    hts_set_threads(out, args.n_thread);
+    if (out == NULL) error("Failed to open output: %s.", args.output_fname);
     
     if (sam_hdr_write(out, hdr)) error("Failed to write SAM header.");
     
@@ -109,8 +108,8 @@ void generate_fqout()
 {
     gzFile r = gzopen(args.input_fname, "r");
     BGZF *o = bgzf_open(args.output_fname, "w");
-
-    bgzf_mt(o, args.n_thread, 256);
+    if (r == NULL) error("Failed to open input: %s.", args.input_fname);
+    if (o == NULL) error("Failed to open output: %s.", args.output_fname);
         
     kseq_t *ks = kseq_init(r);
 
@@ -200,12 +199,13 @@ int add_tags(int argc, char **argv)
     args.in = hts_open(args.input_fname, "r");
     if (args.in == NULL) error("%s : %s.", args.input_fname, strerror(errno));
 
-    htsFormat type = *hts_get_format(args.in);
+    const htsFormat *fmt = hts_get_format(args.in);
+    if (fmt == NULL) error("Failed to detect format of %s.", args.input_fname);
 
-    if (type.format != bam && type.format != fastq_format)
+    if (fmt->format != bam && fmt->format != fastq_format)
         error("Unsupported input format, only support BAM/FASTQ format.");
     
-    if (type.format == bam) generate_bamout();
+    if (fmt->format == bam) generate_bamout();
     else generate_fqout(); 
     
     if (args.tag_str->m) free(args.tag_str->s);

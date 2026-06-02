@@ -2,14 +2,14 @@
 
 int frag_count_usage()
 {
-    fprintf(stderr, "# Count fragments per peak per cell matrix.\n");
+    fprintf(stderr, "# Generate peak-by-cell fragment count matrix.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count2 -bed peaks.bed -t 10 -list barcodes.txt -outdir exp fragments.tsv.gz\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -list     [FILE]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
-    fprintf(stderr, " -bed      [BED]      Peaks.\n");
-    fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this fold.\n");
-    fprintf(stderr, " -prefix   [STR]      Prefix of output files.\n");
+    fprintf(stderr, " -list     [FILE]     Barcode whitelist, used as column names in the matrix. If not set, all barcodes are counted.\n");
+    fprintf(stderr, " -bed      [BED]      Peak regions.\n");
+    fprintf(stderr, " -outdir   [DIR]      Output directory for MEX-format matrix.\n");
+    fprintf(stderr, " -prefix   [STR]      Prefix for output files.\n");
     fprintf(stderr, " -t        [INT]      Threads.\n");
     fprintf(stderr, "\n");
 
@@ -17,45 +17,45 @@ int frag_count_usage()
 }
 int fragment_usage()
 {
-    fprintf(stderr, "# Convert sam record to fragment file.\n");
+    fprintf(stderr, "# Convert SAM records to fragment file.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m bam2frag -cb CB -list cell_barcodes.txt -o out.tsv.gz in.bam\n");
-    fprintf(stderr, "\nOptions:\n");
-    fprintf(stderr, " -o       [FILE]    Output file. This file will be bgzipped and indexed.\n");
-    fprintf(stderr, " -cb      [TAG]     Cell barcode tag.\n");
-    fprintf(stderr, " -list    [FILE]    Cell barcode white list.\n");
-    fprintf(stderr, " -q       [20]      Mapping quality score to filter reads.\n");
-    fprintf(stderr, " -isize   [2000]    Skip if insert size greater than this. [2KB]\n");
-    fprintf(stderr, " -bed     [BED]     Only convert fragments overlapped with target regions.\n");
-    fprintf(stderr, " -black-region [BED] Skip convert fragments overlapped with black regions.\n");
-    fprintf(stderr, " -stat    [FILE]    Transposition events per cell.\n");   
-    fprintf(stderr, " -@       [4]       Thread to unpack and pack files.[4]\n");
-    fprintf(stderr, " -disable-offset    Disable Tn5 offset for each fragment.\n");
+    fprintf(stderr, "\nOptions :\n");
+    fprintf(stderr, " -o       [FILE]    Output file, bgzipped and indexed.\n");
+    fprintf(stderr, " -cb      [TAG]     Cell barcode tag name.\n");
+    fprintf(stderr, " -list    [FILE]    Cell barcode whitelist.\n");
+    fprintf(stderr, " -q       [20]      Minimum mapping quality to filter reads.\n");
+    fprintf(stderr, " -isize   [2000]    Skip fragments with insert size larger than this. [2KB]\n");
+    fprintf(stderr, " -bed     [BED]     Only output fragments overlapping target regions.\n");
+    fprintf(stderr, " -black-region [BED] Exclude fragments overlapping blacklist regions.\n");
+    fprintf(stderr, " -stat    [FILE]    Output transposition events per cell.\n");
+    fprintf(stderr, " -@       [4]       Threads for compression. [4]\n");
+    fprintf(stderr, " -disable-offset    Disable Tn5 offset adjustment.\n");
     fprintf(stderr, "\n");
     return 1;
 }
 
 int fastq_parse_usage()
 {
-    fprintf(stderr, "# Parse cell barcode and UMI string from raw FASTQ.\n");
+    fprintf(stderr, "# Parse cell barcode and UMI from raw FASTQ.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -config read_struct.json -report fastq.csv -cbdis cell_dist.tsv \\\n");
     fprintf(stderr, "          -1 out.fq lane1_1.fq.gz,lane02_1.fq.gz  lane1_2.fq.gz,lane2_2.fq.gz\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -1       [fastq]   Read 1 output. Default is stdout.\n");
+    fprintf(stderr, " -1       [fastq]   Read 1 output. [stdout]\n");
     fprintf(stderr, " -2       [fastq]   Read 2 output.\n");
-    fprintf(stderr, " -config  [json]    Read structure configure file in JSON format. Required.\n");
-    //fprintf(stderr, " -rule    [STRING]  Read structure in line. See \x1b[31m\x1b[1mNotice\x1b[0m.\n");
-    fprintf(stderr, " -run     [string]  Run code, used for different library.\n");
-    fprintf(stderr, " -cbdis   [FILE]    Read count per cell barcode.\n");
-    fprintf(stderr, " -p                 Read 1 and read 2 interleaved in the input file.\n");
-    fprintf(stderr, " -q       [INT]     Drop reads if average sequencing quality below this value.\n");
-    fprintf(stderr, " -dropN             Drop reads if N base in sequence or barcode.\n");
+    fprintf(stderr, " -config  [json]    Read structure configuration file in JSON format. Required.\n");
+    //fprintf(stderr, " -rule    [STRING]  Read structure definition. See \x1b[31m\x1b[1mNotice\x1b[0m.\n");
+    fprintf(stderr, " -run     [string]  Platform preset code for specific library kit.\n");
+    fprintf(stderr, " -cbdis   [FILE]    Output read count per cell barcode.\n");
+    fprintf(stderr, " -p                 Read 1 and read 2 are interleaved in the input file.\n");
+    fprintf(stderr, " -q       [INT]     Drop reads with average sequencing quality below this value.\n");
+    fprintf(stderr, " -dropN             Drop reads with N bases in sequence or barcode.\n");
     fprintf(stderr, " -report  [csv]     Summary report.\n");
     fprintf(stderr, " -t       [INT]     Threads. [4]\n");
-    fprintf(stderr, " -dist    1|2|3     Distance scoring method. 1 for hamming distance, 2 for levenshtein, 3 for mix.\n");
-    fprintf(stderr, "                    If set 3, hamming dist will applied first, if no hit, try levenshtein then.\n");
-    
+    fprintf(stderr, " -dist    1|2|3     Distance scoring method: 1=Hamming, 2=Levenshtein, 3=both.\n");
+    fprintf(stderr, "                    With 3, Hamming is tried first; on no match, Levenshtein is used.\n");
+
     //fprintf(stderr, " -x                 Preset read structure. Use one of codes predefined below.\n");
     //fprintf(stderr, "        - C4v1      MGI DNBelab C4 RNA v1/v2 kit\n");
     //fprintf(stderr, "        - 10Xv3     10X Genomics 3' v3 kit. Use barcode whitelist from \"3M-febrary-2018.txt.gz\"\n");
@@ -70,86 +70,85 @@ int fastq_parse_usage()
 
 int fastq_parse2_usage()
 {
-    fprintf(stderr, "# Parse cell barcode and UMI string from raw FASTQ.\n");
+    fprintf(stderr, "# Parse cell barcode and UMI from raw FASTQ.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -rule CB,R1:1-10,whitelist.txt,CB,1;R1,R1:11-60;R2,R2 -report fastq.csv \\\n");
     fprintf(stderr, "           lane1_1.fq.gz,lane02_1.fq.gz  lane1_2.fq.gz,lane2_2.fq.gz\n");
     fprintf(stderr, "\nOptions :\n");
     fprintf(stderr, " -1       [fastq]   Read 1 output.\n");
     fprintf(stderr, " -2       [fastq]   Read 2 output.\n");
-    fprintf(stderr, " -rule    [STRING]  Read structure in line. See \x1b[31m\x1b[1mNotice\x1b[0m.\n");
-    fprintf(stderr, " -p                 Read 1 and read 2 interleaved in the input file.\n");
-    fprintf(stderr, " -q       [INT]     Drop reads if average sequencing quality below this value.\n");
-    fprintf(stderr, " -dropN             Drop reads if N base in sequence or barcode.\n");
+    fprintf(stderr, " -rule    [STRING]  Read structure definition. See \x1b[31m\x1b[1mNotice\x1b[0m.\n");
+    fprintf(stderr, " -p                 Read 1 and read 2 are interleaved in the input file.\n");
+    fprintf(stderr, " -q       [INT]     Drop reads with average sequencing quality below this value.\n");
+    fprintf(stderr, " -dropN             Drop reads with N bases in sequence or barcode.\n");
     fprintf(stderr, " -report  [csv]     Summary report.\n");
-    fprintf(stderr, " -order             Keep input order.\n");
+    fprintf(stderr, " -order             Preserve input read order.\n");
     fprintf(stderr, " -t       [INT]     Threads. [4]\n");
     //fprintf(stderr, " -suffix  [STRING]  Suffix string for corrected barcode.\n");
-    fprintf(stderr, " -x                 Predefined code for specific library.\n");
+    fprintf(stderr, " -x                 Predefined preset for a specific library kit.\n");
     fprintf(stderr, "          * C4      Library structure for DNBelab C4 RNA kit v1.\n");
 
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[31m\x1b[1mNotice\x1b[0m :\n");
-    //fprintf(stderr, " * \x1b[1mPISA\x1b[0m parse requires -config, -rule, or -x option to specify cell barcode and UMI locations in the raw read files.\n");
-    //fprintf(stderr, " * -config accept configure file in JSON format. Full details to generate this file can be found at wiki page.\n");
-    fprintf(stderr, " * -rule accept tag rule STRING to parse input fastq following format \"TAG,location,whitelist,corrected TAG,allow mismatch\".\n");
-    fprintf(stderr, "   For each tag rule, location part should be format like R[12]:start-end. Both start and end location start from 1.\n");
-    fprintf(stderr, "   TAG and location parts are mandatory, and whitelist, corrected TAG and mismatch are optional.\n");
-    fprintf(stderr, "   Futhermore, multiply tags separated by \';\'. In location part, R1 stands for raw read 1, R2 stands for raw read 2.\n");
-    fprintf(stderr, "   In tag part, R1 stands for output read 1 while R2 stands for output read 2. Here are some examples.\n");
-    fprintf(stderr, " * PISA/parse read FASTQ files by using libz APIs which is not work in parallel, increase the number of threads.\n");
+    fprintf(stderr, " * -rule accepts a rule string in the format \"TAG,location,whitelist,corrected TAG,mismatch\".\n");
+    fprintf(stderr, "   Each rule's location uses the format R[12]:start-end. Both start and end are 1-based.\n");
+    fprintf(stderr, "   TAG and location are mandatory; whitelist, corrected TAG, and mismatch are optional.\n");
+    fprintf(stderr, "   Multiple rules are separated by ';'. R1/R2 in location refer to raw read files;\n");
+    fprintf(stderr, "   R1/R2 in the TAG refer to output read files. Examples:\n");
+    fprintf(stderr, " * PISA reads FASTQ using libz, which does not support parallel I/O.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -rule '\x1b[32mCR,R1:1-18,barcodes.txt,CB,1;\x1b[33mUR,R1:19-30;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "#\x1b[32m CR,R1:1-18,barcodes.txt,CB,1 \x1b[0m - CR tag start from 1 to 18 in read 1, and barcodes.txt are barcode whitelist,\n");
-    fprintf(stderr, "#   each barcode per line. Cell barcode will be corrected while hamming distance <= 1, corrected cell barcode tag is CB. \n");
-    fprintf(stderr, "#\x1b[33m UR,R1:19-30\x1b[0m - UR tag start from 19-30 in read 1.\n");
-    fprintf(stderr, "#\x1b[34m R1,R2:1-100\x1b[0m - Sequence from 1 to 100 in read 2 output to read 1 file. \n");
+    fprintf(stderr, "#\x1b[32m CR,R1:1-18,barcodes.txt,CB,1 \x1b[0m - CR tag at read 1 positions 1-18, corrected against\n");
+    fprintf(stderr, "#   barcodes.txt (Hamming distance <= 1). Corrected cell barcode stored in CB tag.\n");
+    fprintf(stderr, "#\x1b[33m UR,R1:19-30\x1b[0m - UR tag at read 1 positions 19-30.\n");
+    fprintf(stderr, "#\x1b[34m R1,R2:1-100\x1b[0m - Read 2 positions 1-100 are output as read 1.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m parse -rule '\x1b[32mCR,R1:1-10,bc1.txt,CB,1;\x1b[33mCR,R1:11-20,bc2.txt,CB,1;\x1b[34mR1,R2:1-100\x1b[0m' -1 read_1.fq raw_read_1.fq raw_read_2.fq\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "#\x1b[32m CR,R1:1-10,bc1.txt,CB,1;\x1b[33mCR,R1:11-20,bc2.txt,CB,1\x1b[0m - This cell barcode consist of two segments, first segment start\n");
-    fprintf(stderr, "#   from 1 to 10 in read 1, and whitelist is bc1.txt, and second segment start from 11 to 20, and whitelist is bc2.txt.\n");
-    fprintf(stderr, "#   These two segments will be combined after correction, because the corrected tags are the same.\n");
+    fprintf(stderr, "#\x1b[32m CR,R1:1-10,bc1.txt,CB,1;\x1b[33mCR,R1:11-20,bc2.txt,CB,1\x1b[0m - Cell barcode consists of two\n");
+    fprintf(stderr, "#   segments: first segment at read 1 positions 1-10 (whitelist bc1.txt),\n");
+    fprintf(stderr, "#   second segment at positions 11-20 (whitelist bc2.txt). Both segments are\n");
+    fprintf(stderr, "#   combined after correction since they share the same corrected tag.\n");
     fprintf(stderr, "\n");
     return 1;
 }
 int fsort_usage()
 {
-    fprintf(stderr, "# Sort reads by tags.\n");
+    fprintf(stderr, "# Sort reads by tag values.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m fsort -tags CB,UR -list cell_barcodes_top10K.txt -@ 5 -o sorted.fq.gz in.fq\n");
-    fprintf(stderr, "\nOptions:\n");
-    fprintf(stderr, " -tags    [TAGs]     Tags, such as CB,UR. Order of these tags is sensitive.\n");
-    //fprintf(stderr, " -dedup              Remove dna copies with same tags. Only keep reads have the best quality.\n");
-    //fprintf(stderr, " -dup-tag [TAG]      Tag name of duplication counts. Use with -dedup only. [DU]\n");
-    //  fprintf(stderr, " -list    [FILE]     White list for first tag, usually for cell barcodes.\n");
-    fprintf(stderr, " -@       [INT]      Threads to compress file.\n");
-    fprintf(stderr, " -o       [fq.gz]    bgzipped output fastq file.\n");
+    fprintf(stderr, "\nOptions :\n");
+    fprintf(stderr, " -tag/-tags [TAGs]   Tags to sort by, e.g. CB,UR. Tag order matters.\n");
+    //fprintf(stderr, " -dedup              Remove duplicate reads with identical tags, keeping the highest quality copy.\n");
+    //fprintf(stderr, " -dup-tag [TAG]      Tag name for duplication count. Used with -dedup only. [DU]\n");
+    //  fprintf(stderr, " -list    [FILE]     Whitelist for the first tag, typically cell barcodes.\n");
+    fprintf(stderr, " -@       [INT]      Threads for compression.\n");
+    fprintf(stderr, " -o       [fq.gz]    BGZF-compressed output FASTQ file.\n");
     fprintf(stderr, " -m       [mem]      Memory per thread. [1G]\n");
-    fprintf(stderr, " -p                  Input fastq is smart pairing.\n");
-    fprintf(stderr, " -T       [prefix]   Write temporary files to PREFIX.nnnn.tmp\n");
-//     fprintf(stderr, " -report  [csv]      Summapry report.\n");
+    fprintf(stderr, " -p                  Input FASTQ is interleaved paired-end.\n");
+    fprintf(stderr, " -T       [prefix]   Prefix for temporary files.\n");
+    // fprintf(stderr, " -report  [csv]      Summary report.\n");
     fprintf(stderr, "\n");
     return 1;
 }
 int fastq_stream_usage()
 {
-    fprintf(stderr, "# Perform user-defined script for each FASTQ+ block.\n");
+    fprintf(stderr, "# Run a user-defined script on each FASTQ+ block.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m stream -script run.sh reads.fq.gz\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -tags    [TAGs]     Tags to define read blocks.\n");
-    fprintf(stderr, " -script  [FILE]     User defined bash script, process $FQ and generate results to stdout.\n");
-    fprintf(stderr, " -min     [INT]      Mininal reads per block to process.  [2]\n");
-    fprintf(stderr, " -keep               Output unprocessed FASTQ+ records.\n");
-    //fprintf(stderr, " -max     [INT]      Maximal reads per block, if more reads, will downsampling. [8000]\n");
-    fprintf(stderr, " -fa                 Stream FASTQ output instead of FASTQ.\n");
-    // fprintf(stderr, " -rename           Rename output reads\n");
-    fprintf(stderr, " -tmpdir\n");
+    fprintf(stderr, " -tag/-tags [TAGs]   Tags defining read blocks.\n");
+    fprintf(stderr, " -script  [FILE]     User-defined shell script; processes $FQ, writes results to stdout.\n");
+    fprintf(stderr, " -min     [INT]      Minimum reads per block to process. [2]\n");
+    fprintf(stderr, " -keep               Output unprocessed FASTQ+ records as well.\n");
+    //fprintf(stderr, " -max     [INT]      Maximum reads per block; larger blocks are downsampled. [8000]\n");
+    fprintf(stderr, " -fa                 Stream FASTA instead of FASTQ.\n");
+    // fprintf(stderr, " -rename            Rename output reads\n");
+    fprintf(stderr, " -tmpdir  [DIR]      Temporary directory for block files.\n");
     fprintf(stderr, " -t       [INT]      Threads.\n");
-    fprintf(stderr, " -o       [FILE]     Path to output file.\n");
-    fprintf(stderr, " -nw                 Disable warning messages.\n");
+    fprintf(stderr, " -o       [FILE]     Output file.\n");
+    fprintf(stderr, " -nw                 Suppress warning messages.\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -175,7 +174,7 @@ int segment_usage()
     fprintf(stderr, "* Select defined segments from untigs.\n");
     fprintf(stderr, "Segment [options] in.fq\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, "-config   [json]      Configure file.\n");    
+    fprintf(stderr, "-config   [json]      Configure file.\n");
     fprintf(stderr, "-o        [fastq]     Trimed fastq.\n");
     fprintf(stderr, "-sl       [INT]       Seed length for mapping consensus sequence.\n");
     fprintf(stderr, "-t        [INT]       Threads.\n");
@@ -193,151 +192,157 @@ int sam2bam_usage()
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m sam2bam -report alignment.csv -@ 5 -adjust-mapq -gtf genes.gtf -o aln.bam in.sam[.gz]\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -o       [BAM]       Output file [stdout].\n");
-    fprintf(stderr, " -t       [INT]       Work threads.\n");
-    fprintf(stderr, " -mito    [string]    Mitochondria name. Used to stat ratio of mitochondria reads.\n");
-    fprintf(stderr, " -maln    [BAM]       Export mitochondria reads into this file instead of standard output file.\n");
-    fprintf(stderr, " -@       [INT]       Threads to compress bam file.\n");
-    fprintf(stderr, " -report  [csv]       Alignment report.\n");
+    fprintf(stderr, " -o       [BAM]       Output file. [stdout]\n");
+    fprintf(stderr, " -t       [INT]       Worker threads.\n");
+    fprintf(stderr, " -mito    [string]    Mitochondrial chromosome name, for computing mitochondrial read ratio.\n");
+    fprintf(stderr, " -maln    [BAM]       Write mitochondrial reads to this file (excluded from main output).\n");
+    fprintf(stderr, " -@       [INT]       Threads for BAM compression.\n");
+    fprintf(stderr, " -report  [csv]       Alignment summary report.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Note :\n");
-    fprintf(stderr, "* Reads map to multiple loci usually be marked as low quality and filtered at downstream analysis.\n");
-    fprintf(stderr, "  But for RNAseq library, if reads map to an exonic locus but also align to 1 or more non-exonic loci,\n");
-    fprintf(stderr, "  the exonic locus can be prioritized as primary alignments, and mapping quality adjusts to 255. Tag\n");
-    fprintf(stderr, "  MM:i:1 will also be added for this record. Following options used to adjust mapping quality.\n");
-    fprintf(stderr, "* Input SAM need be sorted by read name, and aligner should output all hits of a read in this SAM.\n");
-    fprintf(stderr, " -adjust-mapq         Enable adjusts mapping quality score.\n");
-    fprintf(stderr, " -gtf     [GTF]       GTF annotation file. This file is required to check the exonic regions.\n");
-    fprintf(stderr, " -qual    [255]       Updated quality score.\n");
+    fprintf(stderr, "* Reads mapped to multiple loci are typically marked as low quality and filtered\n");
+    fprintf(stderr, "  downstream. For RNA-seq, if a read maps to one exonic locus and one or more\n");
+    fprintf(stderr, "  non-exonic loci, the exonic locus can be prioritized as the primary alignment\n");
+    fprintf(stderr, "  with mapping quality adjusted to 255. Tag MM:i:1 is added to such records.\n");
+    fprintf(stderr, "* Input SAM must be sorted by read name, and the aligner should output all hits\n");
+    fprintf(stderr, "  for each read.\n");
+    fprintf(stderr, " -adjust-mapq         Enable mapping quality adjustment (requires -gtf).\n");
+    fprintf(stderr, " -gtf     [GTF]       GTF annotation file, required for detecting exonic regions.\n");
+    fprintf(stderr, " -qual    [255]       Adjusted mapping quality value.\n");
     fprintf(stderr, "\n");
-    return 1;    
+    return 1;
 }
 
 int rmdup_usage()
 {
-    fprintf(stderr, "# Deduplicate PCR reads with same barcodes.\n");
+    fprintf(stderr, "# Remove PCR duplicates sharing identical tag values.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m rmdup -tags CB,UR -o rmdup.bam in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, "   -tags  [TAGs]       Barcode tags to group reads.\n");
-    fprintf(stderr, "   -@     [INT]        Threads to unpack BAM.\n");
-    fprintf(stderr, "   -o     [BAM]        Output bam.\n");
-    fprintf(stderr, "   -q     [INT]        Map Quality Score cutoff.\n");
-    // fprintf(stderr, "   -S                  Treat PE reads as SE.\n");
-    fprintf(stderr, "   -k                  Keep duplicates, make flag instead of remove them.\n");
-    fprintf(stderr, "   -nw                 Disable warnings.\n");
-    fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m:\n");
-    fprintf(stderr, "* Currently only support single-end reads.\n");
+    fprintf(stderr, " -tag/-tags [TAGs]    Tags to group reads for deduplication.\n");
+    fprintf(stderr, " -@        [INT]      Threads for BAM decompression.\n");
+    fprintf(stderr, " -o        [BAM]      Output BAM file.\n");
+    fprintf(stderr, " -q        [INT]      Minimum mapping quality threshold.\n");
+    // fprintf(stderr, " -S                   Treat paired-end reads as single-end.\n");
+    fprintf(stderr, " -k                   Keep duplicates, flag them instead of removing.\n");
+    fprintf(stderr, " -nw                  Suppress warning messages.\n");
+    fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
+    fprintf(stderr, "* Currently only single-end reads are supported.\n");
     fprintf(stderr, "\n");
     return 1;
 }
 
 int pick_usage()
 {
-    fprintf(stderr, "# Pick alignment records with barcode list.\n");
+    fprintf(stderr, "# Filter alignment records by barcode whitelist.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m pick -tags CB,GN -list cell_barcodes.txt in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -tags    [TAGs]       Barcode tags.\n");
-    fprintf(stderr, " -list    [FILE]       Barcode white list, tag values in related column will be apply.\n");
-    fprintf(stderr, " -o       [BAM]        Output file.\n");
-    fprintf(stderr, " -q       [INT]        Map Quality Score cutoff.\n");
-    fprintf(stderr, " -@       [INT]        Threads to unpack BAM.\n");
+    fprintf(stderr, " -tag/-tags [TAGs]    Tag names to filter on.\n");
+    fprintf(stderr, " -list     [FILE]     Barcode whitelist; values in the corresponding column are filtered.\n");
+    fprintf(stderr, " -o        [BAM]      Output BAM file.\n");
+    fprintf(stderr, " -q        [INT]      Minimum mapping quality threshold.\n");
+    fprintf(stderr, " -@        [INT]      Threads for BAM decompression.\n");
     fprintf(stderr, "\n");
     return 1;
 }
 int anno_usage()
 {
-    fprintf(stderr, "# Annotate SAM/BAM records with overlapped function regions. Such as gene, transcript etc.\n");
+    fprintf(stderr, "# Annotate SAM/BAM records with overlapping functional regions.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -bed peak.bed -tag PK -vcf in.vcf.gz -vtag VF -vcf-ss -ref-alt -o anno.bam in.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -gtf genes.gtf -o anno.bam in.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m anno -gtf genes.gtf -o anno.bam -sam in.sam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -o        [BAM]       Output bam file.\n");
+    fprintf(stderr, " -o        [BAM]       Output BAM file.\n");
     fprintf(stderr, " -report   [csv]       Summary report.\n");
-    fprintf(stderr, " -@        [INT]       Threads to compress bam file.\n");
-    fprintf(stderr, " -q        [0]         Map Quality Score cutoff. MapQ smaller than this value will not be annotated.\n");
-    fprintf(stderr, " -t        [INT]       Threads to annotate.\n");
+    fprintf(stderr, " -@        [INT]       Threads for BAM compression.\n");
+    fprintf(stderr, " -q        [0]         Minimum mapping quality; reads below this are skipped.\n");
+    fprintf(stderr, " -t        [INT]       Worker threads for annotation.\n");
     fprintf(stderr, " -chunk    [INT]       Chunk size per thread.\n");
     fprintf(stderr, " -anno-only            Export annotated reads only.\n");
-    fprintf(stderr, " -sam                  Input is SAM file, parse tags from read name.\n");
-    fprintf(stderr, " -rev                  Annotation in reverse strand; Some probe ligation library for FFPE samples create reverse fragments.\n");
-    fprintf(stderr, " -is                   Disable strand sensitive annotation of gene, genomic region and genetic variants.\n");
+    fprintf(stderr, " -sam                  Input is SAM format; parse tags from read name.\n");
+    fprintf(stderr, " -rev                  Annotate on reverse strand (for probe-ligation FFPE libraries).\n");
+    fprintf(stderr, " -is                   Disable strand-specific annotation.\n");
     fprintf(stderr, "\nOptions for BED file :\n");
-    fprintf(stderr, " -bed      [BED]       Function regions. Three or four columns bed file. Col 4 could be empty or names of this region.\n");
-    fprintf(stderr, " -tag      [TAG]       Attribute tag name. Set with -bed. Default is PK.\n");
+    fprintf(stderr, " -bed      [BED]       Functional regions. 3- or 4-column BED; col 4 may be empty or contain region names.\n");
+    fprintf(stderr, " -tag      [TAG]       Annotation tag name for BED regions. [PK]\n");
 
-    fprintf(stderr, "\nOptions for mixed samples.\n");
-    fprintf(stderr, " -chr-species  [FILE]  Chromosome name and related species binding list.\n");
-    fprintf(stderr, " -btag     [TAG]       Species tag name. Set with -chr-species. Default is SP.\n");
+    fprintf(stderr, "\nOptions for mixed-species samples :\n");
+    fprintf(stderr, " -chr-species  [FILE]  Chromosome-to-species mapping file.\n");
+    fprintf(stderr, " -btag     [TAG]       Species tag name. [SP]\n");
 
     fprintf(stderr, "\nOptions for GTF file :\n");
-    fprintf(stderr, " -gtf      [GTF]       GTF annotation file. gene_id,transcript_id is required for each record.\n");
-    fprintf(stderr, " -tags     [TAGs]      Attribute names, more details see `\x1b[31m\x1b[1mNotice\x1b[0m` below. [TX,GN,GX,RE,EX,JC]\n");
-    fprintf(stderr, " -splice               Reads covered exon-intron edge (ExonIntron type) will also be annotated with all tags.\n");
-    fprintf(stderr, " -intron/-velo         Reads covered intron regions will also be annotated with all tags.\n");
-    fprintf(stderr, " -exon                 Generate exon level and junction annotation. Put exon name (chr:start-end/[[+-]/Gene) in EX tag.\\ \n");
-    fprintf(stderr, "                       Also generate junction name (chr:exon1_end-exon2_start/[+-]/Gene) in JC tag.\n");
-    fprintf(stderr, " -flatten              Split overlapped exons into nonoverlapped bins.\n");
-    fprintf(stderr, " -psi                  Annotate exclude reads tag (ER) for each exon.\n");
-    fprintf(stderr, " -vague-edge [INT]     Junction reads not exactly spliced at splice site and gene ends are allowed. Used to annotate third generation reads.\n");
+    fprintf(stderr, " -gtf      [GTF]       GTF annotation file. gene_id and transcript_id are required for each record.\n");
+    fprintf(stderr, " -tags     [TAGs]      Annotation tag names; see \x1b[31m\x1b[1mNotice\x1b[0m below. [TX,GN,GX,RE,EX,JC]\n");
+    fprintf(stderr, " -splice               Annotate reads spanning exon-intron junctions with all tags.\n");
+    fprintf(stderr, " -intron/-velo         Annotate reads covering intronic regions with all tags.\n");
+    fprintf(stderr, " -exon                 Generate exon-level and junction annotations.\n");
+    fprintf(stderr, "                       Exon name (chr:start-end/[[+-]/Gene) stored in EX tag,\n");
+    fprintf(stderr, "                       junction name (chr:exon1_end-exon2_start/[+-]/Gene) in JC tag.\n");
+    fprintf(stderr, " -flatten              Split overlapping exons into non-overlapping bins.\n");
+    fprintf(stderr, " -psi                  Annotate excluded reads (ER tag) for each exon.\n");
+    fprintf(stderr, " -vague-edge [INT]     Allow junction reads not precisely aligned to splice sites or gene boundaries.\n");
+    fprintf(stderr, "                       Intended for long-read (third-generation) data.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, " -as                   Annotate antisense RNAs. Put gene name at AT tag.\n");
-    fprintf(stderr, " -tss                  Annotate reads start from TSS, designed for capped library. **experiment**\n");
-    fprintf(stderr, " -ctag     [TAG]       Tag name for TSS annotation. Need set with -tss.\n");
+    fprintf(stderr, " -as                   Annotate antisense reads; gene name saved in AT tag.\n");
+    fprintf(stderr, " -tss                  Annotate reads starting at TSS, for capped RNA libraries. **experimental**\n");
+    fprintf(stderr, " -ctag     [TAG]       Tag name for TSS annotation. Requires -tss.\n");
 
     fprintf(stderr, "\nOptions for VCF file :\n");
-    fprintf(stderr, " -vcf      [VCF/BCF]   Varaints file in vcf or bcf format. In default, only annotate alternative alleles.\n");
-    fprintf(stderr, " -vtag     [TAG]       Tag name for variants. Set with -vcf. Default is VR.\n");
-    fprintf(stderr, " -ref-alt              Annotate ref allele.\n");
+    fprintf(stderr, " -vcf      [VCF/BCF]   Variant file. By default, only alternative alleles are annotated.\n");
+    fprintf(stderr, " -vtag     [TAG]       Tag name for variant annotation. [VR]\n");
+    fprintf(stderr, " -ref-alt              Also annotate reference alleles.\n");
     // fprintf(stderr, " -vcf-ss               Annotate variants in strand sensitive way.\n");
     //fprintf(stderr, " -phased               Annotate phase block for phased positions.\n");
-        
+
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
-    fprintf(stderr, " * If input is SAM format, will try to parse the tags in the read name.\n");
-    fprintf(stderr, " * For GTF mode, this program will set tags in default, you could also reset them by -tags.\n");
-    fprintf(stderr, "   TX : Transcript id.\n");
-    
+    fprintf(stderr, " * For SAM input, tags in the read name are parsed automatically.\n");
+    fprintf(stderr, " * For GTF mode, default tag names are set below; override them with -tags.\n");
+    fprintf(stderr, "   TX : Transcript ID.\n");
     //fprintf(stderr, "   AN : Same with TX but set only if read mapped to antisense strand of transcript.\n");
     fprintf(stderr, "   GN : Gene name.\n");
     fprintf(stderr, "   GX : Gene ID.\n");
-    fprintf(stderr, "   RE : Region type, E (exon), N (intron), C (exon and intron), S (junction reads cover isoforms properly), V (ambiguous reads),\n");
-    fprintf(stderr, "        I (intergenic), A (antisense or antisense exon), B (antisense intron), X (one or more exons are excluded in transcrpit)\n");
-    fprintf(stderr, "   AT : Same with GN but set only if -as enabled and read mapped to antisense strand of gene.\n");
-    fprintf(stderr, " * The following tags set with -exon.\n");
-    fprintf(stderr, "   EX : Exon name tag.\n");
+    fprintf(stderr, "   RE : Region type:\n");
+    fprintf(stderr, "        E  = exon,  N  = intron,  C  = exon+intron overlap,\n");
+    fprintf(stderr, "        S  = junction (spans isoforms),  V  = ambiguous,\n");
+    fprintf(stderr, "        I  = intergenic,  A  = antisense/antisense exon,\n");
+    fprintf(stderr, "        B  = antisense intron,  X  = one or more exons excluded in transcript.\n");
+    fprintf(stderr, "   AT : Gene name on antisense strand (only with -as).\n");
+    fprintf(stderr, " * Tags set with -exon :\n");
+    fprintf(stderr, "   EX : Exon name.\n");
     fprintf(stderr, "   JC : Isoform junction name.\n");
-    fprintf(stderr, "   FL : Flatten exon name. Only generate it with -flatten.\n");
-    fprintf(stderr, " * The following tags set with -psi.\n");
+    fprintf(stderr, "   FL : Flattened exon name (only with -flatten).\n");
+    fprintf(stderr, " * Tags set with -psi :\n");
     fprintf(stderr, "   ER : Excluded exons.\n");
-    fprintf(stderr, " * PSI = EX/(EX+ER); EX is the exon tag, which indicate include reads in exon.\n");
+    fprintf(stderr, " * PSI = EX / (EX + ER), where EX counts inclusion reads, ER counts exclusion reads.\n");
     fprintf(stderr, "\n");
     return 1;
 }
 
 int bam_corr_usage()
 {
-    fprintf(stderr, "# Correct similar barcodes (hamming distance == 1).\n");
+    fprintf(stderr, "# Correct similar barcodes within Hamming distance 1.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m corr -tag UR -new-tag UB -tags-block CB,GN -@ 5 -o corr.bam in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -o        [BAM]       Output bam.\n");
+    fprintf(stderr, " -o        [BAM]       Output BAM file.\n");
     fprintf(stderr, " -tag      [TAG]       Tag to correct.\n");
-    fprintf(stderr, " -new-tag  [TAG]       Create a new tag for corrected barcodes.\n");
-    fprintf(stderr, " -tags-block  [TAGs]   Tags to define read group. For example, if set to GN (gene), reads in the same gene will be grouped together.\n");
-    fprintf(stderr, " -cr                   Enable CellRanger like UMI correction method. See `\x1b[31m\x1b[1mExamples\x1b[0m` for details.\n");
-    fprintf(stderr, " -e                    Maximal hamming distance to define similar barcode, default is 1.\n");
-    fprintf(stderr, " -@        [INT]       Thread to compress BAM file.\n");
+    fprintf(stderr, " -new-tag  [TAG]       Tag name for corrected values.\n");
+    fprintf(stderr, " -tags-block  [TAGs]   Tags defining read groups for correction scope.\n");
+    fprintf(stderr, " -cr                   Enable Cell Ranger-style UMI correction. See \x1b[31m\x1b[1mExamples\x1b[0m below.\n");
+    fprintf(stderr, " -e        [INT]       Maximum Hamming distance for matching. [1]\n");
+    fprintf(stderr, " -@        [INT]       Threads for BAM compression.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mExamples\x1b[0m :\n");
-    fprintf(stderr, " // Two groups of reads have same cell barcode (CB) and gene (GN) but their raw UMIs (UR) differ by only one base. The UMI of less \n");
-    fprintf(stderr, " // supported is corrected to the UMI with higher support. UB save the checked or corrected UMI.\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m corr -tag UR -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
-    fprintf(stderr, " // Same with above. Besides, if two or more groups of reads have same CB and UB but different GN, the GN with the most supporting reads\n");
-    fprintf(stderr, " // is kept for UMI counting, and the other read groups are discarded. In case of a tie for maximal read support, all read groups are\n");
-    fprintf(stderr, " // discarded, as the gene cannot be confidently assigned (Cell Ranger method).\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m corr -cr -tag UR -new-tag UB -tags-block CB,GN in.bam -o corr.bam \n\n");
+    fprintf(stderr, " // Two read groups share the same cell barcode (CB) and gene (GN), but their raw\n");
+    fprintf(stderr, " // UMIs (UR) differ by one base. The less-supported UMI is corrected to match the\n");
+    fprintf(stderr, " // higher-support UMI. The corrected UMI is stored in tag UB.\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m corr -tag UR -new-tag UB -tags-block CB,GN in.bam -o corr.bam\n\n");
+    fprintf(stderr, " // Same as above. Additionally, if multiple groups share the same CB and UB but\n");
+    fprintf(stderr, " // different GN, only the GN with the most reads is kept; all others are discarded.\n");
+    fprintf(stderr, " // In case of a tie, all groups are discarded (Cell Ranger method).\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m corr -cr -tag UR -new-tag UB -tags-block CB,GN in.bam -o corr.bam\n\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -346,20 +351,20 @@ int bam_attr_usage()
 {
     fprintf(stderr, "# Count the frequency of tag values.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m attrcnt -cb CB -tags UR,GN -dedup -all-tags in.bam\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m attrcnt -cb CB -tag UR,GN -dedup -all-tags in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -cb       [TAG]      Cell Barcode, or other tag used for grouping reads.\n");
-    fprintf(stderr, " -list     [FILE]     Cell barcode white list.\n");
-    fprintf(stderr, " -tags     [TAGs]     Tags to count.\n");
-    fprintf(stderr, " -dedup               Deduplicate the atrributes in each tag.\n");
-    fprintf(stderr, " -all-tags            Only records with all tags be count.\n");
-    fprintf(stderr, " -group    [TAG]      Group tag, count all tags for each group seperately.\n");
+    fprintf(stderr, " -cb       [TAG]      Cell barcode or other tag for grouping reads.\n");
+    fprintf(stderr, " -list     [FILE]     Cell barcode whitelist.\n");
+    fprintf(stderr, " -tag/-tags [TAGs]    Tags to count.\n");
+    fprintf(stderr, " -dedup               Deduplicate attributes within each tag.\n");
+    fprintf(stderr, " -all-tags            Only count records that have all specified tags.\n");
+    fprintf(stderr, " -group    [TAG]      Group tag; count tags separately for each group.\n");
     fprintf(stderr, " -o        [FILE]     Output count table.\n");
-    fprintf(stderr, " -q        [INT]      Map Quality to filter bam.\n");
-    fprintf(stderr, " -no-header           Ignore header in the output.\n");
-    fprintf(stderr, " -@        [INT]      Thread to unpack bam.\n");
+    fprintf(stderr, " -q        [INT]      Minimum mapping quality threshold.\n");
+    fprintf(stderr, " -no-header           Omit header from output.\n");
+    fprintf(stderr, " -@        [INT]      Threads for BAM decompression.\n");
     fprintf(stderr, " -ttag     [TAG]      Region type tag. [RE]\n");
-    fprintf(stderr, " -ttype               Region type used to count. Set `E,S` to count exon enclosed reads. Set `N,C` to count intron overlapped reads.\n");
+    fprintf(stderr, " -ttype    [TYPE]     Region types to count. E.g. 'E,S' for exonic reads, 'N,C' for intronic.\n");
     fprintf(stderr, "\n");
     return 1;
 }
@@ -368,76 +373,76 @@ int bam_extract_usage()
 {
     fprintf(stderr, "# Extract tag values from alignments.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m extract -tags CB,UR,GN -o tags.tsv in.bam\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m extract -tag CB,UR,GN -o tags.tsv in.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -tags     [TAGs]     Tags to be extracted.\n");
-    fprintf(stderr, " -o        [FILE]     Output file. tsv format\n");
-    fprintf(stderr, " -n                   Print read name.\n");
-    fprintf(stderr, " -q                   Map Quality Score threshold.\n");
-    fprintf(stderr, " -all                 Only export if all tags have value.\n");
+    fprintf(stderr, " -tag/-tags [TAGs]    Tags to extract.\n");
+    fprintf(stderr, " -o        [FILE]     Output file in TSV format.\n");
+    fprintf(stderr, " -n                   Include read name in output.\n");
+    fprintf(stderr, " -q        [INT]      Minimum mapping quality threshold.\n");
+    fprintf(stderr, " -all                 Only export records where all specified tags have values.\n");
     fprintf(stderr, "\n");
     return 1;
 }
 
 int bam_count_usage()
 {
-    fprintf(stderr, "# Count reads or fragments matrix for single-cell datasets.\n");
+    fprintf(stderr, "# Generate count matrix for single-cell datasets.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count -cb CB -anno-tag GN -umi UB -outdir exp aln.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count [options] aln1.bam,aln2.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count -cb RG -sample-list bam_files.txt -outdir exp\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m count -tags Cx,Cy -anno-tag GN -umi UB -outdir exp -velo aln.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -tags/-cb [TAGs]     A cell barcode tag or two tags of spatial coordinates for spatial data.\n");
-    fprintf(stderr, " -anno-tag [TAGs]     Annotation tag, gene or peak. If more than 1 tag specified, count tag 1 iff other tags existed at alignments. \n");
-    fprintf(stderr, " -genome-bin [INT]    If genome bin size set, genome bin count matrix will be generated, conflict with -anno-tag and -chr.\n");
+    fprintf(stderr, " -tag/-tags/-cb [TAGs] Cell barcode tag, or two coordinate tags for spatial data.\n");
+    fprintf(stderr, " -anno-tag [TAGs]     Annotation tag (gene or peak). With multiple tags, the first\n");
+    fprintf(stderr, "                      is counted only when all other tags are present.\n");
+    fprintf(stderr, " -genome-bin [INT]    Generate genome bin count matrix. Conflicts with -anno-tag and -chr.\n");
     fprintf(stderr, " -is                  Ignore strand for bin counting.\n");
-    fprintf(stderr, " -chr                 Count chromosome expression level, conflict with -anno-tag and -genome-bin.\n");
-    fprintf(stderr, " -list     [FILE]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
-    fprintf(stderr, " -outdir   [DIR]      Output matrix in MEX format into this folder.\n");
-    fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
-    fprintf(stderr, " -one-hit             Skip if a read hits more than 1 gene or peak.\n");
-    // fprintf(stderr, " -corr                Enable correct UMIs. Similar UMIs defined as amming distance <= 1.\n");
-    fprintf(stderr, " -q        [INT]      Minimal map quality to filter. Default is 20.\n");
+    fprintf(stderr, " -chr                 Generate per-chromosome count. Conflicts with -anno-tag and -genome-bin.\n");
+    fprintf(stderr, " -list     [FILE]     Barcode whitelist. If not set, all barcodes are counted.\n");
+    fprintf(stderr, " -outdir   [DIR]      Output directory for MEX-format matrix.\n");
+    fprintf(stderr, " -umi      [TAG]      UMI tag. Each UMI is counted once per gene or peak.\n");
+    fprintf(stderr, " -one-hit             Skip reads that map to more than one gene or peak.\n");
+    // fprintf(stderr, " -corr                Enable UMI correction (Hamming distance <= 1).\n");
+    fprintf(stderr, " -q        [INT]      Minimum mapping quality threshold. [20]\n");
     fprintf(stderr, " -t        [INT]      Threads.\n");
     fprintf(stderr, " -ttag     [TAG]      Region type tag. [RE]\n");
-    fprintf(stderr, " -velo                Generate spliced and unspliced matrix files for RNA velocity analysis.\n");
-    fprintf(stderr, " -ttype    [TYPE]     Region type used to count. Set `E,S` to count exon enclosed reads. Set `N,C` to count intron overlapped reads.\n");
-    //fprintf(stderr, " -file-barcode        No cell barcode tag in the bam, but alias file name as cell barcode. This option must use with -sample-list.\n");
-    fprintf(stderr, " -sample-list [FILE]  A list of bam files. Each path per line.\n");
+    fprintf(stderr, " -velo                Generate spliced and unspliced matrices for RNA velocity.\n");
+    fprintf(stderr, " -ttype    [TYPE]     Region types to count. E.g. 'E,S' for exonic, 'N,C' for intronic.\n");
+    //fprintf(stderr, " -file-barcode        Use BAM file name as cell barcode. Requires -sample-list.\n");
+    fprintf(stderr, " -sample-list [FILE]  File listing BAM paths, one per line.\n");
 
-    fprintf(stderr, "\nOptions for Stereoseq:\n");
-    fprintf(stderr, " -stereoseq           Stereoseq pipeline pack UMI to hex string. Need set this option to decode UMIs.\n");
-    fprintf(stderr, " -spatial-bin [INT]   Bin size for spatial coordiate. Can be set if -tags specify spatial coordinates.[1]\n");
-    fprintf(stderr, " -dup                 Do NOT skip duplicate reads. \n");
-    
+    fprintf(stderr, "\nOptions for Stereo-seq :\n");
+    fprintf(stderr, " -stereoseq           Stereo-seq UMI encoding (hex string); enables decoding.\n");
+    fprintf(stderr, " -spatial-bin [INT]   Bin size for spatial coordinates. [1]\n");
+    fprintf(stderr, " -dup                 Do not skip duplicate reads.\n");
+
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
-    fprintf(stderr, " * Region type (RE), which label functional region reads mapped, is annotated by `\x1b[1mPISA\x1b[0m anno`. Optional -ttype can be set\n");
-    fprintf(stderr, "   to one of region types(E/S/C/N) or combination to count reads mapped to these functional regions only.\n");
-    fprintf(stderr, " * If you want count from more than one bam file, there are two ways to set the parameter. By seperating bam files with ',' or by\n");
-    fprintf(stderr, "   setting -sample-list option. \n");
-    // fprintf(stderr, " * -cb conflict with -file-barcode. \x1b[1mPISA\x1b[0m read cell barcode from bam tag or alias name list. Not both.\n");
-    fprintf(stderr, " * If -velo set, spliced and unspliced folders will be created at outdir.\n");
+    fprintf(stderr, " * Region type (RE), annotated by `\x1b[1mPISA\x1b[0m anno`, labels the functional region.\n");
+    fprintf(stderr, "   Use -ttype with one or more types (E/S/C/N) to count only those regions.\n");
+    fprintf(stderr, " * To count from multiple BAM files, separate paths with ',' or use -sample-list.\n");
+    // fprintf(stderr, " * -cb conflicts with -file-barcode.\n");
+    fprintf(stderr, " * With -velo, spliced/ and unspliced/ folders are created in -outdir.\n");
     fprintf(stderr,"\n");
     return 1;
 }
 
 int bam2fq_usage()
 {
-    fprintf(stderr, "# Convert BAM into fastq.\n");
-    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m bam2fq -tags CB,UB,GN -o out.fq aln.bam\n");
+    fprintf(stderr, "# Convert BAM to FASTQ+.\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m bam2fq -tag CB,UB,GN -o out.fq aln.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -tags     [TAGs]     Export tags in read name.\n");        
-    fprintf(stderr, " -f                   Filter records if specified tags not all exist.\n");
-    fprintf(stderr, " -fa                  Output fasta instead of fastq.\n");
+    fprintf(stderr, " -tag/-tags [TAGs]    Tags to embed in output read names.\n");
+    fprintf(stderr, " -f                   Skip records missing any of the specified tags.\n");
+    fprintf(stderr, " -fa                  Output FASTA instead of FASTQ.\n");
     fprintf(stderr, " -o        [fastq]    Output file.\n");
-    fprintf(stderr, " -@        [INT]      Threads to unpack BAM.\n");
+    fprintf(stderr, " -@        [INT]      Threads for BAM decompression.\n");
     fprintf(stderr, "\n");
-    //fprintf(stderr, "* Following options are experimental. \n");
-    //fprintf(stderr, "* Merge overlapped reads from same molecular.\n");
+    //fprintf(stderr, "* Following options are experimental.\n");
+    //fprintf(stderr, "* Merge overlapping reads from the same molecule.\n");
     //fprintf(stderr, " -tag      [TAGs]     Tags to group reads.\n");
-    //fprintf(stderr, " -i        [TAGs]     Inhert these tags to merged reads.\n");
-    //fprintf(stderr, " -strand              Only check the overlapped reads from same strand.\n");
+    //fprintf(stderr, " -i        [TAGs]     Tags to inherit on merged reads.\n");
+    //fprintf(stderr, " -strand              Only merge reads on the same strand.\n");
     //fprintf(stderr, "\n");
     return 1;
 }
@@ -459,63 +464,66 @@ int bam_impute_usage()
 
 int gene_fusion_usage()
 {
-    fprintf(stderr, "# gene_fusion ** experiment **\n");
-    fprintf(stderr, " -gn    Gene tag name in the bam. [GN]\n");
-    fprintf(stderr, " -cb    Cell barcode tag name in the bam. [CB]\n");
-    fprintf(stderr, " -umi   UMI barcode tag name in the bam. [UB]\n");
-    fprintf(stderr, " -fs    Fusion record tag name for write into the bam. [FS]\n");
-    fprintf(stderr, " -o     Output bam file.\n");
-    fprintf(stderr, " -q     Mapping quality threshold. [0]\n");
-    fprintf(stderr, " -list  Cell barcode white list.\n");
-    fprintf(stderr, " -@     Threads to unpack bam.\n");
-    fprintf(stderr, " -m     Maximal mapped genes per UMI. [3]\n");
-    fprintf(stderr, " -fusion-only  Export fusion support reads only.\n");
+    fprintf(stderr, "# Predict gene fusion events. **experimental**\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m fusion [options] in.bam\n");
+    fprintf(stderr, "\nOptions :\n");
+    fprintf(stderr, " -gn    [TAG]     Gene name tag. [GN]\n");
+    fprintf(stderr, " -cb    [TAG]     Cell barcode tag. [CB]\n");
+    fprintf(stderr, " -umi   [TAG]     UMI tag. [UB]\n");
+    fprintf(stderr, " -fs    [TAG]     Fusion tag name written to output. [FS]\n");
+    fprintf(stderr, " -o     [BAM]     Output BAM file.\n");
+    fprintf(stderr, " -q     [INT]     Minimum mapping quality threshold. [0]\n");
+    fprintf(stderr, " -list  [FILE]    Cell barcode whitelist.\n");
+    fprintf(stderr, " -@     [INT]     Threads for BAM decompression.\n");
+    fprintf(stderr, " -m     [INT]     Maximum genes per UMI. [3]\n");
+    fprintf(stderr, " -fusion-only      Export only fusion-supporting reads.\n");
     fprintf(stderr, "\n");
     return 1;
 }
 
 int depth_usage()
 {
-    fprintf(stderr, "# Count coverage depth or unique UMIs for genome locations.\n");
-    fprintf(stderr, "\nUsage : \x1b[1mPISA\x1b[0m depth [options] sorted.bam [region]\n\n");
+    fprintf(stderr, "# Compute coverage depth or unique UMI count per genomic position.\n");
+    fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth sorted.bam chr1:1-2\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth sorted.bam chr1:1-2:+\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth -tag CB -list cells.txt -umi UB -region in.bed -o depth.tsv sorted.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m depth -tag CB -list cells.txt -umi UB sorted.bam chr1:1-2:+\n");
-    fprintf(stderr, "\nOptions : \n");
-    fprintf(stderr, " -tag      [TAG]      Tag used for grouping reads.\n");
-    fprintf(stderr, " -list     [FILE]     Candidate list for -tag.\n");
-    fprintf(stderr, " -umi      [TAG]      UMI tag. If set, only count unique UMIs for each location.\n");
-    fprintf(stderr, " -split               Group reads by tag id.\n");
+    fprintf(stderr, "\nOptions :\n");
+    fprintf(stderr, " -tag      [TAG]      Tag for grouping reads.\n");
+    fprintf(stderr, " -list     [FILE]     Whitelist for -tag.\n");
+    fprintf(stderr, " -umi      [TAG]      UMI tag. When set, only unique UMIs are counted per position.\n");
+    fprintf(stderr, " -split               Group reads by tag value.\n");
     fprintf(stderr, " -is                  Ignore strand.\n");
-    fprintf(stderr, " -bed      [BED]      Target BED region file. \n");
-    fprintf(stderr, " -o        [FILE]     Output depth file. [stdout].\n");
-    fprintf(stderr, " -q        [INT]      Minimal map quality to filter. [20]\n");
-    fprintf(stderr, " -@        [INT]      Threads to unpack bam. [4]\n");
-    fprintf(stderr, " -0                   Print uncoverage regions.\n");
+    fprintf(stderr, " -bed      [BED]      Target BED regions.\n");
+    fprintf(stderr, " -o        [FILE]     Output file. [stdout]\n");
+    fprintf(stderr, " -q        [INT]      Minimum mapping quality threshold. [20]\n");
+    fprintf(stderr, " -@        [INT]      Threads for BAM decompression. [4]\n");
+    fprintf(stderr, " -0                   Also output positions with zero coverage.\n");
     fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
-    fprintf(stderr, " * Requires sorted and indexed BAM as input.\n");
-    fprintf(stderr, " * Compares with `samtools depth`, PISA depth considers UMIs and strand of reads.\n");
+    fprintf(stderr, " * Requires a coordinate-sorted and indexed BAM.\n");
+    fprintf(stderr, " * Unlike samtools depth, PISA depth accounts for UMIs and strand.\n");
     return 1;
 }
 
 int bin_usage()
 {
-    fprintf(stderr, "# Count reads or fragments per genomic bin for bulk/single-cell WGS/WES/RNA-seq/ATAC-seq.\n");
+    fprintf(stderr, "# Count reads or fragments per genomic bin.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m bin -outdir bins sorted.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m bin -cb CB -outdir bins sorted.bam\n");
     fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m bin -cb CB -umi UB -outdir bins sorted.bam\n");
     fprintf(stderr, "\nOptions :\n");
-    fprintf(stderr, " -cb       [TAG]      A cell barcode tag or two tags of spatial coordinates for spatial data.\n");
-    fprintf(stderr, " -umi      [TAG]      UMI tag. Count once if more than one record has same UMI in one gene or peak.\n");
-    fprintf(stderr, " -bins                Bin window sizes for counting. Default is \"50K,100K,500K,1M\".\n");
-    fprintf(stderr, " -list     [FILE]     Barcode white list, used as column names at matrix. If not set, all barcodes will be count.\n");
-    fprintf(stderr, " -outdir   [DIR]      Output count files in MEX format into this folder.\n");
-    fprintf(stderr, " -q        [INT]      Minimal map quality to filter. Default is 20.\n");
-    fprintf(stderr, " -strand              Enable strand sensitive.\n");
+    fprintf(stderr, " -cb       [TAG]      Cell barcode tag, or two coordinate tags for spatial data.\n");
+    fprintf(stderr, " -umi      [TAG]      UMI tag. Each UMI is counted once per bin.\n");
+    fprintf(stderr, " -bins     [SIZES]    Comma-separated bin sizes. [\"50K,100K,500K,1M\"]\n");
+    fprintf(stderr, " -list     [FILE]     Barcode whitelist. If not set, all barcodes are counted.\n");
+    fprintf(stderr, " -outdir   [DIR]      Output directory for MEX-format count files.\n");
+    fprintf(stderr, " -q        [INT]      Minimum mapping quality threshold. [20]\n");
+    fprintf(stderr, " -strand              Enable strand-specific counting.\n");
     fprintf(stderr, " -t        [INT]      Threads.\n");
-    fprintf(stderr, " -sample-list [FILE]  A list of bam files. Each line contains a path and the sample name.\n");
+    fprintf(stderr, " -sample-list [FILE]  File listing BAM paths with sample names, one per line.\n");
     fprintf(stderr,"\n");
     return 1;
 }

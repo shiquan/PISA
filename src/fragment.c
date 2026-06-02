@@ -208,7 +208,7 @@ void fragment_flush_cache(struct dict *d, BGZF *out, bam_hdr_t *hdr)
         if (p->n == 0) continue;
         int j = sizes;
         sizes += p->n;
-        a = realloc(a, sizeof(void**)*sizes);
+        a = realloc(a, sizeof(void*)*sizes);
         struct frag *p0 = p->head;
         while (p0) {
             a[j++] = p0;

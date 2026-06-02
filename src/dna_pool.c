@@ -48,8 +48,8 @@ struct PISA_dna_pool *PISA_dna_pool_init()
 static uint8_t *PISA_dna_pack(const char *seq, int l)
 {
     int l2 = l&~1, i;
-    uint8_t *p = malloc(l2);
-    for (i = 0; i < l2; i+=2) 
+    uint8_t *p = malloc(l2/2);
+    for (i = 0; i < l2; i+=2)
         p[i>>1] = seq_nt16_table[(unsigned char)seq[i]] << 4 | seq_nt16_table[(unsigned char)seq[i+1]];
     return p;
 }
@@ -57,7 +57,7 @@ int PISA_dna_query1(struct PISA_dna_pool *p, uint8_t *a, int l)
 {
     if (p->l == 0) return -1;
     int i = 0, j =  p->l-1;
-    int l2 = l&~1;
+    int l2 = l/2;
 
     for (;;) {
         if (j < i) break;
@@ -285,9 +285,9 @@ struct PISA_dna_pool *PISA_pool_merge(struct PISA_dna_pool *p1,
     int i;
     for (i = 0; i < p2->l; ++i) {
         int idx = PISA_dna_query1(p1, p2->data[i].dna, p2->len);
-        if (idx == -1) {            
-            uint8_t *a = malloc(p2->len&~1);
-            memcpy(a, p2->data[i].dna, p2->len&~1);
+        if (idx == -1) {
+            uint8_t *a = malloc(p2->len/2);
+            memcpy(a, p2->data[i].dna, p2->len/2);
             idx = PISA_dna_push_core1(p1, a, p2->len);
         }
         p1->data[idx].count++;

@@ -63,7 +63,7 @@ struct bam_files *init_bam_list(const char *file_list, int n_thread)
     memset(files, 0, sizeof(struct bam_files));
     files->n_thread = n_thread;
     files->n = n;
-    files->files = malloc(sizeof(struct bam_file)*n);
+    files->files = calloc(n, sizeof(struct bam_file));
     
     kstring_t str = {0,0,0};
     
@@ -78,9 +78,8 @@ struct bam_files *init_bam_list(const char *file_list, int n_thread)
         
         int c = 0;
         int *s = ksplit(&str, '\t', &c);
-        if (c == 0) continue; // empty list
+        if (c == 0) { free(s); continue; } // empty list
         struct bam_file *file = &files->files[i];
-        memset(file, 0, sizeof(struct bam_file));
 
         file->state = file_not_open;
         file->fname = strdup(str.s);
@@ -115,12 +114,13 @@ int read_bam_files(struct bam_files *files, bam1_t *b)
 {
     if (files->i == files->n) return -1; // for muti-threads
     
-    struct bam_file *file = &files->files[files->i];
-    
-    while (file->state == file_closed && files->i < files->n) {
+    while (files->i < files->n) {
+        struct bam_file *file = &files->files[files->i];
+        if (file->state != file_closed) break;
         files->i++;
-        if (files->i == files->n) return -1;
     }
+    if (files->i == files->n) return -1;
+    struct bam_file *file = &files->files[files->i];
     
     if (file->state == file_not_open) {
         file->fp = hts_open(file->fname, "r");
@@ -157,14 +157,17 @@ int read_bam_files(struct bam_files *files, bam1_t *b)
 
 bam_hdr_t *get_hdr(struct bam_files *files)
 {
+    if (files->i >= files->n) return NULL;
     return files->files[files->i].hdr;
 }
 
 char *get_alias(struct bam_files *files)
 {
+    if (files->i >= files->n) return NULL;
     return files->files[files->i].alias;
 }
 char *get_fname(struct bam_files *files)
 {
+    if (files->i >= files->n) return NULL;
     return files->files[files->i].fname;
 }

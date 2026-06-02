@@ -261,7 +261,9 @@ int callept_main(int argc, char **argv)
 #pragma omp parallel for num_threads(args.n_thread) schedule(dynamic)
     for (i = 0; i < args.hdr->n_targets; ++i) {
         htsFile *fp = hts_open(args.input_fname, "r");
+        if (fp == NULL) error("Failed to open input file: %s", args.input_fname);
         hts_idx_t *idx = sam_index_load(fp, args.input_fname);
+        if (idx == NULL) error("Failed to load index for: %s", args.input_fname);
         LOG_print("Process %s ..", args.hdr->target_name[i]);
         struct bed_spec *B = bed_spec_init();
         bed_spec_seqname_from_bam(B, args.hdr);

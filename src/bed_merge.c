@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "number.h"
 #include "bed.h"
 
 static struct args {
@@ -83,8 +84,10 @@ static int parse_args(int argc, char **argv)
         }        
     }
 
+    if (upstream) args.upstream = str2int(upstream);
+    if (downstream) args.downstream = str2int(downstream);
     if (args.n_file == 0) error("No input bed file(s).");
-    
+
     return 0;
 }
 

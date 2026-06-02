@@ -146,7 +146,7 @@ struct thread_dat *read_thread_dat(FILE *fp, struct dict *tag_dict)
         qual.l = 0;
          
         size++;
-        char c = fgetc(fp);        
+        int c = fgetc(fp);        
         if (c == '@') fasta = 0;
         else if (c == '>') fasta = 1;
         else if (c == EOF)  break;
@@ -186,6 +186,7 @@ struct thread_dat *read_thread_dat(FILE *fp, struct dict *tag_dict)
         struct read_block *b;
         if (block_name == NULL || bn == NULL || strcmp(block_name, bn) != 0) {
             if (size > MEM_PER_BLK) {
+                free(bn);
                 name_buf = strdup(name.s);
                 seq_buf = strdup(seq.s);
                 qual_buf = qual.s == NULL ? NULL : strdup(qual.s);

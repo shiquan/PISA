@@ -74,8 +74,8 @@ uint32_t enc32(char *s, int l)
 uint64_t enc64(char *s)
 {
     int l = strlen(s);
-    if (l > 32) error("Only support to encode sequence not longer than 32nt.");
-    uint32_t q = 0;
+    if (l > 21) error("Only support to encode sequence not longer than 21nt.");
+    uint64_t q = 0;
     int i;
     for (i = 0; i < l; ++i)
         q = q<<3 | (encode_base(s[i]) & 0x7);

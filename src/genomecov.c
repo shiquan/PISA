@@ -214,6 +214,8 @@ static int parse_args(int argc, char **argv)
         fps->barcode_fp = bgzf_open(bc_str.s, "w");
         fps->feature_fp = bgzf_open(ft_str.s, "w");
         fps->mex_fp = bgzf_open(mx_str.s, "w");
+        if (fps->barcode_fp == NULL || fps->feature_fp == NULL || fps->mex_fp == NULL)
+            error("Failed to open output files in %s.", args.outdir);
     }
 
     free(bc_str.s);
@@ -348,6 +350,7 @@ void write_out(bam_hdr_t *hdr, struct chrom_counts **ccs, int nref)
     }
     kputs("meta.tsv.gz", &tmp);
     BGZF *fp = bgzf_open(tmp.s, "w");
+    if (fp == NULL) error("Failed to open output: %s.", tmp.s);
 
     kstring_t bc_str = {0,0,0};
     // write count per cell/sample
@@ -432,7 +435,7 @@ void write_out(bam_hdr_t *hdr, struct chrom_counts **ccs, int nref)
     if (ft_str.m) free(ft_str.s);
     if (mx_str.m) free(mx_str.s);
 
-    for (i = 0; i > nref; ++i) {
+    for (i = 0; i < nref; ++i) {
         struct chrom_counts *cc = ccs[i];
         if (cc == NULL) continue;
         destroy_cc(cc);
@@ -479,7 +482,7 @@ int bin_main(int argc, char **argv)
     for (;;) {
         if (sam_read1(in, hdr, b) < 0) break;
         bam1_core_t *c = &b->core;
-        if (c->tid < 0 || c->tid > nref) continue;
+        if (c->tid < 0 || c->tid >= nref) continue;
         if (c->qual < args.mapq_thres) continue;
         if (c->flag & BAM_FSECONDARY) continue;
         if (c->flag & BAM_FUNMAP) continue;
@@ -552,6 +555,7 @@ int bin_main(int argc, char **argv)
         int j;
         for (j = 0; j < args.n_bin; ++j) {
             int bin = pos/args.bins[j];
+            if (pos > cc->size) continue;
             struct cnt *cnt = &cc->cnt[j][bin];
             if (cnt->n == cnt->m) {
                 if (cnt->m == 0) {

@@ -61,7 +61,7 @@ static int parse_args(int argc, char **argv)
         const char **var = 0;
         if (strcmp(a, "-o") == 0 ) var = &args.output_fname;
         else if (strcmp(a, "-cb") == 0) var = &args.cb_tag;
-        else if (strcmp(a, "-tags") == 0) var = &tag;
+        else if (strcmp(a, "-tags") == 0 || strcmp(a, "-tag") == 0) var = &tag;
         else if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         else if (strcmp(a, "-dedup") == 0) {
             args.dedup = 1;

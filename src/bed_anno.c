@@ -182,6 +182,7 @@ static void memory_release()
 int annobed_main(int argc, char **argv)
 {
     if (parse_args(argc, argv)) return bedanno_usage();
+    if (args.B == NULL) error("No valid records in BED file.");
     int i;
     for (i = 0; i < args.B->n; ++i) {
         struct bed *b = &args.B->bed[i];

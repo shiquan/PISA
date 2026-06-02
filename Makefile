@@ -18,7 +18,12 @@ include $(ZLIBDIR)/zlib.mk
 LIBZ = $(ZLIBDIR)/libz.a
 
 CC       = gcc
+BUILD_TYPE ?= release
+ifeq ($(BUILD_TYPE),debug)
+CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64 -fopenmp
+else
 CFLAGS   = -Wall -O3 -D_FILE_OFFSET_BITS=64 -fopenmp
+endif
 DFLAGS   =
 INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I$(ZLIBDIR)
 LIBS = -lbz2 -llzma -pthread -lm -lcurl 
@@ -30,13 +35,16 @@ PACKAGE_VERSION := $(shell git describe --tags)
 
 .SUFFIXES:.c .o
 
-.PHONY:all clean clean-all distclean install lib tags test testclean 
+.PHONY:all debug clean clean-all distclean install lib tags test testclean 
+
+debug:
+	@$(MAKE) BUILD_TYPE=debug clean all
 
 force:
 
 .c.o:
 	@printf "Compiling $<...                               \r"
-	@$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@ || echo "Error in command: $(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $<"
+	@$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@
 
 LIB_OBJ = src/barcode_list.o \
 	src/bam_anno_vcf.o \
@@ -51,7 +59,6 @@ LIB_OBJ = src/barcode_list.o \
 	src/ksa.o \
 	src/bam_pool.o \
 	src/umi_corr.o \
-	src/dict.o \
 	src/read_tags.o \
 	src/sim_search.o \
 	src/fragment.o \
@@ -64,7 +71,8 @@ LIB_OBJ = src/barcode_list.o \
 	src/kthread.o \
 	src/coverage.o
 
-AOBJ = src/bam_anno.o \
+AOBJ = src/main.o \
+	src/bam_anno.o \
 	src/bam_count.o \
 	src/bam_pick.o \
 	src/sam2bam.o \
@@ -97,7 +105,14 @@ liba.a: $(LIB_OBJ)
 test: $(HTSLIB) $(HTSVERSION)
 
 PISA: $(HTSLIB) $(LIBZ) liba.a $(AOBJ)
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ src/main.c $(AOBJ) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $(AOBJ) src/liba.a $(HTSLIB) $(LIBS) $(LIBZ)
+
+prefix ?= /usr/local
+bindir ?= $(prefix)/bin
+
+install: $(PROG)
+	install -d $(bindir)
+	install -m 755 $(PROG) $(bindir)
 
 git:
 	@-echo '#define PISA_VERSION "$(PACKAGE_VERSION)"' > pisa_version.h
@@ -125,7 +140,6 @@ src/bed.o: src/bed.c
 src/number.o: src/number.c
 src/gtf.o: src/gtf.c
 src/region_index.o: src/region_index.c
-src/dict.o: src/dict.c
 src/fastq.o: src/fastq.c
 src/json_config.o: src/json_config.c
 src/kson.o: src/kson.c
@@ -142,9 +156,17 @@ src/bam_files.o:src/bam_files.c
 src/biostring.o:src/biostring.c
 src/kthread.o:src/kthread.c
 src/addtags.o:src/addtags.c
-src/fragment.o:src/fragment_count.c
+src/fragment.o:src/fragment.c
+src/fragment_count.o:src/fragment_count.c
 src/callept.o:src/callept.c
 src/genomecov.o:src/genomecov.c
+src/main.o:src/main.c
+src/coverage.o:src/coverage.c
+src/compactDNA.o:src/compactDNA.c
+src/bam_region.o:src/bam_region.c
+src/bed_merge.o:src/bed_merge.c
+src/bed_flatten.o:src/bed_flatten.c
+src/gtf2bed.o:src/gtf2bed.c
 
 clean: testclean
 	-rm -f gmon.out *.o *~ $(PROG) 

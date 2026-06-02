@@ -139,6 +139,7 @@ static struct bseq_pool *fastq_read_smart(struct fastq_handler *h, int chunk_siz
                 gzclose(h->r1);
                 kseq_destroy(h->k1);
                 h->r1 = gzopen(h->read_1[h->curr], "r");
+                if (h->r1 == NULL) error("%s : %s.", h->read_1[h->curr], strerror(errno));
                 h->k1 = kseq_init(h->r1);
                 if (kseq_read(h->k1) < 0) error("Empty record ? %s", h->read_1[h->curr]);
             }
@@ -377,17 +378,21 @@ struct fastq_handler *fastq_handler_init(const char *r1, const char *r2, const c
     }
     else {
         h->r1 = gzopen(h->read_1[0], "r");
+        if (h->r1 == NULL) error("%s : %s.", h->read_1[0], strerror(errno));
         h->k1 = kseq_init(h->r1);
         if (r2) {
             h->r2 = gzopen(h->read_2[0], "r");
+            if (h->r2 == NULL) error("%s : %s.", h->read_2[0], strerror(errno));
             h->k2 = kseq_init(h->r2);
         }
         if (r3) {
             h->r3 = gzopen(h->read_3[0], "r");
+            if (h->r3 == NULL) error("%s : %s.", h->read_3[0], strerror(errno));
             h->k3 = kseq_init(h->r3);
         }
         if (r4) {
             h->r4 = gzopen(h->read_4[0], "r");
+            if (h->r4 == NULL) error("%s : %s.", h->read_4[0], strerror(errno));
             h->k4 = kseq_init(h->r4);
         }
     }
@@ -500,7 +505,7 @@ void bseq_pool_push(struct bseq *b, struct bseq_pool *p)
     assert(p);
     if (p->n == p->m) {
         p->m = p->m == 0 ? 10 : p->m<<1;
-        p->s = realloc(p->s, sizeof(struct bseq)*p->m);               
+        void *tmp; tmp = realloc(p->s, sizeof(struct bseq)*p->m); if (!tmp) error("OOM"); p->s = tmp;
     }
     struct bseq *c = &p->s[p->n++];
     bseq_unset(c);
@@ -631,6 +636,7 @@ static int check_dup(struct bseq *r, struct bseq *q, int strand)
 
             l = q->s0.l > r->s1.l ? r->s1.l : q->s0.l;
             kputsn(r->s1.s+r->s1.l-l, l, &str);
+            if (q->s1.l > q->s0.l) return 0;
             char *rs1 = reverse_seq(q->s0.s, q->s0.l);
             kputsn(rs1+q->s1.l-1, l, &str1);
             free(rs1);
@@ -878,7 +884,7 @@ struct bseq_pool *bseq_pool_cache_fastq(FILE *fp, int n)
         } else {
             if (p->n == p->m) {
                 p->m = p->m == 0 ? 4 : p->m *2;
-                p->s = realloc(p->s, sizeof(struct bseq)*p->m);
+                void *tmp; tmp = realloc(p->s, sizeof(struct bseq)*p->m); if (!tmp) error("OOM"); p->s = tmp;
             }
         }
         
@@ -962,7 +968,7 @@ struct bseq_pool *bseq_pool_cache_fasta(FILE *fp, int n)
         } else {
             if (p->n == p->m) {
                 p->m = p->m == 0 ? 4 : p->m *2;
-                p->s = realloc(p->s, sizeof(struct bseq)*p->m);
+                void *tmp; tmp = realloc(p->s, sizeof(struct bseq)*p->m); if (!tmp) error("OOM"); p->s = tmp;
             }
         }
        

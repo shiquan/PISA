@@ -526,8 +526,8 @@ static char *retrieve_tags(bam1_t *b, struct dict *tags)
     char tag[3]; tag[2] = '\0';
 
     uint8_t *s, *end;
-    char **vals = malloc(l*sizeof(char**));
-    memset(vals,0, l*sizeof(char**));
+    char **vals = malloc(l*sizeof(char*));
+    memset(vals,0, l*sizeof(char*));
     
     s = bam_get_aux(b);
     end = b->data + b->l_data;
@@ -637,7 +637,7 @@ static void *run_it(void *_p)
             anno_tag = (char*)bam_aux_get(b, dict_name(args.anno_tags, 0));
             int k0 = 1;
             for (; k0 < dict_size(args.anno_tags); ++k0) {
-                char *tmp = (char*)bam_aux_get(b, dict_name(args.anno_tags, k0-1));
+                char *tmp = (char*)bam_aux_get(b, dict_name(args.anno_tags, k0));
                 if (!tmp) {
                     anno_tag = NULL;
                     break;
@@ -919,8 +919,8 @@ static void write_outs()
         //kputs("antisense.mtx.gz", &antisense_str);
         
         BGZF *barcode_fp = bgzf_open(barcode_str.s, "w");
-        bgzf_mt(barcode_fp, args.n_thread, 256);
         CHECK_EMPTY(barcode_fp, "%s : %s.", barcode_str.s, strerror(errno));
+        bgzf_mt(barcode_fp, args.n_thread, 256);
         
         int i;
 
@@ -941,8 +941,8 @@ static void write_outs()
         }
         str.l = 0;
         BGZF *feature_fp = bgzf_open(feature_str.s, "w");
-        bgzf_mt(feature_fp, args.n_thread, 256);
         CHECK_EMPTY(feature_fp, "%s : %s.", feature_str.s, strerror(errno));
+        bgzf_mt(feature_fp, args.n_thread, 256);
         for (i = 0; i < n_feature; ++i) {
             kputs(dict_name(args.features,i), &str);
             kputc('\n', &str);
@@ -1087,7 +1087,7 @@ static void write_outs()
         for (i = 0; i < n_barcode; ++i)
             fprintf(out, "\t%s", dict_name(args.barcodes, i));
         fprintf(out, "\n");
-        uint32_t *temp = malloc(n_barcode*sizeof(int));        
+        uint32_t *temp = malloc(n_barcode*sizeof(uint32_t));
         for (i = 0; i < n_feature; ++i) {
             struct PISA_dna_pool *v = dict_query_value(args.features, i);
             int j;

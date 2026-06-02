@@ -125,5 +125,4 @@ void region_itr_destroy(struct region_itr *itr)
 {
     free(itr->rets);
     free(itr);
-    itr=NULL;
 }

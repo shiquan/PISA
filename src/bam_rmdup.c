@@ -153,11 +153,11 @@ static inline char *pick_tag_name(const bam1_t *b, int n_tag, char **tags)
         uint8_t *tag = bam_aux_get(b, args.tags[i]);        
         if (!tag){
             if (args.disable_warnings == 0)
-                warnings("No %s tag at alignment. %d:%ld", args.tags[i], c->tid, c->pos+1);
+                warnings("No %s tag at alignment. %d:%lld", args.tags[i], c->tid, (long long)(c->pos+1));
             if (str.l) free(str.s);
             return NULL;
         }
-        kputs((char*)tag, &str);
+        kputs((char*)(tag+1), &str);
     }
     return str.s;
 }

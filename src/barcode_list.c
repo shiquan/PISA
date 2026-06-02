@@ -26,7 +26,7 @@ static struct barcode *init_barcode_list(const char *fname, int *n, int *m)
         char *p = str.s;
         char *e = str.s + str.l;
         while (p < e && !isspace(*p)) p++;
-        *p = '\0';
+        if (p < e) *p = '\0';
         if (_n == _m) {
             _m = _m<<1;
             b = realloc(b, sizeof(struct barcode)*_m);

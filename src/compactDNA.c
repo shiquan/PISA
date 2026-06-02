@@ -108,7 +108,7 @@ char *compDNA_decode(const char *a)
     assert(a);
     int l;
     l = strlen(a);
-    int l1 = l*2 + (a[l-1]&0xf);
+    int l1 = l*2 + 1;
     char *r = malloc(l1);
     int i;
     int j = 0;

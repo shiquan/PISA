@@ -1,0 +1,40 @@
+# PISA binary
+PISA
+*.dSYM/
+
+# Object files and static libs
+*.o
+*.pico
+src/liba.a
+
+# Third-party: htslib
+third_party/htslib-1.10.2/libhts.a
+third_party/htslib-1.10.2/config.h
+third_party/htslib-1.10.2/version.h
+third_party/htslib-1.10.2/hts-object-files
+third_party/htslib-1.10.2/htslib.pc
+third_party/htslib-1.10.2/htslib.pc.tmp
+third_party/htslib-1.10.2/*.dylib
+third_party/htslib-1.10.2/*.so
+third_party/htslib-1.10.2/*.so.*
+third_party/htslib-1.10.2/*.dll
+third_party/htslib-1.10.2/*.dll.a
+
+# Third-party: zlib
+third_party/zlib-1.2.11/*.o
+third_party/zlib-1.2.11/libz.a
+third_party/zlib-1.2.11/Makefile
+third_party/zlib-1.2.11/configure.log
+third_party/zlib-1.2.11/zlib.pc
+third_party/zlib-1.2.11/example
+third_party/zlib-1.2.11/minigzip
+
+# Demo output
+demo/aln.bam
+demo/select.bam
+demo/bc.txt
+demo/anno.bam
+demo/dedup.bam
+demo/out.fq
+demo/tags.tsv
+demo/count/

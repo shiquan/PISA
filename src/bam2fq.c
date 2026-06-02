@@ -61,7 +61,7 @@ static int parse_args(int argc, char **argv)
         }
         else if (strcmp(a, "-@") == 0) var = &file_th;
         else if (strcmp(a, "-o") == 0) var = &args.output_fname;
-        else if (strcmp(a, "-tags") == 0) var = &tags;
+        else if (strcmp(a, "-tags") == 0 || strcmp(a, "-tag") == 0) var = &tags;
         
         if (var != 0) {
             if (argc == i) error("Miss an argument after %s.",a);
@@ -79,7 +79,7 @@ static int parse_args(int argc, char **argv)
 
     if (args.input_fname == NULL) error("No input bam.");
 
-    if (tags == NULL) error("No tag specified.");
+    if (tags == NULL) error("No tag specified. Use -tag or -tags.");
 
     if (file_th) args.file_th = str2int((char*)file_th);
 
@@ -192,7 +192,22 @@ int bam2fq(int argc, char **argv)
                 kputs("|||", &name);
                 kputs(args.tags[i], &name); kputc(':', &name);
                 kputc(*(char*)tag, &name);  kputc(':', &name);
-                kputs((char*)(tag+1), &name);
+                switch (*tag) {
+                    case 'A': kputc(tag[1], &name); break;
+                    case 'c': case 'C': case 's': case 'S': case 'i': case 'I':
+                        kputw(bam_aux2i(tag), &name); break;
+                    case 'f': case 'd':
+                        kputd((double)bam_aux2f(tag), &name); break;
+                    case 'Z':
+                        kputs((char*)(tag+1), &name); break;
+                    case 'H': {
+                        char *va = bam_aux2Z(tag);
+                        kputs(va, &name);
+                        free(va);
+                        break;
+                    }
+                    default: kputs((char*)(tag+1), &name); break;
+                }
             }
         }
         
