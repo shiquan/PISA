@@ -45,6 +45,7 @@ struct umi_tag {
 struct umi_tag *umi_tag_build()
 {
     struct umi_tag *U = malloc(sizeof(*U));
+    if (U == NULL) error("Failed to allocate memory.");
     memset(U, 0, sizeof(*U));
     U->dict = kh_init(name);
     return U;
@@ -154,6 +155,7 @@ struct corr_tag {
 struct corr_tag *corr_tag_build()
 {
     struct corr_tag *C = malloc(sizeof(*C));
+    if (C == NULL) error("Failed to allocate memory.");
     memset(C, 0, sizeof(*C));
     C->dict = kh_init(name);
     return C;

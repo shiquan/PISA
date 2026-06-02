@@ -556,8 +556,9 @@ struct region_itr *bed_query(const struct bed_spec *B, char *name, int start, in
         warnings("Bad ranger, %s:%d-%d", name, start, end);
         return NULL;
     }
-    
+
     int st = B->ctg[id].idx; // 0 based
+    if (st < 0) return NULL;
     if (end < B->bed[st].start) return NULL; // out of range
 
     struct region_index *idx = B->idx[id].idx;
@@ -998,8 +999,8 @@ static int query_trans(int start, int end, struct gtf const *G, struct anno0 *a)
 /*     return BAT_PROMOTER; */
 /* } */
 
-#define max(x, y) x > y ? x : y
-#define min(x, y) x > y ? y : x
+#define max(x, y) ((x) > (y) ? (x) : (y))
+#define min(x, y) ((x) > (y) ? (y) : (x))
 
 int region_overlap(int start, int end, int start0, int end0)
 {

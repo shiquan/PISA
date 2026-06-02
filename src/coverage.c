@@ -5,6 +5,7 @@
 struct depth *depth_init()
 {
     struct depth *d = malloc(sizeof(*d));
+    if (d == NULL) error("Failed to allocate memory.");
     memset(d, 0, sizeof(*d));
     d->id = -1;
     return d;
@@ -86,10 +87,12 @@ void update_depth(struct depth *d)
     if (d->bc1 && d->dep1 == 0) {
         d->dep1 = dict_size(d->bc1);
         dict_destroy(d->bc1);
+        d->bc1 = NULL;
     }
     if (d->bc2 && d->dep2 == 0) {
         d->dep2 = dict_size(d->bc2);
         dict_destroy(d->bc2);
+        d->bc2 = NULL;
     }
 }
 

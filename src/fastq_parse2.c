@@ -211,7 +211,7 @@ char *correct_bc(struct dict *wl, const char *val, int *exact)
             char o = str.s[j];
             str.s[j] = 'N';
             idx = dict_query2(wl, str.s);
-            if (idx > 0) {
+            if (idx >= 0) {
                 free(str.s);
                 return dict_name(wl, idx);
             }
@@ -514,8 +514,7 @@ static void memory_release()
     }
     
     free(args.bcs);
-    free(args.r1->r);
-    free(args.r1);
+    if (args.r1) { free(args.r1->r); free(args.r1); }
     
     if (args.r2) {
         free(args.r2->r);

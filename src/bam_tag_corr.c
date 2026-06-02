@@ -495,7 +495,7 @@ char *select_umi(struct dict *Cindex, int n,const char **tags, char *umi)
     kh_bc_t *v = select_umi_hash(Cindex, n, tags);
     khiter_t k;
     k = kh_get(bc, v, cu);
-    assert(k != kh_end(v));
+    if (k == kh_end(v)) { free(cu); return NULL; }
     free(cu);
     struct umi_count *cnt = &kh_val(v,k);
     if (cnt->filter) return NULL;
@@ -523,7 +523,7 @@ int update_new_tag(struct dict *Cindex, int n_block, const char **blocks, const 
     if (new_tag)
         bam_aux_append(b, args.new_tag, 'Z', strlen(new_umi)+1, (uint8_t*)new_umi);
     else
-        memcpy(umi, new_umi, strlen(new_umi)); // since it is equal length, just reset the memory..
+        memcpy(umi+1, new_umi, strlen(new_umi)); // since it is equal length, just reset the memory..
     
     free(new_umi);
     return 1;
@@ -566,6 +566,7 @@ int bam_corr_umi(int argc, char **argv)
     if (parse_args(argc, argv)) return bam_corr_usage();
 
     args.in  = hts_open(args.input_fname, "r");
+    CHECK_EMPTY(args.in, "%s : %s.", args.input_fname, strerror(errno));
     args.hdr = sam_hdr_read(args.in);
     CHECK_EMPTY(args.hdr, "Failed to open header.");
     

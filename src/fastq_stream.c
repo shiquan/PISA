@@ -59,13 +59,12 @@ static struct args {
 
 static void memory_release()
 {
-    kstring_t run = {0,0,0};
-    kputs("rm -rf ", &run);
-    kputs(args.tempdir, &run);
-    if (system(run.s) == -1) warnings("Failed to run %s", run.s);
-    free(run.s);
+    if (remove(args.tempdir) == -1) {
+        if (rmdir(args.tempdir) == -1)
+            warnings("Failed to remove %s", args.tempdir);
+    }
     if (args.run_script) free(args.run_script);
-    fastq_handler_destory(args.fastq);    
+    fastq_handler_destory(args.fastq);
 }
 
 static int parse_args(int argc, char **argv)
@@ -82,7 +81,7 @@ static int parse_args(int argc, char **argv)
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
         if (strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-t") == 0) var = &thread;
-        else if (strcmp(a, "-tags") == 0) var = &args.tags_str;
+        else if (strcmp(a, "-tags") == 0 || strcmp(a, "-tag") == 0) var = &args.tags_str;
         else if (strcmp(a, "-tmpdir") == 0) var = &args.tempdir;
         else if (strcmp(a, "-script") == 0) var = &args.script;
         else if (strcmp(a, "-min") == 0) var = &min;
@@ -116,12 +115,14 @@ static int parse_args(int argc, char **argv)
         error("Unknown argument : %s", a);
     }
 
-    if (args.input_fname == NULL ) error("No input fastq specified.");    
+    if (args.input_fname == NULL ) error("No input fastq specified.");
     if (args.script == NULL) error("No -script specified.");
+    if (strchr(args.tempdir, '\''))
+        error("Tempdir must not contain single-quote character.");
     args.fout = args.output_fname == NULL ? stdout : fopen(args.output_fname, "w");
     if (args.fout == NULL) error("%s : %s.", args.output_fname, strerror(errno));
     
-    if (args.tags_str == NULL) error("-tag must be set.");
+    if (args.tags_str == NULL) error("-tag/-tags must be set.");
     args.tags = str2tag(args.tags_str);
     if (thread) args.n_thread = str2int(thread);
     // if (file_thread) args.n_thread = str2int(file_thread);
@@ -159,12 +160,12 @@ static struct bseq_pool *stream_process(const char *run_script, struct bseq_pool
     // create tmp fastq input, setup $FQ envion parameter(s)
     bseq_pool_write_file(in, input.s);
     free(input.s);
-    kputs("cd ", &script);
+    kputs("cd '", &script);
     kputs(tmpdir, &script);
-    kputs("; ", &script);
+    kputs("'; ", &script);
     kputs("export FQ=\"./_block.fq\"; ", &script);
     ksprintf(&script, "export UBI=\"%s\"; ", unique_block_name);
-    
+
     kputs(run_script, &script);
 
     FILE *fp;
@@ -284,9 +285,9 @@ static void *run_it(void *_data)
 
     if (args.keep_temp == 0) {
         kstring_t str = {0,0,0};
-        kputs("rm -rf ", &str);
+        kputs("rm -rf '", &str);
         kputs(tempdir0.s, &str);
-        
+        kputs("'", &str);
         if (system(str.s) == -1) warnings("Failed to run %s", str.s);
         free(str.s);
     }

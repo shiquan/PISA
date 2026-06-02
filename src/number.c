@@ -53,7 +53,7 @@ int get_numbase(const char *s)
             break;
     }
 
-    if ( !isdigit((unsigned char)s[1] || s[1] == '8' || s[1] == '9'))
+    if ( !isdigit((unsigned char)s[1]) || s[1] == '8' || s[1] == '9')
         return 10;
     return 8;
 }
@@ -81,7 +81,7 @@ int get_numbase_l(const char *s, int l)
             break;
     }
 
-    if ( !isdigit((unsigned char)s[1] || s[1] == '8' || s[1] == '9'))
+    if ( !isdigit((unsigned char)s[1]) || s[1] == '8' || s[1] == '9')
         return 10;
     return 8;
 }
@@ -90,7 +90,7 @@ int is_ieee_magic_val(const char *val)
 {
     if ( strlen(val) != 4)
         return 0;
-    return ( (val[0] == '+' || val[1] == '-')  &&
+    return ( (val[0] == '+' || val[0] == '-')  &&
              ( ( (val[1] == 'i' || val[1] == 'I')
                  && (val[2] == 'n' || val[2] == 'N')
                  && (val[3] == 'f' || val[3] == 'F') ) ||
@@ -306,10 +306,11 @@ double force2num_l(char *str, int l)
     char *temp = strndup(str, l);
     // char *pend;
     if ( base == 10 )  {
-        int b = strtod(temp, NULL );
+        double b = strtod(temp, NULL );
         free(temp);
         return b;
     } else {
+        free(temp);
         return nondec2num(str, l);
     }
 }

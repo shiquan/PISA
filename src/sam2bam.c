@@ -488,7 +488,7 @@ int bam_pool_qual_corr(struct sam_pool *p)
         }
         
         bam1_core_t *c = &bam->core;
-        if (c->tid <= -1 || c->tid > args.hdr->n_targets || (c->flag & BAM_FUNMAP)) {
+        if (c->tid <= -1 || c->tid >= args.hdr->n_targets || (c->flag & BAM_FUNMAP)) {
             i++; continue;
         }
         // only correct multi-hits        
@@ -556,8 +556,8 @@ static void *sam_name_parse(void *_p)
     if (args.enable_corr) 
         n_corr = bam_pool_qual_corr(p);
     
-    for (i = 0; i < p->n; ++i) 
-        sam_stat_reads(p->bam[i], s0, &p->flag[i], opts);
+    for (i = 0; i < p->n; ++i)
+        if (p->bam[i]) sam_stat_reads(p->bam[i], s0, &p->flag[i], opts);
 
     pthread_mutex_lock(&global_data_mutex);
     struct summary *s = opts->summary;

@@ -598,8 +598,18 @@ int fsort(int argc, char **argv)
 
 #pragma omp parallel shared(i_name, n_file, end_of_file) num_threads(args.n_thread)
         for (;;) {
-            if (n_file >= max_file_open) break;
             if (end_of_file == 1) break;
+
+            int my_n_file;
+            int got_slot = 0;
+#pragma omp critical (n_file)
+            {
+                if (n_file < max_file_open) {
+                    my_n_file = n_file++;
+                    got_slot = 1;
+                }
+            }
+            if (!got_slot) break;
 
             struct read_block *b;
 #pragma omp critical (read)
@@ -608,10 +618,7 @@ int fsort(int argc, char **argv)
                 end_of_file = 1;
                 break;
             }
-            struct fastq_stream *stream = &fastqs[n_file];
-
-#pragma omp atomic
-            n_file++;
+            struct fastq_stream *stream = &fastqs[my_n_file];
         
             char *name = calloc(strlen(args.prefix)+20,1);
             sprintf(name, "%s.%.4d.bgz", args.prefix, i_name);

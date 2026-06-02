@@ -103,7 +103,8 @@ char *fname_update_tag(char *p, const char *tag, const char *val)
 
     if (j - i == lv && strncmp(val, p+i, lv) == 0) return NULL; // already present, no update
     kstring_t str = {0,0,0};
-    kputsn(p, i+2, &str);
+    int offset = (p[i+1] == ':') ? 2 : 0;
+    kputsn(p, i+offset, &str);
 //kputc(':', &str);
     kputs(val, &str);
     if (j < l) kputs(p+j, &str);
@@ -143,6 +144,7 @@ char *fname_update_tags(char *p, struct dict *tags, char **vals)
 char **fname_pick_tags(const char *p, struct dict *dict)
 {
     char **vals = malloc(dict_size(dict)*sizeof(char*));
+    if (vals == NULL) error("Failed to allocate memory.");
     memset(vals, 0, dict_size(dict)*sizeof(char*));
     // order value by key
     int i;

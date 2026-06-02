@@ -36,7 +36,7 @@ static int parse_args(int argc, char **argv)
         const char *a = argv[i++];
         const char **var = 0;
         if (strcmp(a, "-h") == 0 || strcmp(a, "--help") == 0) return 1;
-        if (strcmp(a, "-tags") == 0) var = &tags;
+        if (strcmp(a, "-tags") == 0 || strcmp(a, "-tag") == 0) var = &tags;
         else if (strcmp(a, "-out") == 0 || strcmp(a, "-o") == 0) var = &args.output_fname;
         else if (strcmp(a, "-@") == 0) var = &file_thread;
         else if (strcmp(a, "-n") == 0) {
@@ -128,7 +128,7 @@ int bam_extract_tags(int argc, char **argv)
             }
             else {
                 is_empty = 0;
-                if (*tag == 'S' || *tag == 's' || *tag == 'c' || *tag == 'i' || *tag == 'I') {
+                if (*tag == 'S' || *tag == 's' || *tag == 'c' || *tag == 'C' || *tag == 'i' || *tag == 'I') {
                     int64_t va = bam_aux2i(tag);
                     kputw(va, &str);
                 }
@@ -136,9 +136,13 @@ int bam_extract_tags(int argc, char **argv)
                     double va = bam_aux2f(tag);
                     kputd(va, &str);
                 }
-                else if (*tag == 'H' || *tag == 'Z') {
+                else if (*tag == 'H') {
                     char *va = bam_aux2Z(tag);
                     kputs(va, &str);
+                    free(va);
+                }
+                else if (*tag == 'Z') {
+                    kputs((char*)(tag+1), &str);
                 }
                 else if (*tag == 'A') kputc(tag[1], &str);
                 else kputs((char*)(tag+1), &str);

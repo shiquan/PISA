@@ -57,14 +57,14 @@ void *dict_query_value2(struct dict *D, const char *key)
 
 int dict_assign_value(struct dict *D, int idx, void *val)
 {
-    if (idx < 0 || idx > D->n) return 1;
+    if (idx < 0 || idx >= D->n) return 1;
     D->value[idx] = val;
     return 0;
 }
 
 int dict_delete_value(struct dict *D, int idx)
 {
-    if (idx < 0 || idx > D->n) return 1;
+    if (idx < 0 || idx >= D->n) return 1;
     void *p = D->value[idx];
     D->value[idx] = NULL;
     free(p);
@@ -146,13 +146,15 @@ static int dict_push0(struct dict *D, char const *key, int idx)
     }
     if (D->n == D->m) {
         D->m = D->m == 0 ? 1024 : D->m<<1;
-        D->count = realloc(D->count, sizeof(uint32_t)*D->m);
-        assert(D->count);
+        uint32_t *tmp_count = realloc(D->count, sizeof(uint32_t)*D->m);
+        if (tmp_count) D->count = tmp_count;
         int i;
         for (i = D->n; i < D->m; ++i) D->count[i] = 0;
-        D->name = realloc(D->name, sizeof(char*)*D->m);
+        char **tmp_name = realloc(D->name, sizeof(char*)*D->m);
+        if (tmp_name) D->name = tmp_name;
         if (D->assign_value_flag) {
-            D->value = realloc(D->value, sizeof(void *)*D->m);
+            void **tmp_value = realloc(D->value, sizeof(void *)*D->m);
+            if (tmp_value) D->value = tmp_value;
             int j;
             for (j = D->n; j < D->m; ++j) D->value[j] = NULL; // reset  
         }

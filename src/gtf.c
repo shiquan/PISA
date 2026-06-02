@@ -115,9 +115,11 @@ static struct attr_pair *split_gff(kstring_t *str, int *_n)
     int n =0, m = 0;
     struct attr_pair *pair = NULL;
 
-    int j = str->l -1;
-    while (isspace(str->s[j]) || str->s[j] == ';') j--;
-    str->l = j+1;
+    int j = str->l - 1;
+    if (j < 0) { *_n = 0; return NULL; }
+    while (j >= 0 && (isspace(str->s[j]) || str->s[j] == ';')) j--;
+    if (j < 0) { *_n = 0; return NULL; }
+    str->l = j + 1;
     str->s[str->l] = '\0';
 
     for (;;) {
@@ -258,7 +260,7 @@ static int gtf_push(struct gtf_spec *G, struct gtf_ctg *ctg, struct gtf *gtf, in
 
             if (tx_gtf->strand == -1) tx_gtf->strand = gene_gtf->strand;
             if (tx_gtf->gene_name == -1) tx_gtf->gene_name = gene_gtf->gene_name;
-            if (tx_gtf->gene_id == -1) tx_gtf->gene_name = gene_gtf->gene_id;
+            if (tx_gtf->gene_id == -1) tx_gtf->gene_id = gene_gtf->gene_id;
             return 0; // trans record end here
         }
 
@@ -615,7 +617,7 @@ struct region_itr *gtf_query(struct gtf_spec const *G, const char *name, int sta
 
     if (itr==NULL) return NULL;
     if (itr->n == 0) {
-        free(itr);
+        region_itr_destroy(itr);
         return NULL;
     }
     qsort((struct gtf**)itr->rets, itr->n, sizeof(struct gtf*), cmpfunc1);

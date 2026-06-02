@@ -292,7 +292,9 @@ static void build_kmers_ref(struct ref *r)
                 kh_val(r->map, k) = h;
                 if (r->n == r->m) {
                     r->m += 100;
-                    r->kmers = realloc(r->kmers, r->m*sizeof(char*));
+                    char **tmp = realloc(r->kmers, r->m*sizeof(char*));
+                    if (!tmp) error("realloc r->kmers failed");
+                    r->kmers = tmp;
                 }
                 r->kmers[r->n++] = str.s; // keep key
                 // debug_print("kmers : %s, %d, %d", str.s, i, strand);
@@ -1089,9 +1091,10 @@ static int parse_args(int argc, char **argv)
         
     args.r = config_init(args.config_fname);
 
-    if (args.output_fname)
+    if (args.output_fname) {
         args.out = fopen(args.output_fname, "w");
-    else
+        if (args.out == NULL) error("%s : %s.", args.output_fname, strerror(errno));
+    } else
         args.out = stdout;
     return 0;
 }
