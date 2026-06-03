@@ -26,7 +26,20 @@ CFLAGS   = -Wall -O3 -D_FILE_OFFSET_BITS=64 -fopenmp
 endif
 DFLAGS   =
 INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I$(ZLIBDIR)
-LIBS = -lbz2 -llzma -pthread -lm -lcurl 
+LIBS = -pthread -lm
+# Optional deps: auto-detected (override with: make USE_BZ2=0 etc.)
+USE_BZ2   ?= $(shell echo 'int main(){return 0;}' | $(CC) -include bzlib.h -x c - -lbz2 -o /dev/null 2>/dev/null && echo 1 || echo 0)
+USE_LZMA  ?= $(shell echo 'int main(){return 0;}' | $(CC) -include lzma.h -x c - -llzma -o /dev/null 2>/dev/null && echo 1 || echo 0)
+USE_CURL  ?= $(shell echo 'int main(){return 0;}' | $(CC) -include curl/curl.h -x c - -lcurl -o /dev/null 2>/dev/null && echo 1 || echo 0)
+ifeq ($(USE_BZ2),1)
+  LIBS += -lbz2
+endif
+ifeq ($(USE_LZMA),1)
+  LIBS += -llzma
+endif
+ifeq ($(USE_CURL),1)
+  LIBS += -lcurl
+endif
 
 #all:$(PROG)
 
