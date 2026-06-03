@@ -210,7 +210,10 @@ LIBHTS_OBJS = \
 # Without configure we wish to have a rich set of default figures,
 # but we still need conditional inclusion as we wish to still
 # support ./configure --disable-blah.
-NONCONFIGURE_OBJS = hfile_libcurl.o
+NONCONFIGURE_OBJS =
+ifeq ($(USE_CURL),1)
+  NONCONFIGURE_OBJS += hfile_libcurl.o
+endif
 
 PLUGIN_EXT  =
 PLUGIN_OBJS =
