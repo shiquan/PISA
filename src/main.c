@@ -31,6 +31,7 @@ int usage()
     fprintf(stderr, "    addtags    Add tag string to BAM alignments.\n");
     fprintf(stderr, "    callept    Call expressed peak tags (EPTs) for RNA library.\n");
     fprintf(stderr, "    bin        Count reads per genome window.\n");
+    fprintf(stderr, "    cov        Count covered genomic bases per tag.\n");
 
     fprintf(stderr, "\n--- Processing fragment file.\n");
     fprintf(stderr, "    count2     Count peak X cell matrix from fragment file.\n");
@@ -94,6 +95,7 @@ int main(int argc, char *argv[])
     extern int gtf_format(int argc, char **argv);
     extern int gtf2bed_main(int argc, char **argv);
     extern int bin_main(int argc, char **argv);
+    extern int cov_main(int argc, char **argv);
     
     if (argc == 1) return usage();
     //else if (strcmp(argv[1], "parse") == 0) return fastq_parse_barcodes(argc-1, argv+1);
@@ -128,6 +130,7 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "depth") == 0) return depth_main(argc-1, argv+1);
     else if (strcmp(argv[1], "callept") == 0) return callept_main(argc-1, argv+1);
     else if (strcmp(argv[1], "bin") == 0) return bin_main(argc-1, argv+1);
+    else if (strcmp(argv[1], "cov") == 0) return cov_main(argc-1, argv+1);
     else if (strcmp(argv[1], "addtags") == 0) return add_tags(argc-1, argv+1);
     else if (strcmp(argv[1], "gtffmt") == 0) return gtf_format(argc-1, argv+1);
     else if (strcmp(argv[1], "gtf2bed") == 0) return gtf2bed_main(argc-1, argv+1);

@@ -527,3 +527,26 @@ int bin_usage()
     fprintf(stderr,"\n");
     return 1;
 }
+
+int cov_usage()
+{
+    fprintf(stderr, "# Count genomic bases with depth >= min-depth per tag.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m cov -tag CB -o cov.csv sorted.bam\n");
+    fprintf(stderr, "\x1b[36m\x1b[1m$\x1b[0m \x1b[1mPISA\x1b[0m cov -tag CB -list cells.txt -umi UB -min-depth 5 -o cov.tsv sorted.bam\n");
+    fprintf(stderr, "\nOptions :\n");
+    fprintf(stderr, " -tag      [TAG]      Barcode/tag to group reads. Required.\n");
+    fprintf(stderr, " -list     [FILE]     Whitelist for -tag.\n");
+    fprintf(stderr, " -umi      [TAG]      UMI tag. When set, only unique UMIs count toward depth.\n");
+    fprintf(stderr, " -min-depth  [INT]    Minimum depth to count a base as covered. [%d]\n", 1);
+    fprintf(stderr, " -o        [FILE]     Output file (CSV or TSV, depending on extension). [stdout]\n");
+    fprintf(stderr, " -q        [INT]      Minimum mapping quality threshold. [%d]\n", 20);
+    fprintf(stderr, " -@        [INT]      Threads for BAM decompression. [%d]\n", 4);
+    fprintf(stderr, "\n\x1b[31m\x1b[1mNotice\x1b[0m :\n");
+    fprintf(stderr, " * Requires a coordinate-sorted and indexed BAM.\n");
+    fprintf(stderr, " * With -umi, only unique UMIs are counted toward depth per position per cell.\n");
+    fprintf(stderr, " * With -min-depth, only bases with depth >= N are counted as covered.\n");
+    fprintf(stderr, " * Output format is CSV (.csv) or TSV (.tsv) depending on output filename.\n");
+    fprintf(stderr, " * With -list, only reads with barcodes in the whitelist are counted.\n");
+    return 1;
+}
