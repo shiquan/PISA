@@ -145,19 +145,23 @@ static int dict_push0(struct dict *D, char const *key, int idx)
         return ret;
     }
     if (D->n == D->m) {
-        D->m = D->m == 0 ? 1024 : D->m<<1;
-        uint32_t *tmp_count = realloc(D->count, sizeof(uint32_t)*D->m);
-        if (tmp_count) D->count = tmp_count;
+        int new_m = D->m == 0 ? 1024 : D->m<<1;
+        uint32_t *tmp_count = realloc(D->count, sizeof(uint32_t)*new_m);
+        if (tmp_count == NULL) error("Failed to allocate memory.");
+        D->count = tmp_count;
         int i;
-        for (i = D->n; i < D->m; ++i) D->count[i] = 0;
-        char **tmp_name = realloc(D->name, sizeof(char*)*D->m);
-        if (tmp_name) D->name = tmp_name;
+        for (i = D->n; i < new_m; ++i) D->count[i] = 0;
+        char **tmp_name = realloc(D->name, sizeof(char*)*new_m);
+        if (tmp_name == NULL) error("Failed to allocate memory.");
+        D->name = tmp_name;
         if (D->assign_value_flag) {
-            void **tmp_value = realloc(D->value, sizeof(void *)*D->m);
-            if (tmp_value) D->value = tmp_value;
+            void **tmp_value = realloc(D->value, sizeof(void *)*new_m);
+            if (tmp_value == NULL) error("Failed to allocate memory.");
+            D->value = tmp_value;
             int j;
-            for (j = D->n; j < D->m; ++j) D->value[j] = NULL; // reset  
+            for (j = D->n; j < new_m; ++j) D->value[j] = NULL; // reset
         }
+        D->m = new_m;
     }
 
     ret = idx >= 0 ? idx : D->n;
