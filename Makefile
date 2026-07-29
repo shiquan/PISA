@@ -110,7 +110,8 @@ AOBJ = src/main.o \
 	src/bed_anno.o \
 	src/gtf2bed.o \
 	src/bed_flatten.o \
-	src/bam_cov.o
+	src/bam_cov.o \
+	src/pisa_history.o
 
 liba.a: $(LIB_OBJ)
 	@-rm -f src/$@
@@ -181,6 +182,7 @@ src/bam_region.o:src/bam_region.c
 src/bed_merge.o:src/bed_merge.c
 src/bed_flatten.o:src/bed_flatten.c
 src/bam_cov.o:src/bam_cov.c
+src/pisa_history.o:src/pisa_history.c
 src/gtf2bed.o:src/gtf2bed.c
 
 clean: testclean

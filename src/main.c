@@ -48,6 +48,9 @@ int usage()
     fprintf(stderr, "    gtffmt     Format and reorder GTF file.\n");
     fprintf(stderr, "    gtf2bed    Convert GTF to BED.\n");
     
+    fprintf(stderr, "\n--- About PISA\n");
+    fprintf(stderr, "    history    Show PISA release history.\n");
+
     fprintf(stderr, "\n--- Deprecated tools, will remove in v2 release.\n");
     fprintf(stderr, "    parse0     Original tool to parse barcodes from FASTQ, require a config file.\n");
     // fprintf(stderr, "    fusion     Predict gene fusion based on UMIs.\n");
@@ -96,7 +99,8 @@ int main(int argc, char *argv[])
     extern int gtf2bed_main(int argc, char **argv);
     extern int bin_main(int argc, char **argv);
     extern int cov_main(int argc, char **argv);
-    
+    extern int pisa_history(int argc, char **argv);
+
     if (argc == 1) return usage();
     //else if (strcmp(argv[1], "parse") == 0) return fastq_parse_barcodes(argc-1, argv+1);
     //else if (strcmp(argv[1], "parse2") == 0) return fastq_parse2(argc-1, argv+1);
@@ -134,7 +138,8 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[1], "addtags") == 0) return add_tags(argc-1, argv+1);
     else if (strcmp(argv[1], "gtffmt") == 0) return gtf_format(argc-1, argv+1);
     else if (strcmp(argv[1], "gtf2bed") == 0) return gtf2bed_main(argc-1, argv+1);
-    
+    else if (strcmp(argv[1], "history") == 0) return pisa_history(argc-1, argv+1);
+
     // deprecated
     else if (strcmp(argv[1], "parse0") == 0) return fastq_parse_barcodes(argc-1, argv+1);
     else if (strcmp(argv[1], "fusion") == 0) return gene_fusion(argc-1, argv+1);
