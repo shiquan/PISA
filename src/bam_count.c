@@ -1189,18 +1189,24 @@ int count_matrix1(int argc, char **argv)
     t_real = realtime();
     if (parse_args(argc, argv)) return bam_count_usage();
 
+#ifdef _OPENMP
 #pragma omp parallel num_threads(args.n_thread)
+#endif
     for (;;) {
-        
+
         struct bam_pool *pool = NULL;
 
+#ifdef _OPENMP
 #pragma omp critical (read)
+#endif
         pool = read_files_pool(args.files, args.chunk_size);
         if (pool == NULL) break;
 
         struct ret *ret = run_it(pool);
-        
+
+#ifdef _OPENMP
 #pragma omp critical (merge)
+#endif
         merge_counts(ret);
 
     }

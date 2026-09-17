@@ -1750,17 +1750,23 @@ void process_bam()
 }
 
 void process_bam1()
-{        
+{
+#ifdef _OPENMP
 #pragma omp parallel num_threads(args.n_thread)
+#endif
     for (;;) {
         void *b = NULL;
+#ifdef _OPENMP
 #pragma omp critical (read)
+#endif
         b = read_chunk();
         if (b == NULL) break;
 
         b = run_it(b);
 
+#ifdef _OPENMP
 #pragma omp critical (write)
+#endif
         write_out(b);
     }
 }

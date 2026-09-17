@@ -7,7 +7,9 @@
 #include "region_index.h"
 #include "number.h"
 #include "pisa_version.h"
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 static struct args {
     const char *input_fname;
@@ -196,13 +198,19 @@ struct ret *create_temp(struct bed_spec *B, const char **tmpfiles)
     ret->counts = 0;
     ret->bc = dict_init();
     
+#ifdef _OPENMP
     omp_lock_t writelock;
     omp_init_lock(&writelock);
+#endif
 
+#ifdef _OPENMP
 #pragma omp parallel for num_threads(args.n_thread) schedule(dynamic)
+#endif
     for (ci = 0; ci < n; ++ci) {
         struct ret *ret0 = query_count_write(B, ci, tmpfiles[ci]);
+#ifdef _OPENMP
         omp_set_lock(&writelock);
+#endif
         ret->counts += ret0->counts;
         int j = 0;
         while(1) {
@@ -213,10 +221,14 @@ struct ret *create_temp(struct bed_spec *B, const char **tmpfiles)
         dict_destroy(ret0->bc);
         free(ret0);
         LOG_print("Processed %s.", dict_name(B->seqname,ci));
+#ifdef _OPENMP
         omp_unset_lock(&writelock);
+#endif
     }
 
+#ifdef _OPENMP
     omp_destroy_lock(&writelock);
+#endif
     return ret;
 }
 

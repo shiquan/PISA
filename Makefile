@@ -17,12 +17,17 @@ ZLIBDIR= third_party/zlib-1.2.11
 include $(ZLIBDIR)/zlib.mk
 LIBZ = $(ZLIBDIR)/libz.a
 
-CC       = gcc
+# make's /bin/sh has a minimal PATH; make Homebrew binaries visible on macOS
+export PATH := /opt/homebrew/bin:/usr/local/bin:$(PATH)
+
+# Prefer Homebrew gcc on macOS (Apple clang lacks OpenMP); fall back to system gcc/cc.
+# Note: plain assignment because ?= does not override make's built-in default (CC=cc).
+CC        = $(shell command -v gcc-16 2>/dev/null || command -v gcc-14 2>/dev/null || command -v gcc 2>/dev/null || echo cc)
 BUILD_TYPE ?= release
 ifeq ($(BUILD_TYPE),debug)
-CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64 -fopenmp
+CFLAGS   = -Wall -O0 -g -D_FILE_OFFSET_BITS=64
 else
-CFLAGS   = -Wall -O3 -D_FILE_OFFSET_BITS=64 -fopenmp
+CFLAGS   = -Wall -O3 -D_FILE_OFFSET_BITS=64
 endif
 DFLAGS   =
 INCLUDES = -Isrc -I$(HTSDIR)/ -I. -I$(ZLIBDIR)
@@ -39,6 +44,19 @@ ifeq ($(USE_LZMA),1)
 endif
 ifeq ($(USE_CURL),1)
   LIBS += -lcurl
+endif
+
+# OpenMP detection: tier 1 gcc -fopenmp, tier 2 clang + libomp, tier 3 single-threaded.
+# Homebrew's libomp is keg-only, so probe the keg prefix explicitly.
+LIBOMP_PREFIX := $(shell for d in /opt/homebrew/opt/libomp /usr/local/opt/libomp; do test -f $$d/lib/libomp.dylib && echo $$d && break; done 2>/dev/null)
+OMP_EXTRA     = $(if $(LIBOMP_PREFIX),-I$(LIBOMP_PREFIX)/include) $(if $(LIBOMP_PREFIX),-L$(LIBOMP_PREFIX)/lib)
+ifeq ($(shell echo 'int main(){return 0;}' | $(CC) -fopenmp -x c - -o /dev/null 2>/dev/null && echo yes),yes)
+CFLAGS   += -fopenmp
+else ifeq ($(shell echo 'int main(){return 0;}' | $(CC) -Xpreprocessor -fopenmp $(OMP_EXTRA) -x c - -lomp -o /dev/null 2>/dev/null && echo yes),yes)
+CFLAGS   += -Xpreprocessor -fopenmp $(if $(LIBOMP_PREFIX),-I$(LIBOMP_PREFIX)/include)
+LIBS     += $(if $(LIBOMP_PREFIX),-L$(LIBOMP_PREFIX)/lib) -lomp
+else
+$(warning OpenMP unavailable: building single-threaded)
 endif
 
 #all:$(PROG)

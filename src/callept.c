@@ -3,7 +3,9 @@
 #include "coverage.h"
 #include "bed.h"
 #include "number.h"
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 static struct args {
     const char *input_fname;
@@ -255,10 +257,14 @@ int callept_main(int argc, char **argv)
     if (parse_args(argc, argv)) return callept_usage();
     int i;
     
+#ifdef _OPENMP
     omp_lock_t writelock;
     omp_init_lock(&writelock);
+#endif
 
+#ifdef _OPENMP
 #pragma omp parallel for num_threads(args.n_thread) schedule(dynamic)
+#endif
     for (i = 0; i < args.hdr->n_targets; ++i) {
         htsFile *fp = hts_open(args.input_fname, "r");
         if (fp == NULL) error("Failed to open input file: %s", args.input_fname);
@@ -287,13 +293,19 @@ int callept_main(int argc, char **argv)
         
         bed_spec_merge2(B, 1, args.max_gap, args.min_length, 0);
 
+#ifdef _OPENMP
         omp_set_lock(&writelock);
+#endif
         bed_spec_write0(B, args.out, 0, 0);
+#ifdef _OPENMP
         omp_unset_lock(&writelock);
+#endif
         bed_spec_destroy(B);
     }
 
+#ifdef _OPENMP
     omp_destroy_lock(&writelock);
+#endif
     memory_release();
     
     return 0;
